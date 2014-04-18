@@ -54,6 +54,8 @@ Embedded dependencies:
 }
 ```
 
+External dependencies:
+
 ``` groovy
 // translates gradle dependencies to capsule dependencies
 def getDependencies(config) {
@@ -82,7 +84,7 @@ task capsule(type: Jar, dependsOn: jar) {
 }
 ```
 
- ## Differnces from [One-Jar](http://one-jar.sourceforge.net/)
+## Differnces from [One-Jar](http://one-jar.sourceforge.net/)
 
  * Might interfere with application (esp. those using tricky things)
  * Does not support Java instrumentation agents, or any command-line arguments
