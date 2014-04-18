@@ -1,5 +1,6 @@
 
 import co.paralleluniverse.capsule.dependency.DependencyManager;
+import co.paralleluniverse.capsule.dependency.PomReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
@@ -57,8 +58,9 @@ public final class Capsule {
     private static final String CACHE_DEFAULT_NAME = "capsule";
 
     private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
-    private static final String ATTR_APP_CLASS = "App-Class";
+    private static final String ATTR_APP_NAME = "App-Name";
     private static final String ATTR_APP_VERSION = "App-Version";
+    private static final String ATTR_APP_CLASS = "App-Class";
     private static final String ATTR_SYSTEM_PROPERTIES = "System-Properties";
     private static final String ATTR_APP_CLASS_PATH = "App-Class-Path";
     private static final String ATTR_BOOT_CLASS_PATH = "Boot-Class-Path";
@@ -70,6 +72,8 @@ public final class Capsule {
     private static final String ATTR_REPOSITORIES = "Repositories";
     private static final String ATTR_DEPENDENCIES = "Dependencies";
 
+    private static final String POM_FILE = "pom.xml";
+
     private static final boolean verbose = "verbose".equals(System.getProperty(LOG_PROPERTY, "quiet"));
 
     private static final Path cacheDir = getCacheDir();
@@ -77,8 +81,11 @@ public final class Capsule {
     private final JarFile jar;
     private final Manifest manifest;
     private final String appId;
-    private final Object dependencyManager;
     private final Path appCache;
+    private final Object dependencyManager;
+    private final Object pom;
+    private final List<String> repositories;
+    private final List<String> dependencies;
 
     /**
      * Launches the application
@@ -112,14 +119,27 @@ public final class Capsule {
             throw new RuntimeException("Jar file " + jar.getName() + " does not have a manifest");
         }
         this.appId = getAppId();
-        this.dependencyManager = createDependencyManager();
 
-        verifyRequiredJavaVersion();
+        this.pom = (!hasDependenciesAttribute() && hasPom()) ? createPomReader() : null;
+        this.repositories = getRepositories();
+        this.dependencyManager = (hasDependenciesAttribute() || pom != null) ? createDependencyManager() : null;
+        if (dependencyManager != null) {
+            this.dependencies = getDependencies();
 
-        appCache = getAppCacheDir();
+            if (System.getProperty(TREE_PROPERTY) != null) {
+                printDependencyTree(dependencies);
+                System.exit(0);
+            }
+        } else {
+            this.dependencies = null;
+        }
+
+        this.appCache = getAppCacheDir();
     }
 
     ProcessBuilder buildProcess(String[] args) {
+        verifyRequiredJavaVersion();
+
         final RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
         final List<String> cmdLine = runtimeBean.getInputArguments();
 
@@ -185,7 +205,7 @@ public final class Capsule {
         classPath.addAll(cp);
 
         if (dependencyManager != null)
-            classPath.addAll(processDependencies(jar, dependencyManager));
+            classPath.addAll(processDependencies());
 
         return classPath;
     }
@@ -334,10 +354,15 @@ public final class Capsule {
     }
 
     private String getAppId() {
-        final String appClass = getMainClass();
-        final String appVersion = getAttributes().getValue(ATTR_APP_VERSION);
+        String appName = getAttributes().getValue(ATTR_APP_NAME);
+        if (appName == null) {
+            if (pom != null)
+                return getPomAppName();
+            appName = getMainClass();
+        }
 
-        return appClass + (appVersion != null ? "_" + appVersion : "");
+        final String version = getAttributes().getValue(ATTR_APP_VERSION);
+        return appName + (version != null ? "_" + version : "");
     }
 
     private String getMainClass() {
@@ -630,40 +655,85 @@ public final class Capsule {
         return 0;
     }
 
-    private Object createDependencyManager() throws IOException {
-        if (getAttributes().containsKey(new Attributes.Name(ATTR_DEPENDENCIES))) {
-            try {
-                Path depsCache = getCacheDir().resolve("deps");
-                Files.createDirectories(depsCache);
-
-                final boolean reset = Boolean.parseBoolean(System.getProperty(RESET_PROPERTY, "false"));
-                DependencyManager dependencyManager
-                        = new DependencyManager(appId,
-                                depsCache.toAbsolutePath().toString(),
-                                getListAttribute(ATTR_REPOSITORIES),
-                                reset, verbose);
-
-                if (System.getProperty(TREE_PROPERTY) != null) {
-                    dependencyManager.printDependencyTree(getListAttribute(ATTR_DEPENDENCIES));
-                    System.exit(0);
-                }
-
-                return dependencyManager;
-            } catch (NoClassDefFoundError e) {
-                throw new RuntimeException("Jar " + jar.getName()
-                        + " contains a Dependencies attributes, while the necessary dependency management classes are not found in the jar");
-            }
-        }
-        return null;
+    private boolean hasPom() {
+        return jar.getEntry(POM_FILE) != null;
     }
 
-    private List<String> processDependencies(JarFile jar, Object dependencyManager) {
-        final List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
-        if (deps == null)
+    private boolean hasDependenciesAttribute() {
+        return getAttributes().containsKey(new Attributes.Name(ATTR_DEPENDENCIES));
+    }
+
+    private Object createPomReader() throws IOException {
+        return new PomReader(jar.getInputStream(jar.getEntry(POM_FILE)));
+    }
+
+    private List<String> getPomRepositories() {
+        return ((PomReader) pom).getRepositories();
+    }
+
+    private List<String> getPomDependencies() {
+        return ((PomReader) pom).getDependencies();
+    }
+
+    private String getPomAppName() {
+        final PomReader pr = (PomReader) pom;
+        return pr.getGroupId() + "_" + pr.getArtifactId() + "_" + pr.getVersion();
+    }
+
+    private Object createDependencyManager() throws IOException {
+        try {
+            Path depsCache = getCacheDir().resolve("deps");
+            Files.createDirectories(depsCache);
+
+            final boolean reset = Boolean.parseBoolean(System.getProperty(RESET_PROPERTY, "false"));
+            final DependencyManager dm
+                    = new DependencyManager(appId,
+                            depsCache.toAbsolutePath().toString(),
+                            repositories,
+                            reset, verbose);
+
+            return dm;
+        } catch (NoClassDefFoundError e) {
+            throw new RuntimeException("Jar " + jar.getName()
+                    + " contains a Dependencies attributes, while the necessary dependency management classes are not found in the jar");
+        }
+    }
+
+    private List<String> getRepositories() {
+        List<String> repos = new ArrayList<>();
+
+        List<String> attrRepos = getListAttribute(ATTR_REPOSITORIES);
+        if (attrRepos != null)
+            repos.addAll(attrRepos);
+        if (pom != null) {
+            for (String repo : nullToEmpty(getPomRepositories())) {
+                if (!repos.contains(repo))
+                    repos.add(repo);
+            }
+        }
+
+        return !repos.isEmpty() ? repos : null;
+    }
+
+    private List<String> getDependencies() {
+        List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
+        if (deps == null && pom != null)
+            deps = getPomDependencies();
+
+        return deps;
+    }
+
+    private void printDependencyTree(List<String> dependencies) {
+        final DependencyManager dm = (DependencyManager) dependencyManager;
+        dm.printDependencyTree(dependencies);
+    }
+
+    private List<String> processDependencies() {
+        if (dependencies == null)
             return null;
 
         final DependencyManager dm = (DependencyManager) dependencyManager;
-        final List<Path> depsJars = dm.resolveDependencies(deps);
+        final List<Path> depsJars = dm.resolveDependencies(dependencies);
 
         List<String> depsPaths = new ArrayList<>(depsJars.size());
         for (Path p : depsJars)
