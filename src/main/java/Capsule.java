@@ -1,17 +1,16 @@
 
 import co.paralleluniverse.capsule.dependency.DependencyManager;
 import co.paralleluniverse.capsule.dependency.PomReader;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.net.URL;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,9 +57,9 @@ public final class Capsule {
     private static final String CACHE_DEFAULT_NAME = "capsule";
 
     private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
-    private static final String ATTR_APP_NAME = "App-Name";
-    private static final String ATTR_APP_VERSION = "App-Version";
-    private static final String ATTR_APP_CLASS = "App-Class";
+    private static final String ATTR_APP_NAME = "Application-Name";
+    private static final String ATTR_APP_VERSION = "Application-Version";
+    private static final String ATTR_APP_CLASS = "Application-Class";
     private static final String ATTR_JVM_ARGS = "JVM-Args";
     private static final String ATTR_SYSTEM_PROPERTIES = "System-Properties";
     private static final String ATTR_APP_CLASS_PATH = "App-Class-Path";
@@ -139,7 +138,7 @@ public final class Capsule {
         this.appCache = getAppCacheDir();
     }
 
-    ProcessBuilder buildProcess(String[] args) {
+    private ProcessBuilder buildProcess(String[] args) {
         verifyRequiredJavaVersion();
 
         final RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
@@ -203,12 +202,12 @@ public final class Capsule {
         final List<String> localClassPath = new ArrayList<String>();
         localClassPath.addAll(nullToEmpty(getListAttribute(ATTR_APP_CLASS_PATH)));
         localClassPath.addAll(nullToEmpty(getDefaultClassPath()));
-        
+
         classPath.addAll(toAbsoluteClassPath(appCache, localClassPath));
         if (dependencyManager != null)
             classPath.addAll(resolveDependencies());
         classPath.add(jar.getName());
-        
+
         return classPath;
     }
 
@@ -331,7 +330,7 @@ public final class Capsule {
         for (String agent : agents0) {
             final String agentJar = getBefore(agent, '=');
             final String agentOptions = getAfter(agent, '=');
-            final String agentPath = getPath(appCache, dependencyManager, agentJar);
+            final String agentPath = getPath(agentJar);
             agents.add(agentPath + (agentOptions != null ? "=" + agentOptions : ""));
         }
 
@@ -374,15 +373,15 @@ public final class Capsule {
         return appClass;
     }
 
-    void ensureExtracted() {
+    private void ensureExtracted() {
         final boolean reset = Boolean.parseBoolean(System.getProperty(RESET_PROPERTY, "false"));
-        if (reset || !isUpToDate(jar, appCache)) {
+        if (reset || !isUpToDate()) {
             try {
                 if (verbose)
                     System.err.println("CAPSULE: Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
                 deleteCache(appCache);
                 Files.createDirectory(appCache);
-                extractJar(jar, appCache);
+                extractJar();
                 Files.createFile(appCache.resolve(".extracted"));
             } catch (IOException e) {
                 throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
@@ -391,72 +390,38 @@ public final class Capsule {
     }
 
     private List<String> getDefaultClassPath() {
-        try {
-            final List<String> cp = new ArrayList<String>();
-            cp.add("");
-            Files.walkFileTree(appCache, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.getFileName().toString().endsWith(".jar"))
-                        cp.add(file.getFileName().toString());
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    return dir.equals(appCache) ? FileVisitResult.CONTINUE : FileVisitResult.SKIP_SUBTREE; // add only jars in root dir
-                }
-            });
-            return cp;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        final List<String> cp = new ArrayList<String>();
+        cp.add("");
+        // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
+        for (File f : appCache.toFile().listFiles()) { 
+            if (f.isFile() && f.getName().endsWith(".jar"))
+                cp.add(f.toPath().getFileName().toString());
         }
+        
+        return cp;
     }
 
-    private static List<String> getPath(Path appCache, Object dependencyManager, List<String> ps) {
-        if (ps == null)
-            return null;
-        final List<String> aps = new ArrayList<String>(ps.size());
-        for (String p : ps)
-            aps.add(getPath(appCache, dependencyManager, p));
-        return aps;
-    }
-
-    private static String getPath(Path appCache, Object dependencyManager, String p) {
+    private String getPath(String p) {
         return isDependency(p) ? getDependencyPath(dependencyManager, p) : toAbsoluteClassPath(appCache, p);
     }
 
-    private static List<String> toAbsoluteClassPath(Path appCache, List<String> ps) {
+    private static List<String> toAbsoluteClassPath(Path root, List<String> ps) {
         if (ps == null)
             return null;
         final List<String> aps = new ArrayList<String>(ps.size());
         for (String p : ps)
-            aps.add(toAbsoluteClassPath(appCache, p));
+            aps.add(toAbsoluteClassPath(root, p));
         return aps;
     }
 
-    private static String toAbsoluteClassPath(Path appCache, String p) {
-        return appCache.resolve(sanitize(p)).toAbsolutePath().toString();
+    private static String toAbsoluteClassPath(Path root, String p) {
+        return root.resolve(sanitize(p)).toAbsolutePath().toString();
     }
 
     private static void deleteCache(Path appCacheDir) {
         try {
-            Files.walkFileTree(appCacheDir, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    Files.delete(file);
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException e) throws IOException {
-                    if (e == null) {
-                        Files.delete(dir);
-                        return FileVisitResult.CONTINUE;
-                    } else
-                        throw e;
-                }
-            });
+            // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
+            delete(appCacheDir.toFile());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -515,7 +480,7 @@ public final class Capsule {
         }
     }
 
-    private static boolean isUpToDate(JarFile jar, Path appCache) {
+    private boolean isUpToDate() {
         try {
             Path extractedFile = appCache.resolve(".extracted");
             if (!Files.exists(extractedFile))
@@ -531,7 +496,7 @@ public final class Capsule {
         }
     }
 
-    private static void extractJar(JarFile jar, Path targetDir) throws IOException {
+    private void extractJar() throws IOException {
         for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
             JarEntry file = (JarEntry) entries.nextElement();
 
@@ -541,17 +506,16 @@ public final class Capsule {
             if (file.getName().equals(Capsule.class.getName().replace('.', '/') + ".class")
                     || (file.getName().startsWith(Capsule.class.getName().replace('.', '/') + "$") && file.getName().endsWith(".class")))
                 continue;
-            if (file.getName().equals("about.html"))
-                continue;
+//            if (file.getName().equals("about.html"))
+//                continue;
             if (file.getName().endsWith(".class"))
                 continue;
-            if (file.getName().startsWith("co/paralleluniverse/capsule/")
-//                    || file.getName().startsWith("org/eclipse/aether/")
-//                    || file.getName().startsWith("org/apache/maven/")
-//                    || file.getName().startsWith("org/apache/http/")
-//                    || file.getName().startsWith("org/apache/commons/codec/")
-//                    || file.getName().startsWith("licenses/")
-                    )
+            if (file.getName().startsWith("co/paralleluniverse/capsule/"))
+                //                    || file.getName().startsWith("org/eclipse/aether/")
+                //                    || file.getName().startsWith("org/apache/maven/")
+                //                    || file.getName().startsWith("org/apache/http/")
+                //                    || file.getName().startsWith("org/apache/commons/codec/")
+                //                    || file.getName().startsWith("licenses/"))
                 continue;
 
             final String dir = getDirectory(file.getName());
@@ -559,9 +523,9 @@ public final class Capsule {
                 continue;
 
             if (dir != null)
-                Files.createDirectories(targetDir.resolve(dir));
+                Files.createDirectories(appCache.resolve(dir));
 
-            final Path target = targetDir.resolve(file.getName());
+            final Path target = appCache.resolve(file.getName());
             try (InputStream is = jar.getInputStream(file)) {
                 Files.copy(is, target);
             }
@@ -759,5 +723,14 @@ public final class Capsule {
         if (depsJars == null || depsJars.isEmpty())
             throw new RuntimeException("Dependency " + p + " was not found.");
         return depsJars.iterator().next().toAbsolutePath().toString();
+    }
+
+    private static void delete(File f) throws IOException {
+        if (f.isDirectory()) {
+            for (File c : f.listFiles())
+                delete(c);
+        }
+        if (!f.delete())
+            throw new FileNotFoundException("Failed to delete file: " + f);
     }
 }
