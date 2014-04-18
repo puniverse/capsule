@@ -2,7 +2,11 @@
 
 ## A simple single-file container for JVM applications
 
+
+The application is completely oblivious to Capsule.
+
 The JAR file must not contain application `.class` files not packaged within JARs.
+
 
 Mandatory:
 
