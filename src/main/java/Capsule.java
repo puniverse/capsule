@@ -202,12 +202,13 @@ public final class Capsule {
 
         final List<String> localClassPath = new ArrayList<String>();
         localClassPath.addAll(nullToEmpty(getListAttribute(ATTR_APP_CLASS_PATH)));
-        localClassPath.addAll(nullToEmpty(getDefaultClassPath(appCache)));
+        localClassPath.addAll(nullToEmpty(getDefaultClassPath()));
         
         classPath.addAll(toAbsoluteClassPath(appCache, localClassPath));
         if (dependencyManager != null)
             classPath.addAll(resolveDependencies());
-
+        classPath.add(jar.getName());
+        
         return classPath;
     }
 
@@ -389,7 +390,7 @@ public final class Capsule {
         }
     }
 
-    private static List<String> getDefaultClassPath(final Path appCache) {
+    private List<String> getDefaultClassPath() {
         try {
             final List<String> cp = new ArrayList<String>();
             cp.add("");
