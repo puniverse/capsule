@@ -56,6 +56,8 @@ Embedded dependencies:
 
 External dependencies:
 
+2MB overhead
+
 ``` groovy
 // translates gradle dependencies to capsule dependencies
 def getDependencies(config) {
