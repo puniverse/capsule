@@ -1,0 +1,14 @@
+.DS_Store
+/dist/
+/out/
+_site/
+/docs/javadoc/
+.idea/
+*.iml
+/artifacts
+/nbproject/private/
+/.nb-gradle
+build/
+.gradle/
+.nb-gradle-properties
+.bdb/

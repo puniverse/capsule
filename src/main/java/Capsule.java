@@ -1,0 +1,664 @@
+
+import co.paralleluniverse.capsule.dependency.DependencyManager;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.net.URL;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
+
+/**
+ * <ul>
+ * <li>{@code Min-Java-Version}</li>
+ * <li>{@code App-Class} - the only mandatory attribute</li>
+ * <li>{@code App-Version}</li>
+ * <li>{@code App-Class-Path} default: the capsule jar root and every jar file found in the capsule jar's root.</li>
+ * <li>{@code System-Properties}</li>
+ * <li>{@code JVM-Args}</li>
+ * <li>{@code Boot-Class-Path}</li>
+ * <li>{@code Boot-Class-Path-P}</li>
+ * <li>{@code Boot-Class-Path-A}</li>
+ * <li>{@code Library-Path-P}</li>
+ * <li>{@code Library-Path-A}</li>
+ * <li>{@code Java-Agents}</li>
+ * <li>{@code Repositories}</li>
+ * <li>{@code Dependencies}</li>
+ * </ul>
+ *
+ * @author pron
+ */
+public class Capsule {
+    private static final String VERSION = "0.1.0-SNAPSHOT";
+    private static final String RESET_PROPERTY = "capsule.reset";
+    private static final String VERSION_PROPERTY = "capsule.version";
+    private static final String LOG_PROPERTY = "capsule.log";
+    private static final String TREE_PROPERTY = "capsule.tree";
+    private static final String CACHE_DIR_ENV = "CAPSULE_CACHE_DIR";
+    private static final String CACHE_NAME_ENV = "CAPSULE_CACHE_NAME";
+    private static final String CACHE_DEFAULT_NAME = "capsule";
+
+    private static final boolean verbose = "verbose".equals(System.getProperty(LOG_PROPERTY, "quiet"));
+
+    /**
+     * Launches the application
+     */
+    @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
+    public static void main(String[] args) {
+        try {
+            if (System.getProperty(VERSION_PROPERTY) != null) {
+                System.err.println("CAPSULE: Version " + VERSION);
+                return;
+            }
+            final JarFile jar = getJarFile();
+            final String appId = getAppId(jar);
+            final Object dependencyManager = getDependencyManager(jar);
+
+            verifyRequiredJavaVersion(jar);
+
+            final Path appCache = getAppCacheDir(appId);
+            ensureExtracted(jar, appCache);
+
+            final ProcessBuilder pb = buildProcess(jar, appCache, dependencyManager, args);
+            pb.inheritIO();
+
+            System.exit(pb.start().waitFor());
+        } catch (Throwable t) {
+            System.err.println("CAPSULE EXCEPTION: " + t.getMessage());
+            t.printStackTrace();
+            System.exit(1);
+        }
+    }
+
+    private static ProcessBuilder buildProcess(JarFile jar, Path appCache, Object dependencyManager, String[] args) {
+        final RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
+        final List<String> cmdLine = runtimeBean.getInputArguments();
+
+        final List<String> appArgs = new ArrayList<>();
+        getModeAndArgs(args, appArgs);
+
+//        final String classPath = runtimeBean.getClassPath();
+//        final String bootClassPath = runtimeBean.getBootClassPath();
+//        final String libraryPath = runtimeBean.getLibraryPath();
+        List<String> command = new ArrayList<String>();
+
+        command.add(getJavaProcessName());
+
+        command.addAll(buildJVMArgs(jar, cmdLine));
+        command.addAll(compileSystemProperties(buildSystemProperties(jar, appCache, cmdLine)));
+
+        addOption(command, "-Xbootclasspath:", compileClassPath(buildBootClassPath(jar, appCache, cmdLine)));
+        addOption(command, "-Xbootclasspath/p:", compileClassPath(buildClassPath(jar, appCache, "Boot-Class-Path-P")));
+        addOption(command, "-Xbootclasspath/a:", compileClassPath(buildClassPath(jar, appCache, "Boot-Class-Path-A")));
+
+        command.add("-classpath");
+        command.add(compileClassPath(buildClassPath(jar, appCache, dependencyManager)));
+
+        for (String jagent : nullToEmpty(buildJavaAgents(jar, appCache, dependencyManager)))
+            command.add("-javaagent:" + jagent);
+
+        command.add(getMainClass(jar));
+        command.addAll(appArgs);
+
+        if (verbose)
+            System.err.println("CAPSULE: " + join(command, " "));
+
+        return new ProcessBuilder(command);
+    }
+
+    private static void verifyRequiredJavaVersion(JarFile jar) {
+        final String minVersion = getAttributes(jar).getValue("Min-Java-Version");
+        if (minVersion == null)
+            return;
+        final String javaVersion = System.getProperty("java.version");
+        if (compareVersionStrings(minVersion, javaVersion) > 0)
+            throw new IllegalStateException("Minimum required version to run this app is " + minVersion
+                    + " while this Java version is " + javaVersion);
+    }
+
+    private static void addOption(List<String> cmdLine, String prefix, String value) {
+        if (value == null)
+            return;
+        cmdLine.add(prefix + value);
+    }
+
+    private static String compileClassPath(List<String> cp) {
+        return join(cp, System.getProperty("path.separator"));
+    }
+
+    private static List<String> buildClassPath(JarFile jar, Path appCache, Object dependencyManager) {
+        final List<String> classPath = new ArrayList<>();
+
+        List<String> cp = getListAttribute(jar, "App-Class-Path");
+        if (cp == null)
+            cp = getDefaultClassPath(appCache);
+        cp = toAbsoluteClassPath(appCache, cp);
+        classPath.addAll(cp);
+
+        if (dependencyManager != null)
+            classPath.addAll(processDependencies(jar, dependencyManager));
+
+        return classPath;
+    }
+
+    private static List<String> buildBootClassPath(JarFile jar, Path appCache, List<String> cmdLine) {
+        String option = null;
+        for (String o : cmdLine) {
+            if (o.startsWith("-Xbootclasspath:"))
+                option = o.substring("-Xbootclasspath:".length());
+        }
+        if (option != null)
+            return Arrays.asList(option.split(System.getProperty("path.separator")));
+        return toAbsoluteClassPath(appCache, getListAttribute(jar, "Boot-Class-Path"));
+    }
+
+    private static List<String> buildClassPath(JarFile jar, Path appCache, String attr) {
+        return toAbsoluteClassPath(appCache, getListAttribute(jar, attr));
+    }
+
+    private static Map<String, String> buildSystemProperties(JarFile jar, Path appCache, List<String> cmdLine) {
+        final Map<String, String> systemProerties = new HashMap<>();
+
+        // attribute
+        for (String p : nullToEmpty(getListAttribute(jar, "System-Properties")))
+            addSystemProperty(p, systemProerties);
+
+        // library path
+        final List<String> libraryPath = new ArrayList<>();
+        libraryPath.addAll(nullToEmpty(getListAttribute(jar, "Library-Path-P")));
+        libraryPath.addAll(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(System.getProperty("path.separator"))));
+        libraryPath.addAll(nullToEmpty(getListAttribute(jar, "Library-Path-A")));
+        libraryPath.add(toAbsoluteClassPath(appCache, ""));
+        systemProerties.put("java.library.path", compileClassPath(libraryPath));
+
+        // command line
+        for (String option : cmdLine) {
+            if (option.startsWith("-D"))
+                addSystemProperty(option.substring(2), systemProerties);
+        }
+
+        return systemProerties;
+    }
+
+    private static List<String> compileSystemProperties(Map<String, String> ps) {
+        final List<String> command = new ArrayList<>();
+        for (Map.Entry<String, String> entry : ps.entrySet())
+            command.add("-D" + entry.getKey() + (entry.getValue() != null && !entry.getValue().isEmpty() ? "=" + entry.getValue() : ""));
+        return command;
+    }
+
+    private static void addSystemProperty(String p, Map<String, String> ps) {
+        try {
+            String name = getBefore(p, '=');
+            String value = getAfter(p, '=');
+            ps.put(name, value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Illegal system property definition: " + p);
+        }
+    }
+
+    private static List<String> buildJVMArgs(JarFile jar, List<String> cmdLine) {
+        final Map<String, String> jvmArgs = new LinkedHashMap<>();
+
+        for (String a : nullToEmpty(getListAttribute(jar, "JVM-Args"))) {
+            if (!a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
+                addJvmArg(a, jvmArgs);
+        }
+
+        for (String option : cmdLine) {
+            if (!option.startsWith("-D") && !option.startsWith("-Xbootclasspath:"))
+                addJvmArg(option, jvmArgs);
+        }
+
+        return new ArrayList<>(jvmArgs.values());
+    }
+
+    private static void addJvmArg(String a, Map<String, String> args) {
+        args.put(getJvmArgKey(a), a);
+    }
+
+    private static String getJvmArgKey(String a) {
+        if (a.equals("-client") || a.equals("-server"))
+            return "compiler";
+        if (a.equals("-enablesystemassertions") || a.equals("-esa")
+                || a.equals("-disablesystemassertions") || a.equals("-dsa"))
+            return "systemassertions";
+        if (a.equals("-jre-restrict-search") || a.equals("-no-jre-restrict-search"))
+            return "-jre-restrict-search";
+        if (a.startsWith("-Xloggc:"))
+            return "-Xloggc";
+        if (a.startsWith("-Xloggc:"))
+            return "-Xloggc";
+        if (a.startsWith("-Xss"))
+            return "-Xss";
+        if (a.startsWith("-XX:+") || a.startsWith("-XX:-"))
+            return "-XX:" + a.substring("-XX:+".length());
+        if (a.contains("="))
+            return a.substring(0, a.indexOf("="));
+        return a;
+    }
+
+    private static String getModeAndArgs(String[] args, List<String> argsList) {
+        String mode = null;
+        for (String a : args) {
+            if (a.startsWith("-capsule:mode:")) {
+                if (mode != null)
+                    throw new IllegalArgumentException("The -capsule:mode: argument is given more than once");
+                mode = a.substring("-capsule:mode:".length());
+            }
+            argsList.add(a);
+        }
+        return mode;
+    }
+
+    private static List<String> buildJavaAgents(JarFile jar, Path appCache, Object dependencyManager) {
+        final List<String> agents0 = getListAttribute(jar, "Java-Agents");
+
+        if (agents0 == null)
+            return null;
+        final List<String> agents = new ArrayList<>(agents0.size());
+        for (String agent : agents0) {
+            final String agentJar = getBefore(agent, '=');
+            final String agentOptions = getAfter(agent, '=');
+            final String agentPath = getPath(appCache, dependencyManager, agentJar);
+            agents.add(agentPath + (agentOptions != null ? "=" + agentOptions : ""));
+        }
+
+        return agents;
+    }
+
+    private static JarFile getJarFile() {
+        final URL url = Capsule.class.getClassLoader().getResource(Capsule.class.getName().replace('.', '/') + ".class");
+        if (!"jar".equals(url.getProtocol()))
+            throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
+        final String path = url.getPath();
+        if (path == null || !path.startsWith("file:"))
+            throw new IllegalStateException("The Capsule class must be in a local JAR file, but was loaded from: " + url);
+        final String jarPath = path.substring("file:".length(), path.indexOf('!'));
+        final JarFile jar;
+        try {
+            jar = new JarFile(jarPath);
+            getAppId(jar); // verify manifest
+            return jar;
+        } catch (IOException e) {
+            throw new RuntimeException("Jar file containing the Capsule could not be opened: " + jarPath, e);
+        }
+    }
+
+    private static String getAppId(JarFile jar) {
+        final String appClass = getMainClass(jar);
+        final String appVersion = getAttributes(jar).getValue("App-Version");
+
+        return appClass + (appVersion != null ? "_" + appVersion : "");
+    }
+
+    private static String getMainClass(JarFile jar) {
+        final String appClass = getAttributes(jar).getValue("App-Class");
+        if (appClass == null)
+            throw new RuntimeException("Manifest of jar file " + jar.getName() + " does not contain an App-Class attribute");
+        return appClass;
+    }
+
+    private static void ensureExtracted(JarFile jar, Path appCache) {
+        final boolean reset = Boolean.parseBoolean(System.getProperty(RESET_PROPERTY, "false"));
+        if (reset || !isUpToDate(jar, appCache)) {
+            try {
+                if (verbose)
+                    System.err.println("CAPSULE: Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
+                deleteCache(appCache);
+                Files.createDirectory(appCache);
+                extractJar(jar, appCache);
+                Files.createFile(appCache.resolve(".extracted"));
+            } catch (IOException e) {
+                throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
+            }
+        }
+    }
+
+    private static List<String> getDefaultClassPath(final Path appCache) {
+        try {
+            final List<String> cp = new ArrayList<>();
+            cp.add("");
+            Files.walkFileTree(appCache, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.getFileName().toString().endsWith(".jar"))
+                        cp.add(file.getFileName().toString());
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    return dir.equals(appCache) ? FileVisitResult.CONTINUE : FileVisitResult.SKIP_SUBTREE; // add only jars in root dir
+                }
+            });
+            return cp;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static List<String> getPath(Path appCache, Object dependencyManager, List<String> ps) {
+        if (ps == null)
+            return null;
+        final List<String> aps = new ArrayList<>(ps.size());
+        for (String p : ps)
+            aps.add(getPath(appCache, dependencyManager, p));
+        return aps;
+    }
+
+    private static String getPath(Path appCache, Object dependencyManager, String p) {
+        return isDependency(p) ? getDependencyPath(dependencyManager, p) : toAbsoluteClassPath(appCache, p);
+    }
+
+    private static List<String> toAbsoluteClassPath(Path appCache, List<String> ps) {
+        if (ps == null)
+            return null;
+        final List<String> aps = new ArrayList<>(ps.size());
+        for (String p : ps)
+            aps.add(toAbsoluteClassPath(appCache, p));
+        return aps;
+    }
+
+    private static String toAbsoluteClassPath(Path appCache, String p) {
+        return appCache.resolve(sanitize(p)).toAbsolutePath().toString();
+    }
+
+    private static void deleteCache(Path appCacheDir) {
+        try {
+            Files.walkFileTree(appCacheDir, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException e) throws IOException {
+                    if (e == null) {
+                        Files.delete(dir);
+                        return FileVisitResult.CONTINUE;
+                    } else
+                        throw e;
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Manifest getManifest(JarFile jar) {
+        try {
+            return jar.getManifest();
+        } catch (IOException e) {
+            throw new RuntimeException("Jar file " + jar.getName() + " does not have a manifest");
+        }
+
+    }
+
+    private static Attributes getAttributes(JarFile jar) {
+        Attributes atts = getManifest(jar).getMainAttributes();
+//        if (atts == null)
+//            throw new RuntimeException("Manifest of jar file " + jar.getName() + " does not contain a Capsule section");
+        return atts;
+    }
+
+    private static List<String> getListAttribute(JarFile jar, String attr) {
+        final String vals = getAttributes(jar).getValue(attr);
+        if (vals == null)
+            return null;
+        return Arrays.asList(vals.split("\\s+"));
+    }
+
+    private static <T> Collection<T> nullToEmpty(Collection<T> coll) {
+        return coll != null ? coll : Collections.EMPTY_LIST;
+    }
+
+    private static Path getAppCacheDir(String appId) {
+        Path appDir = getCacheDir().resolve(appId);
+        try {
+            if (!Files.exists(appDir))
+                Files.createDirectory(appDir);
+            return appDir;
+        } catch (IOException e) {
+            throw new RuntimeException("Application cache directory " + appDir.toAbsolutePath() + " could not be created.");
+        }
+    }
+
+    private static Path getCacheDir() {
+        final Path cacheDir;
+        final String cacheDirEnv = System.getenv(CACHE_DIR_ENV);
+        if (cacheDirEnv != null)
+            cacheDir = Paths.get(cacheDirEnv);
+        else {
+            final String userHome = System.getProperty("user.home");
+
+            final String cacheNameEnv = System.getenv(CACHE_NAME_ENV);
+            final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
+            if (isWindows())
+                cacheDir = Paths.get("AppData", "Local", cacheName);
+            else
+                cacheDir = Paths.get(userHome, "." + cacheName);
+        }
+        try {
+            if (!Files.exists(cacheDir))
+                Files.createDirectory(cacheDir);
+            return cacheDir;
+        } catch (IOException e) {
+            throw new RuntimeException("Error opening cache directory " + cacheDir.toAbsolutePath(), e);
+        }
+    }
+
+    private static boolean isUpToDate(JarFile jar, Path appCache) {
+        try {
+            Path extractedFile = appCache.resolve(".extracted");
+            if (!Files.exists(extractedFile))
+                return false;
+            FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
+
+            Path jarFile = Paths.get(jar.getName());
+            FileTime jarTime = Files.getLastModifiedTime(jarFile);
+
+            return extractedTime.compareTo(jarTime) >= 0;
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static void extractJar(JarFile jar, Path targetDir) throws IOException {
+        for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
+            JarEntry file = (JarEntry) entries.nextElement();
+
+            if (file.isDirectory())
+                continue;
+
+            if (file.getName().equals(Capsule.class.getName().replace('.', '/') + ".class")
+                    || (file.getName().startsWith(Capsule.class.getName().replace('.', '/') + "$") && file.getName().endsWith(".class")))
+                continue;
+            if (file.getName().equals("about.html"))
+                continue;
+            if (file.getName().endsWith(".class"))
+                continue;
+            if (file.getName().startsWith("co/paralleluniverse/capsule/")
+                    || file.getName().startsWith("org/eclipse/aether/")
+                    || file.getName().startsWith("org/apache/maven/")
+                    || file.getName().startsWith("org/apache/http/")
+                    // || file.getName().startsWith("org/apache/commons/codec/")
+                    || file.getName().startsWith("licenses/"))
+                continue;
+
+            final String dir = getDirectory(file.getName());
+            if (dir != null && dir.startsWith("META-INF"))
+                continue;
+
+            if (dir != null)
+                Files.createDirectories(targetDir.resolve(dir));
+
+            Path target = targetDir.resolve(file.getName());
+            try (InputStream is = jar.getInputStream(file)) {
+                Files.copy(is, target);
+            }
+        }
+    }
+
+    private static String getDirectory(String filename) {
+        final int index = filename.lastIndexOf('/');
+        if (index < 0)
+            return null;
+        return filename.substring(0, index);
+    }
+
+    private static String getJavaProcessName() {
+        final String javaHome = System.getProperty("java.home");
+        final String fileSeparateor = System.getProperty("file.separator");
+
+        final String javaProcessName = javaHome + fileSeparateor + "bin" + fileSeparateor + "java" + (isWindows() ? ".exe" : "");
+        return javaProcessName;
+    }
+
+    private static boolean isWindows() {
+        final String osName = System.getProperty("os.name");
+        final boolean isWindows = osName.startsWith("Windows");
+        return isWindows;
+    }
+
+    private static boolean isDependency(String lib) {
+        return lib.contains(":");
+    }
+
+    private static String sanitize(String path) {
+        if (path.startsWith("/") || path.startsWith("../") || path.contains("/../"))
+            throw new IllegalArgumentException("Path " + path + " is not local");
+        return path;
+    }
+
+    private static String join(Collection<?> coll, String separator) {
+        if (coll == null)
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for (Object e : coll) {
+            if (e != null)
+                sb.append(e).append(separator);
+        }
+        sb.delete(sb.length() - separator.length(), sb.length());
+        return sb.toString();
+    }
+
+    private static String getBefore(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return s;
+        if (s.lastIndexOf(separator) != i)
+            throw new IllegalArgumentException("Illegal value: " + s);
+        return s.substring(0, i);
+    }
+
+    private static String getAfter(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return null;
+        if (s.lastIndexOf(separator) != i)
+            throw new IllegalArgumentException("Illegal value: " + s);
+        return s.substring(i + 1);
+    }
+
+    private static int compareVersionStrings(String a, String b) {
+        String[] as = a.split("\\.");
+        String[] bs = b.split("\\.");
+        if (as.length != 3)
+            throw new IllegalArgumentException("Version " + a + " is illegal. Must be of the form x.y.z[_u]");
+        if (bs.length != 3)
+            throw new IllegalArgumentException("Version " + b + " is illegal. Must be of the form x.y.z[_u]");
+        int ax = Integer.parseInt(as[0]);
+        int bx = Integer.parseInt(bs[0]);
+        int ay = Integer.parseInt(as[1]);
+        int by = Integer.parseInt(bs[1]);
+        String[] azu = as[2].split("_");
+        String[] bzu = bs[2].split("_");
+        int az = Integer.parseInt(azu[0]);
+        int bz = Integer.parseInt(bzu[0]);
+        int au = azu.length > 1 ? Integer.parseInt(azu[1]) : 0;
+        int bu = bzu.length > 1 ? Integer.parseInt(bzu[1]) : 0;
+
+        if (ax != bx)
+            return ax - bx;
+        if (ay != by)
+            return ay - by;
+        if (az != bz)
+            return az - bz;
+        if (au != bu)
+            return au - bu;
+        return 0;
+    }
+
+    private static Object getDependencyManager(JarFile jar) throws IOException {
+        if (getAttributes(jar).containsKey(new Attributes.Name("Dependencies"))) {
+            try {
+                Path depsCache = getCacheDir().resolve("deps");
+                Files.createDirectories(depsCache);
+
+                final boolean reset = Boolean.parseBoolean(System.getProperty(RESET_PROPERTY, "false"));
+                DependencyManager dependencyManager 
+                        = new DependencyManager(getAppId(jar), 
+                                depsCache.toAbsolutePath().toString(), 
+                                getListAttribute(jar, "Repositories"), 
+                                reset, verbose);
+
+                if (System.getProperty(TREE_PROPERTY) != null) {
+                    dependencyManager.printDependencyTree(getListAttribute(jar, "Dependencies"));
+                    System.exit(0);
+                }
+
+                return dependencyManager;
+            } catch (NoClassDefFoundError e) {
+                throw new RuntimeException("Jar " + jar.getName()
+                        + " contains a Dependencies attributes, while the necessary dependency management classes are not found in the jar");
+            }
+        }
+        return null;
+    }
+
+    private static List<String> processDependencies(JarFile jar, Object dependencyManager) {
+        final List<String> deps = getListAttribute(jar, "Dependencies");
+        if (deps == null)
+            return null;
+
+        final DependencyManager dm = (DependencyManager) dependencyManager;
+        final List<Path> depsJars = dm.resolveDependencies(deps);
+
+        List<String> depsPaths = new ArrayList<>(depsJars.size());
+        for (Path p : depsJars)
+            depsPaths.add(p.toAbsolutePath().toString());
+
+        return depsPaths;
+    }
+
+    private static String getDependencyPath(Object dependencyManager, String p) {
+        if (dependencyManager == null)
+            throw new RuntimeException("No Dependencies attribute in jar, therefore cannot resolve dependency " + p);
+        final DependencyManager dm = (DependencyManager) dependencyManager;
+        List<Path> depsJars = dm.resolveDependency(p);
+
+        if (depsJars == null || depsJars.isEmpty())
+            throw new RuntimeException("Dependency " + p + " was not found.");
+        return depsJars.iterator().next().toAbsolutePath().toString();
+    }
+}

@@ -1,0 +1,128 @@
+apply plugin: 'java'
+
+sourceCompatibility = '1.7'
+targetCompatibility = '1.7'
+
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+group               = "co.paralleluniverse"
+version             = "0.1.0-SNAPSHOT"
+status              = "integration"
+description         = "Simple Java deployment"
+ext.url             = "http://puniverse.github.com/java-launcher"
+ext.vendor          = "Parallel Universe Software Co."
+ext.licenseName1    = "The GNU Lesser General Public License, version 3"
+ext.licenseUrl1     = "http://www.gnu.org/licenses/lgpl-3.0.txt"
+ext.licenseName2    = "Eclipse Public License - v 1.0"
+ext.licenseUrl2     = "http://www.eclipse.org/legal/epl-v10.html"
+ext.scmUrl          = "https://github.com/puniverse/ava-launcher"
+ext.scmConnection   = "https://github.com/puniverse/ava-launcher.git"
+ext.distDir         = "$buildDir/dist"
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+    
+// In this section you declare where to find the dependencies of your project
+repositories {
+    mavenCentral()
+}
+
+// In this section you declare the dependencies for your production and test code
+dependencies {
+    compile 'org.eclipse.aether:aether-api:0.9.0.M4'
+    compile 'org.eclipse.aether:aether-util:0.9.0.M4'
+    runtime 'org.eclipse.aether:aether-impl:0.9.0.M4'
+    compile 'org.eclipse.aether:aether-connector-basic:0.9.0.M4'
+    // compile 'org.eclipse.aether:aether-transport-file:0.9.0.M4'
+    compile('org.eclipse.aether:aether-transport-http:0.9.0.M4') {
+        exclude group: 'commons-codec', module: '*'
+    }
+    compile('org.apache.maven:maven-aether-provider:3.1.0') {
+        exclude group: 'org.eclipse.sisu', module: '*'
+    }
+    runtime 'org.slf4j:slf4j-nop:1.7.7'
+    
+    testCompile 'junit:junit:4.11'
+}
+
+defaultTasks 'build'
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+} 
+
+///////// Publish Artifacts 
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+artifacts {
+    archives jar
+    archives sourcesJar
+    archives javadocJar
+    //    archives distZip
+}
+
+signing {
+    required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
+    sign configurations.archives
+}
+    
+// remove embedded jars from pom
+configure(install.repositories.mavenInstaller) {
+    pom.whenConfigured {
+        it.dependencies.removeAll { dep -> 
+            dep.artifactId.startsWith('jsr166e') || 
+            dep.artifactId.startsWith('high-scale-lib') || 
+            dep.artifactId.startsWith('HdrHistogram') ||
+            (dep.groupId == 'co.paralleluniverse' && dep.artifactId.startsWith('quasar-core'))
+        }
+    }
+}
+	                
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(
+                url: (isReleaseVersion ? 
+	                        "https://oss.sonatype.org/service/local/staging/deploy/maven2" : 
+	                        "https://oss.sonatype.org/content/repositories/snapshots")) {
+                // User and Password are taken from ~/.gradle/gradle.properties
+                authentication(userName: sonatypeUsername, password: sonatypePassword)
+            } 
+            pom.project {
+                name project.name
+                packaging 'jar'
+                description project.description
+                url project.url
+                scm {
+                    url project.scmUrl
+                    connection project.scmConnection
+                    developerConnection project.scmConnection
+                } 
+                licenses {
+                    license {
+                        name project.licenseName1
+                        url project.licenseUrl1
+                        distribution 'repo'
+                    }
+                    license {
+                        name project.licenseName2
+                        url project.licenseUrl2
+                        distribution 'repo'
+                    }
+                }
+                developers {
+                    developer {
+                        id 'pron'
+                        name 'Ron Pressler'
+                    }
+                }
+            }
+        }
+    }
+}	
