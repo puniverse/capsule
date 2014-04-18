@@ -46,10 +46,21 @@ dependencies {
 
 defaultTasks 'build'
 
+jar {
+    from { configurations.runtime.collect { zipTree(it) } }
+    exclude 'META-INF/**'
+    exclude 'licenses/**'
+    exclude 'about.html'
+    exclude 'org/apache/http/client/version.properties'
+    exclude 'org/apache/http/version.properties'
+    exclude 'org/apache/maven/model/pom-4.0.0.xml'
+}
+    
 task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
     from sourceSets.main.allSource
 }
+
 task javadocJar(type: Jar, dependsOn: javadoc) {
     classifier = 'javadoc'
     from javadoc.destinationDir
@@ -94,7 +105,10 @@ uploadArchives {
 	                        "https://oss.sonatype.org/content/repositories/snapshots")) {
                 // User and Password are taken from ~/.gradle/gradle.properties
                 authentication(userName: sonatypeUsername, password: sonatypePassword)
-            } 
+            }
+            pom.whenConfigured {
+                it.dependencies.removeAll()
+            }
             pom.project {
                 name project.name
                 packaging 'jar'

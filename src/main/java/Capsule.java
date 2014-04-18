@@ -61,6 +61,7 @@ public final class Capsule {
     private static final String ATTR_APP_NAME = "App-Name";
     private static final String ATTR_APP_VERSION = "App-Version";
     private static final String ATTR_APP_CLASS = "App-Class";
+    private static final String ATTR_JVM_ARGS = "JVM-Args";
     private static final String ATTR_SYSTEM_PROPERTIES = "System-Properties";
     private static final String ATTR_APP_CLASS_PATH = "App-Class-Path";
     private static final String ATTR_BOOT_CLASS_PATH = "Boot-Class-Path";
@@ -99,6 +100,7 @@ public final class Capsule {
             }
 
             final Capsule capsule = new Capsule(getJarFile());
+            System.err.println("CAPSULE: Launching app " + capsule.appId);
             capsule.ensureExtracted();
             final ProcessBuilder pb = capsule.buildProcess(args);
             pb.inheritIO();
@@ -143,7 +145,7 @@ public final class Capsule {
         final RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
         final List<String> cmdLine = runtimeBean.getInputArguments();
 
-        final List<String> appArgs = new ArrayList<>();
+        final List<String> appArgs = new ArrayList<String>();
         getModeAndArgs(args, appArgs);
 
 //        final String classPath = runtimeBean.getClassPath();
@@ -196,7 +198,7 @@ public final class Capsule {
     }
 
     private List<String> buildClassPath() {
-        final List<String> classPath = new ArrayList<>();
+        final List<String> classPath = new ArrayList<String>();
 
         List<String> cp = getListAttribute(ATTR_APP_CLASS_PATH);
         if (cp == null)
@@ -226,14 +228,14 @@ public final class Capsule {
     }
 
     private Map<String, String> buildSystemProperties(List<String> cmdLine) {
-        final Map<String, String> systemProerties = new HashMap<>();
+        final Map<String, String> systemProerties = new HashMap<String, String>();
 
         // attribute
         for (String p : nullToEmpty(getListAttribute(ATTR_SYSTEM_PROPERTIES)))
             addSystemProperty(p, systemProerties);
 
         // library path
-        final List<String> libraryPath = new ArrayList<>();
+        final List<String> libraryPath = new ArrayList<String>();
         libraryPath.addAll(nullToEmpty(getListAttribute(ATTR_LIBRARY_PATH_P)));
         libraryPath.addAll(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(System.getProperty("path.separator"))));
         libraryPath.addAll(nullToEmpty(getListAttribute(ATTR_LIBRARY_PATH_A)));
@@ -250,7 +252,7 @@ public final class Capsule {
     }
 
     private static List<String> compileSystemProperties(Map<String, String> ps) {
-        final List<String> command = new ArrayList<>();
+        final List<String> command = new ArrayList<String>();
         for (Map.Entry<String, String> entry : ps.entrySet())
             command.add("-D" + entry.getKey() + (entry.getValue() != null && !entry.getValue().isEmpty() ? "=" + entry.getValue() : ""));
         return command;
@@ -267,9 +269,9 @@ public final class Capsule {
     }
 
     private List<String> buildJVMArgs(List<String> cmdLine) {
-        final Map<String, String> jvmArgs = new LinkedHashMap<>();
+        final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
 
-        for (String a : nullToEmpty(getListAttribute("JVM-Args"))) {
+        for (String a : nullToEmpty(getListAttribute(ATTR_JVM_ARGS))) {
             if (!a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
                 addJvmArg(a, jvmArgs);
         }
@@ -279,7 +281,7 @@ public final class Capsule {
                 addJvmArg(option, jvmArgs);
         }
 
-        return new ArrayList<>(jvmArgs.values());
+        return new ArrayList<String>(jvmArgs.values());
     }
 
     private static void addJvmArg(String a, Map<String, String> args) {
@@ -325,7 +327,7 @@ public final class Capsule {
 
         if (agents0 == null)
             return null;
-        final List<String> agents = new ArrayList<>(agents0.size());
+        final List<String> agents = new ArrayList<String>(agents0.size());
         for (String agent : agents0) {
             final String agentJar = getBefore(agent, '=');
             final String agentOptions = getAfter(agent, '=');
@@ -390,7 +392,7 @@ public final class Capsule {
 
     private static List<String> getDefaultClassPath(final Path appCache) {
         try {
-            final List<String> cp = new ArrayList<>();
+            final List<String> cp = new ArrayList<String>();
             cp.add("");
             Files.walkFileTree(appCache, new SimpleFileVisitor<Path>() {
                 @Override
@@ -414,7 +416,7 @@ public final class Capsule {
     private static List<String> getPath(Path appCache, Object dependencyManager, List<String> ps) {
         if (ps == null)
             return null;
-        final List<String> aps = new ArrayList<>(ps.size());
+        final List<String> aps = new ArrayList<String>(ps.size());
         for (String p : ps)
             aps.add(getPath(appCache, dependencyManager, p));
         return aps;
@@ -427,7 +429,7 @@ public final class Capsule {
     private static List<String> toAbsoluteClassPath(Path appCache, List<String> ps) {
         if (ps == null)
             return null;
-        final List<String> aps = new ArrayList<>(ps.size());
+        final List<String> aps = new ArrayList<String>(ps.size());
         for (String p : ps)
             aps.add(toAbsoluteClassPath(appCache, p));
         return aps;
@@ -544,11 +546,12 @@ public final class Capsule {
             if (file.getName().endsWith(".class"))
                 continue;
             if (file.getName().startsWith("co/paralleluniverse/capsule/")
-                    || file.getName().startsWith("org/eclipse/aether/")
-                    || file.getName().startsWith("org/apache/maven/")
-                    || file.getName().startsWith("org/apache/http/")
-                    // || file.getName().startsWith("org/apache/commons/codec/")
-                    || file.getName().startsWith("licenses/"))
+//                    || file.getName().startsWith("org/eclipse/aether/")
+//                    || file.getName().startsWith("org/apache/maven/")
+//                    || file.getName().startsWith("org/apache/http/")
+//                    || file.getName().startsWith("org/apache/commons/codec/")
+//                    || file.getName().startsWith("licenses/")
+                    )
                 continue;
 
             final String dir = getDirectory(file.getName());
@@ -558,7 +561,7 @@ public final class Capsule {
             if (dir != null)
                 Files.createDirectories(targetDir.resolve(dir));
 
-            Path target = targetDir.resolve(file.getName());
+            final Path target = targetDir.resolve(file.getName());
             try (InputStream is = jar.getInputStream(file)) {
                 Files.copy(is, target);
             }
@@ -664,7 +667,12 @@ public final class Capsule {
     }
 
     private Object createPomReader() throws IOException {
-        return new PomReader(jar.getInputStream(jar.getEntry(POM_FILE)));
+        try {
+            return new PomReader(jar.getInputStream(jar.getEntry(POM_FILE)));
+        } catch (NoClassDefFoundError e) {
+            throw new RuntimeException("Jar " + jar.getName()
+                    + " contains a pom.xml file, while the necessary dependency management classes are not found in the jar");
+        }
     }
 
     private List<String> getPomRepositories() {
@@ -700,7 +708,7 @@ public final class Capsule {
     }
 
     private List<String> getRepositories() {
-        List<String> repos = new ArrayList<>();
+        List<String> repos = new ArrayList<String>();
 
         List<String> attrRepos = getListAttribute(ATTR_REPOSITORIES);
         if (attrRepos != null)
@@ -735,7 +743,7 @@ public final class Capsule {
         final DependencyManager dm = (DependencyManager) dependencyManager;
         final List<Path> depsJars = dm.resolveDependencies(dependencies);
 
-        List<String> depsPaths = new ArrayList<>(depsJars.size());
+        List<String> depsPaths = new ArrayList<String>(depsJars.size());
         for (Path p : depsJars)
             depsPaths.add(p.toAbsolutePath().toString());
 

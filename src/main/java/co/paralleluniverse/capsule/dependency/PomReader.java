@@ -1,6 +1,5 @@
 package co.paralleluniverse.capsule.dependency;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +8,6 @@ import org.apache.maven.model.Exclusion;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.Repository;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
-import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 
 /**
  *
@@ -22,7 +20,7 @@ public class PomReader {
         try {
             MavenXpp3Reader reader = new MavenXpp3Reader();
             this.pom = reader.read(is);
-        } catch (IOException | XmlPullParserException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Error trying to read pom.", e);
         }
     }
@@ -47,7 +45,7 @@ public class PomReader {
         final List<Repository> repos = pom.getRepositories();
         if (repos == null)
             return null;
-        final List<String> repositories = new ArrayList<>();
+        final List<String> repositories = new ArrayList<String>();
         for(Repository repo : repos)
             repositories.add(repo.getUrl());
         return repositories;
@@ -58,7 +56,7 @@ public class PomReader {
         if (deps == null)
             return null;
 
-        final List<String> dependencies = new ArrayList<>();
+        final List<String> dependencies = new ArrayList<String>();
         for (Dependency dep : deps) {
             if (!dep.isOptional()) {
                 String coords = dep.getGroupId() + ":" + dep.getArtifactId() + ":" + dep.getVersion()

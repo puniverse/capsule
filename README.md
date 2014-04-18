@@ -4,51 +4,63 @@
 
 The JAR file must not contain application `.class` files not packaged within JARs.
 
- * `App-Class` - the only mandatory attribute
- * `App-Version`
- * `Min-Java-Version`
- * `App-Class-Path` default: the launcher jar root and every jar file found in the launcher jar's root.
- * `System-Properties`
- * `JVM-Args`
- * `Boot-Class-Path`
- * `Boot-Class-Path-P`
- * `Boot-Class-Path-A`
- * `Library-Path-P`
- * `Library-Path-A`
- * `Java-Agents`
+Mandatory:
+
+* `Main-Class` : `Capsule`
+* `App-Class` - the only mandatory attribute
+
+Optional:
+
+* `App-Name`
+* `App-Version`
+* `Min-Java-Version`
+* `App-Class-Path` default: the launcher jar root and every jar file found in the launcher jar's root.
+* `System-Properties`
+* `JVM-Args`
+* `Boot-Class-Path`
+* `Boot-Class-Path-P`
+* `Boot-Class-Path-A`
+* `Library-Path-P`
+* `Library-Path-A`
+* `Java-Agents`
 
 
-
- * `Repositories`
- * `Dependencies`
+* `Repositories`
+* `Dependencies`
 
 
 `CAPSULE_CACHE_DIR`
 `CAPSULE_CACHE_NAME`
 
-    private static final String RESET_PROPERTY = "launcher.reset";
-    private static final String VERSION_PROPERTY = "launcher.version";
-    private static final String LOG_PROPERTY = "launcher.log";
-    private static final String TREE_PROPERTY = "launcher.tree";
+    "capsule.reset"
+    "capsule.version"
+    "capsule.log"
+    "capsule.tree"
  
+
 
  ## Example
 
 Embedded dependencies:
 
 ``` groovy
- task capsule(type: Jar, dependsOn: jar) {
+task capsule2(type: Jar, dependsOn: jar) {
     archiveName = "foo.jar"
     from jar
-    from { configurations.runtime } // embed dependencies
+    from { configurations.runtime }
     
-    from { zipTree(configurations.capsule.iterator().next()) } // we don't need capsule's dependencies
+    from(configurations.capsule.collect { zipTree(it) }) {
+        include 'Capsule*.class'
+    }
     
     manifest { 
         attributes(
-	        "Main-Class"  : 'Capsule',
-            "App-Class"   : mainClassName,
-            "Java-Agents" : configurations.quasar.iterator().next().getName()
+        'Main-Class'  : 'Capsule',
+            'App-Class'   : mainClassName,
+            'Min-Java-Version' : '1.8.0',
+            'JVM-Args' : run.jvmArgs.join(' '),
+            'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
+            'Java-Agents' : configurations.quasar.iterator().next().getName()
         )
     }
 }
@@ -70,17 +82,20 @@ def getDependencies(config) {
     }
 }
 
-task capsule(type: Jar, dependsOn: jar) {
+task capsule1(type: Jar, dependsOn: jar) {
     archiveName = "foo.jar"
     from jar
-    from { configurations.capsule.collect { zipTree(it) } } // we need capsule's own deps
-
+    from { configurations.capsule.collect { zipTree(it) } }
+    
     manifest { 
         attributes(
-	        "Main-Class"  : 'Capsule',
-            "App-Class"   : mainClassName,
-            "Java-Agents" : getDependencies(configurations.quasar).iterator().next(),
-            "Dependencies": getDependencies(configurations.runtime).join(' ')
+        'Main-Class'  :   'Capsule',
+            'App-Class'   : mainClassName,
+            'Min-Java-Version' : '1.8.0',
+            'JVM-Args' : run.jvmArgs.join(' '),
+            'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
+            'Java-Agents' : getDependencies(configurations.quasar).iterator().next(),
+            'Dependencies': getDependencies(configurations.runtime).join(' ')
         )
     }
 }

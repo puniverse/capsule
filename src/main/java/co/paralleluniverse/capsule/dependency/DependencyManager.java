@@ -18,7 +18,6 @@ import org.eclipse.aether.collection.CollectResult;
 import org.eclipse.aether.collection.DependencyCollectionException;
 import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory;
 import org.eclipse.aether.graph.Dependency;
-import org.eclipse.aether.graph.DependencyFilter;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.impl.DefaultServiceLocator;
 import org.eclipse.aether.repository.LocalRepository;
@@ -31,8 +30,6 @@ import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
 import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.http.HttpTransporterFactory;
 import org.eclipse.aether.util.artifact.JavaScopes;
-import org.eclipse.aether.util.filter.DependencyFilterUtils;
-import org.eclipse.aether.util.filter.PatternExclusionsDependencyFilter;
 
 /**
  *
@@ -50,7 +47,7 @@ public class DependencyManager {
         this.session = newRepositorySession(system, localRepoPath, verbose);
 
         final RepositoryPolicy policy = getRepoConfig(forceRefresh);
-        this.repos = new ArrayList<>();
+        this.repos = new ArrayList<RemoteRepository>();
         if (repos == null)
             this.repos.add(newCentralRepository(policy));
         else {
@@ -111,7 +108,7 @@ public class DependencyManager {
             final DependencyRequest dependencyRequest = new DependencyRequest(collectRequest, null);
             final List<ArtifactResult> artifactResults = system.resolveDependencies(session, dependencyRequest).getArtifactResults();
 
-            List<Path> jars = new ArrayList<>();
+            List<Path> jars = new ArrayList<Path>();
             for (ArtifactResult artifactResult : artifactResults)
                 jars.add(artifactResult.getArtifact().getFile().toPath());
             return jars;
@@ -139,7 +136,7 @@ public class DependencyManager {
     }
 
     private static List<Dependency> toDependencies(List<String> coords) {
-        final List<Dependency> deps = new ArrayList<>(coords.size());
+        final List<Dependency> deps = new ArrayList<Dependency>(coords.size());
         for (String c : coords)
             deps.add(toDependency(c));
         return deps;
@@ -167,7 +164,7 @@ public class DependencyManager {
         final List<String> exclusionPatterns = getExclusionPatterns(coordsString);
         if (exclusionPatterns == null)
             return null;
-        final List<Exclusion> exclusions = new ArrayList<>();
+        final List<Exclusion> exclusions = new ArrayList<Exclusion>();
         for (String ex : exclusionPatterns) {
             String[] coords = ex.split(":");
             if (coords.length != 2)
