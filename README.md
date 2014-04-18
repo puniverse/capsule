@@ -11,12 +11,12 @@ The JAR file must not contain application `.class` files not packaged within JAR
 Mandatory:
 
 * `Main-Class` : `Capsule`
-* `App-Class` - the only mandatory attribute
+* `Application-Class` - the only mandatory attribute
 
 Optional:
 
-* `App-Name`
-* `App-Version`
+* `Application-Name`
+* `Application-Version`
 * `Min-Java-Version`
 * `App-Class-Path` default: the launcher jar root and every jar file found in the launcher jar's root.
 * `System-Properties`
@@ -60,7 +60,7 @@ task capsule2(type: Jar, dependsOn: jar) {
     manifest { 
         attributes(
         'Main-Class'  : 'Capsule',
-            'App-Class'   : mainClassName,
+            'Application-Class'   : mainClassName,
             'Min-Java-Version' : '1.8.0',
             'JVM-Args' : run.jvmArgs.join(' '),
             'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
@@ -94,7 +94,7 @@ task capsule1(type: Jar, dependsOn: jar) {
     manifest { 
         attributes(
         'Main-Class'  :   'Capsule',
-            'App-Class'   : mainClassName,
+            'Application-Class'   : mainClassName,
             'Min-Java-Version' : '1.8.0',
             'JVM-Args' : run.jvmArgs.join(' '),
             'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
@@ -109,7 +109,8 @@ task capsule1(type: Jar, dependsOn: jar) {
 
 As Capsule does not link in any way with any of the code bundled in the Jar file, and simply treats it as raw data, Capsule is no different from a self-extracting Zip file (especially as manually unzipping the jar's contents is extrmely easy). Capsule's own license, therefore, does not interfere with the licensing of the bundled software.
 
-In particular, even though Capsule's license is incompatible with the GPL, it is permitted to distribute GPL programs packaged as capsules, as Capsule is simply a packaging medium and an activation script, and does not restrict access to the packaged GPL code.
+In particular, even though Capsule's license is incompatible with the GPL, it is permitted to distribute GPL programs packaged as capsules, as Capsule is simply a packaging medium and an activation script, and does not restrict access to the packaged GPL code. Capsule does not add any capability to, nor removes any from the bundled application.
+
 
 [GPL](https://www.gnu.org/copyleft/gpl.html):
 
