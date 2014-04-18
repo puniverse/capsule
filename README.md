@@ -30,7 +30,58 @@ The JAR file must not contain application `.class` files not packaged within JAR
     private static final String VERSION_PROPERTY = "launcher.version";
     private static final String LOG_PROPERTY = "launcher.log";
     private static final String TREE_PROPERTY = "launcher.tree";
+ 
+
+ ## Example
+
+Embedded dependencies:
+
+``` groovy
+ task capsule(type: Jar, dependsOn: jar) {
+    archiveName = "foo.jar"
+    from jar
+    from { configurations.runtime } // embed dependencies
     
+    from { zipTree(configurations.capsule.iterator().next()) } // we don't need capsule's dependencies
+    
+    manifest { 
+        attributes(
+	        "Main-Class"  : 'Capsule',
+            "App-Class"   : mainClassName,
+            "Java-Agents" : configurations.quasar.iterator().next().getName()
+        )
+    }
+}
+```
+
+``` groovy
+// translates gradle dependencies to capsule dependencies
+def getDependencies(config) {
+    return config.getAllDependencies().collect { 
+        def res = it.group + ':' + it.name + ':' + it.version + (!it.artifacts.isEmpty() ? ':' + it.artifacts.iterator().next().classifier : '')
+        if(!it.excludeRules.isEmpty()) {
+            res += "(" + it.excludeRules.collect { it.group + ':' + it.module }.join(',') + ")"
+        }
+        return res
+    }
+}
+
+task capsule(type: Jar, dependsOn: jar) {
+    archiveName = "foo.jar"
+    from jar
+    from { configurations.capsule.collect { zipTree(it) } } // we need capsule's own deps
+
+    manifest { 
+        attributes(
+	        "Main-Class"  : 'Capsule',
+            "App-Class"   : mainClassName,
+            "Java-Agents" : getDependencies(configurations.quasar).iterator().next(),
+            "Dependencies": getDependencies(configurations.runtime).join(' ')
+        )
+    }
+}
+```
+
  ## Differnces from [One-Jar](http://one-jar.sourceforge.net/)
 
  * Might interfere with application (esp. those using tricky things)
