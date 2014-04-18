@@ -200,14 +200,13 @@ public final class Capsule {
     private List<String> buildClassPath() {
         final List<String> classPath = new ArrayList<String>();
 
-        List<String> cp = getListAttribute(ATTR_APP_CLASS_PATH);
-        if (cp == null)
-            cp = getDefaultClassPath(appCache);
-        cp = toAbsoluteClassPath(appCache, cp);
-        classPath.addAll(cp);
-
+        final List<String> localClassPath = new ArrayList<String>();
+        localClassPath.addAll(nullToEmpty(getListAttribute(ATTR_APP_CLASS_PATH)));
+        localClassPath.addAll(nullToEmpty(getDefaultClassPath(appCache)));
+        
+        classPath.addAll(toAbsoluteClassPath(appCache, localClassPath));
         if (dependencyManager != null)
-            classPath.addAll(processDependencies());
+            classPath.addAll(resolveDependencies());
 
         return classPath;
     }
@@ -736,7 +735,7 @@ public final class Capsule {
         dm.printDependencyTree(dependencies);
     }
 
-    private List<String> processDependencies() {
+    private List<String> resolveDependencies() {
         if (dependencies == null)
             return null;
 
