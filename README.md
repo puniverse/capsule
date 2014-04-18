@@ -105,6 +105,16 @@ task capsule1(type: Jar, dependsOn: jar) {
 }
 ```
 
+## Licensing Issues
+
+As Capsule does not link in any way with any of the code bundled in the Jar file, and simply treats it as raw data, Capsule is no different from a self-extracting Zip file (especially as manually unzipping the jar's contents is extrmely easy). Capsule's own license, therefore, does not interfere with the licensing of the bundled software.
+
+In particular, even though Capsule's license is incompatible with the GPL, it is permitted to distribute GPL programs packaged as capsules, as Capsule is simply a packaging medium and an activation script, and does not restrict access to the packaged GPL code.
+
+[GPL](https://www.gnu.org/copyleft/gpl.html):
+
+> A compilation of a covered work with other separate and independent works, which are not by their nature extensions of the covered work, and which are not combined with it such as to form a larger program, in or on a volume of a storage or distribution medium, is called an “aggregate” if the compilation and its resulting copyright are not used to limit the access or legal rights of the compilation's users beyond what the individual works permit. Inclusion of a covered work in an aggregate does not cause this License to apply to the other parts of the aggregate.
+
 ## Differnces from [One-Jar](http://one-jar.sourceforge.net/)
 
  * Might interfere with application (esp. those using tricky things)

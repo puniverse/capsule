@@ -49,7 +49,7 @@ defaultTasks 'build'
 jar {
     from { configurations.runtime.collect { zipTree(it) } }
     exclude 'META-INF/**'
-    exclude 'licenses/**'
+    exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
     exclude 'about.html'
     exclude 'org/apache/http/client/version.properties'
     exclude 'org/apache/http/version.properties'
