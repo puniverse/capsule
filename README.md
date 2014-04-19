@@ -19,6 +19,7 @@ Optional:
 * `Application-Version`
 * `Min-Java-Version`
 * `App-Class-Path` default: the launcher jar root and every jar file found in the launcher jar's root.
+* `Environment-Variables` `$CAPSULE_DIR`
 * `System-Properties`
 * `JVM-Args`
 * `Boot-Class-Path`

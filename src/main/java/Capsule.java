@@ -33,6 +33,7 @@ import java.util.jar.Manifest;
  * <li>{@code Application-Name}</li>
  * <li>{@code Application-Version}</li>
  * <li>{@code App-Class-Path} default: the capsule jar root and every jar file found in the capsule jar's root.</li>
+ * <li>{@code Environment-Variables}</li>
  * <li>{@code System-Properties}</li>
  * <li>{@code JVM-Args}</li>
  * <li>{@code Boot-Class-Path}</li>
@@ -64,6 +65,7 @@ public final class Capsule {
     private static final String ATTR_APP_VERSION = "Application-Version";
     private static final String ATTR_APP_CLASS = "Application-Class";
     private static final String ATTR_JVM_ARGS = "JVM-Args";
+    private static final String ATTR_ENV = "Environment-Variables";
     private static final String ATTR_SYSTEM_PROPERTIES = "System-Properties";
     private static final String ATTR_APP_CLASS_PATH = "App-Class-Path";
     private static final String ATTR_BOOT_CLASS_PATH = "Boot-Class-Path";
@@ -187,7 +189,12 @@ public final class Capsule {
         if (verbose)
             System.err.println("CAPSULE: " + join(command, " "));
 
-        return new ProcessBuilder(command);
+        final ProcessBuilder pb = new ProcessBuilder(command);
+        Map<String, String> env = buildEnvironmentVariables();
+        if(env != null)
+            pb.environment().putAll(env);
+        
+        return pb;
     }
 
     private void verifyRequiredJavaVersion() {
@@ -238,6 +245,23 @@ public final class Capsule {
 
     private List<String> buildClassPath(String attr) {
         return toAbsoluteClassPath(appCache, getListAttribute(attr));
+    }
+
+    private Map<String, String> buildEnvironmentVariables() {
+        final List<String> env = getListAttribute(ATTR_ENV);
+        if (env == null)
+            return null;
+        final Map<String, String> envMap = new HashMap<String, String>(env.size());
+        for (String e : env) {
+            String[] kv = e.split("=");
+            if (kv.length < 1 || kv.length > 2)
+                throw new IllegalArgumentException("Malformed env variable definition: " + e);
+            if (kv.length == 1)
+                envMap.put(kv[0], "");
+            else
+                envMap.put(kv[0], kv[1].replaceAll("\\$CAPSULE_DIR", appCache.toAbsolutePath().toString()));
+        }
+        return envMap;
     }
 
     private Map<String, String> buildSystemProperties(List<String> cmdLine) {
