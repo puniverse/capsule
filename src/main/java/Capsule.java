@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -28,10 +29,11 @@ import java.util.jar.Manifest;
 
 /**
  * <ul>
- * <li>{@code Min-Java-Version}</li>
- * <li>{@code App-Class} - the only mandatory attribute</li>
+ * <li>{@code Application-Class} - the only mandatory attribute</li>
  * <li>{@code Application-Name}</li>
  * <li>{@code Application-Version}</li>
+ * <li>{@code Min-Java-Version}</li>
+ * <li>{@code Java-Version}</li>
  * <li>{@code App-Class-Path} default: the capsule jar root and every jar file found in the capsule jar's root.</li>
  * <li>{@code Environment-Variables}</li>
  * <li>{@code System-Properties}</li>
@@ -50,25 +52,32 @@ import java.util.jar.Manifest;
  */
 public final class Capsule {
     private static final String VERSION = "0.1.0-SNAPSHOT";
+
     private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_VERSION = "capsule.version";
     private static final String PROP_LOG = "capsule.log";
     private static final String PROP_TREE = "capsule.tree";
+    private static final String PROP_PRINT_JRES = "capsule.javas";
     private static final String PROP_JAVA_HOME = "capsule.java.home";
+    private static final String PROP_MODE = "capsule.mode";
+
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
     private static final String CACHE_DEFAULT_NAME = "capsule";
+
     private static final String PROP_CAPSULE_JAR_DIR = "capsule.jar.dir";
     private static final String PROP_CAPSULE_DIR = "capsule.dir";
 
-    private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
     private static final String ATTR_APP_CLASS = "Application-Class";
+    private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
+    private static final String ATTR_JAVA_VERSION = "Java-Version";
     private static final String ATTR_JVM_ARGS = "JVM-Args";
     private static final String ATTR_ENV = "Environment-Variables";
     private static final String ATTR_SYSTEM_PROPERTIES = "System-Properties";
     private static final String ATTR_APP_CLASS_PATH = "App-Class-Path";
+    private static final String ATTR_CAPSULE_IN_CLASS_PATH = "Capsule-In-Class-Path";
     private static final String ATTR_BOOT_CLASS_PATH = "Boot-Class-Path";
     private static final String ATTR_BOOT_CLASS_PATH_A = "Boot-Class-Path-A";
     private static final String ATTR_BOOT_CLASS_PATH_P = "Boot-Class-Path-P";
@@ -80,18 +89,18 @@ public final class Capsule {
 
     private static final String POM_FILE = "pom.xml";
 
-    private static final boolean verbose = "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
-
     private static final Path cacheDir = getCacheDir();
 
     private final JarFile jar;
     private final Manifest manifest;
     private final String appId;
     private final Path appCache;
+    private final String mode;
     private final Object dependencyManager;
     private final Object pom;
     private final List<String> repositories;
     private final List<String> dependencies;
+    private final boolean verbose = "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
 
     /**
      * Launches the application
@@ -100,7 +109,19 @@ public final class Capsule {
     public static void main(String[] args) {
         try {
             if (System.getProperty(PROP_VERSION) != null) {
-                System.err.println("CAPSULE: Version " + VERSION);
+                System.out.println("CAPSULE: Version " + VERSION);
+                System.exit(0);
+            }
+
+            if (System.getProperty(PROP_PRINT_JRES) != null) {
+                final Map<String, Path> jres = getJavaHomes();
+                if (jres == null)
+                    System.out.println("CAPSULE: No detected Java installations");
+                else {
+                    System.out.println("CAPSULE: Detected Java installations:");
+                    for (Map.Entry<String, Path> j : jres.entrySet())
+                        System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
+                }
                 System.exit(0);
             }
 
@@ -128,10 +149,11 @@ public final class Capsule {
     }
 
     private static boolean isBackgroundProcess() {
-        return System.console() == null; // not really what we want
+        return System.console() == null || System.console().reader() == null; // not really what we want
     }
 
     private Capsule(JarFile jar) throws IOException {
+        this.mode = System.getProperty(PROP_MODE);
         this.jar = jar;
         try {
             this.manifest = jar.getManifest();
@@ -140,9 +162,9 @@ public final class Capsule {
         }
         this.appId = getAppId();
 
-        this.pom = (!hasDependenciesAttribute() && hasPom()) ? createPomReader() : null;
+        this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         this.repositories = getRepositories();
-        this.dependencyManager = (hasDependenciesAttribute() || pom != null) ? createDependencyManager() : null;
+        this.dependencyManager = (hasAttribute(ATTR_DEPENDENCIES) || pom != null) ? createDependencyManager() : null;
         this.dependencies = dependencyManager != null ? getDependencies() : null;
 
         this.appCache = getAppCacheDir();
@@ -156,18 +178,13 @@ public final class Capsule {
     }
 
     private ProcessBuilder buildProcess(String[] args) {
-        verifyRequiredJavaVersion();
-
         final RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
         final List<String> cmdLine = runtimeBean.getInputArguments();
-
-        final List<String> appArgs = new ArrayList<String>();
-        getModeAndArgs(args, appArgs);
 
 //        final String classPath = runtimeBean.getClassPath();
 //        final String bootClassPath = runtimeBean.getBootClassPath();
 //        final String libraryPath = runtimeBean.getLibraryPath();
-        List<String> command = new ArrayList<String>();
+        final List<String> command = new ArrayList<String>();
 
         command.add(getJavaProcessName());
 
@@ -185,7 +202,7 @@ public final class Capsule {
             command.add("-javaagent:" + jagent);
 
         command.add(getMainClass());
-        command.addAll(appArgs);
+        command.addAll(Arrays.asList(args));
 
         if (verbose)
             System.err.println("CAPSULE: " + join(command, " "));
@@ -197,7 +214,7 @@ public final class Capsule {
     }
 
     private void verifyRequiredJavaVersion() {
-        final String minVersion = getAttributes().getValue(ATTR_MIN_JAVA_VERSION);
+        final String minVersion = getAttribute(ATTR_MIN_JAVA_VERSION);
         if (minVersion == null)
             return;
         final String javaVersion = System.getProperty("java.version");
@@ -226,7 +243,10 @@ public final class Capsule {
         classPath.addAll(toAbsoluteClassPath(appCache, localClassPath));
         if (dependencyManager != null)
             classPath.addAll(resolveDependencies());
-        classPath.add(jar.getName());
+
+        final String isCapsuleInClassPath = getAttribute(ATTR_CAPSULE_IN_CLASS_PATH);
+        if (isCapsuleInClassPath == null || Boolean.parseBoolean(isCapsuleInClassPath))
+            classPath.add(jar.getName());
 
         return classPath;
     }
@@ -257,7 +277,7 @@ public final class Capsule {
                     if (kv.length == 1)
                         env.put(kv[0], "");
                     else
-                        env.put(kv[0], kv[1].replaceAll("\\$CAPSULE_DIR", appCache.toAbsolutePath().toString()));
+                        env.put(kv[0], processEnvValue(kv[1]));
                 }
             }
         }
@@ -265,6 +285,12 @@ public final class Capsule {
         final String capsuleJavaHome = System.getProperty(PROP_JAVA_HOME);
         if (capsuleJavaHome != null)
             env.put("JAVA_HOME", capsuleJavaHome);
+    }
+    
+    private String processEnvValue(String value) {
+        value = value.replaceAll("\\$CAPSULE_DIR", appCache.toAbsolutePath().toString());
+        value = value.replace('/', System.getProperty("file.separator").charAt(0));
+        return value;
     }
 
     private Map<String, String> buildSystemProperties(List<String> cmdLine) {
@@ -353,19 +379,6 @@ public final class Capsule {
         return a;
     }
 
-    private static String getModeAndArgs(String[] args, List<String> argsList) {
-        String mode = null;
-        for (String a : args) {
-            if (a.startsWith("-capsule:mode:")) {
-                if (mode != null)
-                    throw new IllegalArgumentException("The -capsule:mode: argument is given more than once");
-                mode = a.substring("-capsule:mode:".length());
-            }
-            argsList.add(a);
-        }
-        return mode;
-    }
-
     private List<String> buildJavaAgents() {
         final List<String> agents0 = getListAttribute(ATTR_JAVA_AGENTS);
 
@@ -400,19 +413,19 @@ public final class Capsule {
     }
 
     private String getAppId() {
-        String appName = getAttributes().getValue(ATTR_APP_NAME);
+        String appName = getAttribute(ATTR_APP_NAME);
         if (appName == null) {
             if (pom != null)
                 return getPomAppName();
             appName = getMainClass();
         }
 
-        final String version = getAttributes().getValue(ATTR_APP_VERSION);
+        final String version = getAttribute(ATTR_APP_VERSION);
         return appName + (version != null ? "_" + version : "");
     }
 
     private String getMainClass() {
-        final String appClass = getAttributes().getValue(ATTR_APP_CLASS);
+        final String appClass = getAttribute(ATTR_APP_CLASS);
         if (appClass == null)
             throw new RuntimeException("Manifest of jar file " + jar.getName() + " does not contain an App-Class attribute");
         return appClass;
@@ -472,15 +485,19 @@ public final class Capsule {
         }
     }
 
-    private Attributes getAttributes() {
+    private String getAttribute(String attr) {
+        // if possible, we could take into account the mode as the manifest's section name
         Attributes atts = manifest.getMainAttributes();
-//        if (atts == null)
-//            throw new RuntimeException("Manifest of jar file " + jar.getName() + " does not contain a Capsule section");
-        return atts;
+        return atts.getValue(attr);
+    }
+
+    private boolean hasAttribute(String attr) {
+        Attributes atts = manifest.getMainAttributes();
+        return atts.containsKey(new Attributes.Name(attr));
     }
 
     private List<String> getListAttribute(String attr) {
-        final String vals = getAttributes().getValue(attr);
+        final String vals = getAttribute(attr);
         if (vals == null)
             return null;
         return Arrays.asList(vals.split("\\s+"));
@@ -584,11 +601,22 @@ public final class Capsule {
         return filename.substring(0, index);
     }
 
-    private static String getJavaProcessName() {
+    private String getJavaProcessName() {
         String javaHome = System.getProperty(PROP_JAVA_HOME);
+        if (javaHome == null && getAttribute(ATTR_JAVA_VERSION) != null) {
+            final Path javaHomePath = findJavaHome(getAttribute(ATTR_JAVA_VERSION));
+            if (javaHomePath == null) {
+                throw new RuntimeException("Could not find Java installation for requested version " + getAttribute(ATTR_JAVA_VERSION)
+                        + ". You can override the used Java version with the -D" + PROP_JAVA_HOME + " flag.");
+            }
+            javaHome = javaHomePath.toAbsolutePath().toString();
+        }
         if (javaHome == null)
             javaHome = System.getProperty("java.home");
-        
+
+        if (Objects.equals(javaHome, System.getProperty("java.home")))
+            verifyRequiredJavaVersion();
+
         final String fileSeparateor = System.getProperty("file.separator");
 
         final String javaProcessName = javaHome + fileSeparateor + "bin" + fileSeparateor + "java" + (isWindows() ? ".exe" : "");
@@ -641,41 +669,8 @@ public final class Capsule {
         return s.substring(i + 1);
     }
 
-    private static int compareVersionStrings(String a, String b) {
-        String[] as = a.split("\\.");
-        String[] bs = b.split("\\.");
-        if (as.length != 3)
-            throw new IllegalArgumentException("Version " + a + " is illegal. Must be of the form x.y.z[_u]");
-        if (bs.length != 3)
-            throw new IllegalArgumentException("Version " + b + " is illegal. Must be of the form x.y.z[_u]");
-        int ax = Integer.parseInt(as[0]);
-        int bx = Integer.parseInt(bs[0]);
-        int ay = Integer.parseInt(as[1]);
-        int by = Integer.parseInt(bs[1]);
-        String[] azu = as[2].split("_");
-        String[] bzu = bs[2].split("_");
-        int az = Integer.parseInt(azu[0]);
-        int bz = Integer.parseInt(bzu[0]);
-        int au = azu.length > 1 ? Integer.parseInt(azu[1]) : 0;
-        int bu = bzu.length > 1 ? Integer.parseInt(bzu[1]) : 0;
-
-        if (ax != bx)
-            return ax - bx;
-        if (ay != by)
-            return ay - by;
-        if (az != bz)
-            return az - bz;
-        if (au != bu)
-            return au - bu;
-        return 0;
-    }
-
     private boolean hasPom() {
         return jar.getEntry(POM_FILE) != null;
-    }
-
-    private boolean hasDependenciesAttribute() {
-        return getAttributes().containsKey(new Attributes.Name(ATTR_DEPENDENCIES));
     }
 
     private Object createPomReader() throws IOException {
@@ -780,5 +775,143 @@ public final class Capsule {
         }
         if (!f.delete())
             throw new FileNotFoundException("Failed to delete file: " + f);
+    }
+
+    private static Path findJavaHome(String version) {
+        // if my Java version matches requested, don't look for Java installations
+        final int[] ver = parseJavaVersion(version);
+        final int[] myVer = parseJavaVersion(System.getProperty("java.version"));
+        if (ver[0] == myVer[0] && ver[1] == myVer[1])
+            return Paths.get(System.getProperty("java.home"));
+        
+        final Map<String, Path> homes = getJavaHomes();
+        if (homes == null)
+            return null;
+        Path best = null;
+        int[] bestVersion = null;
+        for (Map.Entry<String, Path> e : homes.entrySet()) {
+            int[] v = parseJavaVersion(e.getKey());
+            if (v[0] == ver[0] && v[1] == ver[1]) {
+                if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
+                    bestVersion = v;
+                    best = e.getValue();
+                }
+            }
+        }
+        return best;
+    }
+
+    private static Map<String, Path> getJavaHomes() {
+        Path dir = Paths.get(System.getProperty("java.home")).getParent();
+        while (dir != null) {
+            Map<String, Path> homes = getJavaHomes(dir);
+            if (homes != null)
+                return homes;
+            dir = dir.getParent();
+        }
+        return null;
+    }
+
+    private static Map<String, Path> getJavaHomes(Path dir) {
+        File d = dir.toFile();
+        if (!d.isDirectory())
+            return null;
+        Map<String, Path> dirs = new HashMap<String, Path>();
+        for (File f : d.listFiles()) {
+            if (f.isDirectory()) {
+                String ver = isJavaDir(f.toPath().getFileName().toString());
+                if (ver != null) {
+                    File home = searchJavaHomeInDir(f);
+                    if (home != null)
+                        dirs.put(javaVersion(ver), home.toPath());
+                }
+            }
+        }
+        return !dirs.isEmpty() ? dirs : null;
+    }
+
+    private static String isJavaDir(String fileName) {
+        fileName = fileName.toLowerCase();
+        if (fileName.startsWith("jdk") || fileName.startsWith("jre") || fileName.endsWith(".jdk") || fileName.endsWith(".jre")) {
+            if (fileName.startsWith("jdk") || fileName.startsWith("jre"))
+                fileName = fileName.substring(3);
+            if (fileName.endsWith(".jdk") || fileName.endsWith(".jre"))
+                fileName = fileName.substring(0, fileName.length() - 4);
+            return javaVersion(fileName);
+        } else
+            return null;
+    }
+
+    private static String javaVersion(String ver) {
+        try {
+            String[] comps = ver.split("\\.");
+            if (Integer.parseInt(comps[0]) > 1) {
+                if (comps.length == 1)
+                    return "1." + ver + ".0";
+                else
+                    return "1." + ver;
+            }
+            return ver;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static File searchJavaHomeInDir(File dir) {
+        if (!dir.isDirectory())
+            return null;
+        for (File f : dir.listFiles()) {
+            if (isJavaHome(f))
+                return f;
+            File home = searchJavaHomeInDir(f);
+            if (home != null)
+                return home;
+        }
+        return null;
+    }
+
+    private static boolean isJavaHome(File dir) {
+        if (dir.isDirectory()) {
+            for (File f : dir.listFiles()) {
+                if (f.isDirectory() && f.toPath().getFileName().toString().equals("bin")) {
+                    for (File f0 : f.listFiles()) {
+                        if (f0.isFile()) {
+                            String fname = f0.toPath().getFileName().toString().toLowerCase();
+                            if (fname.equals("java") || fname.equals("java.exe"))
+                                return true;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static int compareVersionStrings(String a, String b) {
+        return compareVersions(parseJavaVersion(a), parseJavaVersion(b));
+    }
+
+    private static int compareVersions(int[] a, int[] b) {
+        for (int i = 0; i < 4; i++) {
+            if (a[i] != b[i])
+                return a[i] - b[i];
+        }
+        return 0;
+    }
+
+    private static int[] parseJavaVersion(String v) {
+        final int[] ver = new int[4];
+        String[] vs = v.split("\\.");
+        if (vs.length < 2)
+            throw new IllegalArgumentException("Version " + v + " is illegal. Must be of the form x.y.z[_u]");
+        ver[0] = Integer.parseInt(vs[0]);
+        ver[1] = Integer.parseInt(vs[1]);
+        if (vs.length > 2) {
+            String[] vzu = vs[2].split("_");
+            ver[2] = Integer.parseInt(vzu[0]);
+            ver[3] = vzu.length > 1 ? Integer.parseInt(vzu[1]) : 0;
+        }
+        return ver;
     }
 }
