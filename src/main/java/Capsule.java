@@ -54,6 +54,7 @@ public final class Capsule {
     private static final String PROP_VERSION = "capsule.version";
     private static final String PROP_LOG = "capsule.log";
     private static final String PROP_TREE = "capsule.tree";
+    private static final String PROP_JAVA_HOME = "capsule.java.home";
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
     private static final String CACHE_DEFAULT_NAME = "capsule";
@@ -190,10 +191,8 @@ public final class Capsule {
             System.err.println("CAPSULE: " + join(command, " "));
 
         final ProcessBuilder pb = new ProcessBuilder(command);
-        Map<String, String> env = buildEnvironmentVariables();
-        if(env != null)
-            pb.environment().putAll(env);
-        
+        buildEnvironmentVariables(pb.environment());
+
         return pb;
     }
 
@@ -247,21 +246,25 @@ public final class Capsule {
         return toAbsoluteClassPath(appCache, getListAttribute(attr));
     }
 
-    private Map<String, String> buildEnvironmentVariables() {
-        final List<String> env = getListAttribute(ATTR_ENV);
-        if (env == null)
-            return null;
-        final Map<String, String> envMap = new HashMap<String, String>(env.size());
-        for (String e : env) {
-            String[] kv = e.split("=");
-            if (kv.length < 1 || kv.length > 2)
-                throw new IllegalArgumentException("Malformed env variable definition: " + e);
-            if (kv.length == 1)
-                envMap.put(kv[0], "");
-            else
-                envMap.put(kv[0], kv[1].replaceAll("\\$CAPSULE_DIR", appCache.toAbsolutePath().toString()));
+    private void buildEnvironmentVariables(Map<String, String> env) {
+        final List<String> jarEnv = getListAttribute(ATTR_ENV);
+        if (jarEnv != null) {
+            for (String e : jarEnv) {
+                String[] kv = e.split("=");
+                if (kv.length < 1 || kv.length > 2)
+                    throw new IllegalArgumentException("Malformed env variable definition: " + e);
+                if (!env.containsKey(kv[0])) { // don't override inherited environment
+                    if (kv.length == 1)
+                        env.put(kv[0], "");
+                    else
+                        env.put(kv[0], kv[1].replaceAll("\\$CAPSULE_DIR", appCache.toAbsolutePath().toString()));
+                }
+            }
         }
-        return envMap;
+
+        final String capsuleJavaHome = System.getProperty(PROP_JAVA_HOME);
+        if (capsuleJavaHome != null)
+            env.put("JAVA_HOME", capsuleJavaHome);
     }
 
     private Map<String, String> buildSystemProperties(List<String> cmdLine) {
@@ -582,7 +585,10 @@ public final class Capsule {
     }
 
     private static String getJavaProcessName() {
-        final String javaHome = System.getProperty("java.home");
+        String javaHome = System.getProperty(PROP_JAVA_HOME);
+        if (javaHome == null)
+            javaHome = System.getProperty("java.home");
+        
         final String fileSeparateor = System.getProperty("file.separator");
 
         final String javaProcessName = javaHome + fileSeparateor + "bin" + fileSeparateor + "java" + (isWindows() ? ".exe" : "");
