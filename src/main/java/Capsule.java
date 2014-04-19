@@ -30,7 +30,8 @@ import java.util.jar.Manifest;
  * <ul>
  * <li>{@code Min-Java-Version}</li>
  * <li>{@code App-Class} - the only mandatory attribute</li>
- * <li>{@code App-Version}</li>
+ * <li>{@code Application-Name}</li>
+ * <li>{@code Application-Version}</li>
  * <li>{@code App-Class-Path} default: the capsule jar root and every jar file found in the capsule jar's root.</li>
  * <li>{@code System-Properties}</li>
  * <li>{@code JVM-Args}</li>
@@ -48,13 +49,15 @@ import java.util.jar.Manifest;
  */
 public final class Capsule {
     private static final String VERSION = "0.1.0-SNAPSHOT";
-    private static final String RESET_PROPERTY = "capsule.reset";
-    private static final String VERSION_PROPERTY = "capsule.version";
-    private static final String LOG_PROPERTY = "capsule.log";
-    private static final String TREE_PROPERTY = "capsule.tree";
-    private static final String CACHE_DIR_ENV = "CAPSULE_CACHE_DIR";
-    private static final String CACHE_NAME_ENV = "CAPSULE_CACHE_NAME";
+    private static final String PROP_RESET = "capsule.reset";
+    private static final String PROP_VERSION = "capsule.version";
+    private static final String PROP_LOG = "capsule.log";
+    private static final String PROP_TREE = "capsule.tree";
+    private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
+    private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
     private static final String CACHE_DEFAULT_NAME = "capsule";
+    private static final String PROP_CAPSULE_JAR_DIR = "capsule.jar.dir";
+    private static final String PROP_CAPSULE_DIR = "capsule.dir";
 
     private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
     private static final String ATTR_APP_NAME = "Application-Name";
@@ -74,7 +77,7 @@ public final class Capsule {
 
     private static final String POM_FILE = "pom.xml";
 
-    private static final boolean verbose = "verbose".equals(System.getProperty(LOG_PROPERTY, "quiet"));
+    private static final boolean verbose = "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
 
     private static final Path cacheDir = getCacheDir();
 
@@ -93,23 +96,36 @@ public final class Capsule {
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static void main(String[] args) {
         try {
-            if (System.getProperty(VERSION_PROPERTY) != null) {
+            if (System.getProperty(PROP_VERSION) != null) {
                 System.err.println("CAPSULE: Version " + VERSION);
-                return;
+                System.exit(0);
             }
 
             final Capsule capsule = new Capsule(getJarFile());
+
+            if (System.getProperty(PROP_TREE) != null) {
+                capsule.printDependencyTree();
+                System.exit(0);
+            }
+
             System.err.println("CAPSULE: Launching app " + capsule.appId);
             capsule.ensureExtracted();
             final ProcessBuilder pb = capsule.buildProcess(args);
             pb.inheritIO();
 
-            System.exit(pb.start().waitFor());
+            if (isBackgroundProcess())
+                System.exit(0);
+            else
+                System.exit(pb.start().waitFor());
         } catch (Throwable t) {
             System.err.println("CAPSULE EXCEPTION: " + t.getMessage());
             t.printStackTrace();
             System.exit(1);
         }
+    }
+
+    private static boolean isBackgroundProcess() {
+        return System.console() == null; // not really what we want
     }
 
     private Capsule(JarFile jar) throws IOException {
@@ -124,18 +140,16 @@ public final class Capsule {
         this.pom = (!hasDependenciesAttribute() && hasPom()) ? createPomReader() : null;
         this.repositories = getRepositories();
         this.dependencyManager = (hasDependenciesAttribute() || pom != null) ? createDependencyManager() : null;
-        if (dependencyManager != null) {
-            this.dependencies = getDependencies();
-
-            if (System.getProperty(TREE_PROPERTY) != null) {
-                printDependencyTree(dependencies);
-                System.exit(0);
-            }
-        } else {
-            this.dependencies = null;
-        }
+        this.dependencies = dependencyManager != null ? getDependencies() : null;
 
         this.appCache = getAppCacheDir();
+    }
+
+    private void printDependencyTree() {
+        if (dependencyManager == null)
+            System.out.println("No dependencies declared.");
+        else
+            printDependencyTree(dependencies);
     }
 
     private ProcessBuilder buildProcess(String[] args) {
@@ -240,6 +254,10 @@ public final class Capsule {
         libraryPath.addAll(nullToEmpty(getListAttribute(ATTR_LIBRARY_PATH_A)));
         libraryPath.add(toAbsoluteClassPath(appCache, ""));
         systemProerties.put("java.library.path", compileClassPath(libraryPath));
+
+        // Capsule properties
+        systemProerties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+        systemProerties.put(PROP_CAPSULE_JAR_DIR, Paths.get(jar.getName()).getParent().toAbsolutePath().toString());
 
         // command line
         for (String option : cmdLine) {
@@ -374,7 +392,7 @@ public final class Capsule {
     }
 
     private void ensureExtracted() {
-        final boolean reset = Boolean.parseBoolean(System.getProperty(RESET_PROPERTY, "false"));
+        final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
         if (reset || !isUpToDate()) {
             try {
                 if (verbose)
@@ -393,11 +411,11 @@ public final class Capsule {
         final List<String> cp = new ArrayList<String>();
         cp.add("");
         // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
-        for (File f : appCache.toFile().listFiles()) { 
+        for (File f : appCache.toFile().listFiles()) {
             if (f.isFile() && f.getName().endsWith(".jar"))
                 cp.add(f.toPath().getFileName().toString());
         }
-        
+
         return cp;
     }
 
@@ -458,13 +476,13 @@ public final class Capsule {
 
     private static Path getCacheDir() {
         final Path cacheDir;
-        final String cacheDirEnv = System.getenv(CACHE_DIR_ENV);
+        final String cacheDirEnv = System.getenv(ENV_CACHE_DIR);
         if (cacheDirEnv != null)
             cacheDir = Paths.get(cacheDirEnv);
         else {
             final String userHome = System.getProperty("user.home");
 
-            final String cacheNameEnv = System.getenv(CACHE_NAME_ENV);
+            final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
             final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
             if (isWindows())
                 cacheDir = Paths.get("AppData", "Local", cacheName);
@@ -657,7 +675,7 @@ public final class Capsule {
             Path depsCache = getCacheDir().resolve("deps");
             Files.createDirectories(depsCache);
 
-            final boolean reset = Boolean.parseBoolean(System.getProperty(RESET_PROPERTY, "false"));
+            final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
             final DependencyManager dm
                     = new DependencyManager(appId,
                             depsCache.toAbsolutePath().toString(),
