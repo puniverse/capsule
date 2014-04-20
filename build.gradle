@@ -66,6 +66,11 @@ task javadocJar(type: Jar, dependsOn: javadoc) {
     from javadoc.destinationDir
 } 
 
+configure (javadoc) {
+    options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
+    excludes = [ "co/paralleluniverse/capsule/**" ]
+}
+    
 ///////// Publish Artifacts 
 apply plugin: 'maven'
 apply plugin: 'signing'
