@@ -39,6 +39,8 @@ import java.util.jar.Manifest;
  * <li>{@code Application-Class} - the only mandatory attribute</li>
  * <li>{@code Application-Name}</li>
  * <li>{@code Application-Version}</li>
+ * <li>{@code Unix-Script}</li>
+ * <li>{@code Windows-Script}</li>
  * <li>{@code Extract-Capsule}</li>
  * <li>{@code Min-Java-Version}</li>
  * <li>{@code Java-Version}</li>
@@ -58,7 +60,7 @@ import java.util.jar.Manifest;
  *
  * @author pron
  */
-public final class Capsule extends Thread { // implements SignalHandler {
+public final class Capsule extends Thread {
     private static final String VERSION = "0.1.0-SNAPSHOT";
 
     private static final String PROP_RESET = "capsule.reset";
@@ -80,6 +82,8 @@ public final class Capsule extends Thread { // implements SignalHandler {
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
     private static final String ATTR_APP_CLASS = "Application-Class";
+    private static final String ATTR_UNIX_SCRIPT = "Unix-Script";
+    private static final String ATTR_WINDOWS_SCRIPT = "Windows-Script";
     private static final String ATTR_EXTRACT = "Extract-Capsule";
     private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
     private static final String ATTR_JAVA_VERSION = "Java-Version";
@@ -211,15 +215,35 @@ public final class Capsule extends Thread { // implements SignalHandler {
     }
 
     private ProcessBuilder buildProcess(String[] args) {
+        final ProcessBuilder pb = new ProcessBuilder();
+        if (!buildScripProcess(pb))
+            buildJavaProcess(pb);
+
+        final List<String> command = pb.command();
+        command.addAll(Arrays.asList(args));
+
+        buildEnvironmentVariables(pb.environment());
+
+        if (verbose)
+            System.err.println("CAPSULE: " + join(command, " "));
+
+        return pb;
+    }
+
+    private void buildJavaProcess(ProcessBuilder pb) {
         final RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
         final List<String> cmdLine = runtimeBean.getInputArguments();
 
 //        final String classPath = runtimeBean.getClassPath();
 //        final String bootClassPath = runtimeBean.getBootClassPath();
 //        final String libraryPath = runtimeBean.getLibraryPath();
-        final List<String> command = new ArrayList<String>();
+        final String javaHome = getJavaHome();
+        if (javaHome != null)
+            pb.environment().put("JAVA_HOME", javaHome);
 
-        command.add(getJavaProcessName());
+        final List<String> command = pb.command();
+
+        command.add(getJavaProcessName(javaHome));
 
         command.addAll(buildJVMArgs(cmdLine));
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
@@ -239,15 +263,20 @@ public final class Capsule extends Thread { // implements SignalHandler {
             command.add("-javaagent:" + jagent);
 
         command.add(getMainClass());
-        command.addAll(Arrays.asList(args));
+    }
 
-        if (verbose)
-            System.err.println("CAPSULE: " + join(command, " "));
+    private boolean buildScripProcess(ProcessBuilder pb) {
+        final String script = getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
+        if (script == null)
+            return false;
 
-        final ProcessBuilder pb = new ProcessBuilder(command);
-        buildEnvironmentVariables(pb.environment());
+        if (appCache == null)
+            throw new IllegalStateException("Cannot run the startup script " + script + " when the "
+                    + ATTR_EXTRACT + " attribute is set to false");
 
-        return pb;
+        final String processPath = toAbsolutePath(appCache, script);
+        pb.command().add(processPath);
+        return true;
     }
 
     private void verifyRequiredJavaVersion() {
@@ -280,7 +309,7 @@ public final class Capsule extends Thread { // implements SignalHandler {
             final List<String> localClassPath = new ArrayList<String>();
             localClassPath.addAll(nullToEmpty(getListAttribute(ATTR_APP_CLASS_PATH)));
             localClassPath.addAll(nullToEmpty(getDefaultClassPath()));
-            classPath.addAll(toAbsoluteClassPath(appCache, localClassPath));
+            classPath.addAll(toAbsolutePath(appCache, localClassPath));
         }
 
         if (dependencyManager != null)
@@ -305,11 +334,11 @@ public final class Capsule extends Thread { // implements SignalHandler {
         }
         if (option != null)
             return Arrays.asList(option.split(System.getProperty("path.separator")));
-        return toAbsoluteClassPath(appCache, getListAttribute(ATTR_BOOT_CLASS_PATH));
+        return toAbsolutePath(appCache, getListAttribute(ATTR_BOOT_CLASS_PATH));
     }
 
     private List<String> buildClassPath(String attr) {
-        return toAbsoluteClassPath(appCache, getListAttribute(attr));
+        return toAbsolutePath(appCache, getListAttribute(attr));
     }
 
     private void buildEnvironmentVariables(Map<String, String> env) {
@@ -327,10 +356,6 @@ public final class Capsule extends Thread { // implements SignalHandler {
                 }
             }
         }
-
-        final String capsuleJavaHome = System.getProperty(PROP_JAVA_HOME);
-        if (capsuleJavaHome != null)
-            env.put("JAVA_HOME", capsuleJavaHome);
     }
 
     private String processEnvValue(String value) {
@@ -349,10 +374,10 @@ public final class Capsule extends Thread { // implements SignalHandler {
         // library path
         if (appCache != null) {
             final List<String> libraryPath = new ArrayList<String>();
-            libraryPath.addAll(nullToEmpty(toAbsoluteClassPath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
+            libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
             libraryPath.addAll(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(System.getProperty("path.separator"))));
-            libraryPath.addAll(nullToEmpty(toAbsoluteClassPath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
-            libraryPath.add(toAbsoluteClassPath(appCache, ""));
+            libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
+            libraryPath.add(toAbsolutePath(appCache, ""));
             systemProerties.put("java.library.path", compileClassPath(libraryPath));
         } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
             throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
@@ -475,16 +500,16 @@ public final class Capsule extends Thread { // implements SignalHandler {
                 return getPomAppName();
             appName = getMainClass();
         }
+        if (appName == null)
+            throw new RuntimeException("Capsule jar " + jar.getName() + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
+                    + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
 
         final String version = getAttribute(ATTR_APP_VERSION);
         return appName + (version != null ? "_" + version : "");
     }
 
     private String getMainClass() {
-        final String appClass = getAttribute(ATTR_APP_CLASS);
-        if (appClass == null)
-            throw new RuntimeException("Manifest of jar file " + jar.getName() + " does not contain an App-Class attribute");
-        return appClass;
+        return getAttribute(ATTR_APP_CLASS);
     }
 
     private boolean shouldExtract() {
@@ -529,20 +554,20 @@ public final class Capsule extends Thread { // implements SignalHandler {
         else {
             if (appCache == null)
                 throw new IllegalStateException("Capsule not extracted");
-            return toAbsoluteClassPath(appCache, p);
+            return toAbsolutePath(appCache, p);
         }
     }
 
-    private static List<String> toAbsoluteClassPath(Path root, List<String> ps) {
+    private static List<String> toAbsolutePath(Path root, List<String> ps) {
         if (ps == null)
             return null;
         final List<String> aps = new ArrayList<String>(ps.size());
         for (String p : ps)
-            aps.add(toAbsoluteClassPath(root, p));
+            aps.add(toAbsolutePath(root, p));
         return aps;
     }
 
-    private static String toAbsoluteClassPath(Path root, String p) {
+    private static String toAbsolutePath(Path root, String p) {
         return root.resolve(sanitize(p)).toAbsolutePath().toString();
     }
 
@@ -658,7 +683,7 @@ public final class Capsule extends Thread { // implements SignalHandler {
         return filename.substring(0, index);
     }
 
-    private String getJavaProcessName() {
+    private String getJavaHome() {
         String javaHome = System.getProperty(PROP_JAVA_HOME);
         if (javaHome == null && getAttribute(ATTR_JAVA_VERSION) != null) {
             final Path javaHomePath = findJavaHome(getAttribute(ATTR_JAVA_VERSION));
@@ -670,7 +695,10 @@ public final class Capsule extends Thread { // implements SignalHandler {
         }
         if (javaHome == null)
             javaHome = System.getProperty("java.home");
+        return javaHome;
+    }
 
+    private String getJavaProcessName(String javaHome) {
         if (Objects.equals(javaHome, System.getProperty("java.home")))
             verifyRequiredJavaVersion();
 
@@ -992,59 +1020,4 @@ public final class Capsule extends Thread { // implements SignalHandler {
             return Collections.emptyList();
         return coll;
     }
-
-//    private void registerSignals() {
-//        if (!isWindows()) {
-//            for (String sig : new String[]{"INT", "TSTP", "CONT"})
-//                Signal.handle(new Signal(sig), this);
-//        }
-//    }
-//
-//    @Override
-//    public void handle(Signal signal) {
-//        kill(child, signal);
-//
-//        switch (signal.getName()) {
-//            case "TSTP":
-//                Signal.handle(signal, SignalHandler.SIG_DFL);
-//                raise(signal);
-//                break;
-//            case "CONT":
-//                Signal.handle(new Signal("TSTP"), this);
-//                break;
-//            case "TERM":
-//            case "INT":
-//            case "QUIT":
-//                System.exit(0);
-//        }
-//    }
-//
-//    private static void raise(Signal s) {
-//        try {
-//            final Method raise0 = Signal.class.getDeclaredMethod("raise0", int.class);
-//            raise0.setAccessible(true);
-//            raise0.invoke(null, s.getNumber());
-//        } catch (Exception e) {
-//            throw new AssertionError(e);
-//        }
-//    }
-//
-//    private static void kill(Process p, Signal s) {
-//        try {
-//            if (!isWindows())
-//                Runtime.getRuntime().exec("kill -" + s.getNumber() + " " + getPid(p));
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
-//
-//    private static int getPid(Process p) {
-//        try {
-//            Field pidField = p.getClass().getDeclaredField("pid");
-//            pidField.setAccessible(true);
-//            return pidField.getInt(p);
-//        } catch (Exception e) {
-//            throw new RuntimeException("Could not access child's pid");
-//        }
-//    }
 }
