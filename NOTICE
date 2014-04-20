@@ -4,9 +4,9 @@ This product depends on Aether, a library for working with artifact repositories
     * LICENSE: Eclipse Public License v1.0 (http://www.eclipse.org/legal/epl-v10.html)
     * HOMEPAGE: https://eclipse.org/aether/
 
-This product depends on Apache Maven, a library for working with artifact repositories
+This product depends on Apache Maven, a software project management and comprehension tool
 
-    Copyright (c) Copyright Apache Software Foundation
+    Copyright (c) 2002-2014 Apache Software Foundation
     * LICENSE: Apache License v2.0 (http://www.apache.org/licenses/LICENSE-2.0.html)
     * HOMEPAGE: http://maven.apache.org/
 
