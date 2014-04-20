@@ -204,8 +204,12 @@ public final class Capsule {
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
         addOption(command, "-Xbootclasspath:", compileClassPath(buildBootClassPath(cmdLine)));
-        addOption(command, "-Xbootclasspath/p:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_P)));
-        addOption(command, "-Xbootclasspath/a:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_A)));
+        if (appCache != null) {
+            addOption(command, "-Xbootclasspath/p:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_P)));
+            addOption(command, "-Xbootclasspath/a:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_A)));
+        } else
+            throw new IllegalStateException("Cannot use the " + ATTR_BOOT_CLASS_PATH_P + " or the " + ATTR_BOOT_CLASS_PATH_A
+                    + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
 
         command.add("-classpath");
         command.add(compileClassPath(buildClassPath()));
@@ -322,18 +326,16 @@ public final class Capsule {
             addSystemProperty(p, systemProerties);
 
         // library path
-        final List<String> libraryPath = new ArrayList<String>();
         if (appCache != null) {
+            final List<String> libraryPath = new ArrayList<String>();
             libraryPath.addAll(nullToEmpty(toAbsoluteClassPath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
-        } else if (hasAttribute(ATTR_LIBRARY_PATH_P))
-            throw new RuntimeException("Cannot use the " + ATTR_LIBRARY_PATH_P + " attribute when the " + ATTR_EXTRACT + " attribute is set to false");
-        libraryPath.addAll(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(System.getProperty("path.separator"))));
-        if (appCache != null) {
+            libraryPath.addAll(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(System.getProperty("path.separator"))));
             libraryPath.addAll(nullToEmpty(toAbsoluteClassPath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
             libraryPath.add(toAbsoluteClassPath(appCache, ""));
-        } else if (hasAttribute(ATTR_LIBRARY_PATH_A))
-            throw new RuntimeException("Cannot use the " + ATTR_LIBRARY_PATH_A + " attribute when the " + ATTR_EXTRACT + " attribute is set to false");
-        systemProerties.put("java.library.path", compileClassPath(libraryPath));
+            systemProerties.put("java.library.path", compileClassPath(libraryPath));
+        } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
+            throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
+                    + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
 
         // Capsule properties
         if (appCache != null)
