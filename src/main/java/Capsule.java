@@ -151,7 +151,7 @@ public final class Capsule {
             else
                 System.exit(pb.start().waitFor());
         } catch (Throwable t) {
-            System.err.println("CAPSULE EXCEPTION: " + t.getMessage() + " (for stack trace, run with -D" + PROP_LOG + "=verbose");
+            System.err.println("CAPSULE EXCEPTION: " + t.getMessage() + " (for stack trace, run with -D" + PROP_LOG + "=verbose)");
             if (verbose)
                 t.printStackTrace();
             System.exit(1);
@@ -163,8 +163,6 @@ public final class Capsule {
     }
 
     private Capsule(JarFile jar) throws IOException {
-        this.mode = System.getProperty(PROP_MODE);
-
         this.jar = jar;
         try {
             this.manifest = jar.getManifest();
@@ -173,18 +171,18 @@ public final class Capsule {
         } catch (IOException e) {
             throw new RuntimeException("Could not read Jar file " + jar.getName() + " manifest");
         }
+        this.mode = System.getProperty(PROP_MODE);
         getMainClass(); // verify existence of ATTR_APP_CLASS
 
         this.appId = getAppId();
-
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         this.repositories = getRepositories();
         this.dependencyManager = (hasAttribute(ATTR_DEPENDENCIES) || pom != null) ? createDependencyManager() : null;
         this.dependencies = dependencyManager != null ? getDependencies() : null;
-
         this.appCache = shouldExtract() ? getAppCacheDir() : null;
-
-        ensureExtracted();
+        
+        if (appCache != null)
+            ensureExtracted();
     }
 
     private void printDependencyTree() {
@@ -212,7 +210,7 @@ public final class Capsule {
         if (appCache != null) {
             addOption(command, "-Xbootclasspath/p:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_P)));
             addOption(command, "-Xbootclasspath/a:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_A)));
-        } else
+        } else if(hasAttribute(ATTR_BOOT_CLASS_PATH_P) || hasAttribute(ATTR_BOOT_CLASS_PATH_A))
             throw new IllegalStateException("Cannot use the " + ATTR_BOOT_CLASS_PATH_P + " or the " + ATTR_BOOT_CLASS_PATH_A
                     + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
 
@@ -424,6 +422,7 @@ public final class Capsule {
             final String agentJar = getBefore(agent, '=');
             final String agentOptions = getAfter(agent, '=');
             try {
+                System.out.println("XXXX: " + agentJar);
                 final String agentPath = getPath(agentJar);
                 agents.add(agentPath + (agentOptions != null ? "=" + agentOptions : ""));
             } catch (IllegalStateException e) {
