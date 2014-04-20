@@ -58,7 +58,7 @@ import java.util.jar.Manifest;
  *
  * @author pron
  */
-public final class Capsule {
+public final class Capsule extends Thread { // implements SignalHandler {
     private static final String VERSION = "0.1.0-SNAPSHOT";
 
     private static final String PROP_RESET = "capsule.reset";
@@ -111,9 +111,12 @@ public final class Capsule {
     private final Object dependencyManager; // non-null iff pom exists OR manifest has ATTR_DEPENDENCIES 
     private final List<String> repositories;
     private final List<String> dependencies;
+    private Process child;
 
     /**
      * Launches the application
+     *
+     * @param args the program's command-line arguments
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static void main(String[] args) {
@@ -142,14 +145,9 @@ public final class Capsule {
                 System.exit(0);
             }
 
-            System.err.println("CAPSULE: Launching app " + capsule.appId);
-            final ProcessBuilder pb = capsule.buildProcess(args);
-            pb.inheritIO();
-
-            if (isBackgroundProcess())
-                System.exit(0);
-            else
-                System.exit(pb.start().waitFor());
+            if (verbose)
+                System.err.println("CAPSULE: Launching app " + capsule.appId);
+            capsule.launch(args);
         } catch (Throwable t) {
             System.err.println("CAPSULE EXCEPTION: " + t.getMessage() + " (for stack trace, run with -D" + PROP_LOG + "=verbose)");
             if (verbose)
@@ -158,8 +156,8 @@ public final class Capsule {
         }
     }
 
-    private static boolean isBackgroundProcess() {
-        return System.console() == null || System.console().reader() == null; // not really what we want
+    private static boolean isNonInteractiveProcess() {
+        return System.console() == null || System.console().reader() == null;
     }
 
     private Capsule(JarFile jar) throws IOException {
@@ -180,9 +178,29 @@ public final class Capsule {
         this.dependencyManager = (hasAttribute(ATTR_DEPENDENCIES) || pom != null) ? createDependencyManager() : null;
         this.dependencies = dependencyManager != null ? getDependencies() : null;
         this.appCache = shouldExtract() ? getAppCacheDir() : null;
-        
+
         if (appCache != null)
             ensureExtracted();
+    }
+
+    private void launch(String[] args) throws IOException, InterruptedException {
+        final ProcessBuilder pb = buildProcess(args);
+        pb.inheritIO();
+
+        this.child = pb.start();
+        if (isNonInteractiveProcess())
+            System.exit(0);
+        else {
+            Runtime.getRuntime().addShutdownHook(this);
+            // registerSignals();
+            System.exit(child.waitFor());
+        }
+    }
+
+    @Override
+    public void run() {
+        if (child != null)
+            child.destroy();
     }
 
     private void printDependencyTree() {
@@ -210,7 +228,7 @@ public final class Capsule {
         if (appCache != null) {
             addOption(command, "-Xbootclasspath/p:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_P)));
             addOption(command, "-Xbootclasspath/a:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_A)));
-        } else if(hasAttribute(ATTR_BOOT_CLASS_PATH_P) || hasAttribute(ATTR_BOOT_CLASS_PATH_A))
+        } else if (hasAttribute(ATTR_BOOT_CLASS_PATH_P) || hasAttribute(ATTR_BOOT_CLASS_PATH_A))
             throw new IllegalStateException("Cannot use the " + ATTR_BOOT_CLASS_PATH_P + " or the " + ATTR_BOOT_CLASS_PATH_A
                     + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
 
@@ -544,14 +562,6 @@ public final class Capsule {
         if (vals == null)
             return null;
         return Arrays.asList(vals.split("\\s+"));
-    }
-
-    private static <T> List<T> nullToEmpty(List<T> list) {
-        return list != null ? list : Collections.EMPTY_LIST;
-    }
-
-    private static <T> Collection<T> nullToEmpty(Collection<T> coll) {
-        return coll != null ? coll : Collections.EMPTY_LIST;
     }
 
     private Path getAppCacheDir() {
@@ -970,4 +980,71 @@ public final class Capsule {
         }
         return ver;
     }
+
+    private static <T> List<T> nullToEmpty(List<T> list) {
+        if (list == null)
+            return Collections.emptyList();
+        return list;
+    }
+
+    private static <T> Collection<T> nullToEmpty(Collection<T> coll) {
+        if (coll == null)
+            return Collections.emptyList();
+        return coll;
+    }
+
+//    private void registerSignals() {
+//        if (!isWindows()) {
+//            for (String sig : new String[]{"INT", "TSTP", "CONT"})
+//                Signal.handle(new Signal(sig), this);
+//        }
+//    }
+//
+//    @Override
+//    public void handle(Signal signal) {
+//        kill(child, signal);
+//
+//        switch (signal.getName()) {
+//            case "TSTP":
+//                Signal.handle(signal, SignalHandler.SIG_DFL);
+//                raise(signal);
+//                break;
+//            case "CONT":
+//                Signal.handle(new Signal("TSTP"), this);
+//                break;
+//            case "TERM":
+//            case "INT":
+//            case "QUIT":
+//                System.exit(0);
+//        }
+//    }
+//
+//    private static void raise(Signal s) {
+//        try {
+//            final Method raise0 = Signal.class.getDeclaredMethod("raise0", int.class);
+//            raise0.setAccessible(true);
+//            raise0.invoke(null, s.getNumber());
+//        } catch (Exception e) {
+//            throw new AssertionError(e);
+//        }
+//    }
+//
+//    private static void kill(Process p, Signal s) {
+//        try {
+//            if (!isWindows())
+//                Runtime.getRuntime().exec("kill -" + s.getNumber() + " " + getPid(p));
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
+//
+//    private static int getPid(Process p) {
+//        try {
+//            Field pidField = p.getClass().getDeclaredField("pid");
+//            pidField.setAccessible(true);
+//            return pidField.getInt(p);
+//        } catch (Exception e) {
+//            throw new RuntimeException("Could not access child's pid");
+//        }
+//    }
 }

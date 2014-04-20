@@ -46,6 +46,10 @@ dependencies {
 
 defaultTasks 'build'
 
+//tasks.withType(Compile) { 
+//    options.compilerArgs << "-Xlint:unchecked" 
+//}
+
 jar {
     from { configurations.runtime.collect { zipTree(it) } }
     exclude 'META-INF/**'
