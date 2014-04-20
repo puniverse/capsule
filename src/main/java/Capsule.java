@@ -39,6 +39,7 @@ import java.util.jar.Manifest;
  * <li>{@code Application-Class} - the only mandatory attribute</li>
  * <li>{@code Application-Name}</li>
  * <li>{@code Application-Version}</li>
+ * <li>{@code Extract-Capsule}</li>
  * <li>{@code Min-Java-Version}</li>
  * <li>{@code Java-Version}</li>
  * <li>{@code App-Class-Path} default: the capsule jar root and every jar file found in the capsule jar's root.</li>
@@ -78,6 +79,7 @@ public final class Capsule {
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
     private static final String ATTR_APP_CLASS = "Application-Class";
+    private static final String ATTR_EXTRACT = "Extract-Capsule";
     private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
     private static final String ATTR_JAVA_VERSION = "Java-Version";
     private static final String ATTR_JVM_ARGS = "JVM-Args";
@@ -96,6 +98,7 @@ public final class Capsule {
 
     private static final String POM_FILE = "pom.xml";
 
+    private static final boolean verbose = "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final Path cacheDir = getCacheDir();
 
     private final JarFile jar;
@@ -107,7 +110,6 @@ public final class Capsule {
     private final Object pom;
     private final List<String> repositories;
     private final List<String> dependencies;
-    private final boolean verbose = "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
 
     /**
      * Launches the application
@@ -140,7 +142,6 @@ public final class Capsule {
             }
 
             System.err.println("CAPSULE: Launching app " + capsule.appId);
-            capsule.ensureExtracted();
             final ProcessBuilder pb = capsule.buildProcess(args);
             pb.inheritIO();
 
@@ -149,8 +150,9 @@ public final class Capsule {
             else
                 System.exit(pb.start().waitFor());
         } catch (Throwable t) {
-            System.err.println("CAPSULE EXCEPTION: " + t.getMessage());
-            t.printStackTrace();
+            System.err.println("CAPSULE EXCEPTION: " + t.getMessage() + " (for stack trace, run with -D" + PROP_LOG + "=verbose");
+            if (verbose)
+                t.printStackTrace();
             System.exit(1);
         }
     }
@@ -174,7 +176,7 @@ public final class Capsule {
         this.dependencyManager = (hasAttribute(ATTR_DEPENDENCIES) || pom != null) ? createDependencyManager() : null;
         this.dependencies = dependencyManager != null ? getDependencies() : null;
 
-        this.appCache = getAppCacheDir();
+        this.appCache = ensureExtracted();
     }
 
     private void printDependencyTree() {
@@ -243,17 +245,26 @@ public final class Capsule {
     private List<String> buildClassPath() {
         final List<String> classPath = new ArrayList<String>();
 
-        final List<String> localClassPath = new ArrayList<String>();
-        localClassPath.addAll(nullToEmpty(getListAttribute(ATTR_APP_CLASS_PATH)));
-        localClassPath.addAll(nullToEmpty(getDefaultClassPath()));
+        if (appCache == null && hasAttribute(ATTR_APP_CLASS_PATH))
+            throw new IllegalStateException("Cannot use the " + ATTR_APP_CLASS_PATH + " attribute when the "
+                    + ATTR_EXTRACT + " attribute is set to false");
+        if (appCache != null) {
+            final List<String> localClassPath = new ArrayList<String>();
+            localClassPath.addAll(nullToEmpty(getListAttribute(ATTR_APP_CLASS_PATH)));
+            localClassPath.addAll(nullToEmpty(getDefaultClassPath()));
+            classPath.addAll(toAbsoluteClassPath(appCache, localClassPath));
+        }
 
-        classPath.addAll(toAbsoluteClassPath(appCache, localClassPath));
         if (dependencyManager != null)
             classPath.addAll(resolveDependencies());
 
+        // the capsule jar
         final String isCapsuleInClassPath = getAttribute(ATTR_CAPSULE_IN_CLASS_PATH);
         if (isCapsuleInClassPath == null || Boolean.parseBoolean(isCapsuleInClassPath))
             classPath.add(jar.getName());
+        else if (appCache == null)
+            throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
+                    + ATTR_EXTRACT + " attribute is also set to false");
 
         return classPath;
     }
@@ -293,7 +304,7 @@ public final class Capsule {
         if (capsuleJavaHome != null)
             env.put("JAVA_HOME", capsuleJavaHome);
     }
-    
+
     private String processEnvValue(String value) {
         value = value.replaceAll("\\$CAPSULE_DIR", appCache.toAbsolutePath().toString());
         value = value.replace('/', System.getProperty("file.separator").charAt(0));
@@ -309,14 +320,21 @@ public final class Capsule {
 
         // library path
         final List<String> libraryPath = new ArrayList<String>();
-        libraryPath.addAll(nullToEmpty(getListAttribute(ATTR_LIBRARY_PATH_P)));
+        if (appCache != null) {
+            libraryPath.addAll(nullToEmpty(toAbsoluteClassPath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
+        } else if (hasAttribute(ATTR_LIBRARY_PATH_P))
+            throw new RuntimeException("Cannot use the " + ATTR_LIBRARY_PATH_P + " attribute when the " + ATTR_EXTRACT + " attribute is set to false");
         libraryPath.addAll(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(System.getProperty("path.separator"))));
-        libraryPath.addAll(nullToEmpty(getListAttribute(ATTR_LIBRARY_PATH_A)));
-        libraryPath.add(toAbsoluteClassPath(appCache, ""));
+        if (appCache != null) {
+            libraryPath.addAll(nullToEmpty(toAbsoluteClassPath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
+            libraryPath.add(toAbsoluteClassPath(appCache, ""));
+        } else if (hasAttribute(ATTR_LIBRARY_PATH_A))
+            throw new RuntimeException("Cannot use the " + ATTR_LIBRARY_PATH_A + " attribute when the " + ATTR_EXTRACT + " attribute is set to false");
         systemProerties.put("java.library.path", compileClassPath(libraryPath));
 
         // Capsule properties
-        systemProerties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+        if (appCache != null)
+            systemProerties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
         systemProerties.put(PROP_CAPSULE_JAR_DIR, Paths.get(jar.getName()).getParent().toAbsolutePath().toString());
 
         // command line
@@ -395,10 +413,15 @@ public final class Capsule {
         for (String agent : agents0) {
             final String agentJar = getBefore(agent, '=');
             final String agentOptions = getAfter(agent, '=');
-            final String agentPath = getPath(agentJar);
-            agents.add(agentPath + (agentOptions != null ? "=" + agentOptions : ""));
+            try {
+                final String agentPath = getPath(agentJar);
+                agents.add(agentPath + (agentOptions != null ? "=" + agentOptions : ""));
+            } catch (IllegalStateException e) {
+                if (appCache == null)
+                    throw new RuntimeException("Cannot run the embedded Java agent " + agentJar + " when the " + ATTR_EXTRACT + " attribute is set to false");
+                throw e;
+            }
         }
-
         return agents;
     }
 
@@ -438,20 +461,26 @@ public final class Capsule {
         return appClass;
     }
 
-    private void ensureExtracted() {
+    private Path ensureExtracted() {
+        final String extract = getAttribute(ATTR_EXTRACT);
+        if (extract != null && !Boolean.parseBoolean(extract))
+            return null;
+
+        final Path appCache = getAppCacheDir();
         final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
-        if (reset || !isUpToDate()) {
+        if (reset || !isUpToDate(jar, appCache)) {
             try {
                 if (verbose)
                     System.err.println("CAPSULE: Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
                 deleteCache(appCache);
                 Files.createDirectory(appCache);
-                extractJar();
+                extractJar(jar, appCache);
                 Files.createFile(appCache.resolve(".extracted"));
             } catch (IOException e) {
                 throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
             }
         }
+        return appCache;
     }
 
     private List<String> getDefaultClassPath() {
@@ -467,7 +496,13 @@ public final class Capsule {
     }
 
     private String getPath(String p) {
-        return isDependency(p) ? getDependencyPath(dependencyManager, p) : toAbsoluteClassPath(appCache, p);
+        if (isDependency(p))
+            return getDependencyPath(dependencyManager, p);
+        else {
+            if (appCache == null)
+                throw new IllegalStateException("Capsule not extracted");
+            return toAbsoluteClassPath(appCache, p);
+        }
     }
 
     private static List<String> toAbsoluteClassPath(Path root, List<String> ps) {
@@ -510,6 +545,10 @@ public final class Capsule {
         return Arrays.asList(vals.split("\\s+"));
     }
 
+    private static <T> List<T> nullToEmpty(List<T> list) {
+        return list != null ? list : Collections.EMPTY_LIST;
+    }
+
     private static <T> Collection<T> nullToEmpty(Collection<T> coll) {
         return coll != null ? coll : Collections.EMPTY_LIST;
     }
@@ -549,7 +588,7 @@ public final class Capsule {
         }
     }
 
-    private boolean isUpToDate() {
+    private static boolean isUpToDate(JarFile jar, Path appCache) {
         try {
             Path extractedFile = appCache.resolve(".extracted");
             if (!Files.exists(extractedFile))
@@ -565,7 +604,7 @@ public final class Capsule {
         }
     }
 
-    private void extractJar() throws IOException {
+    private static void extractJar(JarFile jar, Path targetDir) throws IOException {
         for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
             JarEntry file = (JarEntry) entries.nextElement();
 
@@ -592,11 +631,11 @@ public final class Capsule {
                 continue;
 
             if (dir != null)
-                Files.createDirectories(appCache.resolve(dir));
+                Files.createDirectories(targetDir.resolve(dir));
 
-            final Path target = appCache.resolve(file.getName());
+            final Path targetFile = targetDir.resolve(file.getName());
             try (InputStream is = jar.getInputStream(file)) {
-                Files.copy(is, target);
+                Files.copy(is, targetFile);
             }
         }
     }
@@ -790,7 +829,7 @@ public final class Capsule {
         final int[] myVer = parseJavaVersion(System.getProperty("java.version"));
         if (ver[0] == myVer[0] && ver[1] == myVer[1])
             return Paths.get(System.getProperty("java.home"));
-        
+
         final Map<String, Path> homes = getJavaHomes();
         if (homes == null)
             return null;
