@@ -2,10 +2,90 @@
 
 ## A simple single-file container for JVM applications
 
+Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single jar file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It can even automatically download maven dependencies if you choose not to embed them in the capsule. 
 
-The application is completely oblivious to Capsule.
+## How Capsule Works
 
-The JAR file must not contain application `.class` files not packaged within JARs.
+When you include Capsule into your JAR file and set Capsule as the JAR's main class, Capsule reads various configuration values (like JVM arguments, environment variables, Maven dependencies and more) from the JAR's manifest. It then downloads all required Maven dependencies, if any, and optionally extracts the JAR's contents into a cache directory. Finally, it spawns another process to run your application as configured.
+
+## What Capsule Doesn't Do
+
+Capsule doesn't contain a JVM distribution, the application user would need to have a JRE installed. Java 9 is expected to have a mechanism for packaging stripped-down versions of the JVM.
+
+## Alternatives to Capsule
+
+* Zip file with startup scripts: requires user installation.
+* Executanble (fat) JAR: licensing issues might prohibit this, embedded libraries might over-write each other's resources, and a startup script is still required to set up the JVM, Java agents etc.
+* [One-Jar](http://one-jar.sourceforge.net/): might interfere with the application in subtle ways, and still startup scripts are required for the JVM arguments and Java agents.
+
+## Usage Examples
+
+Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/).
+
+We'll assume that the application's `gradle.build` file applies the [`java`](http://www.gradle.org/docs/current/userguide/java_plugin.html) and `[application`](http://www.gradle.org/docs/current/userguide/application_plugin.html) plugins. Also, the build file declare the `capsule` configuration and contains the dependency `capsule 'co.paralleluniverse:capsule:0.1.0-SNAPSHOT'`.
+
+The first example creates what may be calle a "full" capsule:
+
+``` groovy
+task fullCapsule(type: Jar, dependsOn: jar) {
+    archiveName = "foo.jar"
+    
+    from jar // embed our application jar
+    from { configurations.runtime } // embed dependencies
+    
+    from(configurations.capsule.collect { zipTree(it) }) { include 'Capsule.class' } // we just need the single Capsule class
+    
+    manifest { 
+        attributes(
+            'Main-Class'        : 'Capsule',
+            'Application-Class' : mainClassName,
+            'Java-Version'      : '1.8.0',
+            'JVM-Args'          : run.jvmArgs.join(' '),
+            'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
+            'Java-Agents'       : configurations.quasar.iterator().next().getName()
+        )
+    }
+}
+```
+
+We embed the application jar and all the dependency jars into the capsule jar (without extracting them). We also include the `Capsule` class in the jar.
+Then, in the jar's manifest, we declare `Capsule` as the main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Java-Version` attribute specifies the JVM version will be used to run the application. If this version is different from the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use. We then copy the JVM arguments and system properties from build file's `run` task into the manifest, and finally we declare a Java agent used by [Quasar](https://github.com/puniverse/quasar).
+
+When we run the capsule with `java -jar foo.jar`, its contents will be extracted into a cache directory (whose location can be customized).
+
+This kind of capsule has the advantage of being completely self-contained, and it does not require online access to run. The downside is that it can be rather large, as all dependencies are stuffed into the jar.
+
+The second kind of capsule does not embed the app's dependencies in the jar, but downloads them when first run:
+
+``` groovy
+task capsule(type: Jar, dependsOn: capsule) {
+    archiveName = "foo.jar"
+    from sourceSets.main.output // this way we don't need to extract
+
+    from { configurations.capsule.collect { zipTree(it) } } // we need all of Capsule's classes
+    
+    manifest { 
+        attributes(
+            'Main-Class'        : 'Capsule',
+            'Application-Class' : mainClassName,
+            'Extract-Capsule'   : 'false',
+            'Min-Java-Version'  : '1.8.0',
+            'JVM-Args'          : run.jvmArgs.join(' '),
+            'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
+            'Java-Agents'       : getDependencies(configurations.quasar).iterator().next(),
+            'Dependencies'      : getDependencies(configurations.runtime).join(' ')
+        )
+    }
+}
+```
+
+This capsule doesn't embed the dependencies in the jar, so our application's classes can be simply placed in it unwrapped. Instead, the `Dependencies` attribute declares the application's dependencies (the `getDependencies` function translates Gradle dependencies to Capsule dependencies. Its definition can be found [here](XXXXXXX) and it may be copied verbatim to any build file). The first time we run `java -jar foo.jar`, the dependencies will be downloaded (by default from Maven Central, but other Maven repositories may be declared in the manifest),. The dependencies are placed in a cache directory shared by all capsules, so common ones like SLF4J or Guava will only be downloaded once.
+
+Instead of specifying the dependencies and (optionally) the repositories directly in the manifest, if the capsule contains a `pom.xml` file in the jar root, it will be used to find the dependencies.
+
+In order to support Maven dependencies, we needed to include all of Capsule's classes in the capsule jar rather than just the `Capsule` class. This will add about 2MB to the (packed) jar, but will save a lot more by not embedding all the dependencies.
+
+## Usage
 
 
 Mandatory:
@@ -45,67 +125,11 @@ Optional:
  
 
 
- ## Example
-
-Embedded dependencies:
-
-``` groovy
-task capsule2(type: Jar, dependsOn: jar) {
-    archiveName = "foo.jar"
-    from jar
-    from { configurations.runtime }
-    
-    from(configurations.capsule.collect { zipTree(it) }) {
-        include 'Capsule*.class'
-    }
-    
-    manifest { 
-        attributes(
-        'Main-Class'  : 'Capsule',
-            'Application-Class'   : mainClassName,
-            'Min-Java-Version' : '1.8.0',
-            'JVM-Args' : run.jvmArgs.join(' '),
-            'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
-            'Java-Agents' : configurations.quasar.iterator().next().getName()
-        )
-    }
-}
-```
 
 External dependencies:
 
-2MB overhead
 
-``` groovy
-// translates gradle dependencies to capsule dependencies
-def getDependencies(config) {
-    return config.getAllDependencies().collect { 
-        def res = it.group + ':' + it.name + ':' + it.version + (!it.artifacts.isEmpty() ? ':' + it.artifacts.iterator().next().classifier : '')
-        if(!it.excludeRules.isEmpty()) {
-            res += "(" + it.excludeRules.collect { it.group + ':' + it.module }.join(',') + ")"
-        }
-        return res
-    }
-}
 
-task capsule1(type: Jar, dependsOn: jar) {
-    archiveName = "foo.jar"
-    from jar
-    from { configurations.capsule.collect { zipTree(it) } }
-    
-    manifest { 
-        attributes(
-        'Main-Class'  :   'Capsule',
-            'Application-Class'   : mainClassName,
-            'Min-Java-Version' : '1.8.0',
-            'JVM-Args' : run.jvmArgs.join(' '),
-            'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
-            'Java-Agents' : getDependencies(configurations.quasar).iterator().next(),
-            'Dependencies': getDependencies(configurations.runtime).join(' ')
-        )
-    }
-}
-```
 
 ## Licensing Issues
 
