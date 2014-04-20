@@ -105,10 +105,10 @@ public final class Capsule {
     private final JarFile jar;
     private final Manifest manifest;
     private final String appId;
-    private final Path appCache;
+    private final Path appCache; // non-null iff capsule is extracted
     private final String mode;
-    private final Object dependencyManager;
-    private final Object pom;
+    private final Object pom; // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
+    private final Object dependencyManager; // non-null iff pom exists OR manifest has ATTR_DEPENDENCIES 
     private final List<String> repositories;
     private final List<String> dependencies;
 
@@ -776,7 +776,7 @@ public final class Capsule {
             }
         }
 
-        return !repos.isEmpty() ? repos : null;
+        return !repos.isEmpty() ? Collections.unmodifiableList(repos) : null;
     }
 
     private List<String> getDependencies() {
@@ -784,7 +784,7 @@ public final class Capsule {
         if (deps == null && pom != null)
             deps = getPomDependencies();
 
-        return deps;
+        return Collections.unmodifiableList(deps);
     }
 
     private void printDependencyTree(List<String> dependencies) {
