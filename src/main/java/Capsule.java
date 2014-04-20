@@ -164,6 +164,7 @@ public final class Capsule {
 
     private Capsule(JarFile jar) throws IOException {
         this.mode = System.getProperty(PROP_MODE);
+
         this.jar = jar;
         try {
             this.manifest = jar.getManifest();
@@ -173,6 +174,7 @@ public final class Capsule {
             throw new RuntimeException("Could not read Jar file " + jar.getName() + " manifest");
         }
         getMainClass(); // verify existence of ATTR_APP_CLASS
+
         this.appId = getAppId();
 
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
@@ -180,7 +182,9 @@ public final class Capsule {
         this.dependencyManager = (hasAttribute(ATTR_DEPENDENCIES) || pom != null) ? createDependencyManager() : null;
         this.dependencies = dependencyManager != null ? getDependencies() : null;
 
-        this.appCache = ensureExtracted();
+        this.appCache = shouldExtract() ? getAppCacheDir() : null;
+
+        ensureExtracted();
     }
 
     private void printDependencyTree() {
@@ -467,23 +471,21 @@ public final class Capsule {
         return appClass;
     }
 
-    private Path ensureExtracted() {
-        if (System.getProperty(PROP_EXTRACT) != null) {
-            if (!Boolean.parseBoolean(System.getProperty(PROP_EXTRACT, "true")))
-                return null;
-        } else {
-            final String extract = getAttribute(ATTR_EXTRACT);
-            if (extract != null && !Boolean.parseBoolean(extract))
-                return null;
-        }
+    private boolean shouldExtract() {
+        if (System.getProperty(PROP_EXTRACT) != null)
+            return Boolean.parseBoolean(System.getProperty(PROP_EXTRACT, "true"));
 
-        final Path appCache = getAppCacheDir();
+        final String extract = getAttribute(ATTR_EXTRACT);
+        return extract == null || Boolean.parseBoolean(extract);
+    }
+
+    private void ensureExtracted() {
         final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
-        if (reset || !isUpToDate(jar, appCache)) {
+        if (reset || !isUpToDate()) {
             try {
                 if (verbose)
                     System.err.println("CAPSULE: Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
-                deleteCache(appCache);
+                delete(appCache);
                 Files.createDirectory(appCache);
                 extractJar(jar, appCache);
                 Files.createFile(appCache.resolve(".extracted"));
@@ -491,7 +493,6 @@ public final class Capsule {
                 throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
             }
         }
-        return appCache;
     }
 
     private List<String> getDefaultClassPath() {
@@ -527,15 +528,6 @@ public final class Capsule {
 
     private static String toAbsoluteClassPath(Path root, String p) {
         return root.resolve(sanitize(p)).toAbsolutePath().toString();
-    }
-
-    private static void deleteCache(Path appCacheDir) {
-        try {
-            // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
-            delete(appCacheDir.toFile());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private String getAttribute(String attr) {
@@ -576,30 +568,30 @@ public final class Capsule {
     }
 
     private static Path getCacheDir() {
-        final Path cacheDir;
+        final Path cache;
         final String cacheDirEnv = System.getenv(ENV_CACHE_DIR);
         if (cacheDirEnv != null)
-            cacheDir = Paths.get(cacheDirEnv);
+            cache = Paths.get(cacheDirEnv);
         else {
             final String userHome = System.getProperty("user.home");
 
             final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
             final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
             if (isWindows())
-                cacheDir = Paths.get("AppData", "Local", cacheName);
+                cache = Paths.get("AppData", "Local", cacheName);
             else
-                cacheDir = Paths.get(userHome, "." + cacheName);
+                cache = Paths.get(userHome, "." + cacheName);
         }
         try {
-            if (!Files.exists(cacheDir))
-                Files.createDirectory(cacheDir);
-            return cacheDir;
+            if (!Files.exists(cache))
+                Files.createDirectory(cache);
+            return cache;
         } catch (IOException e) {
-            throw new RuntimeException("Error opening cache directory " + cacheDir.toAbsolutePath(), e);
+            throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
         }
     }
 
-    private static boolean isUpToDate(JarFile jar, Path appCache) {
+    private boolean isUpToDate() {
         try {
             Path extractedFile = appCache.resolve(".extracted");
             if (!Files.exists(extractedFile))
@@ -823,6 +815,15 @@ public final class Capsule {
         if (depsJars == null || depsJars.isEmpty())
             throw new RuntimeException("Dependency " + p + " was not found.");
         return depsJars.iterator().next().toAbsolutePath().toString();
+    }
+
+    private static void delete(Path dir) {
+        try {
+            // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
+            delete(dir.toFile());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static void delete(File f) throws IOException {
