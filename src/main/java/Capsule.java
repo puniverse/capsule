@@ -422,7 +422,6 @@ public final class Capsule {
             final String agentJar = getBefore(agent, '=');
             final String agentOptions = getAfter(agent, '=');
             try {
-                System.out.println("XXXX: " + agentJar);
                 final String agentPath = getPath(agentJar);
                 agents.add(agentPath + (agentOptions != null ? "=" + agentOptions : ""));
             } catch (IllegalStateException e) {
