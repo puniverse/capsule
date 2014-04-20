@@ -68,6 +68,7 @@ public final class Capsule {
     private static final String PROP_PRINT_JRES = "capsule.javas";
     private static final String PROP_JAVA_HOME = "capsule.java.home";
     private static final String PROP_MODE = "capsule.mode";
+    private static final String PROP_EXTRACT = "capsule.extract";
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
@@ -467,9 +468,14 @@ public final class Capsule {
     }
 
     private Path ensureExtracted() {
-        final String extract = getAttribute(ATTR_EXTRACT);
-        if (extract != null && !Boolean.parseBoolean(extract))
-            return null;
+        if (System.getProperty(PROP_EXTRACT) != null) {
+            if (!Boolean.parseBoolean(System.getProperty(PROP_EXTRACT, "true")))
+                return null;
+        } else {
+            final String extract = getAttribute(ATTR_EXTRACT);
+            if (extract != null && !Boolean.parseBoolean(extract))
+                return null;
+        }
 
         final Path appCache = getAppCacheDir();
         final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
