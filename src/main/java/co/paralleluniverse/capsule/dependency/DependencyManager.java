@@ -38,10 +38,6 @@ import org.eclipse.aether.spi.connector.transport.TransporterFactory;
 import org.eclipse.aether.transport.http.HttpTransporterFactory;
 import org.eclipse.aether.util.artifact.JavaScopes;
 
-/**
- *
- * @author pron
- */
 public class DependencyManager {
     private final String appId;
     private final RepositorySystem system;

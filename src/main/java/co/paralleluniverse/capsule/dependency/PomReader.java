@@ -16,10 +16,6 @@ import org.apache.maven.model.Model;
 import org.apache.maven.model.Repository;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 
-/**
- *
- * @author pron
- */
 public class PomReader {
     private final Model pom;
 

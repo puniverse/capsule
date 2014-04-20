@@ -166,9 +166,12 @@ public final class Capsule {
         this.jar = jar;
         try {
             this.manifest = jar.getManifest();
+            if (manifest == null)
+                throw new RuntimeException("Jar file " + jar.getName() + " does not have a manifest");
         } catch (IOException e) {
-            throw new RuntimeException("Jar file " + jar.getName() + " does not have a manifest");
+            throw new RuntimeException("Could not read Jar file " + jar.getName() + " manifest");
         }
+        getMainClass(); // verify existence of ATTR_APP_CLASS
         this.appId = getAppId();
 
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
