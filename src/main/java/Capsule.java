@@ -105,6 +105,9 @@ public final class Capsule extends Thread {
     private static final String ATTR_REPOSITORIES = "Repositories";
     private static final String ATTR_DEPENDENCIES = "Dependencies";
 
+    private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
+    private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
+
     private static final String POM_FILE = "pom.xml";
 
     private static final boolean verbose = "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
@@ -356,16 +359,29 @@ public final class Capsule extends Thread {
                     if (kv.length == 1)
                         env.put(kv[0], "");
                     else
-                        env.put(kv[0], processEnvValue(kv[1]));
+                        env.put(kv[0], expand(kv[1]));
                 }
             }
         }
     }
 
-    private String processEnvValue(String value) {
-        value = value.replaceAll("\\$CAPSULE_DIR", appCache.toAbsolutePath().toString());
-        value = value.replace('/', System.getProperty("file.separator").charAt(0));
-        return value;
+    private List<String> expand(List<String> strs) {
+        if (strs == null)
+            return null;
+        final List<String> res = new ArrayList<String>(strs.size());
+        for (String s : strs)
+            res.add(expand(s));
+        return res;
+    }
+
+    private String expand(String str) {
+        if (appCache == null && str.contains("$" + VAR_CAPSULE_DIR))
+            throw new IllegalStateException("The $" + VAR_CAPSULE_DIR + " variable cannot be expanded when the "
+                    + ATTR_EXTRACT + " attribute is set to false");
+        str = str.replaceAll("\\$" + VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+        str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, getJarPath());
+        str = str.replace('/', System.getProperty("file.separator").charAt(0));
+        return str;
     }
 
     private Map<String, String> buildSystemProperties(List<String> cmdLine) {
@@ -400,15 +416,19 @@ public final class Capsule extends Thread {
         // Capsule properties
         if (appCache != null)
             systemProerties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-        systemProerties.put(PROP_CAPSULE_JAR_DIR, Paths.get(jar.getName()).getParent().toAbsolutePath().toString());
+        systemProerties.put(PROP_CAPSULE_JAR_DIR, getJarPath());
 
         // command line
         for (String option : cmdLine) {
             if (option.startsWith("-D"))
-                addSystemProperty(option.substring(2), systemProerties);
+                addSystemProperty0(option.substring(2), systemProerties);
         }
 
         return systemProerties;
+    }
+
+    private String getJarPath() {
+        return Paths.get(jar.getName()).getParent().toAbsolutePath().toString();
     }
 
     private static List<String> compileSystemProperties(Map<String, String> ps) {
@@ -418,7 +438,17 @@ public final class Capsule extends Thread {
         return command;
     }
 
-    private static void addSystemProperty(String p, Map<String, String> ps) {
+    private void addSystemProperty(String p, Map<String, String> ps) {
+        try {
+            String name = getBefore(p, '=');
+            String value = getAfter(p, '=');
+            ps.put(name, expand(value));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Illegal system property definition: " + p);
+        }
+    }
+
+    private static void addSystemProperty0(String p, Map<String, String> ps) {
         try {
             String name = getBefore(p, '=');
             String value = getAfter(p, '=');
@@ -433,7 +463,7 @@ public final class Capsule extends Thread {
 
         for (String a : nullToEmpty(getListAttribute(ATTR_JVM_ARGS))) {
             if (!a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
-                addJvmArg(a, jvmArgs);
+                addJvmArg(expand(a), jvmArgs);
         }
 
         for (String option : cmdLine) {
@@ -570,6 +600,10 @@ public final class Capsule extends Thread {
                 throw new IllegalStateException("Capsule not extracted");
             return toAbsolutePath(appCache, p);
         }
+    }
+
+    private String toJarUrl(String relPath) {
+        return "jar:file:" + getJarPath() + "!/" + relPath;
     }
 
     private static List<String> toAbsolutePath(Path root, List<String> ps) {
