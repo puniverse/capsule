@@ -20,16 +20,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -68,6 +72,7 @@ public final class Capsule implements Runnable {
     private static final String PROP_VERSION = "capsule.version";
     private static final String PROP_LOG = "capsule.log";
     private static final String PROP_TREE = "capsule.tree";
+    private static final String PROP_APP_ID = "capsule.app.id";
     private static final String PROP_PRINT_JRES = "capsule.javas";
     private static final String PROP_JAVA_HOME = "capsule.java.home";
     private static final String PROP_MODE = "capsule.mode";
@@ -282,9 +287,26 @@ public final class Capsule implements Runnable {
             throw new IllegalStateException("Cannot run the startup script " + script + " when the "
                     + ATTR_EXTRACT + " attribute is set to false");
 
-        final String processPath = toAbsolutePath(appCache, script);
-        pb.command().add(processPath);
+        final Path scriptPath = appCache.resolve(sanitize(script)).toAbsolutePath();
+        ensureExecutable(scriptPath);
+        pb.command().add(scriptPath.toString());
         return true;
+    }
+
+    private static void ensureExecutable(Path file) {
+        if (!Files.isExecutable(file)) {
+            try {
+                Set<PosixFilePermission> perms = Files.getPosixFilePermissions(file);
+                if (!perms.contains(PosixFilePermission.OWNER_EXECUTE)) {
+                    Set<PosixFilePermission> newPerms = new HashSet<PosixFilePermission>(perms);
+                    newPerms.add(PosixFilePermission.OWNER_EXECUTE);
+                    Files.setPosixFilePermissions(file, newPerms);
+                }
+            } catch (UnsupportedOperationException e) {
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     private void verifyRequiredJavaVersion() {
@@ -541,7 +563,9 @@ public final class Capsule implements Runnable {
     }
 
     private String getAppId() {
-        String appName = getAttribute(ATTR_APP_NAME);
+        String appName = System.getProperty(PROP_APP_ID);
+        if (appName == null)
+            appName = getAttribute(ATTR_APP_NAME);
         if (appName == null) {
             if (pom != null)
                 return getPomAppName();
@@ -623,13 +647,30 @@ public final class Capsule implements Runnable {
     }
 
     private String getAttribute(String attr) {
-        // if possible, we could take into account the mode as the manifest's section name
-        Attributes atts = manifest.getMainAttributes();
-        return atts.getValue(attr);
+        String value = null;
+        Attributes atts;
+        if (mode != null) {
+            atts = manifest.getAttributes(mode);
+            if (atts == null)
+                throw new IllegalArgumentException("Mode " + mode + " not defined in manifest");
+            value = atts.getValue(attr);
+        }
+        if (value == null) {
+            atts = manifest.getMainAttributes();
+            value = atts.getValue(attr);
+        }
+        return value;
     }
 
     private boolean hasAttribute(String attr) {
-        Attributes atts = manifest.getMainAttributes();
+        final Attributes.Name key = new Attributes.Name(attr);
+        Attributes atts;
+        if (mode != null) {
+            atts = manifest.getAttributes(mode);
+            if (atts != null && atts.containsKey(key))
+                return true;
+        }
+        atts = manifest.getMainAttributes();
         return atts.containsKey(new Attributes.Name(attr));
     }
 
