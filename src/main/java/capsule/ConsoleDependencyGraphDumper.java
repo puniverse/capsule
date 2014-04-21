@@ -18,7 +18,7 @@
  * Sonatype, Inc. - initial API and implementation
  ******************************************************************************
  */
-package co.paralleluniverse.capsule.dependency;
+package capsule;
 
 import java.io.PrintStream;
 import java.util.ArrayDeque;

@@ -6,7 +6,7 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package co.paralleluniverse.capsule.dependency;
+package capsule;
 
 import java.io.InputStream;
 import java.util.ArrayList;

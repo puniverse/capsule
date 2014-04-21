@@ -7,8 +7,8 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
-import co.paralleluniverse.capsule.dependency.DependencyManager;
-import co.paralleluniverse.capsule.dependency.PomReader;
+import capsule.DependencyManager;
+import capsule.PomReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -160,7 +160,8 @@ public final class Capsule implements Runnable {
                 System.err.println("CAPSULE: Launching app " + capsule.appId);
             capsule.launch(args);
         } catch (Throwable t) {
-            System.err.println("CAPSULE EXCEPTION: " + t.getMessage() + " (for stack trace, run with -D" + PROP_LOG + "=verbose)");
+            System.err.println("CAPSULE EXCEPTION: " + t.getMessage()
+                    + (!verbose ? " (for stack trace, run with -D" + PROP_LOG + "=verbose)" : ""));
             if (verbose)
                 t.printStackTrace();
             System.exit(1);
@@ -700,16 +701,9 @@ public final class Capsule implements Runnable {
             if (file.getName().equals(Capsule.class.getName().replace('.', '/') + ".class")
                     || (file.getName().startsWith(Capsule.class.getName().replace('.', '/') + "$") && file.getName().endsWith(".class")))
                 continue;
-//            if (file.getName().equals("about.html"))
-//                continue;
             if (file.getName().endsWith(".class"))
                 continue;
-            if (file.getName().startsWith("co/paralleluniverse/capsule/"))
-                //                    || file.getName().startsWith("org/eclipse/aether/")
-                //                    || file.getName().startsWith("org/apache/maven/")
-                //                    || file.getName().startsWith("org/apache/http/")
-                //                    || file.getName().startsWith("org/apache/commons/codec/")
-                //                    || file.getName().startsWith("licenses/"))
+            if (file.getName().startsWith("capsule/"))
                 continue;
 
             final String dir = getDirectory(file.getName());

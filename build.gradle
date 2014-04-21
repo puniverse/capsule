@@ -50,15 +50,45 @@ defaultTasks 'build'
 //    options.compilerArgs << "-Xlint:unchecked" 
 //}
 
-jar {
-    from { configurations.runtime.collect { zipTree(it) } }
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:0.8'
+    }
+}
+
+apply plugin: 'shadow'
+
+shadow {
+    // artifactAttached = false
+    classifier = 'shadow'
+    destinationDir = "$buildDir/libs"
+    
     exclude 'META-INF/**'
     exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
     exclude 'about.html'
-    exclude 'org/apache/http/client/version.properties'
-    exclude 'org/apache/http/version.properties'
-    exclude 'org/apache/maven/model/pom-4.0.0.xml'
+    relocation {
+        pattern = 'org'
+        shadedPattern = 'capsule.org'
+    }
 }
+
+shadowJar.doLast {
+    logger.info("$buildDir/libs/${project.name}-${project.version}-shadow.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
+    file("$buildDir/libs/${project.name}-${version}-shadow.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
+}
+
+//jar {
+//    from { configurations.runtime.collect { zipTree(it) } }
+//    exclude 'META-INF/**'
+//    exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
+//    exclude 'about.html'
+//    exclude 'org/apache/http/client/version.properties'
+//    exclude 'org/apache/http/version.properties'
+//    exclude 'org/apache/maven/model/pom-4.0.0.xml'
+//}
     
 task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
@@ -90,19 +120,32 @@ signing {
     required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
     sign configurations.archives
 }
-    
-// remove embedded jars from pom
-configure(install.repositories.mavenInstaller) {
-    pom.whenConfigured {
-        it.dependencies.removeAll { dep -> 
-            dep.artifactId.startsWith('jsr166e') || 
-            dep.artifactId.startsWith('high-scale-lib') || 
-            dep.artifactId.startsWith('HdrHistogram') ||
-            (dep.groupId == 'co.paralleluniverse' && dep.artifactId.startsWith('quasar-core'))
+
+uploadArchives.dependsOn shadowJar
+
+// remove dependencies from pom
+//install.repositories.mavenInstaller.pom.whenConfigured {
+//    it.dependencies.removeAll()
+//} 
+
+//configure(install.repositories.mavenInstaller) {
+//    pom.whenConfigured {
+//        it.dependencies.removeAll()
+//    }
+//}
+
+install.dependsOn shadowJar
+install {
+    repositories {
+        mavenInstaller {
+            pom.whenConfigured {
+                it.dependencies.clear()
+            }
         }
     }
 }
-	                
+  
+uploadArchives.dependsOn shadowJar
 uploadArchives {
     repositories {
         mavenDeployer {
@@ -116,7 +159,7 @@ uploadArchives {
                 authentication(userName: sonatypeUsername, password: sonatypePassword)
             }
             pom.whenConfigured {
-                it.dependencies.removeAll()
+                it.dependencies.clear()
             }
             pom.project {
                 name project.name
