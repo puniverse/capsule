@@ -98,6 +98,9 @@ public final class Capsule extends Thread {
     private static final String ATTR_BOOT_CLASS_PATH_P = "Boot-Class-Path-P";
     private static final String ATTR_LIBRARY_PATH_A = "Library-Path-A";
     private static final String ATTR_LIBRARY_PATH_P = "Library-Path-P";
+    private static final String ATTR_SECURITY_MANAGER = "Security-Manager";
+    private static final String ATTR_SECURITY_POLICY = "Security-Policy";
+    private static final String ATTR_SECURITY_POLICY_A = "Security-Policy-A";
     private static final String ATTR_JAVA_AGENTS = "Java-Agents";
     private static final String ATTR_REPOSITORIES = "Repositories";
     private static final String ATTR_DEPENDENCIES = "Dependencies";
@@ -383,6 +386,16 @@ public final class Capsule extends Thread {
         } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
             throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
                     + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
+
+        if (hasAttribute(ATTR_SECURITY_POLICY) || hasAttribute(ATTR_SECURITY_POLICY_A)) {
+            systemProerties.put("java.security.manager", "");
+            if (hasAttribute(ATTR_SECURITY_POLICY_A))
+                systemProerties.put("java.security.policy", toJarUrl(getAttribute(ATTR_SECURITY_POLICY_A)));
+            if (hasAttribute(ATTR_SECURITY_POLICY))
+                systemProerties.put("java.security.policy", "=" + toJarUrl(getAttribute(ATTR_SECURITY_POLICY)));
+        }
+        if (hasAttribute(ATTR_SECURITY_MANAGER))
+            systemProerties.put("java.security.manager", getAttribute(ATTR_SECURITY_MANAGER));
 
         // Capsule properties
         if (appCache != null)
