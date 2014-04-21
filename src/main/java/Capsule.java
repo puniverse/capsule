@@ -61,7 +61,7 @@ import java.util.jar.Manifest;
  *
  * @author pron
  */
-public final class Capsule extends Thread {
+public final class Capsule implements Runnable {
     private static final String VERSION = "0.1.0-SNAPSHOT";
 
     private static final String PROP_RESET = "capsule.reset";
@@ -202,7 +202,7 @@ public final class Capsule extends Thread {
         if (isNonInteractiveProcess())
             System.exit(0);
         else {
-            Runtime.getRuntime().addShutdownHook(this);
+            Runtime.getRuntime().addShutdownHook(new Thread(this));
             // registerSignals();
             System.exit(child.waitFor());
         }
