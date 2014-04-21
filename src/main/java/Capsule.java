@@ -375,10 +375,12 @@ public final class Capsule implements Runnable {
     }
 
     private String expand(String str) {
-        if (appCache == null && str.contains("$" + VAR_CAPSULE_DIR))
+        if (appCache != null)
+            str = str.replaceAll("\\$" + VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+        else if (str.contains("$" + VAR_CAPSULE_DIR))
             throw new IllegalStateException("The $" + VAR_CAPSULE_DIR + " variable cannot be expanded when the "
                     + ATTR_EXTRACT + " attribute is set to false");
-        str = str.replaceAll("\\$" + VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, getJarPath());
         str = str.replace('/', System.getProperty("file.separator").charAt(0));
         return str;
