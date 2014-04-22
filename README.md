@@ -22,7 +22,7 @@ With Capsule, you just distribute a single jar and run it.
 
 ### Getting Capsule
 
-[Download](XXXXXXXXXXXXX)
+[Download](https://github.com/puniverse/capsule/releases)
 
 or:
 
