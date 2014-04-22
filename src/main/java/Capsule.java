@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -73,7 +72,7 @@ public final class Capsule implements Runnable {
     private static final String PROP_LOG = "capsule.log";
     private static final String PROP_TREE = "capsule.tree";
     private static final String PROP_APP_ID = "capsule.app.id";
-    private static final String PROP_PRINT_JRES = "capsule.javas";
+    private static final String PROP_PRINT_JRES = "capsule.jvms";
     private static final String PROP_JAVA_HOME = "capsule.java.home";
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_EXTRACT = "capsule.extract";
@@ -82,7 +81,7 @@ public final class Capsule implements Runnable {
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
     private static final String CACHE_DEFAULT_NAME = "capsule";
 
-    private static final String PROP_CAPSULE_JAR_DIR = "capsule.jar.dir";
+    private static final String PROP_CAPSULE_JAR = "capsule.jar";
     private static final String PROP_CAPSULE_DIR = "capsule.dir";
 
     private static final String ATTR_APP_NAME = "Application-Name";
@@ -332,19 +331,6 @@ public final class Capsule implements Runnable {
     private List<String> buildClassPath() {
         final List<String> classPath = new ArrayList<String>();
 
-        if (appCache == null && hasAttribute(ATTR_APP_CLASS_PATH))
-            throw new IllegalStateException("Cannot use the " + ATTR_APP_CLASS_PATH + " attribute when the "
-                    + ATTR_EXTRACT + " attribute is set to false");
-        if (appCache != null) {
-            final List<String> localClassPath = new ArrayList<String>();
-            localClassPath.addAll(nullToEmpty(getListAttribute(ATTR_APP_CLASS_PATH)));
-            localClassPath.addAll(nullToEmpty(getDefaultClassPath()));
-            classPath.addAll(toAbsolutePath(appCache, localClassPath));
-        }
-
-        if (dependencyManager != null)
-            classPath.addAll(resolveDependencies());
-
         // the capsule jar
         final String isCapsuleInClassPath = getAttribute(ATTR_CAPSULE_IN_CLASS_PATH);
         if (isCapsuleInClassPath == null || Boolean.parseBoolean(isCapsuleInClassPath))
@@ -352,6 +338,19 @@ public final class Capsule implements Runnable {
         else if (appCache == null)
             throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
                     + ATTR_EXTRACT + " attribute is also set to false");
+
+        if (appCache == null && hasAttribute(ATTR_APP_CLASS_PATH))
+            throw new IllegalStateException("Cannot use the " + ATTR_APP_CLASS_PATH + " attribute when the "
+                    + ATTR_EXTRACT + " attribute is set to false");
+        if (appCache != null) {
+            final List<String> localClassPath = new ArrayList<String>();
+            localClassPath.addAll(nullToEmpty(getListAttribute(ATTR_APP_CLASS_PATH)));
+            localClassPath.addAll(nullToEmpty(getDefaultCacheClassPath()));
+            classPath.addAll(toAbsolutePath(appCache, localClassPath));
+        }
+
+        if (dependencyManager != null)
+            classPath.addAll(resolveDependencies());
 
         return classPath;
     }
@@ -441,7 +440,7 @@ public final class Capsule implements Runnable {
         // Capsule properties
         if (appCache != null)
             systemProerties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-        systemProerties.put(PROP_CAPSULE_JAR_DIR, getJarPath());
+        systemProerties.put(PROP_CAPSULE_JAR, getJarPath());
 
         // command line
         for (String option : cmdLine) {
@@ -607,7 +606,7 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private List<String> getDefaultClassPath() {
+    private List<String> getDefaultCacheClassPath() {
         final List<String> cp = new ArrayList<String>();
         cp.add("");
         // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
@@ -703,9 +702,9 @@ public final class Capsule implements Runnable {
             final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
             final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
             if (isWindows())
-                cache = Paths.get("AppData", "Local", cacheName);
+                cache = Paths.get(userHome, "AppData", "Local", "apps", cacheName);
             else
-                cache = Paths.get(userHome, "." + cacheName);
+                cache = Paths.get(userHome, "." + cacheName, "apps");
         }
         try {
             if (!Files.exists(cache))
