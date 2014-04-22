@@ -272,7 +272,6 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.app.id`: sets the value of the application ID (see user guide)
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
 * `capsule.extract`: can be set to `true` or `false` to force extraction (or no extraction) of the capsule.
-* `capsule.mode`: currently left blank...
 
 Capsule defines these system properties in the application's process:
 
