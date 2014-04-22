@@ -53,15 +53,14 @@ Then, in the jar's manifest, we declare `Capsule` as the main class. This is the
 
 The resulting jar has the following structure:
 
-``` txt
-Capsule.class
-foo.jar
-|__ app.jar
-|__ dep1.jar
-|__ dep2.jar
-\__ MANIFEST
-    \__ MANIFEST.MF
-```
+    foo.jar
+    |__ Capsule.class
+    |__ app.jar
+    |__ dep1.jar
+    |__ dep2.jar
+    \__ MANIFEST
+        \__ MANIFEST.MF
+
 
 When we run the capsule with `java -jar foo.jar`, its contents will be extracted into a cache directory (whose location can be customized).
 
@@ -93,17 +92,16 @@ task capsule(type: Jar, dependsOn: classes) {
 
 The resulting jar has the following structure:
 
-``` txt
-foo.jar
-|__ Capsule.class
-|__ capsule/
-|    \__ [capsule classes]
-|__ com/
-|   \__ acme/
-|       \__ [app classes]    
-\__ MANIFEST/
-    \__ MANIFEST.MF
-```
+    foo.jar
+    |__ Capsule.class
+    |__ capsule/
+    |    \__ [capsule classes]
+    |__ com/
+    |   \__ acme/
+    |       \__ [app classes]    
+    \__ MANIFEST/
+        \__ MANIFEST.MF
+
 
 This capsule doesn't embed the dependencies in the jar, so our application's classes can be simply placed in it unwrapped. Instead, the `Dependencies` attribute declares the application's dependencies (the `getDependencies` function translates Gradle dependencies to Capsule dependencies. Its definition can be found [here](XXXXXXX) and it may be copied verbatim to any build file). The first time we run `java -jar foo.jar`, the dependencies will be downloaded (by default from Maven Central, but other Maven repositories may be declared in the manifest). The dependencies are placed in a cache directory shared by all capsules, so common ones like SLF4J or Guava will only be downloaded once. Also, because the app's classes are placed directly in the jar, and the dependencies are loaded to a shared cache, the capsule does not need to be extracted to the filesystem at all, hene the manifest says `Extract-Capsule : false`.
 
@@ -154,7 +152,6 @@ The capsule will be extracted once. Following run will compare the jar's modific
 The location of the cache, as well as the location of the jar are communicated to the application through the `capsule.dir` and `capsule.jar` system properties respectively. Capsule defines these properties automatically, and the application may use them, for example, to find extracted resources. In addition, those two filesystem paths can be used within the manifest itself to set various values (system proeprties, environment variables, etc) by referencing them with `$CAPSULE_DIR` and `$CAPSULE_JAR` respectively.
 
 Capsule's cache is found, by default, at `~/.capsule/` on Unix/Linux/Mac OS machines, and at `%USERPROFILE%\AppData\Local\capsule\` on windows. The application caches are placed in the `apps/APP_ID` subdirectory of the cache, while the shared dependency cache is at the `deps` subdirectory. The location of the Capsule cache can be changed with environment variables: setting `CAPSULE_CACHE_NANE` determines the name of the topmost Capsule cache dir (i.e. "capsule" by default), while `CAPSULE_CACHE_DIR` can be used to set a precise path for the cache (e.g. `/tmp/capsule/).
-
 
 ### Dependencies
 
