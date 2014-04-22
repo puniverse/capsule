@@ -2,7 +2,7 @@
 
 ## Dead-Simple Packaging and Deployment for JVM Apps
 
-Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single jar file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It can even automatically download maven dependencies when the program is first launched, if you choose not to embed them in the capsule. 
+Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single jar file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It even automatically download maven dependencies when the program is first launched, if you choose not to embed them in the capsule. 
 
 ### How Capsule Works
 
@@ -32,6 +32,7 @@ On Maven Central.
 
 ### Support
 
+Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.google.com/forum/#!forum/capsule-user)
 
 ### What's Missing/TODO (contributions happily accepted!)
 
@@ -41,7 +42,7 @@ On Maven Central.
 
 Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/). The full Gradle file is [here](https://github.com/puniverse/capsule-demo/blob/master/build.gradle).
 
-We'll assume that the application's `gradle.build` file applies the [`java`](http://www.gradle.org/docs/current/userguide/java_plugin.html) and `[application`](http://www.gradle.org/docs/current/userguide/application_plugin.html) plugins, and that the build file declare the `capsule` configuration and contains the dependency `capsule 'co.paralleluniverse:capsule:0.1.0'`.
+We'll assume that the application's `gradle.build` file applies the [`java`](http://www.gradle.org/docs/current/userguide/java_plugin.html) and [`application`](http://www.gradle.org/docs/current/userguide/application_plugin.html) plugins, and that the build file declare the `capsule` configuration and contains the dependency `capsule 'co.paralleluniverse:capsule:0.1.0'`.
 
 The first example creates what may be calle a "full" capsule:
 
@@ -150,6 +151,8 @@ Adding `-Dcapsule.log=verbose` before `-jar` will print information about Capsul
 
 The application ID is used to find the capsule's application cache, where the capsule's contents will be extracted if necessary. If the manifest has an `Application-Name`, it will be the application's ID, combined with the `Application-Version` attribute, if found. If there is no `Application-Name` attribute, and a `pom.xml` file is found in the jar's root, the ID will be formed by joining the POM's groupId, ArtifactId, and version properties. If there is no pom file, the `Application-Class` attribute will serve as the application name.
 
+The application's ID can be overriden by the `capsule.app.id` system property, if defined when launching the capsule, as in `java -Dcapsule.app.id=my_old_app -jar app.jar`
+
 ### Java Version
 
 By default, the application will run using the same JVM used to run the capsule itself, i.e., the JVM used to run `java -jar app.jar`. If the `Min-Java-Version` attribute is specified in the manifest (e.g. 1.7.0_50 or 1.8.0), it will be used to test the JVM's version. If the JVM is not of the required version, an exception will be throw, and the app will not run.
@@ -223,14 +226,61 @@ The `Security-Policy` attribute specifies a Java [security policy file](http://d
 
 If any of these three properties is set, a security manager will be in effect when the application runs. If the `Security-Manager` attribute is not set, the default security manager will be used.
 
-## Refernce
+## Reference
 
-### Attributes
+### Manifest Attributes
+
+* `Application-Name`
+* `Application-Version`
+* `Application-Class`
+* `Unix-Script`
+* `Windows-Script`
+* `Extract-Capsule`
+* `Min-Java-Version`
+* `Java-Version`
+* `JVM-Args`
+* `Environment-Variables`
+* `System-Properties`
+* `App-Class-Path`
+* `Capsule-In-Class-Path`
+* `Boot-Class-Path`
+* `Boot-Class-Path-A`
+* `Boot-Class-Path-P`
+* `Library-Path-A`
+* `Library-Path-P`
+* `Security-Manager`
+* `Security-Policy`
+* `Security-Policy-A`
+* `Java-Agents`
+* `Repositories`
+* `Dependencies`
 
 ### System Properties
 
+* `capsule.version`: if set, the capsule will print its Capsule version and quit without launching the app
+* `capsule.tree`: if set, the capsule will print the app's dependency tree, and then quit without launching the app
+* `capsule.jvms`: if set, the capsule will print the JVM installations it can locate with their versions, and then quit without launching the app
+* `capsule.log`: if set to `verbose`, Capsule will print what it's doing
+* `capsule.reset`: if set, forces re-extraction of the capsule, where applies, and/or re-downloading of SNAPSHOT dependencies
+* `capsule.app.id`: sets the value of the application ID (see user guide)
+* `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
+* `capsule.extract`: can be set to `true` or `false` to force extraction (or no extraction) of the capsule.
+* `capsule.mode`: currently left blank...
+
+Capsule defines these system properties in the application's process:
+
+* `capsule.jar`: the full path to the capsule's jar
+* `capsule.dir`: if the jar has been extracted, the full path of the application cache.
+    
 ### Environment Variables
 
+* `CAPSULE_CACHE_NAME`: sets the *name* of the root of Capsule's cache in the default location (`~` on Unix, %LOCALAPPDATA% on Windows)
+* `CAPSULE_CACHE_DIR`: sets the full path of the Capsule's cache
+
+Capsule defines these variables in the application's environment:
+
+* `CAPSULE_JAR`: the full path to the capsule's jar
+* `CAPSULE_DIR`: if the jar has been extracted, the full path of the application cache.
 
 ## License
 
@@ -243,9 +293,4 @@ If any of these three properties is set, a security manager will be in effect wh
 
 As Capsule does not link in any way with any of the code bundled in the Jar file, and simply treats it as raw data, Capsule is no different from a self-extracting Zip file (especially as manually unzipping the jar's contents is extrmely easy). Capsule's own license, therefore, does not interfere with the licensing of the bundled software.
 
-In particular, even though Capsule's license is incompatible with the GPL, it is permitted to distribute GPL programs packaged as capsules, as Capsule is simply a packaging medium and an activation script, and does not restrict access to the packaged GPL code. Capsule does not add any capability to, nor removes any from the bundled application.
-
-
-[GPL](https://www.gnu.org/copyleft/gpl.html):
-
-> A compilation of a covered work with other separate and independent works, which are not by their nature extensions of the covered work, and which are not combined with it such as to form a larger program, in or on a volume of a storage or distribution medium, is called an “aggregate” if the compilation and its resulting copyright are not used to limit the access or legal rights of the compilation's users beyond what the individual works permit. Inclusion of a covered work in an aggregate does not cause this License to apply to the other parts of the aggregate.
+In particular, even though Capsule's license is incompatible with the GPL/LGPL, it is permitted to distribute GPL programs packaged as capsules, as Capsule is simply a packaging medium and an activation script, and does not restrict access to the packaged GPL code. Capsule does not add any capability to, nor removes any from the bundled application. It therefore falls under the definition of an "aggregate" in the GPL's terminology.
