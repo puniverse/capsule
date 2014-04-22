@@ -230,30 +230,37 @@ If any of these three properties is set, a security manager will be in effect wh
 
 ### Manifest Attributes
 
-* `Application-Name`
-* `Application-Version`
-* `Application-Class`
-* `Unix-Script`
-* `Windows-Script`
-* `Extract-Capsule`
-* `Min-Java-Version`
-* `Java-Version`
-* `JVM-Args`
-* `Environment-Variables`
-* `System-Properties`
-* `App-Class-Path`
-* `Capsule-In-Class-Path`
-* `Boot-Class-Path`
-* `Boot-Class-Path-A`
-* `Boot-Class-Path-P`
-* `Library-Path-A`
-* `Library-Path-P`
-* `Security-Manager`
-* `Security-Policy`
-* `Security-Policy-A`
-* `Java-Agents`
-* `Repositories`
-* `Dependencies`
+Everywhere the word "list" is mentioned, it is whitespace-separated.
+
+* `Application-Name`: the name of the application, used to define its ID
+* `Application-Version`: the application's version, used to define its ID
+* `Application-Class`: the application's main class
+* `Unix-Script`: a startup script to be run *instead* of `Application-Class` on Unix/Linux/Mac OS, given as a path relative to the capsule's root
+* `Windows-Script`: a startup script to be run *instead* of `Application-Class` on Windows, given as a path relative to the capsule's root
+* `Extract-Capsule`: if `false`, the capsule jar will not be extracted to the filesystem (default: `true`)
+* `Min-Java-Version`: the minimum Java version required to run the application
+* `Java-Version`: the version of the Java installation required to run the application; Capsule will look for an appropriate installation
+* `JVM-Args`: a list of JVM arguments that will be used to launch the application's Java process
+* `Environment-Variables`: a list of environment variables that will be put in the applications environment; formatted `var=value` or `var`
+* `System-Properties`: a list of system properties that will be defined in the applications JVM; formatted `prop=value` or `prop`
+* `App-Class-Path`: a list of jars, relative to the capsule root, that will be put on the application's classpath, in the order they are listed
+* `Capsule-In-Class-Path`: if set to `false`, the capsule jar itself will not be on the application's classpath (default: `true`)
+* `Boot-Class-Path`: a list of jars and/or directories, realtive to the capsule root, that will be used as the application's boot classpath.
+* `Boot-Class-Path-A`: a list of jars and/or directories, realtive to the capsule root, that will be appended to the applications default boot classpath
+* `Boot-Class-Path-P`: a list of jars and/or directories, realtive to the capsule root, that will be *prepended* to the applications default boot classpath
+* `Library-Path-A`: a list of jars and/or directories, realtive to the capsule root, that will be appended to the default native library path
+* `Library-Path-P`: a list of jars and/or directories, realtive to the capsule root, that will be *prepended* to the default native library path
+* `Security-Manager`: the name of a class that will serve as the application's security-manager
+* `Security-Policy`: a security policy file, realtive to the capsule root, that will be used as the security policy
+* `Security-Policy-A`: a security policy file, realtive to the capsule root, that will be appended to the default security policy
+* `Java-Agents`: a list of java agents used by the application; formatted `agent` or `agent=arg1,arg2...`, where agent is either the path to a jar relative to the capsule root, or a Maven coordinate of a dependency
+* `Repositories`: a list of Maven repository URLs
+* `Dependencies`: a list of Maven dependencies given as `groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]`
+
+### Manifest Variables
+
+* `$CAPSULE_JAR`: the full path to the capsule jar
+* `$CAPSULE_DIR`: the full path to the application cache directory, if the capsule is extracted.
 
 ### System Properties
 
@@ -274,7 +281,7 @@ Capsule defines these system properties in the application's process:
     
 ### Environment Variables
 
-* `CAPSULE_CACHE_NAME`: sets the *name* of the root of Capsule's cache in the default location (`~` on Unix, %LOCALAPPDATA% on Windows)
+* `CAPSULE_CACHE_NAME`: sets the *name* of the root of Capsule's cache in the default location (`~` on Unix, `%LOCALAPPDATA%` on Windows)
 * `CAPSULE_CACHE_DIR`: sets the full path of the Capsule's cache
 
 Capsule defines these variables in the application's environment:
