@@ -9,12 +9,18 @@
 
 import capsule.DependencyManager;
 import capsule.PomReader;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,6 +71,10 @@ import java.util.jar.Manifest;
  * @author pron
  */
 public final class Capsule implements Runnable {
+    /*
+     * This class contains several strange hacks to avoid creating more classes. 
+     * We'd like this file to compile to a single .class file.
+     */
     private static final String VERSION = "0.1.0-SNAPSHOT";
 
     private static final String PROP_RESET = "capsule.reset";
@@ -79,7 +89,6 @@ public final class Capsule implements Runnable {
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
-    private static final String CACHE_DEFAULT_NAME = "capsule";
 
     private static final String PROP_CAPSULE_JAR = "capsule.jar";
     private static final String PROP_CAPSULE_DIR = "capsule.dir";
@@ -112,7 +121,12 @@ public final class Capsule implements Runnable {
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
 
+    private static final String CACHE_DEFAULT_NAME = "capsule";
+    private static final String DEPS_CACHE_NAME = "deps";
+    private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
+    private static final String FILE_SEPARATOR = System.getProperty("file.separator");
+    private static final String PATH_SEPARATOR = System.getProperty("path.separator");
 
     private static final boolean verbose = "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final Path cacheDir = getCacheDir();
@@ -201,22 +215,62 @@ public final class Capsule implements Runnable {
 
     private void launch(String[] args) throws IOException, InterruptedException {
         final ProcessBuilder pb = buildProcess(args);
-        pb.inheritIO();
-
+        if (!isInheritIoBug())
+            pb.inheritIO();
         this.child = pb.start();
-        if (isNonInteractiveProcess())
+
+        if (isNonInteractiveProcess() && !isInheritIoBug()) {
             System.exit(0);
-        else {
+        } else {
             Runtime.getRuntime().addShutdownHook(new Thread(this));
+            if (isInheritIoBug())
+                pipeIoStreams();
             // registerSignals();
             System.exit(child.waitFor());
         }
     }
 
+    private static boolean isInheritIoBug() {
+        return isWindows() && compareVersionStrings(System.getProperty("java.version"), "1.8.0") < 0;
+    }
+
+    private void pipeIoStreams() {
+        new Thread(this, "pipe-out").start();
+        new Thread(this, "pipe-err").start();
+        new Thread(this, "pipe-in").start();
+    }
+
     @Override
     public void run() {
+        if (isInheritIoBug()) {
+            switch (Thread.currentThread().getName()) {
+                case "pipe-out":
+                    pipe(child.getInputStream(), System.out);
+                    return;
+                case "pipe-err":
+                    pipe(child.getErrorStream(), System.err);
+                    return;
+                case "pipe-in":
+                    pipe(System.in, child.getOutputStream());
+                    return;
+                default: // shutdown hook
+            }
+        }
         if (child != null)
             child.destroy();
+    }
+
+    private static void pipe(InputStream in, OutputStream out) {
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(in))) {
+            PrintStream p = new PrintStream(out);
+            String line;
+            while ((line = r.readLine()) != null) {
+                p.println(line);
+            }
+        } catch (IOException e) {
+            if (verbose)
+                e.printStackTrace();
+        }
     }
 
     private void printDependencyTree() {
@@ -325,7 +379,7 @@ public final class Capsule implements Runnable {
     }
 
     private static String compileClassPath(List<String> cp) {
-        return join(cp, System.getProperty("path.separator"));
+        return join(cp, PATH_SEPARATOR);
     }
 
     private List<String> buildClassPath() {
@@ -362,7 +416,7 @@ public final class Capsule implements Runnable {
                 option = o.substring("-Xbootclasspath:".length());
         }
         if (option != null)
-            return Arrays.asList(option.split(System.getProperty("path.separator")));
+            return Arrays.asList(option.split(PATH_SEPARATOR));
         return toAbsolutePath(appCache, getListAttribute(ATTR_BOOT_CLASS_PATH));
     }
 
@@ -404,7 +458,7 @@ public final class Capsule implements Runnable {
                     + ATTR_EXTRACT + " attribute is set to false");
 
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, getJarPath());
-        str = str.replace('/', System.getProperty("file.separator").charAt(0));
+        str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;
     }
 
@@ -419,7 +473,7 @@ public final class Capsule implements Runnable {
         if (appCache != null) {
             final List<String> libraryPath = new ArrayList<String>();
             libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
-            libraryPath.addAll(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(System.getProperty("path.separator"))));
+            libraryPath.addAll(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(PATH_SEPARATOR)));
             libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
             libraryPath.add(toAbsolutePath(appCache, ""));
             systemProerties.put("java.library.path", compileClassPath(libraryPath));
@@ -551,13 +605,17 @@ public final class Capsule implements Runnable {
         final String path = url.getPath();
         if (path == null || !path.startsWith("file:"))
             throw new IllegalStateException("The Capsule class must be in a local JAR file, but was loaded from: " + url);
-        final String jarPath = path.substring("file:".length(), path.indexOf('!'));
-        final JarFile jar;
+
         try {
-            jar = new JarFile(jarPath);
-            return jar;
-        } catch (IOException e) {
-            throw new RuntimeException("Jar file containing the Capsule could not be opened: " + jarPath, e);
+            final URI jarUri = new URI(path.substring(0, path.indexOf('!')));
+            try {
+                final JarFile jar = new JarFile(new File(jarUri));
+                return jar;
+            } catch (IOException e) {
+                throw new RuntimeException("Jar file containing the Capsule could not be opened: " + jarUri, e);
+            }
+        } catch (URISyntaxException e) {
+            throw new AssertionError(e);
         }
     }
 
@@ -701,14 +759,31 @@ public final class Capsule implements Runnable {
 
             final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
             final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
-            if (isWindows())
-                cache = Paths.get(userHome, "AppData", "Local", "apps", cacheName);
-            else
-                cache = Paths.get(userHome, "." + cacheName, "apps");
+            if (isWindows()) {
+                final String appData = System.getenv("LOCALAPPDATA"); // Files.isDirectory(Paths.get(userHome, "AppData")) ? "AppData" : "Application Data";
+                if (appData != null)
+                    cache = Paths.get(appData, cacheName);
+                else {
+                    Path localData = Paths.get(userHome, "AppData", "Local");
+                    if (!Files.isDirectory(localData))
+                        localData = Paths.get(userHome, "Local Settings", "Application Data");
+                    if (!Files.isDirectory(localData))
+                        throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
+                                + Paths.get(userHome, "AppData", "Local") + " nor "
+                                + Paths.get(userHome, "Local Settings", "Application Data") + " have been found");
+                    cache = localData.resolve(cacheName);
+                }
+            } else
+                cache = Paths.get(userHome, "." + cacheName);
         }
         try {
             if (!Files.exists(cache))
                 Files.createDirectory(cache);
+            if (!Files.exists(cache.resolve(APP_CACHE_NAME)))
+                Files.createDirectory(cache.resolve(APP_CACHE_NAME));
+            if (!Files.exists(cache.resolve(DEPS_CACHE_NAME)))
+                Files.createDirectory(cache.resolve(DEPS_CACHE_NAME));
+
             return cache;
         } catch (IOException e) {
             throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
@@ -786,9 +861,7 @@ public final class Capsule implements Runnable {
         if (Objects.equals(javaHome, System.getProperty("java.home")))
             verifyRequiredJavaVersion();
 
-        final String fileSeparateor = System.getProperty("file.separator");
-
-        final String javaProcessName = javaHome + fileSeparateor + "bin" + fileSeparateor + "java" + (isWindows() ? ".exe" : "");
+        final String javaProcessName = javaHome + FILE_SEPARATOR + "bin" + FILE_SEPARATOR + "java" + (isWindows() ? ".exe" : "");
         return javaProcessName;
     }
 
@@ -866,8 +939,7 @@ public final class Capsule implements Runnable {
 
     private Object createDependencyManager() throws IOException {
         try {
-            Path depsCache = getCacheDir().resolve("deps");
-            Files.createDirectories(depsCache);
+            final Path depsCache = cacheDir.resolve(DEPS_CACHE_NAME);
 
             final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
             final DependencyManager dm
