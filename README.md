@@ -1,28 +1,47 @@
 # Capsule
 
-## A simple single-file container for JVM applications
+## Dead-Simple Packaging and Deployment for JVM Apps
 
-Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single jar file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It can even automatically download maven dependencies if you choose not to embed them in the capsule. 
+Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single jar file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It can even automatically download maven dependencies when the program is first launched, if you choose not to embed them in the capsule. 
 
-## How Capsule Works
+### How Capsule Works
 
 When you include Capsule into your JAR file and set Capsule as the JAR's main class, Capsule reads various configuration values (like JVM arguments, environment variables, Maven dependencies and more) from the JAR's manifest. It then downloads all required Maven dependencies, if any, and optionally extracts the JAR's contents into a cache directory. Finally, it spawns another process to run your application as configured.
 
-## What Capsule Doesn't Do
+### What Capsule Doesn't Do
 
 Capsule doesn't contain a JVM distribution, the application user would need to have a JRE installed. Java 9 is expected to have a mechanism for packaging stripped-down versions of the JVM.
 
-## Alternatives to Capsule
+### Alternatives to Capsule
 
-* Zip file with startup scripts: requires user installation.
-* Executanble (fat) JAR: licensing issues might prohibit this, embedded libraries might over-write each other's resources, and a startup script is still required to set up the JVM, Java agents etc.
-* [One-Jar](http://one-jar.sourceforge.net/): might interfere with the application in subtle ways, and still startup scripts are required for the JVM arguments and Java agents.
+There are a few alternatives to packaging your application in a single JAR. [Maven's Shade plugin](http://maven.apache.org/plugins/maven-shade-plugin/)/[Gradle's Shadow plugin](https://github.com/johnrengelman/shadow) rename dependency classes and might interfere with the application in subtle ways; they also don't support native libraries. [One-Jar](http://one-jar.sourceforge.net/) does support native libraries, but uses class-loader hacks that may interfere with the application in even subtler ways. And none of these support JVM arguments.
+
+The only distribution mechanism supporting JVM arguments and Java version selection is platform-dependent startup scripts. Even if your build tool can generate those for you, they would always require some form of installation by the user.
+
+With Capsule, you just distribute a single jar and run it. 
+
+### Getting Capsule
+
+[Download](XXXXXXXXXXXXX)
+
+or:
+
+    co.paralleluniverse:capsule:0.1.0
+
+On Maven Central.
+
+### Support
+
+
+### What's Missing/TODO (contributions happily accepted!)
+
+* Gradle, Maven and Leiningen plugins for easy creation of capsules.
 
 ## Usage Examples
 
-Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/).
+Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/). The full Gradle file is [here](https://github.com/puniverse/capsule-demo/blob/master/build.gradle).
 
-We'll assume that the application's `gradle.build` file applies the [`java`](http://www.gradle.org/docs/current/userguide/java_plugin.html) and `[application`](http://www.gradle.org/docs/current/userguide/application_plugin.html) plugins. Also, the build file declare the `capsule` configuration and contains the dependency `capsule 'co.paralleluniverse:capsule:0.1.0-SNAPSHOT'`.
+We'll assume that the application's `gradle.build` file applies the [`java`](http://www.gradle.org/docs/current/userguide/java_plugin.html) and `[application`](http://www.gradle.org/docs/current/userguide/application_plugin.html) plugins, and that the build file declare the `capsule` configuration and contains the dependency `capsule 'co.paralleluniverse:capsule:0.1.0'`.
 
 The first example creates what may be calle a "full" capsule:
 
@@ -98,12 +117,12 @@ The resulting jar has the following structure:
     |    \__ [capsule classes]
     |__ com/
     |   \__ acme/
-    |       \__ [app classes]    
+    |       \__ [app classes]
     \__ MANIFEST/
         \__ MANIFEST.MF
 
 
-This capsule doesn't embed the dependencies in the jar, so our application's classes can be simply placed in it unwrapped. Instead, the `Dependencies` attribute declares the application's dependencies (the `getDependencies` function translates Gradle dependencies to Capsule dependencies. Its definition can be found [here](XXXXXXX) and it may be copied verbatim to any build file). The first time we run `java -jar foo.jar`, the dependencies will be downloaded (by default from Maven Central, but other Maven repositories may be declared in the manifest). The dependencies are placed in a cache directory shared by all capsules, so common ones like SLF4J or Guava will only be downloaded once. Also, because the app's classes are placed directly in the jar, and the dependencies are loaded to a shared cache, the capsule does not need to be extracted to the filesystem at all, hene the manifest says `Extract-Capsule : false`.
+This capsule doesn't embed the dependencies in the jar, so our application's classes can be simply placed in it unwrapped. Instead, the `Dependencies` attribute declares the application's dependencies (the `getDependencies` function translates Gradle dependencies to Capsule dependencies. Its definition can be found [here](https://github.com/puniverse/capsule-demo/blob/master/build.gradle#L77) and it may be copied verbatim to any build file). The first time we run `java -jar foo.jar`, the dependencies will be downloaded (by default from Maven Central, but other Maven repositories may be declared in the manifest). The dependencies are placed in a cache directory shared by all capsules, so common ones like SLF4J or Guava will only be downloaded once. Also, because the app's classes are placed directly in the jar, and the dependencies are loaded to a shared cache, the capsule does not need to be extracted to the filesystem at all, hene the manifest says `Extract-Capsule : false`.
 
 Instead of specifying the dependencies and (optionally) the repositories directly in the manifest, if the capsule contains a `pom.xml` file in the jar root, it will be used to find the dependencies.
 
@@ -113,10 +132,9 @@ In order to support Maven dependencies, we needed to include all of Capsule's cl
 
 Most applications will need to specify two attributes in the capsule's manifest:
 
-``` txt
-Main-Class : Capsule
-Application-Class : [the applications's main class]
-```
+    Main-Class : Capsule
+    Application-Class : [the applications's main class]
+
 
 These attributes are sufficient to build a capsule, but there are many other configuration options, which will be explained below.
 
@@ -155,11 +173,19 @@ Capsule's cache is found, by default, at `~/.capsule/` on Unix/Linux/Mac OS mach
 
 ### Dependencies
 
-reset
+The capsule can specifiy external dependencies as coordinates in maven repositories. One way of specifying dependencies, is placing the app's `pom.xml` file in the capsule jar's root. Another is specifying the dependencies and repositories in the capsule's manifest.
 
-Placed in the `deps` subdirectory of Capsule's cache directory and shared by all capsules. 
+By default, Capsule will look for dependencies on Maven Central. If other repositories are needed (or if you don't want to access Maven Central), the `Repositories` attribute is a space-separated list of Maven repository URLs. The repositories will be searched in the order they are listed. If the `Repositories` attribute is found in the manifest, then Maven Central will not be searched. If you do want it searched in addition to other repsoitories, you can simply place the word `central` in the repository list rather than listing the full URL.
 
-tree
+The dependencies, (if not read from the POM), are listed in the `Dependencies` attribute, as a space-separated list of Maven coordinates in the Gradle format, i.e. `groupId:aritfactId:version`. Exclusions can be given as a comma separated list within parentheses, immediately following the main artifact, of `groupId:artifactId` coordinates, where the artifact can be the wildcard `*`. For example: 
+
+   Dependencies : com.esotericsoftware.kryo:kryo:2.23.0(org.ow2.asm:*)
+
+The dependencies are downloaded the firs time the capsule is launched, and placed in the `deps` subdirectory of the Capsule cache, where they are shared among all capsules.
+
+Adding `-Dcapsule.reset=true`, can force a re-download of SNAPSHOT versions.
+
+The command: `java -Dcapsule.tree -jar app.jar`, will print out the dependency tree for the module, and then quit without launching the app.
 
 ### Class Paths
 
@@ -171,10 +197,19 @@ In addition to setting the application classpath, you can also specify the boot 
 
 If the capsule is launched with a `-Xbootclasspath` option, it will override any setting by the capsule's manifest.
 
+The `Library-Path-A` manifest attribute can list jars or directories (relative to the capsule's root) that will be appended to the application's native library path. Similarly, `Library-Path-P`, can be used to prepend jars or directories to the default native library path.
 
-### JVM Arguments, System Properties, and Java Agents
+### JVM Arguments, System Properties, Environment Variables and Java Agents
 
+The `JVM-Args` manifest attribute can contain a space-separated list of JVM argument that will be used to launch the application. Any JVM arguments supplied during the capsule's launch, will override those in the manifest. For example, if the `JVM-Args` attribute contains `-Xmx500m`, and the capsule is launched with `java -Xmx800m -jar app.jar`, then the application will be launched with the `-Xmx800m` JVM argument.
 
+The `System-Properties` manifest attribute can contain a space-separated list of system properties that will be defined in the launched application. The properties are listed as `property=value` pairs (or just `property` for an empty value). Any system properties supplied during the capsule's launch, will override those in the manifest. For example, if the `JVM-Args` attribute contains `name=Mike`, and the capsule is launched with `java -Dname=Jason -jar app.jar`, then the application will see the `name` system-property defined as `Jason`.
+
+The `Environment-Variables` manifest attribute, is, just like `System-Properties`, a space-separated list of `var=value` pairs (or just `var` for an empty value). The specified values do not overwrite those already defined in the environment, unless they are listed as `var:=value` rather than `var=value`.
+
+The `Java-Agents` attribute can contain a space-separated list with the names of jars containing java agents. The agents are listed as `agent=params` or just `agent`, where `agent` is either the path of a JAR embedded in the capsule, relative to the capsule jar's root, or the coordinates of a Maven dependency.
+
+Remember that values listed in all these configuration values can contain the ``$CAPSULE_DIR` and `$CAPSULE_JAR` variables, discussed in the *Capsule's Cache* section.
 
 ### Scripts
 
@@ -188,47 +223,6 @@ The `Security-Policy` attribute specifies a Java [security policy file](http://d
 
 If any of these three properties is set, a security manager will be in effect when the application runs. If the `Security-Manager` attribute is not set, the default security manager will be used.
 
-
-Mandatory:
-
-* `Main-Class` : `Capsule`
-* `Application-Class` - the only mandatory attribute
-
-Optional:
-
-* `Application-Name`
-* `Application-Version`
-* `Min-Java-Version`
-* `Java-Version`
-* `App-Class-Path` default: the launcher jar root and every jar file found in the launcher jar's root.
-* `Environment-Variables` `$CAPSULE_DIR`
-* `System-Properties`
-* `JVM-Args`
-* `Boot-Class-Path`
-* `Boot-Class-Path-P`
-* `Boot-Class-Path-A`
-* `Library-Path-P`
-* `Library-Path-A`
-* `Java-Agents`
-
-
-* `Repositories`
-* `Dependencies`
-
-
-`CAPSULE_CACHE_DIR`
-`CAPSULE_CACHE_NAME`
-
-    "capsule.reset"
-    "capsule.version"
-    "capsule.log"
-    "capsule.tree"
- 
-
-variable expasnsion
-
-External dependencies:
-
 ## Refernce
 
 ### Attributes
@@ -238,7 +232,14 @@ External dependencies:
 ### Environment Variables
 
 
-## Licensing Issues
+## License
+
+    Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
+    
+    This program and the accompanying materials are licensed under the terms 
+    of the Eclipse Public License v1.0 as published by the Eclipse Foundation.
+    
+        http://www.eclipse.org/legal/epl-v10.html
 
 As Capsule does not link in any way with any of the code bundled in the Jar file, and simply treats it as raw data, Capsule is no different from a self-extracting Zip file (especially as manually unzipping the jar's contents is extrmely easy). Capsule's own license, therefore, does not interfere with the licensing of the bundled software.
 
@@ -248,25 +249,3 @@ In particular, even though Capsule's license is incompatible with the GPL, it is
 [GPL](https://www.gnu.org/copyleft/gpl.html):
 
 > A compilation of a covered work with other separate and independent works, which are not by their nature extensions of the covered work, and which are not combined with it such as to form a larger program, in or on a volume of a storage or distribution medium, is called an “aggregate” if the compilation and its resulting copyright are not used to limit the access or legal rights of the compilation's users beyond what the individual works permit. Inclusion of a covered work in an aggregate does not cause this License to apply to the other parts of the aggregate.
-
-## Differnces from [One-Jar](http://one-jar.sourceforge.net/)
-
- * Might interfere with application (esp. those using tricky things)
- * Does not support Java instrumentation agents, or any command-line arguments
- * No support for maven dependencies
-
- Disadvantages:
-
- * Requires writing to the filesystem
-
-
- ## License
-
-``` txt
- Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
- 
- This program and the accompanying materials are licensed under the terms 
- of the Eclipse Public License v1.0 as published by the Eclipse Foundation.
-
-     http://www.eclipse.org/legal/epl-v10.html
-```
