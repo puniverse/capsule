@@ -428,15 +428,20 @@ public final class Capsule implements Runnable {
         final List<String> jarEnv = getListAttribute(ATTR_ENV);
         if (jarEnv != null) {
             for (String e : jarEnv) {
-                String[] kv = e.split("=");
-                if (kv.length < 1 || kv.length > 2)
+                String var = getBefore(e, '=');
+                String value = getAfter(e, '=');
+
+                if (var == null)
                     throw new IllegalArgumentException("Malformed env variable definition: " + e);
-                if (!env.containsKey(kv[0])) { // don't override inherited environment
-                    if (kv.length == 1)
-                        env.put(kv[0], "");
-                    else
-                        env.put(kv[0], expand(kv[1]));
+
+                boolean overwrite = false;
+                if (var.endsWith(":")) {
+                    overwrite = true;
+                    var = var.substring(0, var.length() - 1);
                 }
+                
+                if (overwrite || !env.containsKey(var))
+                    env.put(var, value != null ? value : "");
             }
         }
     }
@@ -520,7 +525,7 @@ public final class Capsule implements Runnable {
         try {
             String name = getBefore(p, '=');
             String value = getAfter(p, '=');
-            ps.put(name, expand(value));
+            ps.put(name, value != null ? expand(value) : "");
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Illegal system property definition: " + p);
         }
