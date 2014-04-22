@@ -44,32 +44,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
-/**
- * <ul>
- * <li>{@code Application-Class} - the only mandatory attribute</li>
- * <li>{@code Application-Name}</li>
- * <li>{@code Application-Version}</li>
- * <li>{@code Unix-Script}</li>
- * <li>{@code Windows-Script}</li>
- * <li>{@code Extract-Capsule}</li>
- * <li>{@code Min-Java-Version}</li>
- * <li>{@code Java-Version}</li>
- * <li>{@code App-Class-Path} default: the capsule jar root and every jar file found in the capsule jar's root.</li>
- * <li>{@code Environment-Variables}</li>
- * <li>{@code System-Properties}</li>
- * <li>{@code JVM-Args}</li>
- * <li>{@code Boot-Class-Path}</li>
- * <li>{@code Boot-Class-Path-P}</li>
- * <li>{@code Boot-Class-Path-A}</li>
- * <li>{@code Library-Path-P}</li>
- * <li>{@code Library-Path-A}</li>
- * <li>{@code Java-Agents}</li>
- * <li>{@code Repositories}</li>
- * <li>{@code Dependencies}</li>
- * </ul>
- *
- * @author pron
- */
+
 public final class Capsule implements Runnable {
     /*
      * This class contains several strange hacks to avoid creating more classes. 
