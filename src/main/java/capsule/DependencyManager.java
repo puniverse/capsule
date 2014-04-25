@@ -10,6 +10,7 @@ package capsule;
 
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,13 +56,15 @@ public class DependencyManager {
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
 
-    public DependencyManager(String appId, String localRepoPath, List<String> repos, boolean forceRefresh, boolean verbose) {
+    public DependencyManager(String appId, Path localRepoPath, List<String> repos, boolean forceRefresh, boolean verbose) {
         this.appId = appId;
         this.system = newRepositorySystem();
+
         this.session = newRepositorySession(system, localRepoPath, forceRefresh, verbose);
 
         final RepositoryPolicy policy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
         this.repos = new ArrayList<RemoteRepository>();
+
         if (repos == null)
             this.repos.add(newCentralRepository(policy));
         else {
@@ -83,9 +86,9 @@ public class DependencyManager {
         return locator.getService(RepositorySystem.class);
     }
 
-    private static RepositorySystemSession newRepositorySession(RepositorySystem system, String localRepoPath, boolean forceRefresh, boolean verbose) {
+    private static RepositorySystemSession newRepositorySession(RepositorySystem system, Path localRepoPath, boolean forceRefresh, boolean verbose) {
         final DefaultRepositorySystemSession session = MavenRepositorySystemUtils.newSession();
-        final LocalRepository localRepo = new LocalRepository(localRepoPath);
+        final LocalRepository localRepo = new LocalRepository(localRepoPath.toString());
 
         session.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, System.getProperty(PROP_CONNECT_TIMEOUT));
         session.setConfigProperty(ConfigurationProperties.REQUEST_TIMEOUT, System.getProperty(PROP_REQUEST_TIMEOUT));

@@ -21,6 +21,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -63,6 +64,7 @@ public final class Capsule implements Runnable {
     private static final String PROP_JAVA_HOME = "capsule.java.home";
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_EXTRACT = "capsule.extract";
+    private static final String PROP_USE_LOCAL_REPO = "capsule.local";
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
@@ -105,6 +107,7 @@ public final class Capsule implements Runnable {
     private static final String POM_FILE = "pom.xml";
     private static final String FILE_SEPARATOR = System.getProperty("file.separator");
     private static final String PATH_SEPARATOR = System.getProperty("path.separator");
+    private static final Path LOCAL_MAVEN = Paths.get(System.getProperty("user.home"), ".m2", "repository");
 
     private static final boolean verbose = "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final Path cacheDir = getCacheDir();
@@ -128,7 +131,7 @@ public final class Capsule implements Runnable {
         try {
             if (System.getProperty(PROP_VERSION) != null) {
                 System.out.println("CAPSULE: Version " + VERSION);
-                System.exit(0);
+                return;
             }
 
             if (System.getProperty(PROP_PRINT_JRES) != null) {
@@ -140,14 +143,14 @@ public final class Capsule implements Runnable {
                     for (Map.Entry<String, Path> j : jres.entrySet())
                         System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
                 }
-                System.exit(0);
+                return;
             }
 
             final Capsule capsule = new Capsule(getJarFile());
 
             if (System.getProperty(PROP_TREE) != null) {
-                capsule.printDependencyTree();
-                System.exit(0);
+                capsule.printDependencyTree(args);
+                return;
             }
 
             if (verbose)
@@ -188,9 +191,10 @@ public final class Capsule implements Runnable {
     }
 
     private void launch(String[] args) throws IOException, InterruptedException {
-        final ProcessBuilder pb = buildProcess(args);
-        if (pb == null) // launched another capsule
+        if (launchCapsule(args))
             return;
+
+        final ProcessBuilder pb = buildProcess(args);
         if (!isInheritIoBug())
             pb.inheritIO();
         this.child = pb.start();
@@ -249,26 +253,56 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private void printDependencyTree() {
+    private boolean noRun() {
+        return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
+    }
+
+    private void printDependencyTree(String[] args) {
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
         else if (hasAttribute(ATTR_APP_ARTIFACT))
             printDependencyTree(getAttribute(ATTR_APP_ARTIFACT));
-        else
+        else if (noRun()) {
+            String appArtifact = getCommandLineArtifact(args);
+            if (appArtifact == null)
+                throw new IllegalStateException("capsule has nothing to run");
+            printDependencyTree(getAttribute(appArtifact));
+        } else
             printDependencyTree(getDependencies());
+    }
+
+    private boolean launchCapsule(String[] args) {
+        if (getScript() == null) {
+            String appArtifact = null;
+            if (noRun()) {
+                appArtifact = getCommandLineArtifact(args);
+                if (appArtifact == null)
+                    throw new IllegalStateException("capsule has nothing to run");
+            }
+            if (appArtifact == null)
+                appArtifact = getAttribute(ATTR_APP_ARTIFACT);
+            if (appArtifact != null) {
+                final List<Path> jars = resolveAppArtifact(appArtifact);
+                if (isCapsule(jars.get(0))) {
+                    runCapsule(jars.get(0), args);
+                    return true;
+                } else if (noRun())
+                    throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
+            }
+        }
+        return false;
+    }
+
+    private String getCommandLineArtifact(String[] args) {
+        if (args.length > 0)
+            return args[0];
+        return null;
     }
 
     private ProcessBuilder buildProcess(String[] args) {
         final ProcessBuilder pb = new ProcessBuilder();
-        if (!buildScriptProcess(pb)) {
-            if (hasAttribute(ATTR_APP_ARTIFACT)) {
-                final List<Path> jars = resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT));
-                if(isCapsule(jars.get(0)))
-                    runCapsule(appCache, args);
-                return null;
-            }
+        if (!buildScriptProcess(pb))
             buildJavaProcess(pb);
-        }
 
         final List<String> command = pb.command();
         command.addAll(Arrays.asList(args));
@@ -318,8 +352,12 @@ public final class Capsule implements Runnable {
         return true;
     }
 
+    private String getScript() {
+        return getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
+    }
+
     private boolean buildScriptProcess(ProcessBuilder pb) {
-        final String script = getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
+        final String script = getScript();
         if (script == null)
             return false;
 
@@ -988,9 +1026,15 @@ public final class Capsule implements Runnable {
             final Path depsCache = cacheDir.resolve(DEPS_CACHE_NAME);
 
             final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
+
+            final String local = System.getProperty(PROP_USE_LOCAL_REPO);
+            Path localRepo = depsCache;
+            if (local != null)
+                localRepo = !local.isEmpty() ? Paths.get(local) : LOCAL_MAVEN;
+
             final DependencyManager dm
                     = new DependencyManager(appId,
-                            depsCache.toAbsolutePath().toString(),
+                            localRepo.toAbsolutePath(),
                             repositories,
                             reset, verbose);
 
@@ -1243,16 +1287,13 @@ public final class Capsule implements Runnable {
 
     private static void runCapsule(Path path, String[] args) {
         try {
-            final JarFile jar = new JarFile(path.toFile());
             final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()});
             final Class cls = cl.loadClass("Capsule");
             final Method main = cls.getMethod("main", String[].class);
             main.invoke(cls, args);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         } catch (ClassNotFoundException | NoSuchMethodException e) {
             throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
-        } catch (IllegalAccessException e) {
+        } catch (MalformedURLException | IllegalAccessException e) {
             throw new AssertionError();
         } catch (InvocationTargetException e) {
             final Throwable t = e.getTargetException();
