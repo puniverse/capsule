@@ -52,6 +52,9 @@ public final class Capsule implements Runnable {
     /*
      * This class contains several strange hacks to avoid creating more classes. 
      * We'd like this file to compile to a single .class file.
+     *
+     * Also, the code here is not meant to be the most efficient, but methods should be as independent and stateless as possible.
+     * Other than those few, methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      */
     private static final String VERSION = "0.2.0";
 
