@@ -10,7 +10,6 @@ package capsule;
 
 import java.io.PrintStream;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -184,18 +183,6 @@ public class DependencyManager {
         return new Dependency(artifact, JavaScopes.RUNTIME, false, null);
     }
 
-    private static String toString(Dependency dep) {
-        final Artifact artifact = dep.getArtifact();
-        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
-    }
-
-    private static List<String> toString(List<Dependency> deps) {
-        final List<String> strs = new ArrayList<String>(deps.size());
-        for (Dependency dep : deps)
-            strs.add(toString(dep));
-        return strs;
-    }
-
     private static List<Dependency> toDependencies(List<String> coords) {
         final List<Dependency> deps = new ArrayList<Dependency>(coords.size());
         for (String c : coords)
@@ -251,4 +238,16 @@ public class DependencyManager {
         final List<String> exclusions = Arrays.asList(coordsString.substring(leftParenIndex + 1, rightParenIndex).split(","));
         return exclusions;
     }
+
+//    private static String toString(Dependency dep) {
+//        final Artifact artifact = dep.getArtifact();
+//        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
+//    }
+//
+//    private static List<String> toString(List<Dependency> deps) {
+//        final List<String> strs = new ArrayList<String>(deps.size());
+//        for (Dependency dep : deps)
+//            strs.add(toString(dep));
+//        return strs;
+//    }
 }

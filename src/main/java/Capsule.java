@@ -114,7 +114,7 @@ public final class Capsule implements Runnable {
 
     private final JarFile jar;
     private final Manifest manifest;
-    private final String appId;
+    private final String appId;  // null iff noRun
     private final Path appCache; // non-null iff capsule is extracted
     private final String mode;
     private final Object pom; // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
@@ -153,7 +153,7 @@ public final class Capsule implements Runnable {
                 return;
             }
 
-            if (verbose)
+            if (verbose && capsule.appId != null)
                 System.err.println("CAPSULE: Launching app " + capsule.appId);
             capsule.launch(args);
         } catch (Throwable t) {
@@ -180,8 +180,8 @@ public final class Capsule implements Runnable {
         }
 
         this.mode = System.getProperty(PROP_MODE);
-        this.appId = getAppId();
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
+        this.appId = getAppId();
         this.dependencyManager = (hasAttribute(ATTR_DEPENDENCIES) || hasAttribute(ATTR_APP_ARTIFACT) || pom != null)
                 ? createDependencyManager(getRepositories()) : null;
         this.appCache = shouldExtract() ? getAppCacheDir() : null;
@@ -284,6 +284,8 @@ public final class Capsule implements Runnable {
             if (appArtifact != null) {
                 final List<Path> jars = resolveAppArtifact(appArtifact);
                 if (isCapsule(jars.get(0))) {
+                    if (verbose)
+                        System.err.println("Running capsule " + jars.get(0));
                     runCapsule(jars.get(0), args);
                     return true;
                 } else if (noRun())
@@ -663,9 +665,12 @@ public final class Capsule implements Runnable {
                 return getPomAppName();
             appName = getAttribute(ATTR_APP_CLASS);
         }
-        if (appName == null)
+        if (appName == null) {
+            if (noRun())
+                return null;
             throw new RuntimeException("Capsule jar " + jar.getName() + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
                     + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
+        }
 
         final String version = getAttribute(ATTR_APP_VERSION);
         return appName + (version != null ? "_" + version : "");
@@ -1290,7 +1295,7 @@ public final class Capsule implements Runnable {
             final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()});
             final Class cls = cl.loadClass("Capsule");
             final Method main = cls.getMethod("main", String[].class);
-            main.invoke(cls, args);
+            main.invoke(cls, (Object) args);
         } catch (ClassNotFoundException | NoSuchMethodException e) {
             throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
         } catch (MalformedURLException | IllegalAccessException e) {
