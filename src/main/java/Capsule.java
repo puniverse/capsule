@@ -68,7 +68,8 @@ public final class Capsule implements Runnable {
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_EXTRACT = "capsule.extract";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
-    
+    private static final String PROP_OFFLINE = "capsule.offline";
+
     private static final String PROP_JAVA_VERSION = "java.version";
     private static final String PROP_JAVA_HOME = "java.home";
     private static final String PROP_OS_NAME = "os.name";
@@ -271,13 +272,11 @@ public final class Capsule implements Runnable {
     private void printDependencyTree(String[] args) {
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
-        else if (hasAttribute(ATTR_APP_ARTIFACT))
-            printDependencyTree(getAttribute(ATTR_APP_ARTIFACT));
-        else if (isEmptyCapsule()) {
-            String appArtifact = getCommandLineArtifact(args);
+        else if (hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule()) {
+            final String appArtifact = isEmptyCapsule() ? getCommandLineArtifact(args) : getAttribute(ATTR_APP_ARTIFACT);
             if (appArtifact == null)
                 throw new IllegalStateException("capsule " + jar.getName() + " has nothing to run");
-            printDependencyTree(getAttribute(appArtifact));
+            printDependencyTree(appArtifact);
         } else
             printDependencyTree(getDependencies());
     }
@@ -1038,7 +1037,10 @@ public final class Capsule implements Runnable {
                 localRepo = !local.isEmpty() ? Paths.get(local) : LOCAL_MAVEN;
             debug("Local repo: " + localRepo);
 
-            final DependencyManager dm = new DependencyManager(appId, localRepo.toAbsolutePath(), repositories, reset);
+            final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
+            debug("Offline: " + offline);
+
+            final DependencyManager dm = new DependencyManager(appId, localRepo.toAbsolutePath(), repositories, reset, offline);
 
             return dm;
         } catch (NoClassDefFoundError e) {

@@ -22,10 +22,11 @@ package capsule;
 
 import java.io.PrintStream;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
-import java.util.IdentityHashMap;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.graph.Dependency;
@@ -42,16 +43,20 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
     private final String appId;
     private final PrintStream out;
     private final Deque<ChildInfo> childInfos = new ArrayDeque<ChildInfo>();
-    private final Map<DependencyNode, Object> visitedNodes = new IdentityHashMap<DependencyNode, Object>(512);
+    private final Set<Artifact> visitedNodes = Collections.newSetFromMap(new HashMap<Artifact, Boolean>(512)); // new IdentityHashMap<DependencyNode, Boolean>
 
     public ConsoleDependencyGraphDumper(String appId, PrintStream out) {
         this.out = out;
         this.appId = appId;
     }
 
+    private boolean visit(DependencyNode node) {
+        return visitedNodes.add(node.getArtifact());
+    }
+
     @Override
     public boolean visitEnter(DependencyNode node) {
-        final boolean visited = visitedNodes.put(node, Boolean.TRUE) != null;
+        final boolean visited = !visit(node);
         out.println(formatIndentation() + formatNode(node) + (visited ? " (*)" : ""));
         childInfos.add(new ChildInfo(node.getChildren().size()));
         return !visited;
@@ -67,12 +72,12 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
 
     private String formatNode(DependencyNode node) {
         Artifact a = node.getArtifact();
-        if(a == null)
+        if (a == null)
             return "Dependencies for " + appId;
-        
+
         StringBuilder buffer = new StringBuilder(128);
         buffer.append(toString(a));
-        
+
         Dependency d = node.getDependency();
 //        if (d != null && d.getScope().length() > 0) {
 //            buffer.append(" [").append(d.getScope());
@@ -102,7 +107,7 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
         }
         return buffer.toString();
     }
-    
+
     private String toString(Artifact a) {
         return a.getGroupId() + ":" + a.getArtifactId() + ":" + a.getVersion();
     }
@@ -128,7 +133,7 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
             boolean last = index + 1 >= count;
             if (end)
                 return last ? "\\--- " : "+--- ";
-            
+
             return last ? "     " : "|    ";
         }
     }

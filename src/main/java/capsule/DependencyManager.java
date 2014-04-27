@@ -47,22 +47,25 @@ import org.eclipse.aether.version.Version;
 
 public class DependencyManager {
     private static final String PROP_LOG = "capsule.log";
-    private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
 
     private final String appId;
+    private final boolean forceRefresh;
+    private final boolean offline;
     private final RepositorySystem system;
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
 
-    public DependencyManager(String appId, Path localRepoPath, List<String> repos, boolean forceRefresh) {
+    public DependencyManager(String appId, Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline) {
         this.appId = appId;
         this.system = newRepositorySystem();
+        this.forceRefresh = forceRefresh;
+        this.offline = offline;
 
-        this.session = newRepositorySession(system, localRepoPath, forceRefresh);
+        this.session = newRepositorySession(system, localRepoPath);
 
         final RepositoryPolicy policy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
         this.repos = new ArrayList<RemoteRepository>();
@@ -88,20 +91,18 @@ public class DependencyManager {
         return locator.getService(RepositorySystem.class);
     }
 
-    private static RepositorySystemSession newRepositorySession(RepositorySystem system, Path localRepoPath, boolean forceRefresh) {
-        final DefaultRepositorySystemSession session = MavenRepositorySystemUtils.newSession();
+    private RepositorySystemSession newRepositorySession(RepositorySystem system, Path localRepoPath) {
+        final DefaultRepositorySystemSession s = MavenRepositorySystemUtils.newSession();
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
 
-        session.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, System.getProperty(PROP_CONNECT_TIMEOUT));
-        session.setConfigProperty(ConfigurationProperties.REQUEST_TIMEOUT, System.getProperty(PROP_REQUEST_TIMEOUT));
-        session.setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, true);
+        s.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, System.getProperty(PROP_CONNECT_TIMEOUT));
+        s.setConfigProperty(ConfigurationProperties.REQUEST_TIMEOUT, System.getProperty(PROP_REQUEST_TIMEOUT));
+        s.setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, true);
 
-        final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
-        verbose("offline: " + offline);
-        session.setOffline(offline);
-        session.setUpdatePolicy(forceRefresh ? RepositoryPolicy.UPDATE_POLICY_ALWAYS : RepositoryPolicy.UPDATE_POLICY_NEVER);
+        s.setOffline(offline);
+        s.setUpdatePolicy(forceRefresh ? RepositoryPolicy.UPDATE_POLICY_ALWAYS : RepositoryPolicy.UPDATE_POLICY_NEVER);
 
-        session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
+        s.setLocalRepositoryManager(system.newLocalRepositoryManager(s, localRepo));
 
         final PrintStream out = new PrintStream(System.err) {
             @Override
@@ -109,10 +110,10 @@ public class DependencyManager {
                 super.println("CAPSULE: " + x);
             }
         };
-        session.setTransferListener(new ConsoleTransferListener(out));
-        session.setRepositoryListener(new ConsoleRepositoryListener(verbose, out));
+        s.setTransferListener(new ConsoleTransferListener(out));
+        s.setRepositoryListener(new ConsoleRepositoryListener(verbose, out));
 
-        return session;
+        return s;
     }
 
     public void printDependencyTree(List<String> coords) {
@@ -246,30 +247,5 @@ public class DependencyManager {
 
         final List<String> exclusions = Arrays.asList(coordsString.substring(leftParenIndex + 1, rightParenIndex).split(","));
         return exclusions;
-    }
-
-//    private static String toString(Dependency dep) {
-//        final Artifact artifact = dep.getArtifact();
-//        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
-//    }
-//
-//    private static List<String> toString(List<Dependency> deps) {
-//        final List<String> strs = new ArrayList<String>(deps.size());
-//        for (Dependency dep : deps)
-//            strs.add(toString(dep));
-//        return strs;
-//    }
-    private static void println(String str) {
-        System.err.println("CAPSULE: " + str);
-    }
-
-    private static void verbose(String str) {
-        if (verbose)
-            System.err.println("CAPSULE: " + str);
-    }
-
-    private static void debug(String str) {
-        if (debug)
-            System.err.println("CAPSULE: " + str);
     }
 }
