@@ -123,12 +123,12 @@ public final class Capsule implements Runnable {
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final Path cacheDir = getCacheDir();
 
-    private final JarFile jar;
-    private final Manifest manifest;
-    private final String appId;  // null iff noRun
-    private final Path appCache; // non-null iff capsule is extracted
+    private final JarFile jar;       // never null
+    private final Manifest manifest; // never null
+    private final String appId;      // null iff isEmptyCapsule()
+    private final Path appCache;     // non-null iff capsule is extracted
     private final String mode;
-    private final Object pom; // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
+    private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final Object dependencyManager; // non-null iff pom exists OR manifest has ATTR_DEPENDENCIES 
     private Process child;
 
