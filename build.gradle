@@ -61,6 +61,14 @@ buildscript {
 
 apply plugin: 'shadow'
 
+jar {   
+    manifest { 
+        attributes(
+	    'Main-Class'  :   'Capsule',
+        )
+    }
+}
+
 shadow {
     // artifactAttached = false
     classifier = 'shadow'
@@ -79,6 +87,8 @@ shadowJar.doLast {
     logger.info("$buildDir/libs/${project.name}-${project.version}-shadow.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
     file("$buildDir/libs/${project.name}-${version}-shadow.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
 }
+
+build.dependsOn shadowJar
 
 //jar {
 //    from { configurations.runtime.collect { zipTree(it) } }

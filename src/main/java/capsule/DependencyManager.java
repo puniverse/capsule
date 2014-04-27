@@ -46,20 +46,23 @@ import org.eclipse.aether.util.graph.transformer.ConflictResolver;
 import org.eclipse.aether.version.Version;
 
 public class DependencyManager {
+    private static final String PROP_LOG = "capsule.log";
     private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
+    private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
+    private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
 
     private final String appId;
     private final RepositorySystem system;
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
 
-    public DependencyManager(String appId, Path localRepoPath, List<String> repos, boolean forceRefresh, boolean verbose) {
+    public DependencyManager(String appId, Path localRepoPath, List<String> repos, boolean forceRefresh) {
         this.appId = appId;
         this.system = newRepositorySystem();
 
-        this.session = newRepositorySession(system, localRepoPath, forceRefresh, verbose);
+        this.session = newRepositorySession(system, localRepoPath, forceRefresh);
 
         final RepositoryPolicy policy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
         this.repos = new ArrayList<RemoteRepository>();
@@ -85,15 +88,17 @@ public class DependencyManager {
         return locator.getService(RepositorySystem.class);
     }
 
-    private static RepositorySystemSession newRepositorySession(RepositorySystem system, Path localRepoPath, boolean forceRefresh, boolean verbose) {
+    private static RepositorySystemSession newRepositorySession(RepositorySystem system, Path localRepoPath, boolean forceRefresh) {
         final DefaultRepositorySystemSession session = MavenRepositorySystemUtils.newSession();
-        final LocalRepository localRepo = new LocalRepository(localRepoPath.toString());
+        final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
 
         session.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, System.getProperty(PROP_CONNECT_TIMEOUT));
         session.setConfigProperty(ConfigurationProperties.REQUEST_TIMEOUT, System.getProperty(PROP_REQUEST_TIMEOUT));
         session.setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, true);
 
-        session.setOffline("".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE)));
+        final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
+        verbose("offline: " + offline);
+        session.setOffline(offline);
         session.setUpdatePolicy(forceRefresh ? RepositoryPolicy.UPDATE_POLICY_ALWAYS : RepositoryPolicy.UPDATE_POLICY_NEVER);
 
         session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
@@ -160,11 +165,11 @@ public class DependencyManager {
     private Artifact getLatestVersion(String coords) {
         try {
             final Artifact artifact = coordsToArtifact(coords);
-            final VersionRangeRequest versionRangeRequest = new VersionRangeRequest()
-                    .setRepositories(repos)
-                    .setArtifact(artifact);
+            final VersionRangeRequest versionRangeRequest = new VersionRangeRequest().setRepositories(repos).setArtifact(artifact);
             final VersionRangeResult versionRangeResult = system.resolveVersionRange(session, versionRangeRequest);
             final Version highestVersion = versionRangeResult.getHighestVersion();
+            if (highestVersion == null)
+                throw new RuntimeException("Could not find any version of artifact " + coords + " (looking for: " + artifact + ")");
             return artifact.setVersion(highestVersion.toString());
         } catch (VersionRangeResolutionException e) {
             throw new RuntimeException(e);
@@ -191,12 +196,16 @@ public class DependencyManager {
     }
 
     private static Artifact coordsToArtifact(final String coordsString0) {
+        String coordsString;
+
         int parenIndex = coordsString0.indexOf('(');
-        final String coordsString;
         if (parenIndex >= 0)
             coordsString = coordsString0.substring(0, parenIndex);
         else
             coordsString = coordsString0;
+
+        if (coordsString.indexOf(':') == coordsString.lastIndexOf(':'))
+            coordsString = coordsString + ":[0,)";
 
         String[] coords = coordsString.split(":");
         if (coords.length > 4 || coords.length < 3)
@@ -250,4 +259,17 @@ public class DependencyManager {
 //            strs.add(toString(dep));
 //        return strs;
 //    }
+    private static void println(String str) {
+        System.err.println("CAPSULE: " + str);
+    }
+
+    private static void verbose(String str) {
+        if (verbose)
+            System.err.println("CAPSULE: " + str);
+    }
+
+    private static void debug(String str) {
+        if (debug)
+            System.err.println("CAPSULE: " + str);
+    }
 }
