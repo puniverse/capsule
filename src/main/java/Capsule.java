@@ -64,10 +64,17 @@ public final class Capsule implements Runnable {
     private static final String PROP_TREE = "capsule.tree";
     private static final String PROP_APP_ID = "capsule.app.id";
     private static final String PROP_PRINT_JRES = "capsule.jvms";
-    private static final String PROP_JAVA_HOME = "capsule.java.home";
+    private static final String PROP_CAPSULE_JAVA_HOME = "capsule.java.home";
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_EXTRACT = "capsule.extract";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
+    
+    private static final String PROP_JAVA_VERSION = "java.version";
+    private static final String PROP_JAVA_HOME = "java.home";
+    private static final String PROP_OS_NAME = "os.name";
+    private static final String PROP_USER_HOME = "user.home";
+    private static final String PROP_FILE_SEPARATOR = "file.separator";
+    private static final String PROP_PATH_SEPARATOR = "path.separator";
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
@@ -108,9 +115,9 @@ public final class Capsule implements Runnable {
     private static final String DEPS_CACHE_NAME = "deps";
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
-    private static final String FILE_SEPARATOR = System.getProperty("file.separator");
-    private static final String PATH_SEPARATOR = System.getProperty("path.separator");
-    private static final Path LOCAL_MAVEN = Paths.get(System.getProperty("user.home"), ".m2", "repository");
+    private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
+    private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
+    private static final Path LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
 
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
@@ -215,7 +222,7 @@ public final class Capsule implements Runnable {
     }
 
     private static boolean isInheritIoBug() {
-        return isWindows() && compareVersionStrings(System.getProperty("java.version"), "1.8.0") < 0;
+        return isWindows() && compareVersionStrings(System.getProperty(PROP_JAVA_VERSION), "1.8.0") < 0;
     }
 
     private void pipeIoStreams() {
@@ -402,7 +409,7 @@ public final class Capsule implements Runnable {
         final String minVersion = getAttribute(ATTR_MIN_JAVA_VERSION);
         if (minVersion == null)
             return;
-        final String javaVersion = System.getProperty("java.version");
+        final String javaVersion = System.getProperty(PROP_JAVA_VERSION);
         if (compareVersionStrings(minVersion, javaVersion) > 0)
             throw new IllegalStateException("Minimum required version to run this app is " + minVersion
                     + " while this Java version is " + javaVersion);
@@ -804,7 +811,7 @@ public final class Capsule implements Runnable {
         if (cacheDirEnv != null)
             cache = Paths.get(cacheDirEnv);
         else {
-            final String userHome = System.getProperty("user.home");
+            final String userHome = System.getProperty(PROP_USER_HOME);
 
             final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
             final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
@@ -925,22 +932,22 @@ public final class Capsule implements Runnable {
     }
 
     private String getJavaHome() {
-        String javaHome = System.getProperty(PROP_JAVA_HOME);
+        String javaHome = System.getProperty(PROP_CAPSULE_JAVA_HOME);
         if (javaHome == null && getAttribute(ATTR_JAVA_VERSION) != null) {
             final Path javaHomePath = findJavaHome(getAttribute(ATTR_JAVA_VERSION));
             if (javaHomePath == null) {
                 throw new RuntimeException("Could not find Java installation for requested version " + getAttribute(ATTR_JAVA_VERSION)
-                        + ". You can override the used Java version with the -D" + PROP_JAVA_HOME + " flag.");
+                        + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
             }
             javaHome = javaHomePath.toAbsolutePath().toString();
         }
         if (javaHome == null)
-            javaHome = System.getProperty("java.home");
+            javaHome = System.getProperty(PROP_JAVA_HOME);
         return javaHome;
     }
 
     private String getJavaProcessName(String javaHome) {
-        if (Objects.equals(javaHome, System.getProperty("java.home")))
+        if (Objects.equals(javaHome, System.getProperty(PROP_JAVA_HOME)))
             verifyRequiredJavaVersion();
 
         final String javaProcessName = javaHome + FILE_SEPARATOR + "bin" + FILE_SEPARATOR + "java" + (isWindows() ? ".exe" : "");
@@ -948,7 +955,7 @@ public final class Capsule implements Runnable {
     }
 
     private static boolean isWindows() {
-        final String osName = System.getProperty("os.name");
+        final String osName = System.getProperty(PROP_OS_NAME);
         final boolean isWindows = osName.startsWith("Windows");
         return isWindows;
     }
@@ -1121,9 +1128,9 @@ public final class Capsule implements Runnable {
     private static Path findJavaHome(String version) {
         // if my Java version matches requested, don't look for Java installations
         final int[] ver = parseJavaVersion(version);
-        final int[] myVer = parseJavaVersion(System.getProperty("java.version"));
+        final int[] myVer = parseJavaVersion(System.getProperty(PROP_JAVA_VERSION));
         if (ver[0] == myVer[0] && ver[1] == myVer[1])
-            return Paths.get(System.getProperty("java.home"));
+            return Paths.get(System.getProperty(PROP_JAVA_HOME));
 
         final Map<String, Path> homes = getJavaHomes();
         if (homes == null)
@@ -1143,7 +1150,7 @@ public final class Capsule implements Runnable {
     }
 
     private static Map<String, Path> getJavaHomes() {
-        Path dir = Paths.get(System.getProperty("java.home")).getParent();
+        Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
         while (dir != null) {
             Map<String, Path> homes = getJavaHomes(dir);
             if (homes != null)
@@ -1293,7 +1300,7 @@ public final class Capsule implements Runnable {
         if (isWindows())
             return str;
         else
-            return str.startsWith("~/") ? str.replace("~", System.getProperty("user.home")) : str;
+            return str.startsWith("~/") ? str.replace("~", System.getProperty(PROP_USER_HOME)) : str;
     }
 
     private static String getApplicationArtifactId(String coords) {
