@@ -2,7 +2,7 @@
 
 ## Dead-Simple Packaging and Deployment for JVM Apps
 
-Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single jar file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It even automatically download maven dependencies when the program is first launched, if you choose not to embed them in the capsule. 
+Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single jar file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It can automatically download maven dependencies when the program is first launched if you choose not to embed them in the capsule, and it can even automatically download a new version of your application when it is published to a Maven repository.
 
 ### How Capsule Works
 
@@ -18,7 +18,7 @@ There are a few alternatives to packaging your application in a single JAR. [Mav
 
 The only distribution mechanism supporting JVM arguments and Java version selection is platform-dependent startup scripts. Even if your build tool can generate those for you, they would always require some form of installation by the user.
 
-With Capsule, you just distribute a single jar and run it. 
+With Capsule, you just distribute a single jar and run it.
 
 ### Getting Capsule
 
@@ -26,7 +26,7 @@ With Capsule, you just distribute a single jar and run it.
 
 or:
 
-    co.paralleluniverse:capsule:0.1.0
+    co.paralleluniverse:capsule:0.2.0
 
 On Maven Central.
 
@@ -49,13 +49,13 @@ The first example creates what may be calle a "full" capsule:
 ``` groovy
 task fullCapsule(type: Jar, dependsOn: jar) {
     archiveName = "foo.jar"
-    
+
     from jar // embed our application jar
     from { configurations.runtime } // embed dependencies
-    
+
     from(configurations.capsule.collect { zipTree(it) }) { include 'Capsule.class' } // we just need the single Capsule class
-    
-    manifest { 
+
+    manifest {
         attributes(
             'Main-Class'        : 'Capsule',
             'Application-Class' : mainClassName,
@@ -94,8 +94,8 @@ task capsule(type: Jar, dependsOn: classes) {
     from sourceSets.main.output // this way we don't need to extract
 
     from { configurations.capsule.collect { zipTree(it) } } // we need all of Capsule's classes
-    
-    manifest { 
+
+    manifest {
         attributes(
             'Main-Class'        : 'Capsule',
             'Application-Class' : mainClassName,
@@ -123,19 +123,46 @@ The resulting jar has the following structure:
         \__ MANIFEST.MF
 
 
-This capsule doesn't embed the dependencies in the jar, so our application's classes can be simply placed in it unwrapped. Instead, the `Dependencies` attribute declares the application's dependencies (the `getDependencies` function translates Gradle dependencies to Capsule dependencies. Its definition can be found [here](https://github.com/puniverse/capsule-demo/blob/master/build.gradle#L77) and it may be copied verbatim to any build file). The first time we run `java -jar foo.jar`, the dependencies will be downloaded (by default from Maven Central, but other Maven repositories may be declared in the manifest). The dependencies are placed in a cache directory shared by all capsules, so common ones like SLF4J or Guava will only be downloaded once. Also, because the app's classes are placed directly in the jar, and the dependencies are loaded to a shared cache, the capsule does not need to be extracted to the filesystem at all, hene the manifest says `Extract-Capsule : false`.
+This capsule doesn't embed the dependencies in the jar, so our application's classes can be simply placed in it unwrapped. Instead, the `Dependencies` attribute declares the application's dependencies (the `getDependencies` function translates Gradle dependencies to Capsule dependencies. Its definition can be found [here](https://github.com/puniverse/capsule-demo/blob/master/build.gradle#L77) and it may be copied verbatim to any build file). The first time we run `java -jar foo.jar`, the dependencies will be downloaded (by default from Maven Central, but other Maven repositories may be declared in the manifest). The dependencies are placed in a cache directory shared by all capsules, so common ones like SLF4J or Guava will only be downloaded once. Also, because the app's classes are placed directly in the jar, and the dependencies are loaded to a shared cache, the capsule does not need to be extracted to the filesystem at all, hence the manifest says `Extract-Capsule : false`.
 
 Instead of specifying the dependencies and (optionally) the repositories directly in the manifest, if the capsule contains a `pom.xml` file in the jar root, it will be used to find the dependencies.
 
 In order to support Maven dependencies, we needed to include all of Capsule's classes in the capsule jar rather than just the `Capsule` class. This will add about 2MB to the (compressed) jar, but will save a lot more by not embedding all the dependencies.
 
+Finally, a capsule may not contain any of the application's classes/jars at all. The capsule's manifest can contain these two attributes:
+
+    Main-Class: Capsule
+    Application: com.acme:foo
+
+And when the capsule is launched, the newest available version of the application will be downloaded, cached and launched. In this use-case, the capsule jar looks like this:
+
+    foo.jar
+    |__ Capsule.class
+    |__ capsule/
+    |    \__ [capsule classes]
+    \__ MANIFEST/
+        \__ MANIFEST.MF
+
+Note how none of the application's classes are actually found in the jar.
+
 ## User Guide
 
-Most applications will need to specify two attributes in the capsule's manifest:
+A capsule requires two attributes in its manifest file. The first, is the same for all capsules:
 
     Main-Class : Capsule
-    Application-Class : [the applications's main class]
 
+This attributes makes the JAR file into a capsule. The second attribute tells the capsule what to run when launched. It must be one of:
+
+    Application-Class : [the applications's main class, found in the capsule or one of its dependencies]
+
+which specifies the application's main class, or,
+
+    Application : [the maven coordinates of the application's main JAR]
+
+or,
+
+    Unix-Script    : [a startup script to be run on *nix machines, found in the capsule]
+    Windows-Script : [a startup script to be run on Windows machines, found in the capsule]
 
 These attributes are sufficient to build a capsule, but there are many other configuration options, which will be explained below.
 
@@ -145,19 +172,19 @@ As mentioned before, `java -jar app.jar [app arguments]` will launch the applica
 
 The `java -Dcapsule.version -jar app.jar` command will print the version of Capsule used, and then exit without launching the app.
 
-Adding `-Dcapsule.log=verbose` before `-jar` will print information about Capsule's action.
+Adding `-Dcapsule.log=verbose` or `-Dcapsule.log=debug`  before `-jar` will print information about Capsule's action.
 
 ### Application ID
 
 The application ID is used to find the capsule's application cache, where the capsule's contents will be extracted if necessary. If the manifest has an `Application-Name`, it will be the application's ID, combined with the `Application-Version` attribute, if found. If there is no `Application-Name` attribute, and a `pom.xml` file is found in the jar's root, the ID will be formed by joining the POM's groupId, ArtifactId, and version properties. If there is no pom file, the `Application-Class` attribute will serve as the application name.
 
-The application's ID can be overriden by the `capsule.app.id` system property, if defined when launching the capsule, as in `java -Dcapsule.app.id=my_old_app -jar app.jar`
+The application's ID can be overridden by the `capsule.app.id` system property, if defined when launching the capsule, as in `java -Dcapsule.app.id=my_old_app -jar app.jar`
 
 ### Java Version
 
-By default, the application will run using the same JVM used to run the capsule itself, i.e., the JVM used to run `java -jar app.jar`. If the `Min-Java-Version` attribute is specified in the manifest (e.g. 1.7.0_50 or 1.8.0), it will be used to test the JVM's version. If the JVM is not of the required version, an exception will be throw, and the app will not run.
+Two manifest attributes determine which Java installation Capsule will use to launch the application. `Min-Java-Version` (e.g. `1.7.0_50` or `1.8.0`) is the minimum Java version to use, while `Java-Version` (e.g. `1.6`) is the maximum *major* Java version to use. One, both, or neither of these attributes may be specified in the manifest.
 
-The `Java-Version` attribute can specify a JVM version that may be different from the one used to launch the capsule. If that attribute is found, Capsule will make an effort to find a JVM installation that matches the requested version. Capsule will use the highest update version that matches the requested one, i.e. if `Java-Version` is `1.7.0`, and there are two Java 7 installations, one `1.7.0_40` and one `1.7.0_50`, then `1.7.0_50` will be used. `Java-Version` may specify either a higher or a lower version than the one used to launch the capsule. For example, if Java 7 is used to launch the capsule and `Java-Version` is `1.6.0`, then Capsule will attempt to find a Java 6 installation and use it to run the app (or fail to launch the app if it can't). Similarly if `1.8.0` is requested.
+First, Capsule will test the current JVM (used to launch the capsule) against `Min-Java-Version` and `Java-Version` (if they're specified). If the version of the current JVM matches the requested range, it will be used to launch the application. If not, capsule will search for other JVM installations, and use the one with the highest version that matches the requested range. If no matching installation is found, the capsule will fail to launch.
 
 Whatever the `Min-Java-Version` or `Java-Version` attributes specify, launching the capsule with the `capsule.java.home` system property, will use whatever Java installation is specified by the property, for example: `java -Dcapsule.java.home=/Library/Java/JavaVirtualMachines/jdk1.8.0.jdk/Contents/Home -jar app.jar`.
 
@@ -166,33 +193,37 @@ Running `java -Dcapsule.jvms -jar app.jar` will list all Java installations Caps
 ### Capsule's Cache
 
 By default, Capsule will extract the capsule jar's contents -- except for class files placed directly in the jar -- into a cache directory. If the
-`Extract-Capsule` manifest attribute is set to `false`, the jar will not be extracted. The value of the `Extract-Capsule` attribute, can be overriden with the `capsule.extract` system property, as in `java -Dcapsule.extract=true -jar app.jar`.
+`Extract-Capsule` manifest attribute is set to `false`, the jar will not be extracted. The value of the `Extract-Capsule` attribute, can be overridden with the `capsule.extract` system property, as in `java -Dcapsule.extract=true -jar app.jar`.
 
 The capsule will be extracted once. Following run will compare the jar's modification date with that of the cache, and will re-write the cache only if the capsule jar is younger. You can force re-extraction of the capsule with `-Dcapsule.reset=true`.
 
-The location of the cache, as well as the location of the jar are communicated to the application through the `capsule.dir` and `capsule.jar` system properties respectively. Capsule defines these properties automatically, and the application may use them, for example, to find extracted resources. In addition, those two filesystem paths can be used within the manifest itself to set various values (system proeprties, environment variables, etc) by referencing them with `$CAPSULE_DIR` and `$CAPSULE_JAR` respectively.
+The location of the cache, as well as the location of the jar are communicated to the application through the `capsule.dir` and `capsule.jar` system properties respectively. Capsule defines these properties automatically, and the application may use them, for example, to find extracted resources. In addition, those two filesystem paths can be used within the manifest itself to set various values (system properties, environment variables, etc) by referencing them with `$CAPSULE_DIR` and `$CAPSULE_JAR` respectively.
 
 Capsule's cache is found, by default, at `~/.capsule/` on Unix/Linux/Mac OS machines, and at `%USERPROFILE%\AppData\Local\capsule\` on windows. The application caches are placed in the `apps/APP_ID` subdirectory of the cache, while the shared dependency cache is at the `deps` subdirectory. The location of the Capsule cache can be changed with environment variables: setting `CAPSULE_CACHE_NANE` determines the name of the topmost Capsule cache dir (i.e. "capsule" by default), while `CAPSULE_CACHE_DIR` can be used to set a precise path for the cache (e.g. `/tmp/capsule/).
 
-### Dependencies
+### Maven Dependencies
 
-The capsule can specifiy external dependencies as coordinates in maven repositories. One way of specifying dependencies, is placing the app's `pom.xml` file in the capsule jar's root. Another is specifying the dependencies and repositories in the capsule's manifest.
+The capsule can specify external dependencies as coordinates in maven repositories. One way of specifying dependencies, is placing the app's `pom.xml` file in the capsule jar's root. Another is specifying the dependencies and repositories in the capsule's manifest.
 
-By default, Capsule will look for dependencies on Maven Central. If other repositories are needed (or if you don't want to access Maven Central), the `Repositories` attribute is a space-separated list of Maven repository URLs. The repositories will be searched in the order they are listed. If the `Repositories` attribute is found in the manifest, then Maven Central will not be searched. If you do want it searched in addition to other repsoitories, you can simply place the word `central` in the repository list rather than listing the full URL.
+By default, Capsule will look for dependencies on Maven Central. If other repositories are needed (or if you don't want to access Maven Central), the `Repositories` attribute is a space-separated list of Maven repository URLs. The repositories will be searched in the order they are listed. If the `Repositories` attribute is found in the manifest, then Maven Central will not be searched. If you do want it searched in addition to other repositories, you can simply place the word `central` in the repository list rather than listing the full URL.
 
-The dependencies, (if not read from the POM), are listed in the `Dependencies` attribute, as a space-separated list of Maven coordinates in the Gradle format, i.e. `groupId:aritfactId:version`. Exclusions can be given as a comma separated list within parentheses, immediately following the main artifact, of `groupId:artifactId` coordinates, where the artifact can be the wildcard `*`. For example: 
+The dependencies, (if not read from the POM), are listed in the `Dependencies` attribute, as a space-separated list of Maven coordinates in the Gradle format, i.e. `groupId:aritfactId:version`. Exclusions can be given as a comma separated list within parentheses, immediately following the main artifact, of `groupId:artifactId` coordinates, where the artifact can be the wildcard `*`. For example:
 
    Dependencies : com.esotericsoftware.kryo:kryo:2.23.0(org.ow2.asm:*)
 
 The dependencies are downloaded the firs time the capsule is launched, and placed in the `deps` subdirectory of the Capsule cache, where they are shared among all capsules.
 
+Capsule can make use of Maven repositories in another way: the `Application` manifest attribute can specify the Maven coordinates of the application's main jar file, which can in itself be a module. The artifact can be given with a version range, for example: `Application: com.acme:foo:[1.0,2.0)` or with no version at all. The newest version matching the range (or the newest version if no range is given), will be downloaded, cached and launched. If the application's main artifact is a capsule, then all configurations will be taken based on those in the artifact capsule.
+
 Adding `-Dcapsule.reset=true`, can force a re-download of SNAPSHOT versions.
 
 The command: `java -Dcapsule.tree -jar app.jar`, will print out the dependency tree for the module, and then quit without launching the app.
 
+Two more system properties affect the way Capsule searches for dependencies. If `capsule.offline` id defined or set to `true` (`-Dcapsule.offline` or `-Dcapsule.offline=true`), Capsule will not attempt to contact online repositories for dependencies (instead, it will use the local Maven repository/cache only). `capsule.local` determines the path for the local Maven repository/cache Capsule will use (which, by default, is the `deps` subdirectory of the Capsule cache).
+
 ### Class Paths
 
-By default, Capsule sets the application's class path to: the capsule jar iteslf, the application's cache directory (if the capsule is extracted) and every jar found in the root of the cache directory (i.e. every jar file placed in the capsule jar's root) -- in no particular order -- and, finally, the application's Maven dependencies in the order they are listen in the `Dependencies` attribute or the pom file.
+By default, Capsule sets the application's class path to: the capsule jar itself, the application's cache directory (if the capsule is extracted) and every jar found in the root of the cache directory (i.e. every jar file placed in the capsule jar's root) -- in no particular order -- and, finally, the application's Maven dependencies in the order they are listen in the `Dependencies` attribute or the pom file.
 
 The classpath, however, can be customized by the `Class-Path` attribute, which can be given an ordered (space separated) list of jars and/or directories relative to the capsule jar root. This attribute only applies if the capsule is extracted, and if it is found in the manifest, then all jars in the cache's root will not be added automatically to the classpath.
 
@@ -218,11 +249,11 @@ Remember that values listed in all these configuration values can contain the ``
 
 While Capsule mostly makes startup scripts unnecessary, in some circumstances they can be useful. Capsule allows placing platform-specific scripts into the capsule jar, and executing them instead of launching a JVM and running `Application-Class`. The `Unix-Script` attribute specifies the location (relative to the capsule jar's root) of a POSIX shell script, to be run on POSIX machines, while `Windows-Script` specifies the location of a Windows script file. If only, say, `Unix-Script` is defined, then on Windows machines Capsule will simply run the `Application-Class` as usual.
 
-The scripts can make use of the `CAPSULE_CACHE_DIR` environment variable to locate capsule files. Scripts cannot be used if the `Extract-Capsule` attribute is `false`. 
+The scripts can make use of the `CAPSULE_CACHE_DIR` environment variable to locate capsule files. Scripts cannot be used if the `Extract-Capsule` attribute is `false`.
 
 ### Security Manager
 
-The `Security-Policy` attribute specifies a Java [security policy file](http://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html) to use for the application. Its value is the location of the security file relative to the capsule jar root. The `Security-Policy-A` achieves a similar purpose, only the security policy specified is added to the default one rather than replaces it. Finally, the `Security-Manager` attribute can specify a class to be used as the security manager for the application. 
+The `Security-Policy` attribute specifies a Java [security policy file](http://docs.oracle.com/javase/7/docs/technotes/guides/security/PolicyFiles.html) to use for the application. Its value is the location of the security file relative to the capsule jar root. The `Security-Policy-A` achieves a similar purpose, only the security policy specified is added to the default one rather than replaces it. Finally, the `Security-Manager` attribute can specify a class to be used as the security manager for the application.
 
 If any of these three properties is set, a security manager will be in effect when the application runs. If the `Security-Manager` attribute is not set, the default security manager will be used.
 
@@ -235,6 +266,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Application-Name`: the name of the application, used to define its ID
 * `Application-Version`: the application's version, used to define its ID
 * `Application-Class`: the application's main class
+* `Application`: The Maven coordinates of the application's main jar (can be a capsule)
 * `Unix-Script`: a startup script to be run *instead* of `Application-Class` on Unix/Linux/Mac OS, given as a path relative to the capsule's root
 * `Windows-Script`: a startup script to be run *instead* of `Application-Class` on Windows, given as a path relative to the capsule's root
 * `Extract-Capsule`: if `false`, the capsule jar will not be extracted to the filesystem (default: `true`)
@@ -245,14 +277,14 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `System-Properties`: a list of system properties that will be defined in the applications JVM; formatted `prop=value` or `prop`
 * `App-Class-Path`: a list of jars, relative to the capsule root, that will be put on the application's classpath, in the order they are listed
 * `Capsule-In-Class-Path`: if set to `false`, the capsule jar itself will not be on the application's classpath (default: `true`)
-* `Boot-Class-Path`: a list of jars and/or directories, realtive to the capsule root, that will be used as the application's boot classpath.
-* `Boot-Class-Path-A`: a list of jars and/or directories, realtive to the capsule root, that will be appended to the applications default boot classpath
-* `Boot-Class-Path-P`: a list of jars and/or directories, realtive to the capsule root, that will be *prepended* to the applications default boot classpath
-* `Library-Path-A`: a list of jars and/or directories, realtive to the capsule root, that will be appended to the default native library path
-* `Library-Path-P`: a list of jars and/or directories, realtive to the capsule root, that will be *prepended* to the default native library path
+* `Boot-Class-Path`: a list of jars and/or directories, relative to the capsule root, that will be used as the application's boot classpath.
+* `Boot-Class-Path-A`: a list of jars and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath
+* `Boot-Class-Path-P`: a list of jars and/or directories, relative to the capsule root, that will be *prepended* to the applications default boot classpath
+* `Library-Path-A`: a list of jars and/or directories, relative to the capsule root, that will be appended to the default native library path
+* `Library-Path-P`: a list of jars and/or directories, relative to the capsule root, that will be *prepended* to the default native library path
 * `Security-Manager`: the name of a class that will serve as the application's security-manager
-* `Security-Policy`: a security policy file, realtive to the capsule root, that will be used as the security policy
-* `Security-Policy-A`: a security policy file, realtive to the capsule root, that will be appended to the default security policy
+* `Security-Policy`: a security policy file, relative to the capsule root, that will be used as the security policy
+* `Security-Policy-A`: a security policy file, relative to the capsule root, that will be appended to the default security policy
 * `Java-Agents`: a list of java agents used by the application; formatted `agent` or `agent=arg1,arg2...`, where agent is either the path to a jar relative to the capsule root, or a Maven coordinate of a dependency
 * `Repositories`: a list of Maven repository URLs
 * `Dependencies`: a list of Maven dependencies given as `groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]`
@@ -267,17 +299,19 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.version`: if set, the capsule will print its Capsule version and quit without launching the app
 * `capsule.tree`: if set, the capsule will print the app's dependency tree, and then quit without launching the app
 * `capsule.jvms`: if set, the capsule will print the JVM installations it can locate with their versions, and then quit without launching the app
-* `capsule.log`: if set to `verbose`, Capsule will print what it's doing
+* `capsule.log`: if set to `verbose`/`debug`, Capsule will print what it's doing
 * `capsule.reset`: if set, forces re-extraction of the capsule, where applies, and/or re-downloading of SNAPSHOT dependencies
 * `capsule.app.id`: sets the value of the application ID (see user guide)
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
 * `capsule.extract`: can be set to `true` or `false` to force extraction (or no extraction) of the capsule.
+* `capsule.offline`: if defined (without a value) or set to `true`, Capsule will not attempt to contact online repositories for dependencies
+* `capsule.local`: the path for the local Maven repository; defaults to CAPSULE_CACHE/deps
 
 Capsule defines these system properties in the application's process:
 
 * `capsule.jar`: the full path to the capsule's jar
 * `capsule.dir`: if the jar has been extracted, the full path of the application cache.
-    
+
 ### Environment Variables
 
 * `CAPSULE_CACHE_NAME`: sets the *name* of the root of Capsule's cache in the default location (`~` on Unix, `%LOCALAPPDATA%` on Windows)
@@ -291,10 +325,10 @@ Capsule defines these variables in the application's environment:
 ## License
 
     Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
-    
-    This program and the accompanying materials are licensed under the terms 
+
+    This program and the accompanying materials are licensed under the terms
     of the Eclipse Public License v1.0 as published by the Eclipse Foundation.
-    
+
         http://www.eclipse.org/legal/epl-v10.html
 
 As Capsule does not link in any way with any of the code bundled in the Jar file, and simply treats it as raw data, Capsule is no different from a self-extracting Zip file (especially as manually unzipping the jar's contents is extrmely easy). Capsule's own license, therefore, does not interfere with the licensing of the bundled software.
