@@ -35,13 +35,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
@@ -223,7 +223,7 @@ public final class Capsule implements Runnable {
     }
 
     private static boolean isInheritIoBug() {
-        return isWindows() && compareVersionStrings(System.getProperty(PROP_JAVA_VERSION), "1.8.0") < 0;
+        return isWindows() && compareVersions(System.getProperty(PROP_JAVA_VERSION), "1.8.0") < 0;
     }
 
     private void pipeIoStreams() {
@@ -393,7 +393,7 @@ public final class Capsule implements Runnable {
             try {
                 Set<PosixFilePermission> perms = Files.getPosixFilePermissions(file);
                 if (!perms.contains(PosixFilePermission.OWNER_EXECUTE)) {
-                    Set<PosixFilePermission> newPerms = new HashSet<PosixFilePermission>(perms);
+                    Set<PosixFilePermission> newPerms = EnumSet.copyOf(perms);
                     newPerms.add(PosixFilePermission.OWNER_EXECUTE);
                     Files.setPosixFilePermissions(file, newPerms);
                 }
@@ -402,16 +402,6 @@ public final class Capsule implements Runnable {
                 throw new RuntimeException(e);
             }
         }
-    }
-
-    private void verifyRequiredJavaVersion() {
-        final String minVersion = getAttribute(ATTR_MIN_JAVA_VERSION);
-        if (minVersion == null)
-            return;
-        final String javaVersion = System.getProperty(PROP_JAVA_VERSION);
-        if (compareVersionStrings(minVersion, javaVersion) > 0)
-            throw new IllegalStateException("Minimum required version to run this app is " + minVersion
-                    + " while this Java version is " + javaVersion);
     }
 
     private static void addOption(List<String> cmdLine, String prefix, String value) {
@@ -932,22 +922,29 @@ public final class Capsule implements Runnable {
 
     private String getJavaHome() {
         String javaHome = System.getProperty(PROP_CAPSULE_JAVA_HOME);
-        if (javaHome == null && getAttribute(ATTR_JAVA_VERSION) != null) {
-            final Path javaHomePath = findJavaHome(getAttribute(ATTR_JAVA_VERSION));
+        if (javaHome == null && !isMatchingJavaVersion(System.getProperty(PROP_JAVA_VERSION))) {
+            final Path javaHomePath = findJavaHome();
             if (javaHomePath == null) {
-                throw new RuntimeException("Could not find Java installation for requested version " + getAttribute(ATTR_JAVA_VERSION)
+                throw new RuntimeException("Could not find Java installation for requested version "
+                         + getAttribute(ATTR_MIN_JAVA_VERSION) + " / " + getAttribute(ATTR_JAVA_VERSION)
                         + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
             }
             javaHome = javaHomePath.toAbsolutePath().toString();
         }
-        if (javaHome == null)
-            javaHome = System.getProperty(PROP_JAVA_HOME);
         return javaHome;
     }
 
+    private boolean isMatchingJavaVersion(String javaVersion) {
+        if (hasAttribute(ATTR_MIN_JAVA_VERSION) && compareVersions(javaVersion, getAttribute(ATTR_MIN_JAVA_VERSION)) < 0)
+            return false;
+        if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(majorJavaVersion(javaVersion), getAttribute(ATTR_JAVA_VERSION)) > 0)
+            return false;
+        return true;
+    }
+
     private String getJavaProcessName(String javaHome) {
-        if (Objects.equals(javaHome, System.getProperty(PROP_JAVA_HOME)))
-            verifyRequiredJavaVersion();
+        if (javaHome == null)
+            javaHome = System.getProperty(PROP_JAVA_HOME);
 
         final String javaProcessName = javaHome + FILE_SEPARATOR + "bin" + FILE_SEPARATOR + "java" + (isWindows() ? ".exe" : "");
         return javaProcessName;
@@ -1127,21 +1124,15 @@ public final class Capsule implements Runnable {
             throw new FileNotFoundException("Failed to delete file: " + f);
     }
 
-    private static Path findJavaHome(String version) {
-        // if my Java version matches requested, don't look for Java installations
-        final int[] ver = parseJavaVersion(version);
-        final int[] myVer = parseJavaVersion(System.getProperty(PROP_JAVA_VERSION));
-        if (ver[0] == myVer[0] && ver[1] == myVer[1])
-            return Paths.get(System.getProperty(PROP_JAVA_HOME));
-
+    private Path findJavaHome() {
         final Map<String, Path> homes = getJavaHomes();
         if (homes == null)
             return null;
         Path best = null;
-        int[] bestVersion = null;
+        String bestVersion = null;
         for (Map.Entry<String, Path> e : homes.entrySet()) {
-            int[] v = parseJavaVersion(e.getKey());
-            if (v[0] == ver[0] && v[1] == ver[1]) {
+            final String v = e.getKey();
+            if (isMatchingJavaVersion(v)) {
                 if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
                     bestVersion = v;
                     best = e.getValue();
@@ -1238,7 +1229,14 @@ public final class Capsule implements Runnable {
         return false;
     }
 
-    private static int compareVersionStrings(String a, String b) {
+    private static String majorJavaVersion(String v) {
+        final String[] vs = v.split("\\.");
+        if (vs.length == 1)
+            return "1." + v;
+        return vs[0] + "." + vs[1];
+    }
+
+    private static int compareVersions(String a, String b) {
         return compareVersions(parseJavaVersion(a), parseJavaVersion(b));
     }
 
@@ -1252,7 +1250,7 @@ public final class Capsule implements Runnable {
 
     private static int[] parseJavaVersion(String v) {
         final int[] ver = new int[4];
-        String[] vs = v.split("\\.");
+        final String[] vs = v.split("\\.");
         if (vs.length < 2)
             throw new IllegalArgumentException("Version " + v + " is illegal. Must be of the form x.y.z[_u]");
         ver[0] = Integer.parseInt(vs[0]);
