@@ -172,6 +172,12 @@ As mentioned before, `java -jar app.jar [app arguments]` will launch the applica
 
 The `java -Dcapsule.version -jar app.jar` command will print the version of Capsule used, and then exit without launching the app.
 
+Capsule's jar can be used standalone (without merging with any application binaries), to launch applications stored in a Maven repository like so:
+
+    java -jar capsule.jar com.acme:foo [app arguments]
+
+The above command will download (and cache) the Maven artifact and its dependencies, and run it, provided that it's a capsule itself, or even any executable jar. 
+
 Adding `-Dcapsule.log=verbose` or `-Dcapsule.log=debug`  before `-jar` will print information about Capsule's action.
 
 ### Application ID
