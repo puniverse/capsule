@@ -243,6 +243,8 @@ The `Library-Path-A` manifest attribute can list JARs or directories (relative t
 
 The `JVM-Args` manifest attribute can contain a space-separated list of JVM argument that will be used to launch the application. Any JVM arguments supplied during the capsule's launch, will override those in the manifest. For example, if the `JVM-Args` attribute contains `-Xmx500m`, and the capsule is launched with `java -Xmx800m -jar app.jar`, then the application will be launched with the `-Xmx800m` JVM argument.
 
+The `Args` manifest attribute can contain a space-separated list of ommand line arguments to be passed to the application; these will be prepended to any arguments passed to the capsule at launch.
+
 The `System-Properties` manifest attribute can contain a space-separated list of system properties that will be defined in the launched application. The properties are listed as `property=value` pairs (or just `property` for an empty value). Any system properties supplied during the capsule's launch, will override those in the manifest. For example, if the `JVM-Args` attribute contains `name=Mike`, and the capsule is launched with `java -Dname=Jason -jar app.jar`, then the application will see the `name` system-property defined as `Jason`.
 
 The `Environment-Variables` manifest attribute, is, just like `System-Properties`, a space-separated list of `var=value` pairs (or just `var` for an empty value). The specified values do not overwrite those already defined in the environment, unless they are listed as `var:=value` rather than `var=value`.
@@ -279,6 +281,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Min-Java-Version`: the minimum Java version required to run the application
 * `Java-Version`: the version of the Java installation required to run the application; Capsule will look for an appropriate installation
 * `JVM-Args`: a list of JVM arguments that will be used to launch the application's Java process
+* `Args`: a list of command line arguments to be passed to the application; these will be prepended to any arguments passed to the capsule
 * `Environment-Variables`: a list of environment variables that will be put in the applications environment; formatted `var=value` or `var`
 * `System-Properties`: a list of system properties that will be defined in the applications JVM; formatted `prop=value` or `prop`
 * `App-Class-Path`: a list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed

@@ -38,7 +38,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +92,7 @@ public final class Capsule implements Runnable {
     private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
     private static final String ATTR_JAVA_VERSION = "Java-Version";
     private static final String ATTR_JVM_ARGS = "JVM-Args";
+    private static final String ATTR_ARGS = "Args";
     private static final String ATTR_ENV = "Environment-Variables";
     private static final String ATTR_SYSTEM_PROPERTIES = "System-Properties";
     private static final String ATTR_APP_CLASS_PATH = "App-Class-Path";
@@ -296,7 +296,7 @@ public final class Capsule implements Runnable {
                     final List<Path> jars = resolveAppArtifact(appArtifact);
                     if (isCapsule(jars.get(0))) {
                         verbose("Running capsule " + jars.get(0));
-                        runCapsule(jars.get(0), isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : args);
+                        runCapsule(jars.get(0), isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
                         return true;
                     } else if (isEmptyCapsule())
                         throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
@@ -323,13 +323,20 @@ public final class Capsule implements Runnable {
             buildJavaProcess(pb);
 
         final List<String> command = pb.command();
-        command.addAll(Arrays.asList(args));
+        command.addAll(buildArgs(args));
 
         buildEnvironmentVariables(pb.environment());
 
         verbose(join(command, " "));
 
         return pb;
+    }
+
+    private List<String> buildArgs(String[] args1) {
+        final List<String> args = new ArrayList<String>();
+        args.addAll(nullToEmpty(getListAttribute(ATTR_ARGS)));
+        args.addAll(Arrays.asList(args1));
+        return args;
     }
 
     private boolean buildJavaProcess(ProcessBuilder pb) {
@@ -926,7 +933,7 @@ public final class Capsule implements Runnable {
             final Path javaHomePath = findJavaHome();
             if (javaHomePath == null) {
                 throw new RuntimeException("Could not find Java installation for requested version "
-                         + getAttribute(ATTR_MIN_JAVA_VERSION) + " / " + getAttribute(ATTR_JAVA_VERSION)
+                        + getAttribute(ATTR_MIN_JAVA_VERSION) + " / " + getAttribute(ATTR_JAVA_VERSION)
                         + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
             }
             javaHome = javaHomePath.toAbsolutePath().toString();
