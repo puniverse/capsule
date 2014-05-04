@@ -1297,6 +1297,8 @@ public final class Capsule implements Runnable {
     }
 
     private static String expandCommandLinePath(String str) {
+        if (str == null)
+            return null;
         if (isWindows())
             return str;
         else
