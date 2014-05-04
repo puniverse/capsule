@@ -55,7 +55,7 @@ public final class Capsule implements Runnable {
      * Also, the code here is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few, methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      */
-    private static final String VERSION = "0.2.0";
+    private static final String VERSION = "0.3.0";
 
     private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_VERSION = "capsule.version";
