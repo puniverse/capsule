@@ -51,6 +51,7 @@ public class DependencyManager {
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
+    private static final String MAVEN_CENTRAL_URL = "http://central.maven.org/maven2/";
 
     private final String appId;
     private final boolean forceRefresh;
@@ -71,13 +72,13 @@ public class DependencyManager {
         this.repos = new ArrayList<RemoteRepository>();
 
         if (repos == null)
-            this.repos.add(newCentralRepository(policy));
+            this.repos.add(newRemoteRepository("central", MAVEN_CENTRAL_URL, policy));
         else {
             for (String repo : repos) {
                 if ("central".equals(repo))
-                    this.repos.add(newCentralRepository(policy));
+                    this.repos.add(newRemoteRepository("central", MAVEN_CENTRAL_URL, policy));
                 else
-                    this.repos.add(new RemoteRepository.Builder(null, null, repo).setPolicy(policy).build());
+                    this.repos.add(newRemoteRepository(null, repo, policy));
             }
         }
     }
@@ -117,7 +118,7 @@ public class DependencyManager {
     }
 
     public void printDependencyTree(List<String> coords) {
-        printDependencyTree(collect().setDependencies(toDependencies(coords)));
+        printDependencyTree(collect().setDependencies(toDependencies(coords, "jar")));
     }
 
     public void printDependencyTree(String coords) {
@@ -133,12 +134,12 @@ public class DependencyManager {
         }
     }
 
-    public List<Path> resolveDependencies(List<String> coords) {
-        return resolve(new CollectRequest().setRepositories(repos).setDependencies(toDependencies(coords)));
+    public List<Path> resolveDependencies(List<String> coords, String type) {
+        return resolve(new CollectRequest().setRepositories(repos).setDependencies(toDependencies(coords, type)));
     }
 
-    public List<Path> resolveDependency(String coords) {
-        return resolveDependencies(Collections.singletonList(coords));
+    public List<Path> resolveDependency(String coords, String type) {
+        return resolveDependencies(Collections.singletonList(coords), type);
     }
 
     public List<Path> resolveRoot(String coords) {
@@ -165,7 +166,7 @@ public class DependencyManager {
 
     private Artifact getLatestVersion(String coords) {
         try {
-            final Artifact artifact = coordsToArtifact(coords);
+            final Artifact artifact = coordsToArtifact(coords, "jar");
             final VersionRangeRequest versionRangeRequest = new VersionRangeRequest().setRepositories(repos).setArtifact(artifact);
             final VersionRangeResult versionRangeResult = system.resolveVersionRange(session, versionRangeRequest);
             final Version highestVersion = versionRangeResult.getHighestVersion();
@@ -176,27 +177,27 @@ public class DependencyManager {
             throw new RuntimeException(e);
         }
     }
-
-    private static RemoteRepository newCentralRepository(RepositoryPolicy policy) {
-        return new RemoteRepository.Builder("central", "default", "http://central.maven.org/maven2/").setPolicy(policy).build();
+    
+    private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy policy) {
+        return new RemoteRepository.Builder(name, "default", url).setPolicy(policy).build();
     }
-
-    private static Dependency toDependency(String coords) {
-        return new Dependency(coordsToArtifact(coords), JavaScopes.RUNTIME, false, getExclusions(coords));
+    
+    private static Dependency toDependency(String coords, String type) {
+        return new Dependency(coordsToArtifact(coords, type), JavaScopes.RUNTIME, false, getExclusions(coords));
     }
 
     private static Dependency toDependency(Artifact artifact) {
         return new Dependency(artifact, JavaScopes.RUNTIME, false, null);
     }
 
-    private static List<Dependency> toDependencies(List<String> coords) {
+    private static List<Dependency> toDependencies(List<String> coords, String type) {
         final List<Dependency> deps = new ArrayList<Dependency>(coords.size());
         for (String c : coords)
-            deps.add(toDependency(c));
+            deps.add(toDependency(c, type));
         return deps;
     }
 
-    private static Artifact coordsToArtifact(final String coordsString0) {
+    private static Artifact coordsToArtifact(final String coordsString0, String type) {
         String coordsString;
 
         int parenIndex = coordsString0.indexOf('(');
@@ -215,7 +216,7 @@ public class DependencyManager {
         final String artifactId = coords[1];
         final String version = coords[2];
         final String classifier = coords.length > 3 ? coords[3] : null;
-        return new DefaultArtifact(groupId, artifactId, classifier, "jar", version);
+        return new DefaultArtifact(groupId, artifactId, classifier, type, version);
     }
 
     private static Collection<Exclusion> getExclusions(String coordsString) {

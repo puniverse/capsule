@@ -54,6 +54,9 @@ public final class Capsule implements Runnable {
      *
      * Also, the code here is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few, methods called in the constructor, all others are can be called in any order, and don't rely on any state.
+     *
+     * We do a lot of data transformations that would have really benefitted from Java 8's lambdas and streams, 
+     * but we want Capsule to support Java 7.
      */
     private static final String VERSION = "0.3.0";
 
@@ -134,6 +137,7 @@ public final class Capsule implements Runnable {
     private final Manifest manifest; // never null
     private final String appId;      // null iff isEmptyCapsule()
     private final Path appCache;     // non-null iff capsule is extracted
+    private final boolean cacheUpToDate;
     private final String mode;
     private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final Object dependencyManager; // non-null iff needsDependencyManager is true
@@ -202,9 +206,10 @@ public final class Capsule implements Runnable {
         this.appId = getAppId();
         this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
         this.appCache = shouldExtract() ? getAppCacheDir() : null;
+        this.cacheUpToDate = appCache != null ? isUpToDate() : false;
 
-        if (appCache != null)
-            ensureExtracted();
+        if (appCache != null && !cacheUpToDate)
+            extractCapsule();
     }
 
     private boolean needsDependencyManager() {
@@ -449,6 +454,11 @@ public final class Capsule implements Runnable {
                         + ATTR_EXTRACT + " attribute is also set to false");
         }
 
+        if (hasAttribute(ATTR_APP_ARTIFACT)) {
+            assert dependencyManager != null;
+            classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT))));
+        }
+
         if (appCache == null && hasAttribute(ATTR_APP_CLASS_PATH))
             throw new IllegalStateException("Cannot use the " + ATTR_APP_CLASS_PATH + " attribute when the "
                     + ATTR_EXTRACT + " attribute is set to false");
@@ -457,10 +467,8 @@ public final class Capsule implements Runnable {
             classPath.addAll(nullToEmpty(getDefaultCacheClassPath()));
         }
 
-        if (dependencyManager != null) {
-            classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT))));
-            classPath.addAll(nullToEmpty(resolveDependencies(getDependencies())));
-        }
+        assert !hasAttribute(ATTR_DEPENDENCIES) || dependencyManager != null;
+        classPath.addAll(nullToEmpty(resolveDependencies(getDependencies(), "jar")));
 
         return classPath;
     }
@@ -547,11 +555,11 @@ public final class Capsule implements Runnable {
     private List<Path> buildNativeLibraryPath() {
         final List<Path> libraryPath = new ArrayList<Path>();
         if (isLinux())
-            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_LINUX);
+            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_LINUX, "so");
         else if (isWindows())
-            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_WIN);
+            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_WIN, "dll");
         else if (isMac())
-            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_MAC);
+            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_MAC, "dylib");
         libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
         libraryPath.addAll(toPath(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(PATH_SEPARATOR))));
         libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
@@ -559,7 +567,7 @@ public final class Capsule implements Runnable {
         return libraryPath;
     }
 
-    private void resolveNativeDependencies(String attr) {
+    private void resolveNativeDependencies(String attr, String type) {
         if (appCache == null)
             throw new IllegalStateException("Cannot set " + ATTR_EXTRACT + " to false if there are native dependencies.");
 
@@ -575,20 +583,23 @@ public final class Capsule implements Runnable {
             deps.add(dna[0]);
             renames.add(dna.length > 1 ? dna[1] : null);
         }
-        final List<Path> resolved = resolveDependencies(deps);
+        final List<Path> resolved = resolveDependencies(deps, type);
         if (resolved.size() != deps.size())
             throw new RuntimeException("One of the artifacts " + deps + " specified in attribute " + attr + " reolved to more than a single file");
 
-        if (debug)
-            System.err.println("Copying native libs to " + appCache);
-        try {
-            for (int i = 0; i < deps.size(); i++) {
-                final Path lib = resolved.get(i);
-                final String rename = sanitize(renames.get(i));
-                Files.copy(lib, appCache.resolve(rename != null ? rename : lib.getFileName().toString()));
+        assert appCache != null;
+        if (!cacheUpToDate) {
+            if (debug)
+                System.err.println("Copying native libs to " + appCache);
+            try {
+                for (int i = 0; i < deps.size(); i++) {
+                    final Path lib = resolved.get(i);
+                    final String rename = sanitize(renames.get(i));
+                    Files.copy(lib, appCache.resolve(rename != null ? rename : lib.getFileName().toString()));
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Exception while copying native libs");
             }
-        } catch (IOException e) {
-            throw new RuntimeException("Exception while copying native libs");
         }
     }
 
@@ -758,18 +769,15 @@ public final class Capsule implements Runnable {
         return extract == null || Boolean.parseBoolean(extract);
     }
 
-    private void ensureExtracted() {
-        final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
-        if (reset || !isUpToDate()) {
-            try {
-                verbose("Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
-                delete(appCache);
-                Files.createDirectory(appCache);
-                extractJar(jar, appCache);
-                Files.createFile(appCache.resolve(".extracted"));
-            } catch (IOException e) {
-                throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
-            }
+    private void extractCapsule() {
+        try {
+            verbose("Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
+            delete(appCache);
+            Files.createDirectory(appCache);
+            extractJar(jar, appCache);
+            Files.createFile(appCache.resolve(".extracted"));
+        } catch (IOException e) {
+            throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
     }
 
@@ -909,6 +917,8 @@ public final class Capsule implements Runnable {
     }
 
     private boolean isUpToDate() {
+        if (Boolean.parseBoolean(System.getProperty(PROP_RESET, "false")))
+            return false;
         try {
             Path extractedFile = appCache.resolve(".extracted");
             if (!Files.exists(extractedFile))
@@ -1160,11 +1170,11 @@ public final class Capsule implements Runnable {
         dm.printDependencyTree(dependencies);
     }
 
-    private List<Path> resolveDependencies(List<String> dependencies) {
+    private List<Path> resolveDependencies(List<String> dependencies, String type) {
         if (dependencies == null)
             return null;
 
-        return ((DependencyManager) dependencyManager).resolveDependencies(dependencies);
+        return ((DependencyManager) dependencyManager).resolveDependencies(dependencies, type);
     }
 
     private List<Path> resolveAppArtifact(String coords) {
@@ -1178,7 +1188,7 @@ public final class Capsule implements Runnable {
         if (dependencyManager == null)
             throw new RuntimeException("No Dependencies attribute in jar, therefore cannot resolve dependency " + p);
         final DependencyManager dm = (DependencyManager) dependencyManager;
-        List<Path> depsJars = dm.resolveDependency(p);
+        List<Path> depsJars = dm.resolveDependency(p, "jar");
 
         if (depsJars == null || depsJars.isEmpty())
             throw new RuntimeException("Dependency " + p + " was not found.");

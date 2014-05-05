@@ -13,7 +13,6 @@ import java.io.PrintStream;
 import org.eclipse.aether.AbstractRepositoryListener;
 import org.eclipse.aether.RepositoryEvent;
 
-
 public class ConsoleRepositoryListener extends AbstractRepositoryListener {
     private final PrintStream out;
     private final boolean verbose;
@@ -23,90 +22,30 @@ public class ConsoleRepositoryListener extends AbstractRepositoryListener {
         this.verbose = verbose;
     }
 
-    @Override
-    public void artifactResolving(RepositoryEvent event) {
+    private void println(String str) {
+        out.println(str);
+    }
+
+    private void printlnVerbose(String str) {
         if (verbose)
-            out.println("Resolving artifact " + event.getArtifact());
+            println(str);
     }
 
-    @Override
-    public void artifactResolved(RepositoryEvent event) {
-        if (verbose)
-            out.println("Resolved artifact " + event.getArtifact() + " from " + event.getRepository());
-    }
-
-    @Override
-    public void artifactDeployed(RepositoryEvent event) {
-        out.println("Deployed " + event.getArtifact() + " to " + event.getRepository());
-    }
-
-    @Override
-    public void artifactDeploying(RepositoryEvent event) {
-        out.println("Deploying " + event.getArtifact() + " to " + event.getRepository());
-    }
-
-    @Override
-    public void artifactDescriptorInvalid(RepositoryEvent event) {
-        out.println("Invalid artifact descriptor for " + event.getArtifact() + ": " + event.getException().getMessage());
-    }
-
-    @Override
-    public void artifactDescriptorMissing(RepositoryEvent event) {
-        out.println("Missing artifact descriptor for " + event.getArtifact());
-    }
-
-    @Override
-    public void artifactInstalled(RepositoryEvent event) {
-        out.println("Installed " + event.getArtifact() + " to " + event.getFile());
-    }
-
-    @Override
-    public void artifactInstalling(RepositoryEvent event) {
-        out.println("Installing " + event.getArtifact() + " to " + event.getFile());
-    }
-
-    @Override
-    public void artifactDownloading(RepositoryEvent event) {
-        out.println("Downloading artifact " + event.getArtifact() + " from " + event.getRepository());
-    }
-
-    @Override
-    public void artifactDownloaded(RepositoryEvent event) {
-        out.println("Downloaded artifact " + event.getArtifact() + " from " + event.getRepository());
-    }
-
-    @Override
-    public void metadataDeployed(RepositoryEvent event) {
-        out.println("Deployed " + event.getMetadata() + " to " + event.getRepository());
-    }
-
-    @Override
-    public void metadataDeploying(RepositoryEvent event) {
-        out.println("Deploying " + event.getMetadata() + " to " + event.getRepository());
-    }
-
-    @Override
-    public void metadataInstalled(RepositoryEvent event) {
-        out.println("Installed " + event.getMetadata() + " to " + event.getFile());
-    }
-
-    @Override
-    public void metadataInstalling(RepositoryEvent event) {
-        out.println("Installing " + event.getMetadata() + " to " + event.getFile());
-    }
-
-    @Override
-    public void metadataInvalid(RepositoryEvent event) {
-        out.println("Invalid metadata " + event.getMetadata());
-    }
-
-    @Override
-    public void metadataResolved(RepositoryEvent event) {
-        out.println("Resolved metadata " + event.getMetadata() + " from " + event.getRepository());
-    }
-
-    @Override
-    public void metadataResolving(RepositoryEvent event) {
-        out.println("Resolving metadata " + event.getMetadata() + " from " + event.getRepository());
-    }
+    @Override public void artifactResolving (RepositoryEvent ev) { printlnVerbose("Resolving artifact " + ev.getArtifact()); }
+    @Override public void artifactResolved  (RepositoryEvent ev) { printlnVerbose("Resolved artifact " + ev.getArtifact() + " from " + ev.getRepository()); }
+    @Override public void metadataResolved  (RepositoryEvent ev) { printlnVerbose("Resolved metadata " + ev.getMetadata() + " from " + ev.getRepository()); }
+    @Override public void metadataResolving (RepositoryEvent ev) { printlnVerbose("Resolving metadata " + ev.getMetadata() + " from " + ev.getRepository()); }
+    @Override public void metadataInvalid   (RepositoryEvent ev) { println("Invalid metadata " + ev.getMetadata()); }
+    @Override public void artifactDescriptorInvalid(RepositoryEvent ev) { println("Invalid artifact descriptor for " + ev.getArtifact() + ": " + ev.getException().getMessage()); }
+    @Override public void artifactDescriptorMissing(RepositoryEvent ev) { println("Missing artifact descriptor for " + ev.getArtifact()); }
+    @Override public void artifactDownloading (RepositoryEvent ev) { println("Downloading artifact " + ev.getArtifact() + " from " + ev.getRepository()); }
+    @Override public void artifactDownloaded  (RepositoryEvent ev) { println("Downloaded artifact " + ev.getArtifact() + " from " + ev.getRepository()); }
+    @Override public void artifactInstalling  (RepositoryEvent ev) { println("Installing " + ev.getArtifact() + " to " + ev.getFile()); }
+    @Override public void artifactInstalled   (RepositoryEvent ev) { println("Installed " + ev.getArtifact() + " to " + ev.getFile()); }
+    @Override public void artifactDeploying   (RepositoryEvent ev) { println("Deploying " + ev.getArtifact() + " to " + ev.getRepository()); }
+    @Override public void artifactDeployed    (RepositoryEvent ev) { println("Deployed " + ev.getArtifact() + " to " + ev.getRepository()); }
+    @Override public void metadataDeploying   (RepositoryEvent ev) { println("Deploying " + ev.getMetadata() + " to " + ev.getRepository()); }
+    @Override public void metadataDeployed    (RepositoryEvent ev) { println("Deployed " + ev.getMetadata() + " to " + ev.getRepository()); }
+    @Override public void metadataInstalling  (RepositoryEvent ev) { println("Installing " + ev.getMetadata() + " to " + ev.getFile()); }
+    @Override public void metadataInstalled   (RepositoryEvent ev) { println("Installed " + ev.getMetadata() + " to " + ev.getFile()); }
 }
