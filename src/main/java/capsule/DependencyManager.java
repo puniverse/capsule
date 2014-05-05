@@ -117,8 +117,8 @@ public class DependencyManager {
         return s;
     }
 
-    public void printDependencyTree(List<String> coords) {
-        printDependencyTree(collect().setDependencies(toDependencies(coords, "jar")));
+    public void printDependencyTree(List<String> coords, String type) {
+        printDependencyTree(collect().setDependencies(toDependencies(coords, type)));
     }
 
     public void printDependencyTree(String coords) {

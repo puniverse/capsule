@@ -290,6 +290,7 @@ public final class Capsule implements Runnable {
     }
 
     private void printDependencyTree(String[] args) {
+        System.out.println("Dependencies for " + appId);
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
         else if (hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule()) {
@@ -298,7 +299,17 @@ public final class Capsule implements Runnable {
                 throw new IllegalStateException("capsule " + jar.getName() + " has nothing to run");
             printDependencyTree(appArtifact);
         } else
-            printDependencyTree(getDependencies());
+            printDependencyTree(getDependencies(), "jar");
+
+        System.out.println("\nNative Dependencies:");
+        if (isLinux() && hasAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX))
+            printDependencyTree(stripNativeDependencies(ATTR_NATIVE_DEPENDENCIES_LINUX), "so");
+        else if (isWindows() && hasAttribute(ATTR_NATIVE_DEPENDENCIES_WIN))
+            printDependencyTree(stripNativeDependencies(ATTR_NATIVE_DEPENDENCIES_WIN), "dll");
+        else if (isMac() && hasAttribute(ATTR_NATIVE_DEPENDENCIES_MAC))
+            printDependencyTree(stripNativeDependencies(ATTR_NATIVE_DEPENDENCIES_MAC), "dylib");
+        else
+            System.out.println("None");
     }
 
     private boolean launchCapsule(String[] args) {
@@ -567,6 +578,18 @@ public final class Capsule implements Runnable {
         return libraryPath;
     }
 
+    private List<String> stripNativeDependencies(String attr) {
+        final List<String> depsAndRename = getListAttribute(attr);
+        if (depsAndRename == null || depsAndRename.isEmpty())
+            return null;
+        final List<String> deps = new ArrayList<String>(depsAndRename.size());
+        for (String depAndRename : depsAndRename) {
+            String[] dna = depAndRename.split(",");
+            deps.add(dna[0]);
+        }
+        return deps;
+    }
+    
     private void resolveNativeDependencies(String attr, String type) {
         if (appCache == null)
             throw new IllegalStateException("Cannot set " + ATTR_EXTRACT + " to false if there are native dependencies.");
@@ -1165,9 +1188,11 @@ public final class Capsule implements Runnable {
         dm.printDependencyTree(root);
     }
 
-    private void printDependencyTree(List<String> dependencies) {
+    private void printDependencyTree(List<String> dependencies, String type) {
+        if (dependencies == null)
+            return;
         final DependencyManager dm = (DependencyManager) dependencyManager;
-        dm.printDependencyTree(dependencies);
+        dm.printDependencyTree(dependencies, type);
     }
 
     private List<Path> resolveDependencies(List<String> dependencies, String type) {

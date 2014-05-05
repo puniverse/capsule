@@ -57,7 +57,9 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
     @Override
     public boolean visitEnter(DependencyNode node) {
         final boolean visited = !visit(node);
-        out.println(formatIndentation() + formatNode(node) + (visited ? " (*)" : ""));
+        final String nstr = formatNode(node);
+        if (nstr != null)
+            out.println(formatIndentation() + nstr + (visited ? " (*)" : ""));
         childInfos.add(new ChildInfo(node.getChildren().size()));
         return !visited;
     }
@@ -73,7 +75,7 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
     private String formatNode(DependencyNode node) {
         Artifact a = node.getArtifact();
         if (a == null)
-            return "Dependencies for " + appId;
+            return null;
 
         StringBuilder buffer = new StringBuilder(128);
         buffer.append(toString(a));
