@@ -207,9 +207,6 @@ public final class Capsule implements Runnable {
         this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
         this.appCache = shouldExtract() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
-
-        if (appCache != null && !cacheUpToDate)
-            extractCapsule();
     }
 
     private boolean needsDependencyManager() {
@@ -225,6 +222,9 @@ public final class Capsule implements Runnable {
     private void launch(String[] args) throws IOException, InterruptedException {
         if (launchCapsule(args))
             return;
+
+        if (appCache != null && !cacheUpToDate)
+            extractCapsule();
 
         final ProcessBuilder pb = buildProcess(args);
         if (!isInheritIoBug())
@@ -589,7 +589,7 @@ public final class Capsule implements Runnable {
         }
         return deps;
     }
-    
+
     private void resolveNativeDependencies(String attr, String type) {
         if (appCache == null)
             throw new IllegalStateException("Cannot set " + ATTR_EXTRACT + " to false if there are native dependencies.");
