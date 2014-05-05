@@ -73,8 +73,11 @@ public final class Capsule implements Runnable {
     private static final String PROP_JAVA_HOME = "java.home";
     private static final String PROP_OS_NAME = "os.name";
     private static final String PROP_USER_HOME = "user.home";
+    private static final String PROP_JAVA_LIBRARY_PATH = "java.library.path";
     private static final String PROP_FILE_SEPARATOR = "file.separator";
     private static final String PROP_PATH_SEPARATOR = "path.separator";
+    private static final String PROP_JAVA_SECURITY_POLICY = "java.security.policy";
+    private static final String PROP_JAVA_SECURITY_MANAGER = "java.security.manager";
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
@@ -108,6 +111,9 @@ public final class Capsule implements Runnable {
     private static final String ATTR_JAVA_AGENTS = "Java-Agents";
     private static final String ATTR_REPOSITORIES = "Repositories";
     private static final String ATTR_DEPENDENCIES = "Dependencies";
+    private static final String ATTR_NATIVE_DEPENDENCIES_LINUX = "Native-Dependencies-Linux";
+    private static final String ATTR_NATIVE_DEPENDENCIES_WIN = "Native-Dependencies-Win";
+    private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
 
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
@@ -130,7 +136,7 @@ public final class Capsule implements Runnable {
     private final Path appCache;     // non-null iff capsule is extracted
     private final String mode;
     private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
-    private final Object dependencyManager; // non-null iff pom exists OR manifest has ATTR_DEPENDENCIES 
+    private final Object dependencyManager; // non-null iff needsDependencyManager is true
     private Process child;
 
     /**
@@ -194,12 +200,21 @@ public final class Capsule implements Runnable {
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         this.appId = getAppId();
-        this.dependencyManager = (hasAttribute(ATTR_DEPENDENCIES) || hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule() || pom != null)
-                ? createDependencyManager(getRepositories()) : null;
+        this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
         this.appCache = shouldExtract() ? getAppCacheDir() : null;
 
         if (appCache != null)
             ensureExtracted();
+    }
+
+    private boolean needsDependencyManager() {
+        return hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule() || pom != null || hasAttribute(ATTR_DEPENDENCIES) || hasNativeDependencies();
+    }
+
+    private boolean hasNativeDependencies() {
+        return hasAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX)
+                || hasAttribute(ATTR_NATIVE_DEPENDENCIES_WIN)
+                || hasAttribute(ATTR_NATIVE_DEPENDENCIES_MAC);
     }
 
     private void launch(String[] args) throws IOException, InterruptedException {
@@ -334,7 +349,7 @@ public final class Capsule implements Runnable {
 
     private List<String> buildArgs(String[] args1) {
         final List<String> args = new ArrayList<String>();
-        args.addAll(nullToEmpty(getListAttribute(ATTR_ARGS)));
+        args.addAll(nullToEmpty(expand(getListAttribute(ATTR_ARGS))));
         args.addAll(Arrays.asList(args1));
         return args;
     }
@@ -491,30 +506,29 @@ public final class Capsule implements Runnable {
         final Map<String, String> systemProerties = new HashMap<String, String>();
 
         // attribute
-        for (String p : nullToEmpty(getListAttribute(ATTR_SYSTEM_PROPERTIES)))
-            addSystemProperty(p, systemProerties);
+        for (String p : nullToEmpty(getListAttribute(ATTR_SYSTEM_PROPERTIES))) {
+            if (!p.trim().isEmpty())
+                addSystemProperty(p, systemProerties);
+        }
 
         // library path
         if (appCache != null) {
-            final List<Path> libraryPath = new ArrayList<Path>();
-            libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
-            libraryPath.addAll(toPath(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(PATH_SEPARATOR))));
-            libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
+            final List<Path> libraryPath = buildNativeLibraryPath();
             libraryPath.add(appCache);
-            systemProerties.put("java.library.path", compileClassPath(libraryPath));
+            systemProerties.put(PROP_JAVA_LIBRARY_PATH, compileClassPath(libraryPath));
         } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
             throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
                     + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
 
         if (hasAttribute(ATTR_SECURITY_POLICY) || hasAttribute(ATTR_SECURITY_POLICY_A)) {
-            systemProerties.put("java.security.manager", "");
+            systemProerties.put(PROP_JAVA_SECURITY_MANAGER, "");
             if (hasAttribute(ATTR_SECURITY_POLICY_A))
-                systemProerties.put("java.security.policy", toJarUrl(getAttribute(ATTR_SECURITY_POLICY_A)));
+                systemProerties.put(PROP_JAVA_SECURITY_POLICY, toJarUrl(getAttribute(ATTR_SECURITY_POLICY_A)));
             if (hasAttribute(ATTR_SECURITY_POLICY))
-                systemProerties.put("java.security.policy", "=" + toJarUrl(getAttribute(ATTR_SECURITY_POLICY)));
+                systemProerties.put(PROP_JAVA_SECURITY_POLICY, "=" + toJarUrl(getAttribute(ATTR_SECURITY_POLICY)));
         }
         if (hasAttribute(ATTR_SECURITY_MANAGER))
-            systemProerties.put("java.security.manager", getAttribute(ATTR_SECURITY_MANAGER));
+            systemProerties.put(PROP_JAVA_SECURITY_MANAGER, getAttribute(ATTR_SECURITY_MANAGER));
 
         // Capsule properties
         if (appCache != null)
@@ -528,6 +542,54 @@ public final class Capsule implements Runnable {
         }
 
         return systemProerties;
+    }
+
+    private List<Path> buildNativeLibraryPath() {
+        final List<Path> libraryPath = new ArrayList<Path>();
+        if (isLinux())
+            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_LINUX);
+        else if (isWindows())
+            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_WIN);
+        else if (isMac())
+            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_MAC);
+        libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
+        libraryPath.addAll(toPath(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(PATH_SEPARATOR))));
+        libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
+        libraryPath.add(appCache);
+        return libraryPath;
+    }
+
+    private void resolveNativeDependencies(String attr) {
+        if (appCache == null)
+            throw new IllegalStateException("Cannot set " + ATTR_EXTRACT + " to false if there are native dependencies.");
+
+        final List<String> depsAndRename = getListAttribute(attr);
+        if (verbose)
+            System.err.println("Resolving native libs " + depsAndRename);
+        if (depsAndRename == null || depsAndRename.isEmpty())
+            return;
+        final List<String> deps = new ArrayList<String>(depsAndRename.size());
+        final List<String> renames = new ArrayList<String>(depsAndRename.size());
+        for (String depAndRename : depsAndRename) {
+            String[] dna = depAndRename.split(",");
+            deps.add(dna[0]);
+            renames.add(dna.length > 1 ? dna[1] : null);
+        }
+        final List<Path> resolved = resolveDependencies(deps);
+        if (resolved.size() != deps.size())
+            throw new RuntimeException("One of the artifacts " + deps + " specified in attribute " + attr + " reolved to more than a single file");
+
+        if (debug)
+            System.err.println("Copying native libs to " + appCache);
+        try {
+            for (int i = 0; i < deps.size(); i++) {
+                final Path lib = resolved.get(i);
+                final String rename = sanitize(renames.get(i));
+                Files.copy(lib, appCache.resolve(rename != null ? rename : lib.getFileName().toString()));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Exception while copying native libs");
+        }
     }
 
     private String getJarPath() {
@@ -683,7 +745,11 @@ public final class Capsule implements Runnable {
     }
 
     private boolean shouldExtract() {
-        if (isEmptyCapsule() || hasAttribute(ATTR_APP_ARTIFACT))
+        if (isEmptyCapsule())
+            return false;
+        if (hasNativeDependencies())
+            return true;
+        if (hasAttribute(ATTR_APP_ARTIFACT))
             return false;
         if (System.getProperty(PROP_EXTRACT) != null)
             return Boolean.parseBoolean(System.getProperty(PROP_EXTRACT, "true"));
@@ -958,9 +1024,15 @@ public final class Capsule implements Runnable {
     }
 
     private static boolean isWindows() {
-        final String osName = System.getProperty(PROP_OS_NAME);
-        final boolean isWindows = osName.startsWith("Windows");
-        return isWindows;
+        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
+    }
+
+    private static boolean isMac() {
+        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("mac");
+    }
+
+    public static boolean isLinux() {
+        return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux");
     }
 
     private static boolean isDependency(String lib) {
@@ -1298,6 +1370,7 @@ public final class Capsule implements Runnable {
             throw new IllegalStateException("The $" + VAR_CAPSULE_DIR + " variable cannot be expanded when the "
                     + ATTR_EXTRACT + " attribute is set to false");
 
+        str = expandCommandLinePath(str);
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, getJarPath());
         str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;
@@ -1306,10 +1379,10 @@ public final class Capsule implements Runnable {
     private static String expandCommandLinePath(String str) {
         if (str == null)
             return null;
-        if (isWindows())
-            return str;
-        else
-            return str.startsWith("~/") ? str.replace("~", System.getProperty(PROP_USER_HOME)) : str;
+//        if (isWindows())
+//            return str;
+//        else
+        return str.startsWith("~/") ? str.replace("~", System.getProperty(PROP_USER_HOME)) : str;
     }
 
     private static String getApplicationArtifactId(String coords) {
