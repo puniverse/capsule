@@ -68,7 +68,6 @@ public final class Capsule implements Runnable {
     private static final String PROP_PRINT_JRES = "capsule.jvms";
     private static final String PROP_CAPSULE_JAVA_HOME = "capsule.java.home";
     private static final String PROP_MODE = "capsule.mode";
-    private static final String PROP_EXTRACT = "capsule.extract";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
     private static final String PROP_OFFLINE = "capsule.offline";
 
@@ -205,28 +204,29 @@ public final class Capsule implements Runnable {
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         this.appId = getAppId();
         this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
-        this.appCache = shouldExtract() ? getAppCacheDir() : null;
+        this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
 
     private boolean needsDependencyManager() {
-        return hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule() || pom != null || hasAttribute(ATTR_DEPENDENCIES) || hasNativeDependencies();
-    }
-
-    private boolean hasNativeDependencies() {
-        return hasAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX)
-                || hasAttribute(ATTR_NATIVE_DEPENDENCIES_WIN)
-                || hasAttribute(ATTR_NATIVE_DEPENDENCIES_MAC);
+        return hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule() || pom != null || hasAttribute(ATTR_DEPENDENCIES) || getNativeDependencies() != null;
     }
 
     private void launch(String[] args) throws IOException, InterruptedException {
         if (launchCapsule(args))
             return;
 
-        if (appCache != null && !cacheUpToDate)
-            extractCapsule();
+        if (appCache != null && !cacheUpToDate) {
+            resetAppCache();
+            if (shouldExtract())
+                extractCapsule();
+        }
 
         final ProcessBuilder pb = buildProcess(args);
+
+        if (appCache != null && !cacheUpToDate)
+            markCache();
+
         if (!isInheritIoBug())
             pb.inheritIO();
         this.child = pb.start();
@@ -301,15 +301,11 @@ public final class Capsule implements Runnable {
         } else
             printDependencyTree(getDependencies(), "jar");
 
-        System.out.println("\nNative Dependencies:");
-        if (isLinux() && hasAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX))
-            printDependencyTree(stripNativeDependencies(ATTR_NATIVE_DEPENDENCIES_LINUX), "so");
-        else if (isWindows() && hasAttribute(ATTR_NATIVE_DEPENDENCIES_WIN))
-            printDependencyTree(stripNativeDependencies(ATTR_NATIVE_DEPENDENCIES_WIN), "dll");
-        else if (isMac() && hasAttribute(ATTR_NATIVE_DEPENDENCIES_MAC))
-            printDependencyTree(stripNativeDependencies(ATTR_NATIVE_DEPENDENCIES_MAC), "dylib");
-        else
-            System.out.println("None");
+        final List<String> nativeDeps = getNativeDependencies();
+        if (nativeDeps != null) {
+            System.out.println("\nNative Dependencies:");
+            printDependencyTree(nativeDeps, getNativeLibExtension());
+        }
     }
 
     private boolean launchCapsule(String[] args) {
@@ -565,12 +561,7 @@ public final class Capsule implements Runnable {
 
     private List<Path> buildNativeLibraryPath() {
         final List<Path> libraryPath = new ArrayList<Path>();
-        if (isLinux())
-            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_LINUX, "so");
-        else if (isWindows())
-            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_WIN, "dll");
-        else if (isMac())
-            resolveNativeDependencies(ATTR_NATIVE_DEPENDENCIES_MAC, "dylib");
+        resolveNativeDependencies();
         libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
         libraryPath.addAll(toPath(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(PATH_SEPARATOR))));
         libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
@@ -578,25 +569,57 @@ public final class Capsule implements Runnable {
         return libraryPath;
     }
 
-    private List<String> stripNativeDependencies(String attr) {
-        final List<String> depsAndRename = getListAttribute(attr);
-        if (depsAndRename == null || depsAndRename.isEmpty())
+    private String getNativeLibExtension() {
+        if (isLinux())
+            return "so";
+        if (isWindows())
+            return "dll";
+        if (isMac())
+            return "dylib";
+        throw new RuntimeException("Unsupported operating system: " + System.getProperty(PROP_OS_NAME));
+    }
+
+    private List<String> getNativeDependencies() {
+        return stripNativeDependencies(getNativeDependenciesAndRename());
+    }
+
+    private List<String> getNativeDependenciesAndRename() {
+        if (isLinux())
+            return getListAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX);
+        if (isWindows())
+            return getListAttribute(ATTR_NATIVE_DEPENDENCIES_WIN);
+        if (isMac())
+            return getListAttribute(ATTR_NATIVE_DEPENDENCIES_MAC);
+        return null;
+    }
+
+    private List<String> stripNativeDependencies(List<String> nativeDepsAndRename) {
+        if (nativeDepsAndRename == null)
             return null;
-        final List<String> deps = new ArrayList<String>(depsAndRename.size());
-        for (String depAndRename : depsAndRename) {
+        final List<String> deps = new ArrayList<String>(nativeDepsAndRename.size());
+        for (String depAndRename : nativeDepsAndRename) {
             String[] dna = depAndRename.split(",");
             deps.add(dna[0]);
         }
         return deps;
     }
 
-    private void resolveNativeDependencies(String attr, String type) {
+    private boolean hasRenamedNativeDependencies() {
+        final List<String> depsAndRename = getNativeDependenciesAndRename();
+        if (depsAndRename == null)
+            return false;
+        for (String depAndRename : depsAndRename) {
+            if (depAndRename.contains(","))
+                return true;
+        }
+        return false;
+    }
+
+    private void resolveNativeDependencies() {
         if (appCache == null)
             throw new IllegalStateException("Cannot set " + ATTR_EXTRACT + " to false if there are native dependencies.");
 
-        final List<String> depsAndRename = getListAttribute(attr);
-        if (verbose)
-            System.err.println("Resolving native libs " + depsAndRename);
+        final List<String> depsAndRename = getNativeDependenciesAndRename();
         if (depsAndRename == null || depsAndRename.isEmpty())
             return;
         final List<String> deps = new ArrayList<String>(depsAndRename.size());
@@ -606,9 +629,10 @@ public final class Capsule implements Runnable {
             deps.add(dna[0]);
             renames.add(dna.length > 1 ? dna[1] : null);
         }
-        final List<Path> resolved = resolveDependencies(deps, type);
+        verbose("Resolving native libs " + deps);
+        final List<Path> resolved = resolveDependencies(deps, getNativeLibExtension());
         if (resolved.size() != deps.size())
-            throw new RuntimeException("One of the artifacts " + deps + " specified in attribute " + attr + " reolved to more than a single file");
+            throw new RuntimeException("One of the native artifacts " + deps + " reolved to more than a single file");
 
         assert appCache != null;
         if (!cacheUpToDate) {
@@ -778,32 +802,6 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private boolean shouldExtract() {
-        if (isEmptyCapsule())
-            return false;
-        if (hasNativeDependencies())
-            return true;
-        if (hasAttribute(ATTR_APP_ARTIFACT))
-            return false;
-        if (System.getProperty(PROP_EXTRACT) != null)
-            return Boolean.parseBoolean(System.getProperty(PROP_EXTRACT, "true"));
-
-        final String extract = getAttribute(ATTR_EXTRACT);
-        return extract == null || Boolean.parseBoolean(extract);
-    }
-
-    private void extractCapsule() {
-        try {
-            verbose("Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
-            delete(appCache);
-            Files.createDirectory(appCache);
-            extractJar(jar, appCache);
-            Files.createFile(appCache.resolve(".extracted"));
-        } catch (IOException e) {
-            throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
-        }
-    }
-
     private List<Path> getDefaultCacheClassPath() {
         final List<Path> cp = new ArrayList<Path>();
         cp.add(appCache);
@@ -888,7 +886,7 @@ public final class Capsule implements Runnable {
     }
 
     private Path getAppCacheDir() {
-        Path appDir = cacheDir.resolve(appId);
+        Path appDir = cacheDir.resolve(APP_CACHE_NAME).resolve(appId);
         try {
             if (!Files.exists(appDir))
                 Files.createDirectory(appDir);
@@ -939,6 +937,31 @@ public final class Capsule implements Runnable {
         }
     }
 
+    private boolean needsAppCache() {
+        if (isEmptyCapsule())
+            return false;
+        if (hasRenamedNativeDependencies())
+            return true;
+        if (hasAttribute(ATTR_APP_ARTIFACT))
+            return false;
+        return shouldExtract();
+    }
+
+    private boolean shouldExtract() {
+        final String extract = getAttribute(ATTR_EXTRACT);
+        return extract == null || Boolean.parseBoolean(extract);
+    }
+
+    private void resetAppCache() {
+        try {
+            debug("Creating cache for " + jar.getName() + " in " + appCache.toAbsolutePath());
+            delete(appCache);
+            Files.createDirectory(appCache);
+        } catch (IOException e) {
+            throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
+        }
+    }
+
     private boolean isUpToDate() {
         if (Boolean.parseBoolean(System.getProperty(PROP_RESET, "false")))
             return false;
@@ -954,6 +977,24 @@ public final class Capsule implements Runnable {
             return extractedTime.compareTo(jarTime) >= 0;
         } catch (IOException e) {
             throw new AssertionError(e);
+        }
+    }
+
+    private void extractCapsule() {
+        try {
+            verbose("Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
+            extractJar(jar, appCache);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
+        }
+    }
+
+    private void markCache() {
+        try {
+            Files.createFile(appCache.resolve(".extracted"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -1118,7 +1159,7 @@ public final class Capsule implements Runnable {
         } catch (NoClassDefFoundError e) {
             throw new RuntimeException("Jar " + jar.getName()
                     + " contains a pom.xml file, while the necessary dependency management classes are not found in the jar");
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException("Failed reading pom", e);
         }
     }
@@ -1222,13 +1263,9 @@ public final class Capsule implements Runnable {
         return depsJars.iterator().next().toAbsolutePath();
     }
 
-    private static void delete(Path dir) {
-        try {
-            // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
-            delete(dir.toFile());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    private static void delete(Path dir) throws IOException {
+        // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
+        delete(dir.toFile());
     }
 
     private static void delete(File f) throws IOException {

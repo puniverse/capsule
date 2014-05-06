@@ -199,7 +199,7 @@ Running `java -Dcapsule.jvms -jar app.jar` will list all Java installations Caps
 ### Capsule's Cache
 
 By default, Capsule will extract the capsule JAR's contents -- except for class files placed directly in the JAR -- into a cache directory. If the
-`Extract-Capsule` manifest attribute is set to `false`, the JAR will not be extracted. The value of the `Extract-Capsule` attribute, can be overridden with the `capsule.extract` system property, as in `java -Dcapsule.extract=true -jar app.jar`.
+`Extract-Capsule` manifest attribute is set to `false`, the JAR will not be extracted.
 
 The capsule will be extracted once. Following run will compare the JAR's modification date with that of the cache, and will re-write the cache only if the capsule JAR is younger. You can force re-extraction of the capsule with `-Dcapsule.reset=true`.
 
@@ -317,7 +317,6 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.reset`: if set, forces re-extraction of the capsule, where applies, and/or re-downloading of SNAPSHOT dependencies
 * `capsule.app.id`: sets the value of the application ID (see user guide)
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
-* `capsule.extract`: can be set to `true` or `false` to force extraction (or no extraction) of the capsule.
 * `capsule.offline`: if defined (without a value) or set to `true`, Capsule will not attempt to contact online repositories for dependencies
 * `capsule.local`: the path for the local Maven repository; defaults to CAPSULE_CACHE/deps
 
