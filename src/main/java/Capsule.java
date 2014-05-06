@@ -181,7 +181,7 @@ public final class Capsule implements Runnable {
             System.err.println("CAPSULE EXCEPTION: " + t.getMessage()
                     + (!verbose ? " (for stack trace, run with -D" + PROP_LOG + "=verbose)" : ""));
             if (verbose)
-                t.printStackTrace();
+                t.printStackTrace(System.err);
             System.exit(1);
         }
     }
@@ -209,7 +209,11 @@ public final class Capsule implements Runnable {
     }
 
     private boolean needsDependencyManager() {
-        return hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule() || pom != null || hasAttribute(ATTR_DEPENDENCIES) || getNativeDependencies() != null;
+        return hasAttribute(ATTR_APP_ARTIFACT)
+                || isEmptyCapsule()
+                || pom != null
+                || hasAttribute(ATTR_DEPENDENCIES)
+                || getNativeDependencies() != null;
     }
 
     private void launch(String[] args) throws IOException, InterruptedException {
@@ -281,7 +285,7 @@ public final class Capsule implements Runnable {
             }
         } catch (IOException e) {
             if (verbose)
-                e.printStackTrace();
+                e.printStackTrace(System.err);
         }
     }
 

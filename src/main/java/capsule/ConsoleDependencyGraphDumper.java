@@ -65,7 +65,7 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
     }
 
     private String formatIndentation() {
-        StringBuilder buffer = new StringBuilder(128);
+        final StringBuilder buffer = new StringBuilder(128);
         for (Iterator<ChildInfo> it = childInfos.iterator(); it.hasNext();)
             buffer.append(it.next().formatIndentation(!it.hasNext()));
 
@@ -73,31 +73,30 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
     }
 
     private String formatNode(DependencyNode node) {
-        Artifact a = node.getArtifact();
+        final Artifact a = node.getArtifact();
         if (a == null)
             return null;
 
-        StringBuilder buffer = new StringBuilder(128);
+        final StringBuilder buffer = new StringBuilder(128);
         buffer.append(toString(a));
 
-        Dependency d = node.getDependency();
+        final Dependency d = node.getDependency();
+
 //        if (d != null && d.getScope().length() > 0) {
 //            buffer.append(" [").append(d.getScope());
 //            if (d.isOptional())
 //                buffer.append(", optional");
 //            buffer.append("]");
 //        }
-        {
-            String premanaged = DependencyManagerUtils.getPremanagedVersion(node);
-            if (premanaged != null && !premanaged.equals(a.getBaseVersion()))
-                buffer.append(" (version managed from ").append(premanaged).append(")");
-        }
-        {
-            String premanaged = DependencyManagerUtils.getPremanagedScope(node);
-            if (premanaged != null && !premanaged.equals(d.getScope()))
-                buffer.append(" (scope managed from ").append(premanaged).append(")");
-        }
-        DependencyNode winner = (DependencyNode) node.getData().get(ConflictResolver.NODE_DATA_WINNER);
+        final String premanagedVersion = DependencyManagerUtils.getPremanagedVersion(node);
+        if (premanagedVersion != null && !premanagedVersion.equals(a.getBaseVersion()))
+            buffer.append(" (version managed from ").append(premanagedVersion).append(")");
+
+        final String premanagedScope = DependencyManagerUtils.getPremanagedScope(node);
+        if (premanagedScope != null && !premanagedScope.equals(d.getScope()))
+            buffer.append(" (scope managed from ").append(premanagedScope).append(")");
+
+        final DependencyNode winner = (DependencyNode) node.getData().get(ConflictResolver.NODE_DATA_WINNER);
         if (winner != null && !ArtifactIdUtils.equalsId(a, winner.getArtifact())) {
             Artifact w = winner.getArtifact();
             buffer.append(" (conflicts with ");
@@ -132,11 +131,11 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
         }
 
         public String formatIndentation(boolean end) {
-            boolean last = index + 1 >= count;
+            final boolean last = index + 1 >= count;
             if (end)
                 return last ? "\\--- " : "+--- ";
-
-            return last ? "     " : "|    ";
+            else
+                return last ? "     " : "|    ";
         }
     }
 }

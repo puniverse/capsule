@@ -46,26 +46,25 @@ public class ConsoleTransferListener extends AbstractTransferListener {
 
     @Override
     public void transferInitiated(TransferEvent event) {
-        String message = event.getRequestType() == TransferEvent.RequestType.PUT ? "Uploading" : "Downloading";
-
+        final String message = event.getRequestType() == TransferEvent.RequestType.PUT ? "Uploading" : "Downloading";
         out.println(message + ": " + event.getResource().getRepositoryUrl() + event.getResource().getResourceName());
     }
 
     @Override
     public void transferProgressed(TransferEvent event) {
-        TransferResource resource = event.getResource();
-        downloads.put(resource, Long.valueOf(event.getTransferredBytes()));
+        final TransferResource resource = event.getResource();
+        downloads.put(resource, event.getTransferredBytes());
 
-        StringBuilder buffer = new StringBuilder(64);
+        final StringBuilder buffer = new StringBuilder(64);
 
         for (Map.Entry<TransferResource, Long> entry : downloads.entrySet()) {
             long total = entry.getKey().getContentLength();
-            long complete = entry.getValue().longValue();
+            long complete = entry.getValue();
 
             buffer.append(getStatus(complete, total)).append("  ");
         }
 
-        int pad = lastLength - buffer.length();
+        final int pad = lastLength - buffer.length();
         lastLength = buffer.length();
         pad(buffer, pad);
         buffer.append('\r');
@@ -85,7 +84,7 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     }
 
     private void pad(StringBuilder buffer, int spaces) {
-        String block = "                                        ";
+        final String block = "                                        ";
         while (spaces > 0) {
             int n = Math.min(spaces, block.length());
             buffer.append(block, 0, n);
@@ -97,11 +96,11 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     public void transferSucceeded(TransferEvent event) {
         transferCompleted(event);
 
-        TransferResource resource = event.getResource();
-        long contentLength = event.getTransferredBytes();
+        final TransferResource resource = event.getResource();
+        final long contentLength = event.getTransferredBytes();
         if (contentLength >= 0) {
-            String type = (event.getRequestType() == TransferEvent.RequestType.PUT ? "Uploaded" : "Downloaded");
-            String len = contentLength >= 1024 ? toKB(contentLength) + " KB" : contentLength + " B";
+            final String type = (event.getRequestType() == TransferEvent.RequestType.PUT ? "Uploaded" : "Downloaded");
+            final String len = contentLength >= 1024 ? toKB(contentLength) + " KB" : contentLength + " B";
 
             String throughput = "";
             long duration = System.currentTimeMillis() - resource.getTransferStartTime();
@@ -119,7 +118,7 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     @Override
     public void transferFailed(TransferEvent event) {
         transferCompleted(event);
-
+        
         if (!(event.getException() instanceof MetadataNotFoundException))
             event.getException().printStackTrace(out);
     }
@@ -127,7 +126,7 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     private void transferCompleted(TransferEvent event) {
         downloads.remove(event.getResource());
 
-        StringBuilder buffer = new StringBuilder(64);
+        final StringBuilder buffer = new StringBuilder(64);
         pad(buffer, lastLength);
         buffer.append('\r');
         out.print(buffer);
