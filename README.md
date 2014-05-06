@@ -26,7 +26,7 @@ With Capsule, you just distribute a single JAR and run it.
 
 or:
 
-    co.paralleluniverse:capsule:0.2.0
+    co.paralleluniverse:capsule:0.3.0
 
 On Maven Central.
 
@@ -59,7 +59,7 @@ task fullCapsule(type: Jar, dependsOn: jar) {
         attributes(
             'Main-Class'        : 'Capsule',
             'Application-Class' : mainClassName,
-            'Java-Version'      : '1.8.0',
+            'Min-Java-Version'  : '1.8.0',
             'JVM-Args'          : run.jvmArgs.join(' '),
             'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
             'Java-Agents'       : configurations.quasar.iterator().next().getName()
@@ -69,7 +69,7 @@ task fullCapsule(type: Jar, dependsOn: jar) {
 ```
 
 We embed the application JAR and all the dependency JARs into the capsule JAR (without extracting them). We also include the `Capsule` class in the JAR.
-Then, in the JAR's manifest, we declare `Capsule` as the main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Java-Version` attribute specifies the JVM version that will be used to run the application. If this version is different from the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use. We then copy the JVM arguments and system properties from build file's `run` task into the manifest, and finally we declare a Java agent used by [Quasar](https://github.com/puniverse/quasar).
+Then, in the JAR's manifest, we declare `Capsule` as the main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Min-Java-Version` attribute specifies the JVM version that will be used to run the application. If this version is newer than the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use (a maximum version can also be specified with the `Java-Version` attribute). We then copy the JVM arguments and system properties from build file's `run` task into the manifest, and finally we declare a Java agent used by [Quasar](https://github.com/puniverse/quasar).
 
 The resulting JAR has the following structure:
 
@@ -188,7 +188,7 @@ The application's ID can be overridden by the `capsule.app.id` system property, 
 
 ### Java Version
 
-Two manifest attributes determine which Java installation Capsule will use to launch the application. `Min-Java-Version` (e.g. `1.7.0_50` or `1.8.0`) is the minimum Java version to use, while `Java-Version` (e.g. `1.6`) is the maximum *major* Java version to use. One, both, or neither of these attributes may be specified in the manifest.
+Two manifest attributes determine which Java installation Capsule will use to launch the application. `Min-Java-Version` (e.g. `1.7.0_50` or `1.8.0`) is the lowest Java version to use, while `Java-Version` (e.g. `1.6`) is the highest *major* Java version to use. One, both, or neither of these attributes may be specified in the manifest.
 
 First, Capsule will test the current JVM (used to launch the capsule) against `Min-Java-Version` and `Java-Version` (if they're specified). If the version of the current JVM matches the requested range, it will be used to launch the application. If not, Capsule will search for other JVM installations, and use the one with the highest version that matches the requested range. If no matching installation is found, the capsule will fail to launch.
 
@@ -280,8 +280,8 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Unix-Script`: a startup script to be run *instead* of `Application-Class` on Unix/Linux/Mac OS, given as a path relative to the capsule's root
 * `Windows-Script`: a startup script to be run *instead* of `Application-Class` on Windows, given as a path relative to the capsule's root
 * `Extract-Capsule`: if `false`, the capsule JAR will not be extracted to the filesystem (default: `true`)
-* `Min-Java-Version`: the minimum Java version required to run the application
-* `Java-Version`: the version of the Java installation required to run the application; Capsule will look for an appropriate installation
+* `Min-Java-Version`: the lowest Java version required to run the application; Capsule will look for an appropriate installation
+* `Java-Version`: the highest version of the Java installation required to run the application; Capsule will look for an appropriate installation
 * `JVM-Args`: a list of JVM arguments that will be used to launch the application's Java process
 * `Args`: a list of command line arguments to be passed to the application; these will be prepended to any arguments passed to the capsule
 * `Environment-Variables`: a list of environment variables that will be put in the applications environment; formatted `var=value` or `var`
