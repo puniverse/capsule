@@ -191,7 +191,7 @@ public final class Capsule implements Runnable {
         return System.console() == null || System.console().reader() == null;
     }
 
-    private Capsule(JarFile jar) throws IOException {
+    private Capsule(JarFile jar) {
         this.jar = jar;
         try {
             this.manifest = jar.getManifest();
@@ -1112,12 +1112,14 @@ public final class Capsule implements Runnable {
         return jar.getEntry(POM_FILE) != null;
     }
 
-    private Object createPomReader() throws IOException {
+    private Object createPomReader() {
         try {
             return new PomReader(jar.getInputStream(jar.getEntry(POM_FILE)));
         } catch (NoClassDefFoundError e) {
             throw new RuntimeException("Jar " + jar.getName()
                     + " contains a pom.xml file, while the necessary dependency management classes are not found in the jar");
+        } catch(IOException e) {
+            throw new RuntimeException("Failed reading pom", e);
         }
     }
 
@@ -1134,7 +1136,7 @@ public final class Capsule implements Runnable {
         return pr.getGroupId() + "_" + pr.getArtifactId() + "_" + pr.getVersion();
     }
 
-    private Object createDependencyManager(List<String> repositories) throws IOException {
+    private Object createDependencyManager(List<String> repositories) {
         try {
             final Path depsCache = cacheDir.resolve(DEPS_CACHE_NAME);
 
