@@ -26,7 +26,7 @@ With Capsule, you just distribute a single JAR and run it.
 
 or:
 
-    co.paralleluniverse:capsule:0.3.1
+    co.paralleluniverse:capsule:0.4.0
 
 On Maven Central.
 
@@ -288,9 +288,9 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `System-Properties`: a list of system properties that will be defined in the applications JVM; formatted `prop=value` or `prop`
 * `App-Class-Path`: a list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed
 * `Capsule-In-Class-Path`: if set to `false`, the capsule JAR itself will not be on the application's classpath (default: `true`)
-* `Boot-Class-Path`: a list of JARs and/or directories, relative to the capsule root, that will be used as the application's boot classpath.
-* `Boot-Class-Path-A`: a list of JARs and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath
-* `Boot-Class-Path-P`: a list of JARs and/or directories, relative to the capsule root, that will be *prepended* to the applications default boot classpath
+* `Boot-Class-Path`: a list of JARs, dependencies, and/or directories, relative to the capsule root, that will be used as the application's boot classpath.
+* `Boot-Class-Path-A`: a list of JARs dependencies, and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath
+* `Boot-Class-Path-P`: a list of JARs dependencies, and/or directories, relative to the capsule root, that will be *prepended* to the applications default boot classpath
 * `Library-Path-A`: a list of JARs and/or directories, relative to the capsule root, that will be appended to the default native library path
 * `Library-Path-P`: a list of JARs and/or directories, relative to the capsule root, that will be *prepended* to the default native library path
 * `Security-Manager`: the name of a class that will serve as the application's security-manager
@@ -319,6 +319,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
 * `capsule.offline`: if defined (without a value) or set to `true`, Capsule will not attempt to contact online repositories for dependencies
 * `capsule.local`: the path for the local Maven repository; defaults to CAPSULE_CACHE/deps
+* `capsule.resolve`: all external depndencies, if any, will be downloaded (if not cached already), and/or the capsule will be extracted if necessary, but the application will not be launched
 
 Capsule defines these system properties in the application's process:
 

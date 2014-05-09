@@ -70,6 +70,7 @@ public final class Capsule implements Runnable {
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
     private static final String PROP_OFFLINE = "capsule.offline";
+    private static final String PROP_RESOLVE = "capsule.resolve";
 
     private static final String PROP_JAVA_VERSION = "java.version";
     private static final String PROP_JAVA_HOME = "java.home";
@@ -169,8 +170,12 @@ public final class Capsule implements Runnable {
 
             final Capsule capsule = new Capsule(getJarFile());
 
-            if (System.getProperty(PROP_TREE) != null) {
-                capsule.printDependencyTree(args);
+            if (System.getProperty(PROP_TREE) != null || System.getProperty(PROP_RESOLVE) != null) {
+                if (System.getProperty(PROP_TREE) != null)
+                    capsule.printDependencyTree(args);
+
+                if (System.getProperty(PROP_RESOLVE) != null)
+                    capsule.resolve(args);
                 return;
             }
 
@@ -220,11 +225,7 @@ public final class Capsule implements Runnable {
         if (launchCapsule(args))
             return;
 
-        if (appCache != null && !cacheUpToDate) {
-            resetAppCache();
-            if (shouldExtract())
-                extractCapsule();
-        }
+        ensureExtractedIfNecessary();
 
         final ProcessBuilder pb = buildProcess(args);
 
@@ -243,6 +244,24 @@ public final class Capsule implements Runnable {
                 pipeIoStreams();
             // registerSignals();
             System.exit(child.waitFor());
+        }
+    }
+
+    private void resolve(String[] args) throws IOException, InterruptedException {
+        ensureExtractedIfNecessary();
+        getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
+        getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_P));
+        getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_A));
+        resolveAppArtifact(getAppArtifact(args));
+        resolveDependencies(getDependencies(), "jar");
+        resolveNativeDependencies();
+    }
+
+    private void ensureExtractedIfNecessary() {
+        if (appCache != null && !cacheUpToDate) {
+            resetAppCache();
+            if (shouldExtract())
+                extractCapsule();
         }
     }
 
@@ -314,17 +333,12 @@ public final class Capsule implements Runnable {
 
     private boolean launchCapsule(String[] args) {
         if (getScript() == null) {
-            String appArtifact = null;
-            if (isEmptyCapsule()) {
-                appArtifact = getCommandLineArtifact(args);
-                if (appArtifact == null)
-                    throw new IllegalStateException("capsule " + jar.getName() + " has nothing to run");
-            }
-            if (appArtifact == null)
-                appArtifact = getAttribute(ATTR_APP_ARTIFACT);
+            String appArtifact = getAppArtifact(args);
             if (appArtifact != null) {
                 try {
                     final List<Path> jars = resolveAppArtifact(appArtifact);
+                    if (jars == null)
+                        return false;
                     if (isCapsule(jars.get(0))) {
                         verbose("Running capsule " + jars.get(0));
                         runCapsule(jars.get(0), isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
@@ -340,6 +354,18 @@ public final class Capsule implements Runnable {
             }
         }
         return false;
+    }
+
+    private String getAppArtifact(String[] args) {
+        String appArtifact = null;
+        if (isEmptyCapsule()) {
+            appArtifact = getCommandLineArtifact(args);
+            if (appArtifact == null)
+                throw new IllegalStateException("capsule " + jar.getName() + " has nothing to run");
+        }
+        if (appArtifact == null)
+            appArtifact = getAttribute(appArtifact);
+        return appArtifact;
     }
 
     private String getCommandLineArtifact(String[] args) {
@@ -389,12 +415,8 @@ public final class Capsule implements Runnable {
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
         addOption(command, "-Xbootclasspath:", compileClassPath(buildBootClassPath(cmdLine)));
-        if (appCache != null) {
-            addOption(command, "-Xbootclasspath/p:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_P)));
-            addOption(command, "-Xbootclasspath/a:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_A)));
-        } else if (hasAttribute(ATTR_BOOT_CLASS_PATH_P) || hasAttribute(ATTR_BOOT_CLASS_PATH_A))
-            throw new IllegalStateException("Cannot use the " + ATTR_BOOT_CLASS_PATH_P + " or the " + ATTR_BOOT_CLASS_PATH_A
-                    + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
+        addOption(command, "-Xbootclasspath/p:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_P)));
+        addOption(command, "-Xbootclasspath/a:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_A)));
 
         final List<Path> classPath = buildClassPath();
         command.add("-classpath");
@@ -492,11 +514,11 @@ public final class Capsule implements Runnable {
         }
         if (option != null)
             return toPath(Arrays.asList(option.split(PATH_SEPARATOR)));
-        return toAbsolutePath(appCache, getListAttribute(ATTR_BOOT_CLASS_PATH));
+        return getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
     }
 
     private List<Path> buildClassPath(String attr) {
-        return toAbsolutePath(appCache, getListAttribute(attr));
+        return getPath(getListAttribute(attr));
     }
 
     private void buildEnvironmentVariables(Map<String, String> env) {
@@ -823,9 +845,18 @@ public final class Capsule implements Runnable {
             return getDependencyPath(dependencyManager, p);
         else {
             if (appCache == null)
-                throw new IllegalStateException("Capsule not extracted");
+                throw new IllegalStateException("Capsule not extracted. Cannot obtain path " + p);
             return toAbsolutePath(appCache, p);
         }
+    }
+
+    private List<Path> getPath(List<String> ps) {
+        if (ps == null)
+            return null;
+        final List<Path> res = new ArrayList<Path>(ps.size());
+        for (String p : ps)
+            res.add(getPath(p));
+        return res;
     }
 
     private String toJarUrl(String relPath) {
