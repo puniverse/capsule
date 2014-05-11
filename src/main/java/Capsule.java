@@ -153,7 +153,7 @@ public final class Capsule implements Runnable {
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static void main(String[] args) {
         try {
-            final Capsule capsule = newCapsule(getJarFile());
+            final Capsule capsule = newCapsule(getJarFile(), args);
 
             if (anyPropertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (anyPropertyDefined(PROP_VERSION))
@@ -180,18 +180,18 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private static Capsule newCapsule(JarFile jar) {
+    private static Capsule newCapsule(JarFile jar, String[] args) {
         try {
             final Class<?> clazz = Class.forName("CustomCapsule");
             try {
-                Constructor<?> ctor = clazz.getConstructor(JarFile.class);
+                Constructor<?> ctor = clazz.getConstructor(JarFile.class, String[].class);
                 ctor.setAccessible(true);
-                return (Capsule) ctor.newInstance(jar);
+                return (Capsule) ctor.newInstance(jar, args);
             } catch (Exception e) {
                 throw new RuntimeException("Could not launch custom capsule.", e);
             }
         } catch (ClassNotFoundException e) {
-            return new Capsule(jar);
+            return new Capsule(jar, args);
         }
     }
 
@@ -199,7 +199,7 @@ public final class Capsule implements Runnable {
         return System.console() == null || System.console().reader() == null;
     }
 
-    protected Capsule(JarFile jar) {
+    protected Capsule(JarFile jar, String[] args) {
         this.jar = jar;
         try {
             this.manifest = jar.getManifest();
@@ -212,7 +212,7 @@ public final class Capsule implements Runnable {
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
-        this.appId = getAppId();
+        this.appId = getAppId(args);
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
@@ -387,7 +387,7 @@ public final class Capsule implements Runnable {
                 throw new IllegalStateException("capsule " + jar.getName() + " has nothing to run");
         }
         if (appArtifact == null)
-            appArtifact = getAttribute(appArtifact);
+            appArtifact = getAttribute(ATTR_APP_ARTIFACT);
         return appArtifact;
     }
 
@@ -837,12 +837,12 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private String getAppId() {
+    private String getAppId(String[] args) {
         String appName = System.getProperty(PROP_APP_ID);
         if (appName == null)
             appName = getAttribute(ATTR_APP_NAME);
         if (appName == null) {
-            appName = getApplicationArtifactId(getAttribute(ATTR_APP_ARTIFACT));
+            appName = getApplicationArtifactId(getAppArtifact(args));
             if (appName != null)
                 return getAppArtifactLatestVersion(appName);
         }
