@@ -19,6 +19,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -58,7 +59,7 @@ public final class Capsule implements Runnable {
      * We do a lot of data transformations that would have really benefitted from Java 8's lambdas and streams, 
      * but we want Capsule to support Java 7.
      */
-    private static final String VERSION = "0.3.1";
+    private static final String VERSION = "0.4.0";
 
     private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_VERSION = "capsule.version";
@@ -151,11 +152,6 @@ public final class Capsule implements Runnable {
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static void main(String[] args) {
         try {
-            if (System.getProperty(PROP_VERSION) != null) {
-                System.out.println("CAPSULE: Version " + VERSION);
-                return;
-            }
-
             if (System.getProperty(PROP_PRINT_JRES) != null) {
                 final Map<String, Path> jres = getJavaHomes();
                 if (jres == null)
@@ -168,13 +164,16 @@ public final class Capsule implements Runnable {
                 return;
             }
 
-            final Capsule capsule = new Capsule(getJarFile());
+            final Capsule capsule = newCapsule(getJarFile());
 
-            if (System.getProperty(PROP_TREE) != null || System.getProperty(PROP_RESOLVE) != null) {
-                if (System.getProperty(PROP_TREE) != null)
+            if (anyPropertyDefined(PROP_VERSION, PROP_TREE, PROP_RESOLVE)) {
+                if (anyPropertyDefined(PROP_VERSION))
+                    capsule.printVersion();
+
+                if (anyPropertyDefined(PROP_TREE))
                     capsule.printDependencyTree(args);
 
-                if (System.getProperty(PROP_RESOLVE) != null)
+                if (anyPropertyDefined(PROP_RESOLVE))
                     capsule.resolve(args);
                 return;
             }
@@ -191,11 +190,26 @@ public final class Capsule implements Runnable {
         }
     }
 
+    private static Capsule newCapsule(JarFile jar) {
+        try {
+            final Class<?> clazz = Class.forName("CustomCapsule");
+            try {
+                Constructor<?> ctor = clazz.getConstructor(JarFile.class);
+                ctor.setAccessible(true);
+                return (Capsule) ctor.newInstance(jar);
+            } catch (Exception e) {
+                throw new RuntimeException("Could not launch custom capsule.", e);
+            }
+        } catch (ClassNotFoundException e) {
+            return new Capsule(jar);
+        }
+    }
+
     private static boolean isNonInteractiveProcess() {
         return System.console() == null || System.console().reader() == null;
     }
 
-    private Capsule(JarFile jar) {
+    protected Capsule(JarFile jar) {
         this.jar = jar;
         try {
             this.manifest = jar.getManifest();
@@ -217,7 +231,7 @@ public final class Capsule implements Runnable {
         return hasAttribute(ATTR_APP_ARTIFACT)
                 || isEmptyCapsule()
                 || pom != null
-                || hasAttribute(ATTR_DEPENDENCIES)
+                || getDependencies() != null
                 || getNativeDependencies() != null;
     }
 
@@ -245,6 +259,11 @@ public final class Capsule implements Runnable {
             // registerSignals();
             System.exit(child.waitFor());
         }
+    }
+
+    private void printVersion() {
+        System.out.println("CAPSULE: Application " + appId);
+        System.out.println("CAPSULE: Capsule Version " + VERSION);
     }
 
     private void resolve(String[] args) throws IOException, InterruptedException {
@@ -389,11 +408,16 @@ public final class Capsule implements Runnable {
         return pb;
     }
 
-    private List<String> buildArgs(String[] args1) {
-        final List<String> args = new ArrayList<String>();
-        args.addAll(nullToEmpty(expand(getListAttribute(ATTR_ARGS))));
-        args.addAll(Arrays.asList(args1));
-        return args;
+    /**
+     * Returns a list of command line arguments to pass to the application.
+     *
+     * @param args The command line arguments passed to the capsule at launch
+     */
+    protected List<String> buildArgs(String[] args) {
+        final List<String> args0 = new ArrayList<String>();
+        args0.addAll(nullToEmpty(expand(getListAttribute(ATTR_ARGS))));
+        args0.addAll(Arrays.asList(args));
+        return args0;
     }
 
     private boolean buildJavaProcess(ProcessBuilder pb) {
@@ -500,7 +524,6 @@ public final class Capsule implements Runnable {
             classPath.addAll(nullToEmpty(getDefaultCacheClassPath()));
         }
 
-        assert !hasAttribute(ATTR_DEPENDENCIES) || dependencyManager != null;
         classPath.addAll(nullToEmpty(resolveDependencies(getDependencies(), "jar")));
 
         return classPath;
@@ -521,6 +544,11 @@ public final class Capsule implements Runnable {
         return getPath(getListAttribute(attr));
     }
 
+    /**
+     * Returns a map of environment variables (property-value pairs).
+     *
+     * @param env the current environment
+     */
     private void buildEnvironmentVariables(Map<String, String> env) {
         final List<String> jarEnv = getListAttribute(ATTR_ENV);
         if (jarEnv != null) {
@@ -543,7 +571,12 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private Map<String, String> buildSystemProperties(List<String> cmdLine) {
+    /**
+     * Returns a map of system properties (property-value pairs).
+     *
+     * @param cmdLine the list of JVM arguments passed to the capsule at launch
+     */
+    protected Map<String, String> buildSystemProperties(List<String> cmdLine) {
         final Map<String, String> systemProerties = new HashMap<String, String>();
 
         // attribute
@@ -609,7 +642,11 @@ public final class Capsule implements Runnable {
         return stripNativeDependencies(getNativeDependenciesAndRename());
     }
 
-    private List<String> getNativeDependenciesAndRename() {
+    /**
+     * Returns a list of dependencies, each in the format {@code groupId:artifactId:version[:classifier][,renameTo]}
+     * (classifier and renameTo are optional)
+     */
+    protected List<String> getNativeDependenciesAndRename() {
         if (isLinux())
             return getListAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX);
         if (isWindows())
@@ -619,7 +656,7 @@ public final class Capsule implements Runnable {
         return null;
     }
 
-    private List<String> stripNativeDependencies(List<String> nativeDepsAndRename) {
+    protected final List<String> stripNativeDependencies(List<String> nativeDepsAndRename) {
         if (nativeDepsAndRename == null)
             return null;
         final List<String> deps = new ArrayList<String>(nativeDepsAndRename.size());
@@ -707,7 +744,12 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private List<String> buildJVMArgs(List<String> cmdLine) {
+    /**
+     * Returns a list of JVM arguments.
+     *
+     * @param cmdLine the list of JVM arguments passed to the capsule at launch
+     */
+    protected List<String> buildJVMArgs(List<String> cmdLine) {
         final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
 
         for (String a : nullToEmpty(getListAttribute(ATTR_JVM_ARGS))) {
@@ -1132,15 +1174,15 @@ public final class Capsule implements Runnable {
         return javaProcessName;
     }
 
-    private static boolean isWindows() {
+    protected static boolean isWindows() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
 
-    private static boolean isMac() {
+    protected static boolean isMac() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("mac");
     }
 
-    public static boolean isLinux() {
+    protected static boolean isLinux() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux");
     }
 
@@ -1228,8 +1270,7 @@ public final class Capsule implements Runnable {
             return dm;
         } catch (NoClassDefFoundError e) {
             throw new RuntimeException("Jar " + jar.getName()
-                    + " contains a " + ATTR_DEPENDENCIES + " attribute or a " + ATTR_APP_ARTIFACT
-                    + " attribute, while the necessary dependency management classes are not found in the jar");
+                    + " specifies dependencies, while the necessary dependency management classes are not found in the jar");
         }
     }
 
@@ -1249,7 +1290,10 @@ public final class Capsule implements Runnable {
         return !repos.isEmpty() ? Collections.unmodifiableList(repos) : null;
     }
 
-    private List<String> getDependencies() {
+    /**
+     * Returns a list of dependencies, each in the format {@code groupId:artifactId:version[:classifier]} (classifier is optional)
+     */
+    protected List<String> getDependencies() {
         List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
         if (deps == null && pom != null)
             deps = getPomDependencies();
@@ -1285,7 +1329,7 @@ public final class Capsule implements Runnable {
 
     private static Path getDependencyPath(Object dependencyManager, String p) {
         if (dependencyManager == null)
-            throw new RuntimeException("No Dependencies attribute in jar, therefore cannot resolve dependency " + p);
+            throw new RuntimeException("No dependencies specified in the capsule. Cannot resolve dependency " + p);
         final DependencyManager dm = (DependencyManager) dependencyManager;
         List<Path> depsJars = dm.resolveDependency(p, "jar");
 
@@ -1520,6 +1564,14 @@ public final class Capsule implements Runnable {
                 throw (Error) t;
             throw new RuntimeException(t);
         }
+    }
+
+    private static boolean anyPropertyDefined(String... props) {
+        for (String prop : props) {
+            if (System.getProperty(prop) != null)
+                return true;
+        }
+        return false;
     }
 
     private static void println(String str) {

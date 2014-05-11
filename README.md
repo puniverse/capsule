@@ -170,7 +170,7 @@ These attributes are sufficient to build a capsule, but there are many other con
 
 As mentioned before, `java -jar app.jar [app arguments]` will launch the application.
 
-The `java -Dcapsule.version -jar app.jar` command will print the version of Capsule used, and then exit without launching the app.
+The `java -Dcapsule.version -jar app.jar` command will print the application ID, the version of Capsule used, and then exit without launching the app.
 
 Capsule's JAR can be used standalone (without merging with any application binaries), to launch applications stored in a Maven repository like so:
 
@@ -310,7 +310,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 
 ### System Properties
 
-* `capsule.version`: if set, the capsule will print its Capsule version and quit without launching the app
+* `capsule.version`: if set, the capsule will print the application ID, its Capsule version and quit without launching the app
 * `capsule.tree`: if set, the capsule will print the app's dependency tree, and then quit without launching the app
 * `capsule.jvms`: if set, the capsule will print the JVM installations it can locate with their versions, and then quit without launching the app
 * `capsule.log`: if set to `verbose`/`debug`, Capsule will print what it's doing
