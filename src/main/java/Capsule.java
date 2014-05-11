@@ -88,6 +88,7 @@ public final class Capsule implements Runnable {
 
     private static final String PROP_CAPSULE_JAR = "capsule.jar";
     private static final String PROP_CAPSULE_DIR = "capsule.dir";
+    private static final String PROP_CAPSULE_APP = "capsule.app";
 
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
@@ -152,23 +153,14 @@ public final class Capsule implements Runnable {
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static void main(String[] args) {
         try {
-            if (System.getProperty(PROP_PRINT_JRES) != null) {
-                final Map<String, Path> jres = getJavaHomes();
-                if (jres == null)
-                    println("No detected Java installations");
-                else {
-                    System.out.println("CAPSULE: Detected Java installations:");
-                    for (Map.Entry<String, Path> j : jres.entrySet())
-                        System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
-                }
-                return;
-            }
-
             final Capsule capsule = newCapsule(getJarFile());
 
-            if (anyPropertyDefined(PROP_VERSION, PROP_TREE, PROP_RESOLVE)) {
+            if (anyPropertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (anyPropertyDefined(PROP_VERSION))
                     capsule.printVersion();
+
+                if (anyPropertyDefined(PROP_PRINT_JRES))
+                    capsule.printJVMs();
 
                 if (anyPropertyDefined(PROP_TREE))
                     capsule.printDependencyTree(args);
@@ -178,8 +170,6 @@ public final class Capsule implements Runnable {
                 return;
             }
 
-            if (capsule.appId != null)
-                verbose("Launching app " + capsule.appId);
             capsule.launch(args);
         } catch (Throwable t) {
             System.err.println("CAPSULE EXCEPTION: " + t.getMessage()
@@ -221,8 +211,8 @@ public final class Capsule implements Runnable {
 
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
-        this.appId = getAppId();
         this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
+        this.appId = getAppId();
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
@@ -238,6 +228,8 @@ public final class Capsule implements Runnable {
     private void launch(String[] args) throws IOException, InterruptedException {
         if (launchCapsule(args))
             return;
+
+        verbose("Launching app " + appId);
 
         ensureExtractedIfNecessary();
 
@@ -264,6 +256,18 @@ public final class Capsule implements Runnable {
     private void printVersion() {
         System.out.println("CAPSULE: Application " + appId);
         System.out.println("CAPSULE: Capsule Version " + VERSION);
+    }
+
+    private void printJVMs() {
+        final Map<String, Path> jres = getJavaHomes();
+        if (jres == null)
+            println("No detected Java installations");
+        else {
+            System.out.println("CAPSULE: Detected Java installations:");
+            for (Map.Entry<String, Path> j : jres.entrySet())
+                System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
+        }
+        System.out.println("CAPSULE: selected " + getJavaHome());
     }
 
     private void resolve(String[] args) throws IOException, InterruptedException {
@@ -608,6 +612,7 @@ public final class Capsule implements Runnable {
         if (appCache != null)
             systemProerties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
         systemProerties.put(PROP_CAPSULE_JAR, getJarPath());
+        systemProerties.put(PROP_CAPSULE_APP, appId);
 
         // command line
         for (String option : cmdLine) {
@@ -839,7 +844,7 @@ public final class Capsule implements Runnable {
         if (appName == null) {
             appName = getApplicationArtifactId(getAttribute(ATTR_APP_ARTIFACT));
             if (appName != null)
-                return appName;
+                return getAppArtifactLatestVersion(appName);
         }
         if (appName == null) {
             if (pom != null)
@@ -1265,7 +1270,7 @@ public final class Capsule implements Runnable {
             final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
             debug("Offline: " + offline);
 
-            final DependencyManager dm = new DependencyManager(appId, localRepo.toAbsolutePath(), repositories, reset, offline);
+            final DependencyManager dm = new DependencyManager(localRepo.toAbsolutePath(), repositories, reset, offline);
 
             return dm;
         } catch (NoClassDefFoundError e) {
@@ -1318,6 +1323,13 @@ public final class Capsule implements Runnable {
             return null;
 
         return ((DependencyManager) dependencyManager).resolveDependencies(dependencies, type);
+    }
+
+    private String getAppArtifactLatestVersion(String coords) {
+        if (coords == null)
+            return null;
+        final DependencyManager dm = (DependencyManager) dependencyManager;
+        return dm.getLatestVersion(coords);
     }
 
     private List<Path> resolveAppArtifact(String coords) {

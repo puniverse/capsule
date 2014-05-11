@@ -53,15 +53,13 @@ public class DependencyManager {
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final String MAVEN_CENTRAL_URL = "http://central.maven.org/maven2/";
 
-    private final String appId;
     private final boolean forceRefresh;
     private final boolean offline;
     private final RepositorySystem system;
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
 
-    public DependencyManager(String appId, Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline) {
-        this.appId = appId;
+    public DependencyManager(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline) {
         this.system = newRepositorySystem();
         this.forceRefresh = forceRefresh;
         this.offline = offline;
@@ -122,13 +120,13 @@ public class DependencyManager {
     }
 
     public void printDependencyTree(String coords) {
-        printDependencyTree(collect().setRoot(toDependency(getLatestVersion(coords))));
+        printDependencyTree(collect().setRoot(toDependency(getLatestVersion0(coords))));
     }
 
     private void printDependencyTree(CollectRequest collectRequest) {
         try {
             CollectResult collectResult = system.collectDependencies(session, collectRequest);
-            collectResult.getRoot().accept(new ConsoleDependencyGraphDumper(appId, System.out));
+            collectResult.getRoot().accept(new ConsoleDependencyGraphDumper(System.out));
         } catch (DependencyCollectionException e) {
             throw new RuntimeException(e);
         }
@@ -143,7 +141,7 @@ public class DependencyManager {
     }
 
     public List<Path> resolveRoot(String coords) {
-        return resolve(collect().setRoot(toDependency(getLatestVersion(coords))));
+        return resolve(collect().setRoot(toDependency(getLatestVersion0(coords))));
     }
 
     private List<Path> resolve(CollectRequest collectRequest) {
@@ -164,7 +162,11 @@ public class DependencyManager {
         return new CollectRequest().setRepositories(repos);
     }
 
-    private Artifact getLatestVersion(String coords) {
+    public String getLatestVersion(String coords) {
+        return artifactToCoords(getLatestVersion0(coords));
+    }
+
+    private Artifact getLatestVersion0(String coords) {
         try {
             final Artifact artifact = coordsToArtifact(coords, "jar");
             final VersionRangeRequest versionRangeRequest = new VersionRangeRequest().setRepositories(repos).setArtifact(artifact);
@@ -177,11 +179,11 @@ public class DependencyManager {
             throw new RuntimeException(e);
         }
     }
-    
+
     private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy policy) {
         return new RemoteRepository.Builder(name, "default", url).setPolicy(policy).build();
     }
-    
+
     private static Dependency toDependency(String coords, String type) {
         return new Dependency(coordsToArtifact(coords, type), JavaScopes.RUNTIME, false, getExclusions(coords));
     }
@@ -217,6 +219,12 @@ public class DependencyManager {
         final String version = coords[2];
         final String classifier = coords.length > 3 ? coords[3] : null;
         return new DefaultArtifact(groupId, artifactId, classifier, type, version);
+    }
+
+    private static String artifactToCoords(Artifact artifact) {
+        if (artifact == null)
+            return null;
+        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
     }
 
     private static Collection<Exclusion> getExclusions(String coordsString) {

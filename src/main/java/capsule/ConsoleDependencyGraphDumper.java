@@ -40,14 +40,12 @@ import org.eclipse.aether.util.graph.transformer.ConflictResolver;
  * A dependency visitor that dumps the graph to the console.
  */
 public class ConsoleDependencyGraphDumper implements DependencyVisitor {
-    private final String appId;
     private final PrintStream out;
     private final Deque<ChildInfo> childInfos = new ArrayDeque<ChildInfo>();
     private final Set<Artifact> visitedNodes = Collections.newSetFromMap(new HashMap<Artifact, Boolean>(512)); // new IdentityHashMap<DependencyNode, Boolean>
 
-    public ConsoleDependencyGraphDumper(String appId, PrintStream out) {
+    public ConsoleDependencyGraphDumper(PrintStream out) {
         this.out = out;
-        this.appId = appId;
     }
 
     private boolean visit(DependencyNode node) {
