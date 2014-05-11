@@ -19,7 +19,13 @@ ext.scmUrl          = "https://github.com/puniverse/ava-launcher"
 ext.scmConnection   = "https://github.com/puniverse/ava-launcher.git"
 ext.distDir         = "$buildDir/dist"
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
-    
+
+if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePassword")) {
+    println "sonatype username or password not set"
+    ext.sonatypeUsername = ""
+    ext.sonatypePassword = ""
+}
+
 // In this section you declare where to find the dependencies of your project
 repositories {
     mavenCentral()
