@@ -30,6 +30,10 @@ or:
 
 On Maven Central.
 
+### Building Capsule
+
+    ./gradlew install
+
 ### Support
 
 Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.google.com/forum/#!forum/capsule-user)
