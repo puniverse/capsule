@@ -190,13 +190,15 @@ The application ID is used to find the capsule's application cache, where the ca
 
 The application's ID can be overridden by the `capsule.app.id` system property, if defined when launching the capsule, as in `java -Dcapsule.app.id=my_old_app -jar app.jar`
 
-### Java Version
+### Selecting Java Runtime
 
 Two manifest attributes determine which Java installation Capsule will use to launch the application. `Min-Java-Version` (e.g. `1.7.0_50` or `1.8.0`) is the lowest Java version to use, while `Java-Version` (e.g. `1.6`) is the highest *major* Java version to use. One, both, or neither of these attributes may be specified in the manifest.
 
 First, Capsule will test the current JVM (used to launch the capsule) against `Min-Java-Version` and `Java-Version` (if they're specified). If the version of the current JVM matches the requested range, it will be used to launch the application. If not, Capsule will search for other JVM installations, and use the one with the highest version that matches the requested range. If no matching installation is found, the capsule will fail to launch.
 
-Whatever the `Min-Java-Version` or `Java-Version` attributes specify, launching the capsule with the `capsule.java.home` system property, will use whatever Java installation is specified by the property, for example: `java -Dcapsule.java.home=/Library/Java/JavaVirtualMachines/jdk1.8.0.jdk/Contents/Home -jar app.jar`.
+If the `JDK-Required` attribute is set to `true`, Capsule will only select JDK installations.
+
+Whatever the `Min-Java-Version`, `Java-Version`, or `JDK-Required` attributes specify, launching the capsule with the `capsule.java.home` system property, will use whatever Java installation is specified by the property, for example: `java -Dcapsule.java.home=/Library/Java/JavaVirtualMachines/jdk1.8.0.jdk/Contents/Home -jar app.jar`.
 
 Running `java -Dcapsule.jvms -jar app.jar` will list all Java installations Capsule can find, and then quit without launching the app.
 
@@ -286,6 +288,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Extract-Capsule`: if `false`, the capsule JAR will not be extracted to the filesystem (default: `true`)
 * `Min-Java-Version`: the lowest Java version required to run the application; Capsule will look for an appropriate installation
 * `Java-Version`: the highest version of the Java installation required to run the application; Capsule will look for an appropriate installation
+* `JDK-Required`: if set to `true`, the Capsule will only be launched using a JDK, if one matching the requested versions is found.
 * `JVM-Args`: a list of JVM arguments that will be used to launch the application's Java process
 * `Args`: a list of command line arguments to be passed to the application; these will be prepended to any arguments passed to the capsule
 * `Environment-Variables`: a list of environment variables that will be put in the applications environment; formatted `var=value` or `var`
@@ -311,6 +314,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 
 * `$CAPSULE_JAR`: the full path to the capsule JAR
 * `$CAPSULE_DIR`: the full path to the application cache directory, if the capsule is extracted.
+* `$JAVA_HOME`: the full path to the Java installation which will be used to launch the app
 
 ### System Properties
 

@@ -99,6 +99,7 @@ public final class Capsule implements Runnable {
     private static final String ATTR_EXTRACT = "Extract-Capsule";
     private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
     private static final String ATTR_JAVA_VERSION = "Java-Version";
+    private static final String ATTR_JDK_REQUIRED = "JDK-Required";
     private static final String ATTR_JVM_ARGS = "JVM-Args";
     private static final String ATTR_ARGS = "Args";
     private static final String ATTR_ENV = "Environment-Variables";
@@ -122,6 +123,7 @@ public final class Capsule implements Runnable {
 
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
+    private static final String VAR_JAVA_HOME = "JAVA_HOME";
 
     private static final String CACHE_DEFAULT_NAME = "capsule";
     private static final String DEPS_CACHE_NAME = "deps";
@@ -137,6 +139,7 @@ public final class Capsule implements Runnable {
 
     private final JarFile jar;       // never null
     private final Manifest manifest; // never null
+    private final String javaHome;
     private final String appId;      // null iff isEmptyCapsule()
     private final Path appCache;     // non-null iff capsule is extracted
     private final boolean cacheUpToDate;
@@ -209,6 +212,7 @@ public final class Capsule implements Runnable {
             throw new RuntimeException("Could not read Jar file " + jar.getName() + " manifest");
         }
 
+        this.javaHome = getJavaHome();
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
@@ -259,7 +263,7 @@ public final class Capsule implements Runnable {
     }
 
     private void printJVMs() {
-        final Map<String, Path> jres = getJavaHomes();
+        final Map<String, Path> jres = getJavaHomes(false);
         if (jres == null)
             println("No detected Java installations");
         else {
@@ -267,7 +271,7 @@ public final class Capsule implements Runnable {
             for (Map.Entry<String, Path> j : jres.entrySet())
                 System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
         }
-        System.out.println("CAPSULE: selected " + getJavaHome());
+        System.out.println("CAPSULE: selected " + javaHome);
     }
 
     private void resolve(String[] args) throws IOException, InterruptedException {
@@ -431,7 +435,6 @@ public final class Capsule implements Runnable {
 //        final String classPath = runtimeBean.getClassPath();
 //        final String bootClassPath = runtimeBean.getBootClassPath();
 //        final String libraryPath = runtimeBean.getLibraryPath();
-        final String javaHome = getJavaHome();
         if (javaHome != null)
             pb.environment().put("JAVA_HOME", javaHome);
 
@@ -520,13 +523,20 @@ public final class Capsule implements Runnable {
             classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT))));
         }
 
-        if (appCache == null && hasAttribute(ATTR_APP_CLASS_PATH))
-            throw new IllegalStateException("Cannot use the " + ATTR_APP_CLASS_PATH + " attribute when the "
-                    + ATTR_EXTRACT + " attribute is set to false");
-        if (appCache != null) {
-            classPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_APP_CLASS_PATH))));
-            classPath.addAll(nullToEmpty(getDefaultCacheClassPath()));
+        if (hasAttribute(ATTR_APP_CLASS_PATH)) {
+            for (String sp : getListAttribute(ATTR_APP_CLASS_PATH)) {
+                Path p = Paths.get(expand(sanitize(sp)));
+
+                if(appCache == null && (!p.isAbsolute() || p.startsWith(appCache)))
+                    throw new IllegalStateException("Cannot resolve " + sp + "  in " + ATTR_APP_CLASS_PATH + " attribute when the "
+                                + ATTR_EXTRACT + " attribute is set to false");
+                
+                p = appCache.resolve(p);
+                classPath.add(p);
+            }
         }
+        if (appCache != null)
+            classPath.addAll(nullToEmpty(getDefaultCacheClassPath()));
 
         classPath.addAll(nullToEmpty(resolveDependencies(getDependencies(), "jar")));
 
@@ -1150,17 +1160,19 @@ public final class Capsule implements Runnable {
     }
 
     private String getJavaHome() {
-        String javaHome = System.getProperty(PROP_CAPSULE_JAVA_HOME);
-        if (javaHome == null && !isMatchingJavaVersion(System.getProperty(PROP_JAVA_VERSION))) {
-            final Path javaHomePath = findJavaHome();
+        String jhome = System.getProperty(PROP_CAPSULE_JAVA_HOME);
+        if (jhome == null && !isMatchingJavaVersion(System.getProperty(PROP_JAVA_VERSION))) {
+            final boolean jdk = hasAttribute(ATTR_JDK_REQUIRED) && Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
+            final Path javaHomePath = findJavaHome(jdk);
             if (javaHomePath == null) {
                 throw new RuntimeException("Could not find Java installation for requested version "
                         + getAttribute(ATTR_MIN_JAVA_VERSION) + " / " + getAttribute(ATTR_JAVA_VERSION)
+                        + "(JDK required: " + jdk + ")"
                         + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
             }
-            javaHome = javaHomePath.toAbsolutePath().toString();
+            jhome = javaHomePath.toAbsolutePath().toString();
         }
-        return javaHome;
+        return jhome;
     }
 
     private boolean isMatchingJavaVersion(String javaVersion) {
@@ -1364,8 +1376,8 @@ public final class Capsule implements Runnable {
             throw new FileNotFoundException("Failed to delete file: " + f);
     }
 
-    private Path findJavaHome() {
-        final Map<String, Path> homes = getJavaHomes();
+    private Path findJavaHome(boolean jdk) {
+        final Map<String, Path> homes = getJavaHomes(jdk);
         if (homes == null)
             return null;
         Path best = null;
@@ -1382,10 +1394,10 @@ public final class Capsule implements Runnable {
         return best;
     }
 
-    private static Map<String, Path> getJavaHomes() {
+    private static Map<String, Path> getJavaHomes(boolean jdk) {
         Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
         while (dir != null) {
-            Map<String, Path> homes = getJavaHomes(dir);
+            Map<String, Path> homes = getJavaHomes(dir, jdk);
             if (homes != null)
                 return homes;
             dir = dir.getParent();
@@ -1393,15 +1405,16 @@ public final class Capsule implements Runnable {
         return null;
     }
 
-    private static Map<String, Path> getJavaHomes(Path dir) {
+    private static Map<String, Path> getJavaHomes(Path dir, boolean jdk) {
         File d = dir.toFile();
         if (!d.isDirectory())
             return null;
         Map<String, Path> dirs = new HashMap<String, Path>();
         for (File f : d.listFiles()) {
             if (f.isDirectory()) {
-                String ver = isJavaDir(f.toPath().getFileName().toString());
-                if (ver != null) {
+                String dirName = f.toPath().getFileName().toString();
+                String ver = isJavaDir(dirName);
+                if (ver != null && (!jdk || isJDK(dirName))) {
                     File home = searchJavaHomeInDir(f);
                     if (home != null)
                         dirs.put(javaVersion(ver), home.toPath());
@@ -1421,6 +1434,10 @@ public final class Capsule implements Runnable {
             return javaVersion(fileName);
         } else
             return null;
+    }
+
+    private static boolean isJDK(String filename) {
+        return filename.toLowerCase().contains("jdk");
     }
 
     private static String javaVersion(String ver) {
@@ -1533,6 +1550,7 @@ public final class Capsule implements Runnable {
 
         str = expandCommandLinePath(str);
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, getJarPath());
+        str = str.replaceAll("\\$" + VAR_JAVA_HOME, javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME));
         str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;
     }
