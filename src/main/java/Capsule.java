@@ -770,7 +770,8 @@ public final class Capsule implements Runnable {
         final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
 
         for (String a : nullToEmpty(getListAttribute(ATTR_JVM_ARGS))) {
-            if (!a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
+            a = a.trim();
+            if (!a.isEmpty() && !a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
                 addJvmArg(expand(a), jvmArgs);
         }
 
