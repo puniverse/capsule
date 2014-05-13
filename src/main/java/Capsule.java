@@ -121,6 +121,8 @@ public final class Capsule implements Runnable {
     private static final String ATTR_NATIVE_DEPENDENCIES_WIN = "Native-Dependencies-Win";
     private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
 
+    private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
+    
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
     private static final String VAR_JAVA_HOME = "JAVA_HOME";
@@ -868,7 +870,7 @@ public final class Capsule implements Runnable {
                     + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
         }
 
-        final String version = getAttribute(ATTR_APP_VERSION);
+        final String version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
         return appName + (version != null ? "_" + version : "");
     }
 
