@@ -83,6 +83,7 @@ public final class Capsule implements Runnable {
     private static final String PROP_JAVA_SECURITY_POLICY = "java.security.policy";
     private static final String PROP_JAVA_SECURITY_MANAGER = "java.security.manager";
 
+    private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
 
@@ -122,7 +123,7 @@ public final class Capsule implements Runnable {
     private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
 
     private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
-    
+
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
     private static final String VAR_JAVA_HOME = "JAVA_HOME";
@@ -529,10 +530,10 @@ public final class Capsule implements Runnable {
             for (String sp : getListAttribute(ATTR_APP_CLASS_PATH)) {
                 Path p = Paths.get(expand(sanitize(sp)));
 
-                if(appCache == null && (!p.isAbsolute() || p.startsWith(appCache)))
+                if (appCache == null && (!p.isAbsolute() || p.startsWith(appCache)))
                     throw new IllegalStateException("Cannot resolve " + sp + "  in " + ATTR_APP_CLASS_PATH + " attribute when the "
-                                + ATTR_EXTRACT + " attribute is set to false");
-                
+                            + ATTR_EXTRACT + " attribute is set to false");
+
                 p = appCache.resolve(p);
                 classPath.add(p);
             }
@@ -974,10 +975,13 @@ public final class Capsule implements Runnable {
     }
 
     private List<String> getListAttribute(String attr) {
-        final String vals = getAttribute(attr);
-        if (vals == null)
+        return split(getAttribute(attr), "\\s+");
+    }
+
+    private List<String> split(String str, String separator) {
+        if (str == null)
             return null;
-        return Arrays.asList(vals.split("\\s+"));
+        return Arrays.asList(str.split(separator));
     }
 
     private Path getAppCacheDir() {
@@ -1297,7 +1301,10 @@ public final class Capsule implements Runnable {
     private List<String> getRepositories() {
         List<String> repos = new ArrayList<String>();
 
-        List<String> attrRepos = getListAttribute(ATTR_REPOSITORIES);
+        List<String> attrRepos = split(System.getenv(ENV_CAPSULE_REPOS), ":");
+        if (attrRepos == null)
+            getListAttribute(ATTR_REPOSITORIES);
+        
         if (attrRepos != null)
             repos.addAll(attrRepos);
         if (pom != null) {

@@ -225,6 +225,8 @@ The dependencies, (if not read from the POM), are listed in the `Dependencies` a
 
 The dependencies are downloaded the first time the capsule is launched, and placed in the `deps` subdirectory of the Capsule cache, where they are shared among all capsules.
 
+The `CAPSULE_REPOS` environment variable can be set to a colon (`:`) separated list of Maven repository URLS, which will override those specified in the manifest or the POM.
+
 Capsule can make use of Maven repositories in another way: the `Application` manifest attribute can specify the Maven coordinates of the application's main JAR file, which can in itself be a module. The artifact can be given with a version range, for example: `Application: com.acme:foo:[1.0,2.0)` or with no version at all. The newest version matching the range (or the newest version if no range is given), will be downloaded, cached and launched. If the application's main artifact is a capsule, then all configurations will be taken based on those in the artifact capsule.
 
 Native dependencies can be specified in the `Native-Dependencies-Linux`/`Native-Dependencies-Win`/`Native-Dependencies-Mac` attributes, each for its respective OS. A native dependency is written as a plain dependency but can be followed by a comma and a new filename to give the artifact once downloaded (e.g.: `com.acme:foo-native-linux-x64:1.0,foo-native.so`). Each native artifact must be a single native library, with a suffix matching the OS (`.so` for Linux, `.dll` for windows, `.dylib` for Mac). The native libraries are downloaded and copied into the application cache (and renamed if requested).
@@ -338,6 +340,7 @@ Capsule defines these system properties in the application's process:
 
 * `CAPSULE_CACHE_NAME`: sets the *name* of the root of Capsule's cache in the default location (`~` on Unix, `%LOCALAPPDATA%` on Windows)
 * `CAPSULE_CACHE_DIR`: sets the full path of the Capsule's cache
+* `CAPSULE_REPOS`: sets the list -- colon (`:`) separated -- of Maven repositories that the capsule will use; overrides those specified in the manifest or the POM.
 
 Capsule defines these variables in the application's environment:
 
