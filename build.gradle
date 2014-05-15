@@ -32,7 +32,7 @@ repositories {
 }
 
 configurations {
-    //all*.exclude group: 'org.eclipse.sisu', module: '*'
+    all*.exclude group: 'org.eclipse.sisu', module: '*'
     all*.exclude group: 'commons-codec', module: '*'
 }
 
