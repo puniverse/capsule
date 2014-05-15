@@ -6,7 +6,7 @@ targetCompatibility = '1.7'
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 group               = "co.paralleluniverse"
-version             = "0.4.0-SNAPSHOT"
+version             = "0.4.0"
 status              = "integration"
 description         = "Simple Java deployment"
 ext.url             = "http://puniverse.github.com/java-launcher"
@@ -31,19 +31,21 @@ repositories {
     mavenCentral()
 }
 
+configurations {
+    //all*.exclude group: 'org.eclipse.sisu', module: '*'
+    all*.exclude group: 'commons-codec', module: '*'
+}
+
 // In this section you declare the dependencies for your production and test code
 dependencies {
+    compile 'io.takari.aether:takari-local-repository:0.10.3'
     compile 'org.eclipse.aether:aether-api:0.9.0.M4'
     compile 'org.eclipse.aether:aether-util:0.9.0.M4'
     runtime 'org.eclipse.aether:aether-impl:0.9.0.M4'
     compile 'org.eclipse.aether:aether-connector-basic:0.9.0.M4'
     // compile 'org.eclipse.aether:aether-transport-file:0.9.0.M4'
-    compile('org.eclipse.aether:aether-transport-http:0.9.0.M4') {
-        exclude group: 'commons-codec', module: '*'
-    }
-    compile('org.apache.maven:maven-aether-provider:3.1.0') {
-        exclude group: 'org.eclipse.sisu', module: '*'
-    }
+    compile 'org.eclipse.aether:aether-transport-http:0.9.0.M4'
+    compile 'org.apache.maven:maven-aether-provider:3.1.0'
     compile 'org.apache.maven:maven-model:3.2.1'
     runtime 'org.slf4j:slf4j-nop:1.7.7'
     
