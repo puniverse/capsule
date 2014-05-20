@@ -1538,9 +1538,9 @@ public final class Capsule implements Runnable {
         if (pre != null) {
             if (pre.startsWith("rc"))
                 ver[4] = -1;
-            if (pre.startsWith("beta"))
+            else if (pre.startsWith("beta"))
                 ver[4] = -2;
-            if (pre.startsWith("ea"))
+            else if (pre.startsWith("ea"))
                 ver[4] = -3;
         }
         return ver;
