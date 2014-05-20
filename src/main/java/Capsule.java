@@ -1531,13 +1531,11 @@ public final class Capsule implements Runnable {
             throw new IllegalArgumentException("Could not parse version: " + v);
         final int[] ver = new int[5];
         ver[0] = toInt(m.group("major"));
-        ver[1] = Integer.parseInt(m.group("minor"));
+        ver[1] = toInt(m.group("minor"));
         ver[2] = toInt(m.group("patch"));
         ver[3] = toInt(m.group("update"));
         final String pre = m.group("pre");
-        if (pre == null)
-            ver[4] = 0;
-        else {
+        if (pre != null) {
             if (pre.startsWith("rc"))
                 ver[4] = -1;
             if (pre.startsWith("beta"))
