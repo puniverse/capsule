@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,6 +48,8 @@ import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class Capsule implements Runnable {
     /*
@@ -1183,11 +1186,16 @@ public final class Capsule implements Runnable {
     }
 
     private boolean isMatchingJavaVersion(String javaVersion) {
-        if (hasAttribute(ATTR_MIN_JAVA_VERSION) && compareVersions(javaVersion, getAttribute(ATTR_MIN_JAVA_VERSION)) < 0)
+        try {
+            if (hasAttribute(ATTR_MIN_JAVA_VERSION) && compareVersions(javaVersion, getAttribute(ATTR_MIN_JAVA_VERSION)) < 0)
+                return false;
+            if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(majorJavaVersion(javaVersion), getAttribute(ATTR_JAVA_VERSION)) > 0)
+                return false;
+            return true;
+        } catch (IllegalArgumentException ex) {
+            verbose("Error parsing Java version " + javaVersion);
             return false;
-        if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(majorJavaVersion(javaVersion), getAttribute(ATTR_JAVA_VERSION)) > 0)
-            return false;
-        return true;
+        }
     }
 
     private String getJavaProcessName(String javaHome) {
@@ -1304,7 +1312,7 @@ public final class Capsule implements Runnable {
         List<String> attrRepos = split(System.getenv(ENV_CAPSULE_REPOS), ":");
         if (attrRepos == null)
             getListAttribute(ATTR_REPOSITORIES);
-        
+
         if (attrRepos != null)
             repos.addAll(attrRepos);
         if (pom != null) {
@@ -1503,31 +1511,45 @@ public final class Capsule implements Runnable {
         return vs[0] + "." + vs[1];
     }
 
-    private static int compareVersions(String a, String b) {
+    static int compareVersions(String a, String b) {
         return compareVersions(parseJavaVersion(a), parseJavaVersion(b));
     }
 
     private static int compareVersions(int[] a, int[] b) {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             if (a[i] != b[i])
                 return a[i] - b[i];
         }
         return 0;
     }
 
-    private static int[] parseJavaVersion(String v) {
-        final int[] ver = new int[4];
-        final String[] vs = v.split("\\.");
-        if (vs.length < 2)
-            throw new IllegalArgumentException("Version " + v + " is illegal. Must be of the form x.y.z[_u]");
-        ver[0] = Integer.parseInt(vs[0]);
-        ver[1] = Integer.parseInt(vs[1]);
-        if (vs.length > 2) {
-            String[] vzu = vs[2].split("_");
-            ver[2] = Integer.parseInt(vzu[0]);
-            ver[3] = vzu.length > 1 ? Integer.parseInt(vzu[1]) : 0;
+    private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(_(?<update>\\d+))?(-(?<pre>.+))?");
+
+    static int[] parseJavaVersion(String v) {
+        final Matcher m = PAT_JAVA_VERSION.matcher(v);
+        if (!m.matches())
+            throw new IllegalArgumentException("Could not parse version: " + v);
+        final int[] ver = new int[5];
+        ver[0] = toInt(m.group("major"));
+        ver[1] = Integer.parseInt(m.group("minor"));
+        ver[2] = toInt(m.group("patch"));
+        ver[3] = toInt(m.group("update"));
+        final String pre = m.group("pre");
+        if (pre == null)
+            ver[4] = 0;
+        else {
+            if (pre.startsWith("rc"))
+                ver[4] = -1;
+            if (pre.startsWith("beta"))
+                ver[4] = -2;
+            if (pre.startsWith("ea"))
+                ver[4] = -3;
         }
         return ver;
+    }
+
+    private static int toInt(String s) {
+        return s != null ? Integer.parseInt(s) : 0;
     }
 
     private static <T> List<T> nullToEmpty(List<T> list) {
