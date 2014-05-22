@@ -1036,11 +1036,11 @@ public final class Capsule implements Runnable {
             localData = userHome.resolve(Paths.get("AppData", "Local"));
             if (!Files.isDirectory(localData))
                 localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
+            if (!Files.isDirectory(localData))
+                throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
+                        + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
+                        + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
         }
-        if (!Files.isDirectory(localData))
-            throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
-                    + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
-                    + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
         return localData;
     }
 
