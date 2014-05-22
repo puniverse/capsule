@@ -1005,7 +1005,7 @@ public final class Capsule implements Runnable {
         else {
             final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
             final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
-            cache = getChacheHome().resolve((isWindows() ? "" : ".") + cacheName);
+            cache = getCacheHome().resolve((isWindows() ? "" : ".") + cacheName);
         }
         try {
             if (!Files.exists(cache))
@@ -1021,7 +1021,7 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private static Path getChacheHome() {
+    private static Path getCacheHome() {
         final Path userHome = Paths.get(System.getProperty(PROP_USER_HOME));
         if (!isWindows())
             return userHome;
