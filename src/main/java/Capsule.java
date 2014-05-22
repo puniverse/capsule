@@ -1003,26 +1003,9 @@ public final class Capsule implements Runnable {
         if (cacheDirEnv != null)
             cache = Paths.get(cacheDirEnv);
         else {
-            final String userHome = System.getProperty(PROP_USER_HOME);
-
             final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
             final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
-            if (isWindows()) {
-                final String appData = System.getenv("LOCALAPPDATA"); // Files.isDirectory(Paths.get(userHome, "AppData")) ? "AppData" : "Application Data";
-                if (appData != null)
-                    cache = Paths.get(appData, cacheName);
-                else {
-                    Path localData = Paths.get(userHome, "AppData", "Local");
-                    if (!Files.isDirectory(localData))
-                        localData = Paths.get(userHome, "Local Settings", "Application Data");
-                    if (!Files.isDirectory(localData))
-                        throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
-                                + Paths.get(userHome, "AppData", "Local") + " nor "
-                                + Paths.get(userHome, "Local Settings", "Application Data") + " have been found");
-                    cache = localData.resolve(cacheName);
-                }
-            } else
-                cache = Paths.get(userHome, "." + cacheName);
+            cache = getChacheHome().resolve((isWindows() ? "" : ".") + cacheName);
         }
         try {
             if (!Files.exists(cache))
@@ -1036,6 +1019,29 @@ public final class Capsule implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
         }
+    }
+
+    private static Path getChacheHome() {
+        final Path userHome = Paths.get(System.getProperty(PROP_USER_HOME));
+        if (!isWindows())
+            return userHome;
+
+        Path localData;
+        final String localAppData = System.getenv("LOCALAPPDATA");
+        if (localAppData != null) {
+            localData = Paths.get(localAppData);
+            if (!Files.isDirectory(localData))
+                throw new RuntimeException("%LOCALAPPDATA% set to nonexistent directory " + localData);
+        } else {
+            localData = userHome.resolve(Paths.get("AppData", "Local"));
+            if (!Files.isDirectory(localData))
+                localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
+        }
+        if (!Files.isDirectory(localData))
+            throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
+                    + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
+                    + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
+        return localData;
     }
 
     private boolean needsAppCache() {
