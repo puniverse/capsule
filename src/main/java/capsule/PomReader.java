@@ -49,35 +49,62 @@ public class PomReader {
         final List<Repository> repos = pom.getRepositories();
         if (repos == null)
             return null;
-        final List<String> repositories = new ArrayList<String>();
-        for(Repository repo : repos)
+        final List<String> repositories = new ArrayList<String>(repos.size());
+        for (Repository repo : repos)
             repositories.add(repo.getUrl());
         return repositories;
     }
 
     public List<String> getDependencies() {
-        List<Dependency> deps = pom.getDependencies();
+        final List<Dependency> deps = pom.getDependencies();
         if (deps == null)
             return null;
 
-        final List<String> dependencies = new ArrayList<String>();
+        final List<String> dependencies = new ArrayList<String>(deps.size());
         for (Dependency dep : deps) {
-            if (!dep.isOptional()) {
-                String coords = dep.getGroupId() + ":" + dep.getArtifactId() + ":" + dep.getVersion()
-                        + (dep.getClassifier() != null && !dep.getClassifier().isEmpty() ? ":" + dep.getClassifier() : "");
-                List<Exclusion> exclusions = dep.getExclusions();
-                if (exclusions != null && !exclusions.isEmpty()) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append('(');
-                    for (Exclusion ex : exclusions)
-                        sb.append(ex.getGroupId()).append(':').append(ex.getArtifactId()).append(',');
-                    sb.delete(sb.length() - 1, sb.length());
-                    sb.append(')');
-                    coords += sb.toString();
-                }
-                dependencies.add(coords);
-            }
+            if (includeDependency(dep))
+                dependencies.add(dep2desc(dep));
         }
         return dependencies;
+    }
+
+    private static boolean includeDependency(Dependency dep) {
+        if (dep.isOptional())
+            return false;
+        if ("co.paralleluniverse".equals(dep.getGroupId()) && "capsule".equals(dep.getArtifactId()))
+            return false;
+
+        switch (dep.getScope().toLowerCase()) {
+            case "compile":
+            case "runtime":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static String dep2desc(Dependency dep) {
+        String coords = dep2coords(dep);
+        List<Exclusion> exclusions = dep.getExclusions();
+        if (exclusions != null && !exclusions.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append('(');
+            for (Exclusion ex : exclusions)
+                sb.append(exclusion2coord(ex)).append(',');
+            sb.delete(sb.length() - 1, sb.length());
+            sb.append(')');
+            
+            coords += sb.toString();
+        }
+        return coords;
+    }
+
+    private static String dep2coords(Dependency dep) {
+        return dep.getGroupId() + ":" + dep.getArtifactId() + ":" + dep.getVersion()
+                + (dep.getClassifier() != null && !dep.getClassifier().isEmpty() ? ":" + dep.getClassifier() : "");
+    }
+
+    private static String exclusion2coord(Exclusion ex) {
+        return ex.getGroupId() + ":" + ex.getArtifactId();
     }
 }

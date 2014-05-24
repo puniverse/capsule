@@ -61,7 +61,7 @@ public final class Capsule implements Runnable {
      * We do a lot of data transformations that would have really benefitted from Java 8's lambdas and streams, 
      * but we want Capsule to support Java 7.
      */
-    private static final String VERSION = "0.4.1";
+    private static final String VERSION = "0.4.2";
 
     private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_VERSION = "capsule.version";
@@ -904,13 +904,36 @@ public final class Capsule implements Runnable {
     }
 
     private Path getPath(String p) {
-        if (isDependency(p))
+        if (isDependency(p) && dependencyManager != null)
             return getDependencyPath(dependencyManager, p);
-        else {
-            if (appCache == null)
-                throw new IllegalStateException("Capsule not extracted. Cannot obtain path " + p);
+
+        if (appCache == null)
+            throw new IllegalStateException(
+                    (isDependency(p) ? "Dependency manager not found. Cannot resolve" : "Capsule not extracted. Cannot obtain path")
+                    + " " + p);
+        if (isDependency(p)) {
+            Path f = appCache.resolve(dependencyToLocalJar(true, p));
+            if (Files.isRegularFile(f))
+                return f;
+            f = appCache.resolve(dependencyToLocalJar(false, p));
+            if (Files.isRegularFile(f))
+                return f;
+            throw new IllegalArgumentException("Dependency manager not found, and could not locate artifact " + p + " in capsule");
+        } else
             return toAbsolutePath(appCache, p);
-        }
+    }
+
+    private String dependencyToLocalJar(boolean withGroupId, String p) {
+        String[] coords = p.split(":");
+        StringBuilder sb = new StringBuilder();
+        if (withGroupId)
+            sb.append(coords[0]).append('-');
+        sb.append(coords[1]).append('-');
+        sb.append(coords[2]);
+        if (coords.length > 3)
+            sb.append('-').append(coords[3]);
+        sb.append(".jar");
+        return sb.toString();
     }
 
     private List<Path> getPath(List<String> ps) {

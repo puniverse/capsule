@@ -26,7 +26,7 @@ With Capsule, you just distribute a single JAR and run it.
 
 or:
 
-    co.paralleluniverse:capsule:0.4.1
+    co.paralleluniverse:capsule:0.4.2
 
 On Maven Central.
 
@@ -44,7 +44,9 @@ Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.g
 
 ## Usage Examples
 
-Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/). The full Gradle file is [here](https://github.com/puniverse/capsule-demo/blob/master/build.gradle), and a Maven POM is [here](https://github.com/puniverse/capsule-demo/blob/master/pom.xml).
+Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/). 
+
+**A complete usage example, for both Gradle and Maven**, is found in the [capsule-demo](https://github.com/puniverse/capsule-demo) project, which contains both a `build.gradle` file that creates a few kinds of capsules, as well as Maven POM and assemblies that create both a full capsule (with embedded dependencies) and a capsule with external dependencies (that are resolved at launch).
 
 We'll assume that the application's `gradle.build` file applies the [`java`](http://www.gradle.org/docs/current/userguide/java_plugin.html) and [`application`](http://www.gradle.org/docs/current/userguide/application_plugin.html) plugins, and that the build file declare the `capsule` configuration and contains the dependency `capsule 'co.paralleluniverse:capsule:VERSION'`.
 
@@ -227,13 +229,13 @@ The dependencies are downloaded the first time the capsule is launched, and plac
 
 The `CAPSULE_REPOS` environment variable can be set to a colon (`:`) separated list of Maven repository URLS, which will override those specified in the manifest or the POM.
 
-Capsule can make use of Maven repositories in another way: the `Application` manifest attribute can specify the Maven coordinates of the application's main JAR file, which can in itself be a module. The artifact can be given with a version range, for example: `Application: com.acme:foo:[1.0,2.0)` or with no version at all. The newest version matching the range (or the newest version if no range is given), will be downloaded, cached and launched. If the application's main artifact is a capsule, then all configurations will be taken based on those in the artifact capsule.
+Capsule can make use of Maven repositories in another way: the `Application` manifest attribute can specify the Maven coordinates of the application's main JAR file, which can in itself be a capsule. The artifact can be given with a version range, for example: `Application: com.acme:foo:[1.0,2.0)` or with no version at all. The newest version matching the range (or the newest version if no range is given), will be downloaded, cached and launched. If the application's main artifact is a capsule, then all configurations will be taken based on those in the artifact capsule.
 
 Native dependencies can be specified in the `Native-Dependencies-Linux`/`Native-Dependencies-Win`/`Native-Dependencies-Mac` attributes, each for its respective OS. A native dependency is written as a plain dependency but can be followed by a comma and a new filename to give the artifact once downloaded (e.g.: `com.acme:foo-native-linux-x64:1.0,foo-native.so`). Each native artifact must be a single native library, with a suffix matching the OS (`.so` for Linux, `.dll` for windows, `.dylib` for Mac). The native libraries are downloaded and copied into the application cache (and renamed if requested).
 
 Adding `-Dcapsule.reset=true`, can force a re-download of SNAPSHOT versions.
 
-The command: `java -Dcapsule.tree -jar app.jar`, will print out the dependency tree for the module, and then quit without launching the app.
+The command: `java -Dcapsule.tree -jar app.jar`, will print the dependency tree for the capsule, and then quit without launching the app.
 
 Two more system properties affect the way Capsule searches for dependencies. If `capsule.offline` is defined or set to `true` (`-Dcapsule.offline` or `-Dcapsule.offline=true`), Capsule will not attempt to contact online repositories for dependencies (instead, it will use the local Maven repository/cache only). `capsule.local` determines the path for the local Maven repository/cache Capsule will use (which, by default, is the `deps` subdirectory of the Capsule cache).
 

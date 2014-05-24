@@ -6,7 +6,7 @@ targetCompatibility = '1.7'
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 group               = "co.paralleluniverse"
-version             = "0.4.1"
+version             = "0.4.2"
 status              = "integration"
 description         = "Simple Java deployment"
 ext.url             = "http://puniverse.github.com/java-launcher"
