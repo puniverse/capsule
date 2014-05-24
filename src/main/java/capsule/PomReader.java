@@ -22,8 +22,7 @@ public class PomReader {
 
     public PomReader(InputStream is) {
         try {
-            MavenXpp3Reader reader = new MavenXpp3Reader();
-            this.pom = reader.read(is);
+            this.pom = new MavenXpp3Reader().read(is);
         } catch (Exception e) {
             throw new RuntimeException("Error trying to read pom.", e);
         }
@@ -84,24 +83,27 @@ public class PomReader {
     }
 
     private static String dep2desc(Dependency dep) {
-        String coords = dep2coords(dep);
-        List<Exclusion> exclusions = dep.getExclusions();
-        if (exclusions != null && !exclusions.isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append('(');
-            for (Exclusion ex : exclusions)
-                sb.append(exclusion2coord(ex)).append(',');
-            sb.delete(sb.length() - 1, sb.length());
-            sb.append(')');
-            
-            coords += sb.toString();
-        }
-        return coords;
+        return dep2coords(dep) + exclusions2desc(dep);
     }
 
     private static String dep2coords(Dependency dep) {
         return dep.getGroupId() + ":" + dep.getArtifactId() + ":" + dep.getVersion()
                 + (dep.getClassifier() != null && !dep.getClassifier().isEmpty() ? ":" + dep.getClassifier() : "");
+    }
+
+    private static String exclusions2desc(Dependency dep) {
+        List<Exclusion> exclusions = dep.getExclusions();
+        if (exclusions == null || exclusions.isEmpty())
+            return "";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append('(');
+        for (Exclusion ex : exclusions)
+            sb.append(exclusion2coord(ex)).append(',');
+        sb.delete(sb.length() - 1, sb.length());
+        sb.append(')');
+
+        return sb.toString();
     }
 
     private static String exclusion2coord(Exclusion ex) {
