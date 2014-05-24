@@ -70,8 +70,6 @@ public class PomReader {
     private static boolean includeDependency(Dependency dep) {
         if (dep.isOptional())
             return false;
-        if ("co.paralleluniverse".equals(dep.getGroupId()) && "capsule".equals(dep.getArtifactId()))
-            return false;
 
         switch (dep.getScope().toLowerCase()) {
             case "compile":
