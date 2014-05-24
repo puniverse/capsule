@@ -6,17 +6,15 @@ targetCompatibility = '1.7'
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 group               = "co.paralleluniverse"
-version             = "0.4.2"
+version             = "0.5.0-SNAPSHOT"
 status              = "integration"
 description         = "Simple Java deployment"
 ext.url             = "http://puniverse.github.com/java-launcher"
 ext.vendor          = "Parallel Universe Software Co."
-ext.licenseName1    = "The GNU Lesser General Public License, version 3"
-ext.licenseUrl1     = "http://www.gnu.org/licenses/lgpl-3.0.txt"
-ext.licenseName2    = "Eclipse Public License - v 1.0"
-ext.licenseUrl2     = "http://www.eclipse.org/legal/epl-v10.html"
-ext.scmUrl          = "https://github.com/puniverse/ava-launcher"
-ext.scmConnection   = "https://github.com/puniverse/ava-launcher.git"
+ext.licenseName     = "Eclipse Public License - v 1.0"
+ext.licenseUrl      = "http://www.eclipse.org/legal/epl-v10.html"
+ext.scmUrl          = "https://github.com/puniverse/capsule"
+ext.scmConnection   = "https://github.com/puniverse/capsule.git"
 ext.distDir         = "$buildDir/dist"
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
@@ -188,16 +186,11 @@ uploadArchives {
                     url project.scmUrl
                     connection project.scmConnection
                     developerConnection project.scmConnection
-                } 
+                }
                 licenses {
                     license {
-                        name project.licenseName1
-                        url project.licenseUrl1
-                        distribution 'repo'
-                    }
-                    license {
-                        name project.licenseName2
-                        url project.licenseUrl2
+                        name project.licenseName
+                        url project.licenseUrl
                         distribution 'repo'
                     }
                 }
