@@ -17,16 +17,33 @@ import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
 public class JarUtil {
-    public static JarOutputStream updateJarFile(JarFile jar, Manifest manifest, OutputStream os) throws IOException {
+    public static JarOutputStream updateJar(JarInputStream jar, Manifest manifest, OutputStream os) throws IOException {
+        final JarOutputStream jarOut = new JarOutputStream(os, manifest);
+        JarEntry entry;
+        while ((entry = jar.getNextJarEntry()) != null) {
+            if (entry.getName().equals(entry.toString())) {
+                if (entry.getName().equals("META-INF/MANIFEST.MF"))
+                    continue;
+                jarOut.putNextEntry(entry);
+                copy0(jar, jarOut);
+                jar.closeEntry();
+                jarOut.closeEntry();
+            }
+        }
+        return jarOut;
+    }
+
+    public static JarOutputStream updateJar(JarFile jar, Manifest manifest, OutputStream os) throws IOException {
         final JarOutputStream jarOut = new JarOutputStream(os, manifest);
         final Enumeration<JarEntry> entries = jar.entries();
         while (entries.hasMoreElements()) {
             final JarEntry entry = entries.nextElement();
-            if(entry.getName().equals("META-INF/MANIFEST.MF"))
+            if (entry.getName().equals("META-INF/MANIFEST.MF"))
                 continue;
             jarOut.putNextEntry(entry);
             copy(jar.getInputStream(entry), jarOut);
@@ -47,14 +64,18 @@ public class JarUtil {
     public static InputStream toInputStream(String str, Charset charset) {
         return new ByteArrayInputStream(str.getBytes(charset));
     }
-    
+
     private static void copy(InputStream is, OutputStream os) throws IOException {
         try {
-            final byte[] buffer = new byte[1024];
-            for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
-                os.write(buffer, 0, bytesRead);
+            copy0(is, os);
         } finally {
             is.close();
         }
+    }
+
+    private static void copy0(InputStream is, OutputStream os) throws IOException {
+        final byte[] buffer = new byte[1024];
+        for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
+            os.write(buffer, 0, bytesRead);
     }
 }

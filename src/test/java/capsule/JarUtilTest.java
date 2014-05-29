@@ -76,13 +76,13 @@ public class JarUtilTest {
 
             // update
             JarFile jar = new JarFile(jarPath.toFile());
-            
+
             Manifest man1 = new Manifest(man);
             man1.getMainAttributes().putValue("Baz", "hi!");
-            
-            jos = JarUtil.updateJarFile(jar, man1, new ByteArrayOutputStream());
+
+            jos = JarUtil.updateJar(jar, man1, new ByteArrayOutputStream());
             JarUtil.addEntry(jos, Paths.get("dir", "baz.txt"), JarUtil.toInputStream("And I am baz!\n", UTF8));
-            
+
             // test
             printEntries(toInput(jos));
 
@@ -96,6 +96,39 @@ public class JarUtilTest {
         } finally {
             Files.delete(jarPath);
         }
+    }
+
+    @Test
+    public void testUpdateJar2() throws Exception {
+        // create
+        Manifest man = new Manifest();
+        Attributes attr = man.getMainAttributes();
+        attr.putValue("Manifest-Version", "1.0"); // necessary, otherwise the manifest won't be written to the jar
+        attr.putValue("Foo", "1234");
+        attr.putValue("Bar", "5678");
+
+        JarOutputStream jos = new JarOutputStream(new ByteArrayOutputStream(), man);
+        JarUtil.addEntry(jos, Paths.get("foo.txt"), JarUtil.toInputStream("I am foo!\n", UTF8));
+        JarUtil.addEntry(jos, Paths.get("dir", "bar.txt"), JarUtil.toInputStream("I am bar!\n", UTF8));
+        jos.close();
+
+        // update
+        Manifest man1 = new Manifest(man);
+        man1.getMainAttributes().putValue("Baz", "hi!");
+
+        jos = JarUtil.updateJar(toInput(jos), man1, new ByteArrayOutputStream());
+        JarUtil.addEntry(jos, Paths.get("dir", "baz.txt"), JarUtil.toInputStream("And I am baz!\n", UTF8));
+
+        // test
+        printEntries(toInput(jos));
+
+        assertEquals("I am foo!\n", getEntryAsString(toInput(jos), Paths.get("foo.txt"), UTF8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(jos), Paths.get("dir", "bar.txt"), UTF8));
+        assertEquals("And I am baz!\n", getEntryAsString(toInput(jos), Paths.get("dir", "baz.txt"), UTF8));
+        Manifest man2 = toInput(jos).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+        assertEquals("5678", man2.getMainAttributes().getValue("Bar"));
+        assertEquals("hi!", man2.getMainAttributes().getValue("Baz"));
     }
 
     private static JarInputStream toInput(JarOutputStream jos) {
@@ -152,9 +185,9 @@ public class JarUtilTest {
 
     private static void printEntries(JarInputStream jar) throws IOException {
         JarEntry je;
-        while ((je = jar.getNextJarEntry()) != null) {
+        while ((je = jar.getNextJarEntry()) != null)
             System.out.println(je.getName());
-        }
+        System.out.println();
     }
 
     private static void copy(InputStream is, OutputStream os) throws IOException {

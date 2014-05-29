@@ -18,29 +18,50 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
-/**
- *
- * @author pron
- */
 public class Jar {
     private final ByteArrayOutputStream baos;
     private final Manifest manifest;
     private final JarFile jar;
+    private final JarInputStream jis;
     private JarOutputStream jos;
 
-    public Jar(JarFile jar, Manifest manifest) {
-        try {
-            this.baos = new ByteArrayOutputStream();
-            this.jar = jar;
-            this.manifest = manifest != null ? manifest : new Manifest(jar.getManifest());
-            if (this.manifest == null)
-                throw new NullPointerException();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public Jar(Manifest manifest) {
+        this.baos = new ByteArrayOutputStream();
+        this.jar = null;
+        this.jis = null;
+        this.manifest = manifest;
+        if (this.manifest == null)
+            throw new NullPointerException();
+    }
+
+    public Jar(InputStream jar, Manifest manifest) throws IOException {
+        this.baos = new ByteArrayOutputStream();
+        this.jar = null;
+        this.jis = jar instanceof JarInputStream ? (JarInputStream) jar : new JarInputStream(jar);
+        this.manifest = manifest != null ? manifest : new Manifest(jis.getManifest());
+        if (this.manifest == null)
+            throw new NullPointerException();
+    }
+
+    public Jar(JarFile jar, Manifest manifest) throws IOException {
+        this.baos = new ByteArrayOutputStream();
+        this.jar = jar;
+        this.jis = null;
+        this.manifest = manifest != null ? manifest : new Manifest(jar.getManifest());
+        if (this.manifest == null)
+            throw new NullPointerException();
+    }
+
+    public Jar() {
+        this(new Manifest());
+    }
+
+    public Jar(InputStream jar) throws IOException {
+        this(jar, null);
     }
 
     public Jar(Path jar, Manifest manifest) throws IOException {
@@ -49,14 +70,6 @@ public class Jar {
 
     public Jar(String jar, Manifest manifest) throws IOException {
         this(new JarFile(jar), manifest);
-    }
-
-    public Jar() {
-        this((JarFile) null, new Manifest());
-    }
-
-    public Jar(Manifest manifest) {
-        this((JarFile) null, manifest);
     }
 
     public Jar(JarFile jar) throws IOException {
@@ -75,17 +88,28 @@ public class Jar {
         return manifest;
     }
 
+    public Jar setAttribute(String name, String value) {
+        getManifest().getMainAttributes().putValue(name, value);
+        return this;
+    }
+    
+    public Jar setAttribute(String section, String name, String value) {
+        getManifest().getAttributes(section).putValue(name, value);
+        return this;
+    }
+    
     private void beginWriting() throws IOException {
         if (jos != null)
             return;
         if (jar != null)
-            jos = JarUtil.updateJarFile(jar, manifest, baos);
+            jos = JarUtil.updateJar(jar, manifest, baos);
+        else if (jis != null)
+            jos = JarUtil.updateJar(jis, manifest, baos);
         else
             jos = new JarOutputStream(baos, manifest);
     }
 
     public Jar addEntry(Path path, InputStream is) throws IOException {
-        beginWriting();
         return addEntry(path.toString(), is);
     }
 
@@ -95,20 +119,23 @@ public class Jar {
         return this;
     }
 
-    public void write(OutputStream os) throws IOException {
+    public <T extends OutputStream> T write(T os) throws IOException {
         beginWriting();
         jos.close();
 
         os.write(baos.toByteArray());
         os.close();
+        return os;
     }
 
-    public void write(File file) throws IOException {
+    public File write(File file) throws IOException {
         write(new FileOutputStream(file));
+        return file;
     }
 
-    public void write(Path path) throws IOException {
+    public Path write(Path path) throws IOException {
         write(Files.newOutputStream(path));
+        return path;
     }
 
     public void write(String file) throws IOException {
