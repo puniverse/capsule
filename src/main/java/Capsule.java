@@ -247,19 +247,14 @@ public final class Capsule implements Runnable {
         if (appCache != null && !cacheUpToDate)
             markCache();
 
+        Runtime.getRuntime().addShutdownHook(new Thread(this));
+        
         if (!isInheritIoBug())
             pb.inheritIO();
         this.child = pb.start();
-
-        if (isNonInteractiveProcess() && !isInheritIoBug()) {
-            System.exit(0);
-        } else {
-            Runtime.getRuntime().addShutdownHook(new Thread(this));
-            if (isInheritIoBug())
-                pipeIoStreams();
-            // registerSignals();
-            System.exit(child.waitFor());
-        }
+        if (isInheritIoBug())
+            pipeIoStreams();
+        System.exit(child.waitFor());
     }
 
     private void printVersion() {
