@@ -86,12 +86,6 @@ public final class Capsule implements Runnable {
     private static final String PROP_JAVA_SECURITY_MANAGER = "java.security.manager";
 
     private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
-    private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
-    private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
-
-    private static final String PROP_CAPSULE_JAR = "capsule.jar";
-    private static final String PROP_CAPSULE_DIR = "capsule.dir";
-    private static final String PROP_CAPSULE_APP = "capsule.app";
 
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
@@ -123,21 +117,30 @@ public final class Capsule implements Runnable {
     private static final String ATTR_NATIVE_DEPENDENCIES_LINUX = "Native-Dependencies-Linux";
     private static final String ATTR_NATIVE_DEPENDENCIES_WIN = "Native-Dependencies-Win";
     private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
-
     private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
 
+    // outgoing
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
     private static final String VAR_JAVA_HOME = "JAVA_HOME";
 
+    private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
+    private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
+
+    private static final String PROP_CAPSULE_JAR = "capsule.jar";
+    private static final String PROP_CAPSULE_DIR = "capsule.dir";
+    private static final String PROP_CAPSULE_APP = "capsule.app";
+
+    // misc
     private static final String CACHE_DEFAULT_NAME = "capsule";
     private static final String DEPS_CACHE_NAME = "deps";
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
-    private static final Path LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
+    private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
 
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final Path cacheDir = getCacheDir();
@@ -203,10 +206,6 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private static boolean isNonInteractiveProcess() {
-        return System.console() == null || System.console().reader() == null;
-    }
-
     protected Capsule(JarFile jar, String[] args) {
         this.jar = jar;
         try {
@@ -248,7 +247,7 @@ public final class Capsule implements Runnable {
             markCache();
 
         Runtime.getRuntime().addShutdownHook(new Thread(this));
-        
+
         if (!isInheritIoBug())
             pb.inheritIO();
         this.child = pb.start();
@@ -1314,7 +1313,7 @@ public final class Capsule implements Runnable {
             final String local = expandCommandLinePath(System.getProperty(PROP_USE_LOCAL_REPO));
             Path localRepo = depsCache;
             if (local != null)
-                localRepo = !local.isEmpty() ? Paths.get(local) : LOCAL_MAVEN;
+                localRepo = !local.isEmpty() ? Paths.get(local) : DEFAULT_LOCAL_MAVEN;
             debug("Local repo: " + localRepo);
 
             final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
