@@ -15,6 +15,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
@@ -184,7 +186,7 @@ public class DependencyManager {
         return new RemoteRepository.Builder(name, "default", url).setPolicy(policy).build();
     }
 
-    private static Dependency toDependency(String coords, String type) {
+    static Dependency toDependency(String coords, String type) {
         return new Dependency(coordsToArtifact(coords, type), JavaScopes.RUNTIME, false, getExclusions(coords));
     }
 
@@ -199,62 +201,44 @@ public class DependencyManager {
         return deps;
     }
 
-    private static Artifact coordsToArtifact(final String coordsString0, String type) {
-        String coordsString;
-
-        int parenIndex = coordsString0.indexOf('(');
-        if (parenIndex >= 0)
-            coordsString = coordsString0.substring(0, parenIndex);
-        else
-            coordsString = coordsString0;
-
-        if (coordsString.indexOf(':') == coordsString.lastIndexOf(':'))
-            coordsString = coordsString + ":[0,)";
-
-        String[] coords = coordsString.split(":");
-        if (coords.length > 4 || coords.length < 3)
-            throw new IllegalArgumentException("Illegal dependency coordinates: " + coordsString0);
-        final String groupId = coords[0];
-        final String artifactId = coords[1];
-        final String version = coords[2];
-        final String classifier = coords.length > 3 ? coords[3] : null;
-        return new DefaultArtifact(groupId, artifactId, classifier, type, version);
-    }
-
     private static String artifactToCoords(Artifact artifact) {
         if (artifact == null)
             return null;
         return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
     }
 
-    private static Collection<Exclusion> getExclusions(String coordsString) {
-        final List<String> exclusionPatterns = getExclusionPatterns(coordsString);
-        if (exclusionPatterns == null)
-            return null;
-        final List<Exclusion> exclusions = new ArrayList<Exclusion>();
-        for (String ex : exclusionPatterns) {
-            String[] coords = ex.split(":");
-            if (coords.length != 2)
-                throw new IllegalArgumentException("Illegal dependency coordinates: " + coordsString + " (in exclusion " + ex + ")");
-            exclusions.add(new Exclusion(coords[0], coords[1], "*", "*"));
-        }
-        return exclusions;
+    private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
+
+    static Artifact coordsToArtifact(final String depString, String type) {
+        final Matcher m = PAT_DEPENDENCY.matcher(depString);
+        if (!m.matches())
+            throw new IllegalArgumentException("Could not parse dependency: " + depString);
+
+        final String groupId = m.group("groupId");
+        final String artifactId = m.group("artifactId");
+        String version = m.group("version");
+        if (version == null || version.isEmpty())
+            version = "[0,)";
+        final String classifier = m.group("classifier");
+        return new DefaultArtifact(groupId, artifactId, classifier, type, version);
     }
 
-    private static List<String> getExclusionPatterns(String coordsString) {
-        final int leftParenIndex = coordsString.indexOf('(');
-        if (leftParenIndex < 0)
+    static Collection<Exclusion> getExclusions(String depString) {
+        final Matcher m = PAT_DEPENDENCY.matcher(depString);
+        if (!m.matches())
+            throw new IllegalArgumentException("Could not parse dependency: " + depString);
+
+        if(m.group("exclusions") == null || m.group("exclusions").isEmpty())
             return null;
-        if (coordsString.lastIndexOf('(') != leftParenIndex)
-            throw new IllegalArgumentException("Illegal dependency coordinates: " + coordsString);
-
-        int rightParenIndex = coordsString.indexOf(')');
-        if (rightParenIndex < 0)
-            throw new IllegalArgumentException("Illegal dependency coordinates: " + coordsString);
-        if (coordsString.lastIndexOf(')') != rightParenIndex)
-            throw new IllegalArgumentException("Illegal dependency coordinates: " + coordsString);
-
-        final List<String> exclusions = Arrays.asList(coordsString.substring(leftParenIndex + 1, rightParenIndex).split(","));
+        
+        final List<String> exclusionPatterns = Arrays.asList(m.group("exclusions").split(","));
+        final List<Exclusion> exclusions = new ArrayList<Exclusion>();
+        for (String ex : exclusionPatterns) {
+            String[] coords = ex.trim().split(":");
+            if (coords.length != 2)
+                throw new IllegalArgumentException("Illegal exclusion dependency coordinates: " + depString + " (in exclusion " + ex + ")");
+            exclusions.add(new Exclusion(coords[0], coords[1], "*", "*"));
+        }
         return exclusions;
     }
 }
