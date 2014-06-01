@@ -28,65 +28,40 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
 public class Jar {
-    private final ByteArrayOutputStream baos;
+    private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private final Manifest manifest;
     private final JarFile jar;
     private final JarInputStream jis;
     private JarOutputStream jos;
 
-    public Jar(Manifest manifest) {
-        this.baos = new ByteArrayOutputStream();
-        this.jar = null;
-        this.jis = null;
-        this.manifest = manifest;
-        if (this.manifest == null)
-            throw new NullPointerException();
-    }
-
-    public Jar(InputStream jar, Manifest manifest) throws IOException {
-        this.baos = new ByteArrayOutputStream();
-        this.jar = null;
-        this.jis = jar instanceof JarInputStream ? (JarInputStream) jar : new JarInputStream(jar);
-        this.manifest = manifest != null ? manifest : new Manifest(jis.getManifest());
-        if (this.manifest == null)
-            throw new NullPointerException();
-    }
-
-    public Jar(JarFile jar, Manifest manifest) throws IOException {
-        this.baos = new ByteArrayOutputStream();
-        this.jar = jar;
-        this.jis = null;
-        this.manifest = manifest != null ? manifest : new Manifest(jar.getManifest());
-        if (this.manifest == null)
-            throw new NullPointerException();
-    }
-
     public Jar() {
-        this(new Manifest());
+        this.jar = null;
+        this.jis = null;
+        this.manifest = new Manifest();
     }
 
     public Jar(InputStream jar) throws IOException {
-        this(jar, null);
-    }
-
-    public Jar(Path jar, Manifest manifest) throws IOException {
-        this(new JarFile(jar.toFile()), manifest);
-    }
-
-    public Jar(String jar, Manifest manifest) throws IOException {
-        this(new JarFile(jar), manifest);
+        this.jar = null;
+        this.jis = jar instanceof JarInputStream ? (JarInputStream) jar : new JarInputStream(jar);
+        this.manifest = new Manifest(jis.getManifest());
     }
 
     public Jar(JarFile jar) throws IOException {
-        this(jar, null);
+        this.jar = jar;
+        this.jis = null;
+        this.manifest = new Manifest(jar.getManifest());
     }
 
     public Jar(Path jar) throws IOException {
-        this(jar, null);
+        this(new JarFile(jar.toFile()));
+    }
+
+    public Jar(File jar) throws IOException {
+        this(new JarFile(jar));
     }
 
     public Jar(String jar) throws IOException {
-        this(jar, null);
+        this(new JarFile(jar));
     }
 
     public Manifest getManifest() {
