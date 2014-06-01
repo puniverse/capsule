@@ -37,6 +37,24 @@ public class JarTest {
     private static final Charset UTF8 = Charset.forName("UTF-8");
 
     @Test
+    public void testCreateJar() throws Exception {
+        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+                    .setAttribute("Foo", "1234")
+                    .setAttribute("Bar", "5678")
+                    .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                    .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                    .write(new ByteArrayOutputStream());
+
+        printEntries(toInput(res));
+
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+        assertEquals("5678", man2.getMainAttributes().getValue("Bar"));
+    }
+
+    @Test
     public void testUpdateJar() throws Exception {
         Path jarPath = Files.createTempFile("temp", ".jar");
         try {
@@ -44,15 +62,15 @@ public class JarTest {
             new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
                     .setAttribute("Foo", "1234")
                     .setAttribute("Bar", "5678")
-                    .addEntry(Paths.get("foo.txt"), JarUtil.toInputStream("I am foo!\n", UTF8))
-                    .addEntry(Paths.get("dir", "bar.txt"), JarUtil.toInputStream("I am bar!\n", UTF8))
+                    .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                    .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                     .write(jarPath);
 
             // update
             ByteArrayOutputStream res = new Jar(jarPath)
                     .setAttribute("Baz", "hi!")
                     .setAttribute("Bar", "8765")
-                    .addEntry(Paths.get("dir", "baz.txt"), JarUtil.toInputStream("And I am baz!\n", UTF8))
+                    .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF8))
                     .write(new ByteArrayOutputStream());
 
             // test
@@ -77,15 +95,15 @@ public class JarTest {
                 .setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
                 .setAttribute("Foo", "1234")
                 .setAttribute("Bar", "5678")
-                .addEntry(Paths.get("foo.txt"), JarUtil.toInputStream("I am foo!\n", UTF8))
-                .addEntry(Paths.get("dir", "bar.txt"), JarUtil.toInputStream("I am bar!\n", UTF8))
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                 .write(new ByteArrayOutputStream());
 
         // update
         ByteArrayOutputStream res = new Jar(toInput(baos))
                 .setAttribute("Baz", "hi!")
                 .setAttribute("Bar", "8765")
-                .addEntry(Paths.get("dir", "baz.txt"), JarUtil.toInputStream("And I am baz!\n", UTF8))
+                .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF8))
                 .write(new ByteArrayOutputStream());
 
         // test

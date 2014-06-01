@@ -24,7 +24,6 @@ if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePa
     ext.sonatypePassword = ""
 }
 
-// In this section you declare where to find the dependencies of your project
 repositories {
     mavenCentral()
 }
@@ -34,7 +33,6 @@ configurations {
     all*.exclude group: 'commons-codec', module: '*'
 }
 
-// In this section you declare the dependencies for your production and test code
 dependencies {
     // compile 'io.takari.aether:takari-local-repository:0.10.3'
     compile 'org.eclipse.aether:aether-api:0.9.0.M4'
