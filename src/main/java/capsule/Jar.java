@@ -20,13 +20,19 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
+/**
+ * A JAR file that can be easily modified.
+ */
 public class Jar {
     private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private final Manifest manifest;
@@ -34,41 +40,78 @@ public class Jar {
     private final JarInputStream jis;
     private JarOutputStream jos;
 
+    /**
+     * Creates a new, empty, JAR
+     */
     public Jar() {
         this.jar = null;
         this.jis = null;
         this.manifest = new Manifest();
     }
 
+    /**
+     * Reads in the JAR from the given {@code InputStream}.
+     * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
+     */
     public Jar(InputStream jar) throws IOException {
         this.jar = null;
         this.jis = jar instanceof JarInputStream ? (JarInputStream) jar : new JarInputStream(jar);
         this.manifest = new Manifest(jis.getManifest());
     }
 
+    /**
+     * Reads in the JAR from the given {@code JarFile}.
+     * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
+     */
     public Jar(JarFile jar) throws IOException {
         this.jar = jar;
         this.jis = null;
         this.manifest = new Manifest(jar.getManifest());
     }
 
+    /**
+     * Reads in the JAR from the given {@code Path}.
+     * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
+     */
     public Jar(Path jar) throws IOException {
         this(new JarFile(jar.toFile()));
     }
 
+    /**
+     * Reads in the JAR from the given {@code File}.
+     * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
+     */
     public Jar(File jar) throws IOException {
         this(new JarFile(jar));
     }
 
+    /**
+     * Reads in the JAR from the given path.
+     * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
+     */
     public Jar(String jar) throws IOException {
         this(new JarFile(jar));
     }
 
+    /**
+     * Returns the manifest of this JAR. Modifications to the manifest will be reflected in the written JAR, provided they are done
+     * before any entries are added with {@code addEntry()}.
+     */
     public Manifest getManifest() {
         return manifest;
     }
 
+    /**
+     * Sets an attribute in the main section of the manifest.
+     *
+     * @param name  the attribute's name
+     * @param value the attribute's value
+     * @return {@code this}
+     * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
+     */
     public Jar setAttribute(String name, String value) {
+        if (jos != null)
+            throw new IllegalStateException("Manifest cannot be modified after entries are added or the JAR is written");
         getManifest().getMainAttributes().putValue(name, value);
         return this;
     }
@@ -76,6 +119,75 @@ public class Jar {
     public Jar setAttribute(String section, String name, String value) {
         getManifest().getAttributes(section).putValue(name, value);
         return this;
+    }
+
+    /**
+     * Sets an attribute in the main section of the manifest to a list.
+     * The list elements will be joined with a single whitespace character.
+     *
+     * @param name   the attribute's name
+     * @param values the attribute's value
+     * @return {@code this}
+     * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
+     */
+    public Jar setListAttribute(String name, List<String> values) {
+        return setAttribute(name, join(values));
+    }
+
+    /**
+     * Sets an attribute in a non-main section of the manifest to a list.
+     * The list elements will be joined with a single whitespace character.
+     *
+     * @param section the section's name
+     * @param name    the attribute's name
+     * @param values  the attribute's value
+     * @return {@code this}
+     * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
+     */
+    public Jar setListAttribute(String section, String name, List<String> values) {
+        return setAttribute(name, section, join(values));
+    }
+
+    /**
+     * Returns an attribute's value from this JAR's manifest's main section.
+     *
+     * @param name the attribute's name
+     */
+    public String getAttribute(String name) {
+        return getManifest().getMainAttributes().getValue(name);
+    }
+
+    /**
+     * Returns an attribute's value from a non-main section of this JAR's manifest.
+     *
+     * @param section the manifest's section
+     * @param name    the attribute's name
+     */
+    public String getAttribute(String section, String name) {
+        return getManifest().getAttributes(section).getValue(name);
+    }
+
+    /**
+     * Returns an attribute's list value from this JAR's manifest's main section.
+     * The attributes string value will be split on whitespace into the returned list.
+     * The returned list may be safely modified.
+     *
+     * @param name the attribute's name
+     */
+    public List<String> getListAttribute(String name) {
+        return split(getAttribute(name));
+    }
+
+    /**
+     * Returns an attribute's list value from a non-main section of this JAR's manifest.
+     * The attributes string value will be split on whitespace into the returned list.
+     * The returned list may be safely modified.
+     *
+     * @param section the manifest's section
+     * @param name    the attribute's name
+     */
+    public List<String> getListAttribute(String section, String name) {
+        return split(getAttribute(section, name));
     }
 
     private void beginWriting() throws IOException {
@@ -89,32 +201,77 @@ public class Jar {
             jos = new JarOutputStream(baos, manifest);
     }
 
+    /**
+     * Adds an entry to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param is   the entry's content
+     * @return {@code this}
+     */
     public Jar addEntry(Path path, InputStream is) throws IOException {
         return addEntry(path.toString(), is);
     }
 
+    /**
+     * Adds an entry to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param file the file to add as an entry
+     * @return {@code this}
+     */
     public Jar addEntry(Path path, Path file) throws IOException {
         return addEntry(path, Files.newInputStream(file));
     }
 
+    /**
+     * Adds an entry to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param file the path of the file to add as an entry
+     * @return {@code this}
+     */
     public Jar addEntry(Path path, String file) throws IOException {
         return addEntry(path, Paths.get(file));
     }
 
+    /**
+     * Adds an entry to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param is   the entry's content
+     * @return {@code this}
+     */
     public Jar addEntry(String path, InputStream is) throws IOException {
         beginWriting();
         addEntry(jos, path, is);
         return this;
     }
 
+    /**
+     * Adds an entry to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param file the file to add as an entry
+     * @return {@code this}
+     */
     public Jar addEntry(String path, File file) throws IOException {
         return addEntry(path, new FileInputStream(file));
     }
 
+    /**
+     * Adds an entry to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param file the path of the file to add as an entry
+     * @return {@code this}
+     */
     public Jar addEntry(String path, String file) throws IOException {
         return addEntry(path, new FileInputStream(file));
     }
 
+    /**
+     * Writes this JAR to an output stream.
+     */
     public <T extends OutputStream> T write(T os) throws IOException {
         beginWriting();
         jos.close();
@@ -124,16 +281,25 @@ public class Jar {
         return os;
     }
 
+    /**
+     * Writes this JAR to a file.
+     */
     public File write(File file) throws IOException {
         write(new FileOutputStream(file));
         return file;
     }
 
+    /**
+     * Writes this JAR to a file.
+     */
     public Path write(Path path) throws IOException {
         write(Files.newOutputStream(path));
         return path;
     }
 
+    /**
+     * Writes this JAR to a file.
+     */
     public void write(String file) throws IOException {
         write(Paths.get(file));
     }
@@ -187,7 +353,38 @@ public class Jar {
             os.write(buffer, 0, bytesRead);
     }
 
+    /**
+     * Turns a {@code String} into an {@code InputStream} containing the string's encoded characters.
+     *
+     * @param str     the string
+     * @param charset the {@link Charset} to use when encoding the string.
+     * @return an {@link InputStream} containing the string's encoded characters.
+     */
     public static InputStream toInputStream(String str, Charset charset) {
         return new ByteArrayInputStream(str.getBytes(charset));
+    }
+
+    private static String join(List<String> list, String separator) {
+        if (list == null)
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for (String element : list)
+            sb.append(element).append(separator);
+        sb.delete(sb.length() - separator.length(), sb.length());
+        return sb.toString();
+    }
+
+    private static String join(List<String> list) {
+        return join(list, " ");
+    }
+
+    private static List<String> split(String list, String separator) {
+        if (list == null)
+            return null;
+        return new ArrayList<String>(Arrays.asList(list.split(separator)));
+    }
+
+    private static List<String> split(String list) {
+        return split(list, " ");
     }
 }

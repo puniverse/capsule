@@ -19,7 +19,9 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -62,14 +64,17 @@ public class JarTest {
             new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
                     .setAttribute("Foo", "1234")
                     .setAttribute("Bar", "5678")
+                    .setListAttribute("List", Arrays.asList("a", "b"))
                     .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
                     .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                     .write(jarPath);
 
             // update
-            ByteArrayOutputStream res = new Jar(jarPath)
+            Jar jar = new Jar(jarPath);
+            ByteArrayOutputStream res = jar
                     .setAttribute("Baz", "hi!")
                     .setAttribute("Bar", "8765")
+                    .setListAttribute("List", addLast(addFirst(jar.getListAttribute("List"), "0"), "c"))
                     .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF8))
                     .write(new ByteArrayOutputStream());
 
@@ -83,6 +88,7 @@ public class JarTest {
             assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
             assertEquals("8765", man2.getMainAttributes().getValue("Bar"));
             assertEquals("hi!", man2.getMainAttributes().getValue("Baz"));
+            assertEquals(Arrays.asList("0", "a", "b", "c"), new Jar(toInput(res)).getListAttribute("List"));
         } finally {
             Files.delete(jarPath);
         }
@@ -138,6 +144,16 @@ public class JarTest {
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+    
+    private static <T> List<T> addLast(List<T> list, T value) {
+        list.add(value);
+        return list;
+    }
+
+    private static <T> List<T> addFirst(List<T> list, T value) {
+        list.add(0, value);
+        return list;
     }
 
     private static String getEntryAsString(JarInputStream jar, Path entry, Charset charset) throws IOException {
