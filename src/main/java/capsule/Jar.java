@@ -208,6 +208,19 @@ public class Jar {
      * @param is   the entry's content
      * @return {@code this}
      */
+    public Jar addEntry(String path, InputStream is) throws IOException {
+        beginWriting();
+        addEntry(jos, path, is);
+        return this;
+    }
+
+    /**
+     * Adds an entry to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param is   the entry's content
+     * @return {@code this}
+     */
     public Jar addEntry(Path path, InputStream is) throws IOException {
         return addEntry(path.toString(), is);
     }
@@ -232,19 +245,6 @@ public class Jar {
      */
     public Jar addEntry(Path path, String file) throws IOException {
         return addEntry(path, Paths.get(file));
-    }
-
-    /**
-     * Adds an entry to this JAR.
-     *
-     * @param path the entry's path within the JAR
-     * @param is   the entry's content
-     * @return {@code this}
-     */
-    public Jar addEntry(String path, InputStream is) throws IOException {
-        beginWriting();
-        addEntry(jos, path, is);
-        return this;
     }
 
     /**
