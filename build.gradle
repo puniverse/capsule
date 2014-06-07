@@ -6,7 +6,7 @@ targetCompatibility = '1.7'
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 group               = "co.paralleluniverse"
-version             = "0.5.0"
+version             = "0.6.0-SNAPSHOT"
 status              = "integration"
 description         = "Simple Java deployment"
 ext.url             = "https://github.com/puniverse/capsule"
