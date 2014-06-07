@@ -50,7 +50,7 @@ import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class Capsule implements Runnable {
+public class Capsule implements Runnable {
     /*
      * This class contains several strange hacks to avoid creating more classes. 
      * We'd like this file to compile to a single .class file.
@@ -136,6 +136,7 @@ public final class Capsule implements Runnable {
     private static final String DEPS_CACHE_NAME = "deps";
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
+    private static final String CUSTOM_CAPSULE_CLASS_NAME = "CustomCapsule";
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
@@ -162,7 +163,7 @@ public final class Capsule implements Runnable {
      * @param args the program's command-line arguments
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
-    public static void main(String[] args) {
+    public static final void main(String[] args) {
         try {
             final Capsule capsule = newCapsule(getJarFile(), args);
 
@@ -193,7 +194,7 @@ public final class Capsule implements Runnable {
 
     private static Capsule newCapsule(JarFile jar, String[] args) {
         try {
-            final Class<?> clazz = Class.forName("CustomCapsule");
+            final Class<?> clazz = Class.forName(CUSTOM_CAPSULE_CLASS_NAME);
             try {
                 Constructor<?> ctor = clazz.getConstructor(JarFile.class, String[].class);
                 ctor.setAccessible(true);
@@ -302,7 +303,7 @@ public final class Capsule implements Runnable {
     }
 
     @Override
-    public void run() {
+    public final void run() {
         if (isInheritIoBug()) {
             switch (Thread.currentThread().getName()) {
                 case "pipe-out":
@@ -1220,7 +1221,7 @@ public final class Capsule implements Runnable {
         }
     }
 
-    private String getJavaProcessName(String javaHome) {
+    private static String getJavaProcessName(String javaHome) {
         if (javaHome == null)
             javaHome = System.getProperty(PROP_JAVA_HOME);
 
@@ -1228,19 +1229,19 @@ public final class Capsule implements Runnable {
         return javaProcessName;
     }
 
-    protected static boolean isWindows() {
+    protected static final boolean isWindows() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
 
-    protected static boolean isMac() {
+    protected static final boolean isMac() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("mac");
     }
 
-    protected static boolean isLinux() {
+    protected static final boolean isLinux() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux");
     }
 
-    private static boolean isDependency(String lib) {
+    private static final boolean isDependency(String lib) {
         return lib.contains(":");
     }
 
@@ -1533,7 +1534,7 @@ public final class Capsule implements Runnable {
         return vs[0] + "." + vs[1];
     }
 
-    static int compareVersions(String a, String b) {
+    static final int compareVersions(String a, String b) {
         return compareVersions(parseJavaVersion(a), parseJavaVersion(b));
     }
 
