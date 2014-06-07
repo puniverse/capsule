@@ -1527,6 +1527,29 @@ public class Capsule implements Runnable {
         return false;
     }
 
+    private static final Pattern PAT_JAVA_VERSION_LINE = Pattern.compile(".*?\"(.+?)\"");
+
+    private static int[] getJavaProcessVersion(String javaHome) {
+        try {
+            final ProcessBuilder pb = new ProcessBuilder(getJavaProcessName(javaHome), "-version");
+            if (javaHome != null)
+                pb.environment().put("JAVA_HOME", javaHome);
+            final Process p = pb.start();
+            final String version;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
+                final String versionLine = reader.readLine();
+                final Matcher m = PAT_JAVA_VERSION_LINE.matcher(versionLine);
+                if (!m.matches())
+                    throw new IllegalArgumentException("Could not parse version line: " + versionLine);
+                version = m.group(1);
+            }
+            // p.waitFor();
+            return parseJavaVersion(version);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static String majorJavaVersion(String v) {
         final String[] vs = v.split("\\.");
         if (vs.length == 1)
