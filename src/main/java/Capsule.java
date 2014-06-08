@@ -136,6 +136,7 @@ public class Capsule implements Runnable {
     private static final String DEPS_CACHE_NAME = "deps";
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
+    private static final String DOT = "\\.";
     private static final String CUSTOM_CAPSULE_CLASS_NAME = "CustomCapsule";
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
@@ -182,7 +183,9 @@ public class Capsule implements Runnable {
                 return;
             }
 
-            capsule.launch(args);
+            final Process p = capsule.launch(args);
+            if (p != null)
+                System.exit(p.waitFor());
         } catch (Throwable t) {
             System.err.println("CAPSULE EXCEPTION: " + t.getMessage()
                     + (!verbose ? " (for stack trace, run with -D" + PROP_LOG + "=verbose)" : ""));
@@ -234,9 +237,10 @@ public class Capsule implements Runnable {
                 || getNativeDependencies() != null;
     }
 
-    private void launch(String[] args) throws IOException, InterruptedException {
-        if (launchCapsule(args))
-            return;
+    private Process launch(String[] args) throws IOException, InterruptedException {
+        final Process cp = launchCapsule(args);
+        if (cp != null)
+            return cp;
 
         verbose("Launching app " + appId);
 
@@ -254,7 +258,7 @@ public class Capsule implements Runnable {
         this.child = pb.start();
         if (isInheritIoBug())
             pipeIoStreams();
-        System.exit(child.waitFor());
+        return child;
     }
 
     private void printVersion() {
@@ -271,7 +275,7 @@ public class Capsule implements Runnable {
             for (Map.Entry<String, Path> j : jres.entrySet())
                 System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
         }
-        System.out.println("CAPSULE: selected " + javaHome);
+        System.out.println("CAPSULE: selected " + (javaHome != null ? javaHome : (System.getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
     private void resolve(String[] args) throws IOException, InterruptedException {
@@ -358,18 +362,17 @@ public class Capsule implements Runnable {
         }
     }
 
-    private boolean launchCapsule(String[] args) {
+    private Process launchCapsule(String[] args) {
         if (getScript() == null) {
             String appArtifact = getAppArtifact(args);
             if (appArtifact != null) {
                 try {
                     final List<Path> jars = resolveAppArtifact(appArtifact);
                     if (jars == null)
-                        return false;
+                        return null;
                     if (isCapsule(jars.get(0))) {
                         verbose("Running capsule " + jars.get(0));
-                        runCapsule(jars.get(0), isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
-                        return true;
+                        return launchCapsule(jars.get(0), isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
                     } else if (isEmptyCapsule())
                         throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
                 } catch (RuntimeException e) {
@@ -440,7 +443,7 @@ public class Capsule implements Runnable {
 
         final List<String> command = pb.command();
 
-        command.add(getJavaProcessName(javaHome));
+        command.add(getJavaProcessName());
 
         command.addAll(buildJVMArgs(cmdLine));
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
@@ -1221,12 +1224,14 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static String getJavaProcessName(String javaHome) {
-        if (javaHome == null)
-            javaHome = System.getProperty(PROP_JAVA_HOME);
+    private String getJavaProcessName() {
+        final String javaHome1 = javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME);
+        verbose("Using JVM: " + javaHome1 + (javaHome == null ? " (current)" : ""));
+        return getJavaProcessName(javaHome1);
+    }
 
-        final String javaProcessName = javaHome + FILE_SEPARATOR + "bin" + FILE_SEPARATOR + "java" + (isWindows() ? ".exe" : "");
-        return javaProcessName;
+    private static String getJavaProcessName(String javaHome) {
+        return javaHome + FILE_SEPARATOR + "bin" + FILE_SEPARATOR + "java" + (isWindows() ? ".exe" : "");
     }
 
     protected static final boolean isWindows() {
@@ -1241,7 +1246,7 @@ public class Capsule implements Runnable {
         return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux");
     }
 
-    private static final boolean isDependency(String lib) {
+    private static boolean isDependency(String lib) {
         return lib.contains(":");
     }
 
@@ -1472,28 +1477,13 @@ public class Capsule implements Runnable {
                 fileName = fileName.substring(3);
             if (fileName.endsWith(".jdk") || fileName.endsWith(".jre"))
                 fileName = fileName.substring(0, fileName.length() - 4);
-            return javaVersion(fileName);
+            return shortJavaVersion(fileName);
         } else
             return null;
     }
 
     private static boolean isJDK(String filename) {
         return filename.toLowerCase().contains("jdk");
-    }
-
-    private static String javaVersion(String ver) {
-        try {
-            String[] comps = ver.split("\\.");
-            if (Integer.parseInt(comps[0]) > 1) {
-                if (comps.length == 1)
-                    return "1." + ver + ".0";
-                else
-                    return "1." + ver;
-            }
-            return ver;
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     private static File searchJavaHomeInDir(File dir) {
@@ -1529,7 +1519,7 @@ public class Capsule implements Runnable {
 
     private static final Pattern PAT_JAVA_VERSION_LINE = Pattern.compile(".*?\"(.+?)\"");
 
-    private static int[] getJavaProcessVersion(String javaHome) {
+    private static String getActualJavaVersion(String javaHome) {
         try {
             final ProcessBuilder pb = new ProcessBuilder(getJavaProcessName(javaHome), "-version");
             if (javaHome != null)
@@ -1544,17 +1534,31 @@ public class Capsule implements Runnable {
                 version = m.group(1);
             }
             // p.waitFor();
-            return parseJavaVersion(version);
+            return version;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static String majorJavaVersion(String v) {
-        final String[] vs = v.split("\\.");
-        if (vs.length == 1)
-            return "1." + v;
-        return vs[0] + "." + vs[1];
+    // visible for testing
+    static String shortJavaVersion(String v) {
+        try {
+            final String[] vs = v.split(DOT);
+            if (vs.length == 1) {
+                if (Integer.parseInt(vs[0]) < 5)
+                    throw new RuntimeException("Unrecognized major Java version: " + v);
+                v = "1." + v + ".0";
+            }
+            if (vs.length == 2)
+                v += ".0";
+            return v;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    static final int compareVersions(String a, String b, int n) {
+        return compareVersions(parseJavaVersion(a), parseJavaVersion(b), n);
     }
 
     static final int compareVersions(String a, String b) {
@@ -1571,6 +1575,7 @@ public class Capsule implements Runnable {
 
     private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(_(?<update>\\d+))?(-(?<pre>[^-]+))?(-(?<build>.+))?");
 
+    // visible for testing
     static int[] parseJavaVersion(String v) {
         final Matcher m = PAT_JAVA_VERSION.matcher(v);
         if (!m.matches())
@@ -1592,8 +1597,43 @@ public class Capsule implements Runnable {
         return ver;
     }
 
+    // visible for testing
+    static String toJavaVersionString(int[] version) {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(version[0]).append('.');
+        sb.append(version[1]).append('.');
+        sb.append(version[2]);
+        if (version.length > 3 && version[3] > 0)
+            sb.append('_').append(version[3]);
+        if (version.length > 4 && version[4] != 0) {
+            final String pre;
+            switch (version[4]) {
+                case -1:
+                    pre = "rc";
+                    break;
+                case -2:
+                    pre = "beta";
+                    break;
+                case -3:
+                    pre = "ea";
+                    break;
+                default:
+                    pre = "?";
+            }
+            sb.append('-').append(pre);
+        }
+        return sb.toString();
+    }
+
     private static int toInt(String s) {
         return s != null ? Integer.parseInt(s) : 0;
+    }
+
+    private static int[] toInt(String[] ss) {
+        int[] res = new int[ss.length];
+        for (int i = 0; i < ss.length; i++)
+            res[i] = ss[i] != null ? Integer.parseInt(ss[i]) : 0;
+        return res;
     }
 
     private static <T> List<T> nullToEmpty(List<T> list) {
@@ -1652,23 +1692,6 @@ public class Capsule implements Runnable {
         return id;
     }
 
-    private static void runCapsule(Path path, String[] args) {
-        try {
-            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
-            final Class cls = cl.loadClass("Capsule");
-            final Method main = cls.getMethod("main", String[].class);
-            main.invoke(cls, (Object) args);
-        } catch (ClassNotFoundException | NoSuchMethodException e) {
-            throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
-        } catch (MalformedURLException | IllegalAccessException e) {
-            throw new AssertionError();
-        } catch (InvocationTargetException e) {
-            final Throwable t = e.getTargetException();
-            if (t instanceof RuntimeException)
-                throw (RuntimeException) t;
-            if (t instanceof Error)
-                throw (Error) t;
-            throw new RuntimeException(t);
         }
     }
 
@@ -1692,5 +1715,41 @@ public class Capsule implements Runnable {
     private static void debug(String str) {
         if (debug)
             System.err.println("CAPSULE: " + str);
+    }
+
+    private static Process launchCapsule(Path path, String[] args) {
+        try {
+            final JarFile jar = new JarFile(path.toFile());
+            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
+            Class clazz;
+            try {
+                clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
+            } catch (ClassNotFoundException e) {
+                clazz = cl.loadClass(Capsule.class.getName());
+            }
+            final Object capsule;
+            try {
+                Constructor<?> ctor = clazz.getConstructor(JarFile.class, String[].class);
+                ctor.setAccessible(true);
+                capsule = ctor.newInstance(jar, args);
+            } catch (Exception e) {
+                throw new RuntimeException("Could not launch custom capsule.", e);
+            }
+            final Method launch = clazz.getMethod("launch", String[].class);
+            return (Process) launch.invoke(capsule, jar, args);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
+            throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError();
+        } catch (InvocationTargetException e) {
+            final Throwable t = e.getTargetException();
+            if (t instanceof RuntimeException)
+                throw (RuntimeException) t;
+            if (t instanceof Error)
+                throw (Error) t;
+            throw new RuntimeException(t);
+        }
     }
 }
