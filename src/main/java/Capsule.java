@@ -383,7 +383,7 @@ public class Capsule implements Runnable {
                 }
             }
         }
-        return false;
+        return null;
     }
 
     private String getAppArtifact(String[] args) {
