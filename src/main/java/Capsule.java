@@ -22,7 +22,6 @@ import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -96,6 +95,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_EXTRACT = "Extract-Capsule";
     private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
     private static final String ATTR_JAVA_VERSION = "Java-Version";
+    private static final String ATTR_MIN_UPDATE_VERSION = "Min-Update-Version";
     private static final String ATTR_JDK_REQUIRED = "JDK-Required";
     private static final String ATTR_JVM_ARGS = "JVM-Args";
     private static final String ATTR_ARGS = "Args";
@@ -594,46 +594,44 @@ public class Capsule implements Runnable {
      * @param cmdLine the list of JVM arguments passed to the capsule at launch
      */
     protected Map<String, String> buildSystemProperties(List<String> cmdLine) {
-        final Map<String, String> systemProerties = new HashMap<String, String>();
+        final Map<String, String> systemProperties = new HashMap<String, String>();
 
         // attribute
-        for (String p : nullToEmpty(getListAttribute(ATTR_SYSTEM_PROPERTIES))) {
-            if (!p.trim().isEmpty())
-                addSystemProperty(p, systemProerties);
-        }
+        for (Map.Entry<String, String> pv : nullToEmpty(getMapAttribute(ATTR_SYSTEM_PROPERTIES, "")).entrySet())
+            systemProperties.put(pv.getKey(), expand(pv.getValue()));
 
         // library path
         if (appCache != null) {
             final List<Path> libraryPath = buildNativeLibraryPath();
             libraryPath.add(appCache);
-            systemProerties.put(PROP_JAVA_LIBRARY_PATH, compileClassPath(libraryPath));
+            systemProperties.put(PROP_JAVA_LIBRARY_PATH, compileClassPath(libraryPath));
         } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
             throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
                     + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
 
         if (hasAttribute(ATTR_SECURITY_POLICY) || hasAttribute(ATTR_SECURITY_POLICY_A)) {
-            systemProerties.put(PROP_JAVA_SECURITY_MANAGER, "");
+            systemProperties.put(PROP_JAVA_SECURITY_MANAGER, "");
             if (hasAttribute(ATTR_SECURITY_POLICY_A))
-                systemProerties.put(PROP_JAVA_SECURITY_POLICY, toJarUrl(getAttribute(ATTR_SECURITY_POLICY_A)));
+                systemProperties.put(PROP_JAVA_SECURITY_POLICY, toJarUrl(getAttribute(ATTR_SECURITY_POLICY_A)));
             if (hasAttribute(ATTR_SECURITY_POLICY))
-                systemProerties.put(PROP_JAVA_SECURITY_POLICY, "=" + toJarUrl(getAttribute(ATTR_SECURITY_POLICY)));
+                systemProperties.put(PROP_JAVA_SECURITY_POLICY, "=" + toJarUrl(getAttribute(ATTR_SECURITY_POLICY)));
         }
         if (hasAttribute(ATTR_SECURITY_MANAGER))
-            systemProerties.put(PROP_JAVA_SECURITY_MANAGER, getAttribute(ATTR_SECURITY_MANAGER));
+            systemProperties.put(PROP_JAVA_SECURITY_MANAGER, getAttribute(ATTR_SECURITY_MANAGER));
 
         // Capsule properties
         if (appCache != null)
-            systemProerties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-        systemProerties.put(PROP_CAPSULE_JAR, getJarPath());
-        systemProerties.put(PROP_CAPSULE_APP, appId);
+            systemProperties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+        systemProperties.put(PROP_CAPSULE_JAR, getJarPath());
+        systemProperties.put(PROP_CAPSULE_APP, appId);
 
         // command line
         for (String option : cmdLine) {
             if (option.startsWith("-D"))
-                addSystemProperty0(option.substring(2), systemProerties);
+                addSystemProperty(option.substring(2), systemProperties);
         }
 
-        return systemProerties;
+        return systemProperties;
     }
 
     private List<Path> buildNativeLibraryPath() {
@@ -742,17 +740,7 @@ public class Capsule implements Runnable {
         return command;
     }
 
-    private void addSystemProperty(String p, Map<String, String> ps) {
-        try {
-            String name = getBefore(p, '=');
-            String value = getAfter(p, '=');
-            ps.put(name, value != null ? expand(value) : "");
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Illegal system property definition: " + p);
-        }
-    }
-
-    private static void addSystemProperty0(String p, Map<String, String> ps) {
+    private static void addSystemProperty(String p, Map<String, String> ps) {
         try {
             String name = getBefore(p, '=');
             String value = getAfter(p, '=');
@@ -810,16 +798,15 @@ public class Capsule implements Runnable {
     }
 
     private List<String> buildJavaAgents() {
-        final List<String> agents0 = getListAttribute(ATTR_JAVA_AGENTS);
-
+        final Map<String, String> agents0 = getMapAttribute(ATTR_JAVA_AGENTS, "");
         if (agents0 == null)
             return null;
         final List<String> agents = new ArrayList<String>(agents0.size());
-        for (String agent : agents0) {
-            final String agentJar = getBefore(agent, '=');
-            final String agentOptions = getAfter(agent, '=');
+        for (Map.Entry<String, String> agent : agents0.entrySet()) {
+            final String agentJar = agent.getKey();
+            final String agentOptions = agent.getValue();
             try {
-                final Path agentPath = getPath(agentJar);
+                final Path agentPath = getPath(agent.getKey());
                 agents.add(agentPath + (agentOptions != null ? "=" + agentOptions : ""));
             } catch (IllegalStateException e) {
                 if (appCache == null)
@@ -1001,10 +988,39 @@ public class Capsule implements Runnable {
         return split(getAttribute(attr), "\\s+");
     }
 
-    private List<String> split(String str, String separator) {
+    private Map<String, String> getMapAttribute(String attr, String defaultValue) {
+        return mapSplit(getAttribute(attr), '=', "\\s+", defaultValue);
+    }
+
+    private static List<String> split(String str, String separator) {
         if (str == null)
             return null;
-        return Arrays.asList(str.split(separator));
+        String[] es = str.split(separator);
+        final List<String> list = new ArrayList<>(es.length);
+        for (String e : es) {
+            e = e.trim();
+            if (!e.isEmpty())
+                list.add(e);
+        }
+        return list;
+    }
+
+    private static Map<String, String> mapSplit(String map, char kvSeparator, String separator, String defaultValue) {
+        if (map == null)
+            return null;
+        Map<String, String> m = new HashMap<>();
+        for (String entry : split(map, separator)) {
+            final String key = getBefore(entry, kvSeparator);
+            String value = getAfter(entry, kvSeparator);
+            if (value == null) {
+                if (defaultValue != null)
+                    value = defaultValue;
+                else
+                    throw new IllegalArgumentException("Element " + entry + " in \"" + map + "\" is not a key-value entry separated with " + kvSeparator + " and no default value provided");
+            }
+            m.put(key, value);
+        }
+        return m;
     }
 
     private Path getAppCacheDir() {
@@ -1202,8 +1218,10 @@ public class Capsule implements Runnable {
             final Path javaHomePath = findJavaHome(jdk);
             if (javaHomePath == null) {
                 throw new RuntimeException("Could not find Java installation for requested version "
-                        + getAttribute(ATTR_MIN_JAVA_VERSION) + " / " + getAttribute(ATTR_JAVA_VERSION)
-                        + "(JDK required: " + jdk + ")"
+                        + '[' + "Min. Java version: " + getAttribute(ATTR_MIN_JAVA_VERSION)
+                        + " JavaVersion: " + getAttribute(ATTR_JAVA_VERSION)
+                        + " Min. update version: " + getAttribute(ATTR_MIN_UPDATE_VERSION) + ']'
+                        + " (JDK required: " + jdk + ")"
                         + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
             }
             jhome = javaHomePath.toAbsolutePath().toString();
@@ -1213,10 +1231,19 @@ public class Capsule implements Runnable {
 
     private boolean isMatchingJavaVersion(String javaVersion) {
         try {
-            if (hasAttribute(ATTR_MIN_JAVA_VERSION) && compareVersions(javaVersion, getAttribute(ATTR_MIN_JAVA_VERSION)) < 0)
+            if (hasAttribute(ATTR_MIN_JAVA_VERSION) && compareVersions(javaVersion, getAttribute(ATTR_MIN_JAVA_VERSION)) < 0) {
+                debug("Java version " + javaVersion + " fails to match due to " + ATTR_MIN_JAVA_VERSION + ": " + getAttribute(ATTR_MIN_JAVA_VERSION));
                 return false;
-            if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(majorJavaVersion(javaVersion), getAttribute(ATTR_JAVA_VERSION)) > 0)
+            }
+            if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(javaVersion, shortJavaVersion(getAttribute(ATTR_JAVA_VERSION)), 3) > 0) {
+                debug("Java version " + javaVersion + " fails to match due to " + ATTR_JAVA_VERSION + ": " + getAttribute(ATTR_JAVA_VERSION));
                 return false;
+            }
+            if (getMinUpdateFor(javaVersion) > parseJavaVersion(javaVersion)[3]) {
+                debug("Java version " + javaVersion + " fails to match due to " + ATTR_MIN_UPDATE_VERSION + ": " + getAttribute(ATTR_MIN_UPDATE_VERSION) + " (" + getMinUpdateFor(javaVersion) + ")");
+                return false;
+            }
+            debug("Java version " + javaVersion + " matches");
             return true;
         } catch (IllegalArgumentException ex) {
             verbose("Error parsing Java version " + javaVersion);
@@ -1432,8 +1459,11 @@ public class Capsule implements Runnable {
         String bestVersion = null;
         for (Map.Entry<String, Path> e : homes.entrySet()) {
             final String v = e.getKey();
+            debug("Trying JVM: " + e.getValue() + " (version " + e.getKey() + ")");
             if (isMatchingJavaVersion(v)) {
+                debug("JVM " + e.getValue() + " (version " + e.getKey() + ") matches");
                 if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
+                    debug("JVM " + e.getValue() + " (version " + e.getKey() + ") is best so far");
                     bestVersion = v;
                     best = e.getValue();
                 }
@@ -1463,9 +1493,12 @@ public class Capsule implements Runnable {
                 String dirName = f.toPath().getFileName().toString();
                 String ver = isJavaDir(dirName);
                 if (ver != null && (!jdk || isJDK(dirName))) {
-                    File home = searchJavaHomeInDir(f);
-                    if (home != null)
-                        dirs.put(javaVersion(ver), home.toPath());
+                    final File home = searchJavaHomeInDir(f);
+                    if (home != null) {
+                        if (parseJavaVersion(ver)[3] == 0)
+                            ver = getActualJavaVersion(home.getPath());
+                        dirs.put(ver, home.toPath());
+                    }
                 }
             }
         }
@@ -1568,11 +1601,23 @@ public class Capsule implements Runnable {
     }
 
     private static int compareVersions(int[] a, int[] b) {
-        for (int i = 0; i < 5; i++) {
+        return compareVersions(a, b, 5);
+    }
+
+    private static int compareVersions(int[] a, int[] b, int n) {
+        for (int i = 0; i < n; i++) {
             if (a[i] != b[i])
                 return a[i] - b[i];
         }
         return 0;
+    }
+
+    private static boolean equals(int[] a, int[] b, int n) {
+        for (int i = 0; i < n; i++) {
+            if (a[i] != b[i])
+                return false;
+        }
+        return true;
     }
 
     private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(_(?<update>\\d+))?(-(?<pre>[^-]+))?(-(?<build>.+))?");
@@ -1644,6 +1689,12 @@ public class Capsule implements Runnable {
         return list;
     }
 
+    private static <K, V> Map<K, V> nullToEmpty(Map<K, V> map) {
+        if (map == null)
+            return Collections.emptyMap();
+        return map;
+    }
+
     private static <T> Collection<T> nullToEmpty(Collection<T> coll) {
         if (coll == null)
             return Collections.emptyList();
@@ -1694,7 +1745,16 @@ public class Capsule implements Runnable {
         return id;
     }
 
+    private int getMinUpdateFor(String version) {
+        final Map<String, String> m = getMapAttribute(ATTR_MIN_UPDATE_VERSION, null);
+        if (m == null)
+            return 0;
+        final int[] ver = parseJavaVersion(version);
+        for (Map.Entry<String, String> entry : m.entrySet()) {
+            if (equals(ver, toInt(shortJavaVersion(entry.getKey()).split(DOT)), 3))
+                return Integer.parseInt(entry.getValue());
         }
+        return 0;
     }
 
     private static boolean anyPropertyDefined(String... props) {

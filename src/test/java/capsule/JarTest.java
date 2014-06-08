@@ -21,8 +21,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
-import java.util.jar.Attributes;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
@@ -65,6 +66,12 @@ public class JarTest {
                     .setAttribute("Foo", "1234")
                     .setAttribute("Bar", "5678")
                     .setListAttribute("List", Arrays.asList("a", "b"))
+                    .setMapAttribute("Map", new HashMap<String, String>() {
+                        {
+                            put("x", "1");
+                            put("y", "2");
+                        }
+                    })
                     .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
                     .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                     .write(jarPath);
@@ -75,6 +82,7 @@ public class JarTest {
                     .setAttribute("Baz", "hi!")
                     .setAttribute("Bar", "8765")
                     .setListAttribute("List", addLast(addFirst(jar.getListAttribute("List"), "0"), "c"))
+                    .setMapAttribute("Map", put(put(jar.getMapAttribute("Map", null), "z", "3"), "x" , "0"))
                     .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF8))
                     .write(new ByteArrayOutputStream());
 
@@ -89,6 +97,13 @@ public class JarTest {
             assertEquals("8765", man2.getMainAttributes().getValue("Bar"));
             assertEquals("hi!", man2.getMainAttributes().getValue("Baz"));
             assertEquals(Arrays.asList("0", "a", "b", "c"), new Jar(toInput(res)).getListAttribute("List"));
+            assertEquals(new HashMap<String, String>() {
+                        {
+                            put("x", "0");
+                            put("y", "2");
+                            put("z", "3");
+                        }
+                    }, new Jar(toInput(res)).getMapAttribute("Map", null));
         } finally {
             Files.delete(jarPath);
         }
@@ -154,6 +169,11 @@ public class JarTest {
     private static <T> List<T> addFirst(List<T> list, T value) {
         list.add(0, value);
         return list;
+    }
+
+    private static <K, V> Map<K, V> put(Map<K, V> map, K key, V value) {
+        map.put(key, value);
+        return map;
     }
 
     private static String getEntryAsString(JarInputStream jar, Path entry, Charset charset) throws IOException {

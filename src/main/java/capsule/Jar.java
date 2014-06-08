@@ -23,7 +23,9 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
@@ -149,6 +151,33 @@ public class Jar {
     }
 
     /**
+     * Sets an attribute in the main section of the manifest to a map.
+     * The map entries will be joined with a single whitespace character, and each key-value pair will be joined with a '='.
+     *
+     * @param name   the attribute's name
+     * @param values the attribute's value
+     * @return {@code this}
+     * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
+     */
+    public Jar setMapAttribute(String name, Map<String, String> values) {
+        return setAttribute(name, join(values));
+    }
+
+    /**
+     * Sets an attribute in a non-main section of the manifest to a map.
+     * The map entries will be joined with a single whitespace character, and each key-value pair will be joined with a '='.
+     *
+     * @param section the section's name
+     * @param name    the attribute's name
+     * @param values  the attribute's value
+     * @return {@code this}
+     * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
+     */
+    public Jar setMapAttribute(String section, String name, Map<String, String> values) {
+        return setAttribute(name, section, join(values));
+    }
+
+    /**
      * Returns an attribute's value from this JAR's manifest's main section.
      *
      * @param name the attribute's name
@@ -188,6 +217,29 @@ public class Jar {
      */
     public List<String> getListAttribute(String section, String name) {
         return split(getAttribute(section, name));
+    }
+
+    /**
+     * Returns an attribute's map value from this JAR's manifest's main section.
+     * The attributes string value will be split on whitespace into map entries, and each entry will be split on '=' to get the key-value pair.
+     * The returned map may be safely modified.
+     *
+     * @param name the attribute's name
+     */
+    public Map<String, String> getMapAttribute(String name, String defaultValue) {
+        return mapSplit(getAttribute(name), defaultValue);
+    }
+
+    /**
+     * Returns an attribute's map value from a non-main section of this JAR's manifest.
+     * The attributes string value will be split on whitespace into map entries, and each entry will be split on '=' to get the key-value pair.
+     * The returned map may be safely modified.
+     *
+     * @param section the manifest's section
+     * @param name    the attribute's name
+     */
+    public Map<String, String> getMapAttribute(String section, String name, String defaultValue) {
+        return mapSplit(getAttribute(section, name), defaultValue);
     }
 
     private void beginWriting() throws IOException {
@@ -374,17 +426,75 @@ public class Jar {
         return sb.toString();
     }
 
+    private static String join(Map<String, String> map, String kvSeparator, String separator) {
+        if (map == null)
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : map.entrySet())
+            sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
+        sb.delete(sb.length() - separator.length(), sb.length());
+        return sb.toString();
+    }
+
     private static String join(List<String> list) {
         return join(list, " ");
     }
 
-    private static List<String> split(String list, String separator) {
-        if (list == null)
+    private static String join(Map<String, String> map) {
+        return join(map, "=", " ");
+    }
+
+    private static List<String> split(String str, String separator) {
+        if (str == null)
             return null;
-        return new ArrayList<String>(Arrays.asList(list.split(separator)));
+        String[] es = str.split(separator);
+        final List<String> list = new ArrayList<>(es.length);
+        for(String e : es) {
+            e = e.trim();
+            if(!e.isEmpty())
+                list.add(e);
+        }
+        return list;
     }
 
     private static List<String> split(String list) {
         return split(list, " ");
     }
+
+    private static Map<String, String> mapSplit(String map, char kvSeparator, String separator, String defaultValue) {
+        if (map == null)
+            return null;
+        Map<String, String> m = new HashMap<>();
+        for (String entry : split(map, separator)) {
+            final String key = getBefore(entry, kvSeparator);
+            String value = getAfter(entry, kvSeparator);
+            if (value == null) {
+                if (defaultValue != null)
+                    value = defaultValue;
+                else
+                    throw new IllegalArgumentException("Element " + entry + " in \"" + map + "\" is not a key-value entry separated with " + kvSeparator + " and no default value provided");
+            }
+            m.put(key, value);
+        }
+        return m;
+    }
+
+    private static Map<String, String> mapSplit(String map, String defaultValue) {
+        return mapSplit(map, '=', " ", defaultValue);
+    }
+
+    private static String getBefore(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return s;
+        return s.substring(0, i);
+    }
+
+    private static String getAfter(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return null;
+        return s.substring(i + 1);
+    }
+
 }

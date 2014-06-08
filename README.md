@@ -198,6 +198,12 @@ Two manifest attributes determine which Java installation Capsule will use to la
 
 First, Capsule will test the current JVM (used to launch the capsule) against `Min-Java-Version` and `Java-Version` (if they're specified). If the version of the current JVM matches the requested range, it will be used to launch the application. If not, Capsule will search for other JVM installations, and use the one with the highest version that matches the requested range. If no matching installation is found, the capsule will fail to launch.
 
+It is also possible to require a minimal update version, say, in cases where the update fixes a bug affecting the application. Because the bug may have been fixed in two different major versions in two different updates (e.g., for Java 7 in update 85, and for Java 8 in update 21), the minimal update required is specified per major Java version, in the `Min-Update-Version` attribute. For example
+
+    Min-Update-Version: 7=85 1.8=21
+
+The major version can be given as a single digit (`7`) or as a "formal" Java version (`1.7`, or, `1.7.0`). The updates are specified in a whitespace separated list of entries, each entry containing a key (the major version) and a value (the minimum update) as a `=` separated pair.
+
 If the `JDK-Required` attribute is set to `true`, Capsule will only select JDK installations.
 
 Whatever the `Min-Java-Version`, `Java-Version`, or `JDK-Required` attributes specify, launching the capsule with the `capsule.java.home` system property, will use whatever Java installation is specified by the property, for example: `java -Dcapsule.java.home=/Library/Java/JavaVirtualMachines/jdk1.8.0.jdk/Contents/Home -jar app.jar`.
@@ -291,6 +297,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Windows-Script`: a startup script to be run *instead* of `Application-Class` on Windows, given as a path relative to the capsule's root
 * `Extract-Capsule`: if `false`, the capsule JAR will not be extracted to the filesystem (default: `true`)
 * `Min-Java-Version`: the lowest Java version required to run the application; Capsule will look for an appropriate installation
+* `Min-Update-Version`: a space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required
 * `Java-Version`: the highest version of the Java installation required to run the application; Capsule will look for an appropriate installation
 * `JDK-Required`: if set to `true`, the Capsule will only be launched using a JDK, if one matching the requested versions is found.
 * `JVM-Args`: a list of JVM arguments that will be used to launch the application's Java process

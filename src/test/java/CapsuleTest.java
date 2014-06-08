@@ -18,15 +18,19 @@ public class CapsuleTest {
 
         ver = Capsule.parseJavaVersion("1.8.0");
         assertArrayEquals(ver, ints(1, 8, 0, 0, 0));
+        assertEquals("1.8.0", Capsule.toJavaVersionString(ver));
 
         ver = Capsule.parseJavaVersion("1.8.0_30");
         assertArrayEquals(ver, ints(1, 8, 0, 30, 0));
+        assertEquals("1.8.0_30", Capsule.toJavaVersionString(ver));
 
         ver = Capsule.parseJavaVersion("1.8.0-rc");
         assertArrayEquals(ver, ints(1, 8, 0, 0, -1));
+        assertEquals("1.8.0-rc", Capsule.toJavaVersionString(ver));
 
         ver = Capsule.parseJavaVersion("1.8.0_30-ea");
         assertArrayEquals(ver, ints(1, 8, 0, 30, -3));
+        assertEquals("1.8.0_30-ea", Capsule.toJavaVersionString(ver));
     }
 
     @Test
@@ -36,6 +40,13 @@ public class CapsuleTest {
         assertTrue(Capsule.compareVersions("1.8.0-ea", "1.8.0_20") < 0);
         assertTrue(Capsule.compareVersions("1.8.0-ea", "1.8.0") < 0);
         assertTrue(Capsule.compareVersions("1.8.0-ea", "1.7.0") > 0);
+    }
+
+    @Test
+    public void testShortJavaVersion() {
+        assertEquals("1.8.0", Capsule.shortJavaVersion("8"));
+        assertEquals("1.8.0", Capsule.shortJavaVersion("1.8"));
+        assertEquals("1.8.0", Capsule.shortJavaVersion("1.8.0"));
     }
 
     private static int[] ints(int... xs) {
