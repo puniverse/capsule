@@ -647,12 +647,12 @@ public class Capsule implements Runnable {
     }
 
     private String getNativeLibExtension() {
-        if (isLinux())
-            return "so";
         if (isWindows())
             return "dll";
         if (isMac())
             return "dylib";
+        if (isUnix())
+            return "so";
         throw new RuntimeException("Unsupported operating system: " + System.getProperty(PROP_OS_NAME));
     }
 
@@ -665,12 +665,12 @@ public class Capsule implements Runnable {
      * (classifier and renameTo are optional)
      */
     protected List<String> getNativeDependenciesAndRename() {
-        if (isLinux())
-            return getListAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX);
         if (isWindows())
             return getListAttribute(ATTR_NATIVE_DEPENDENCIES_WIN);
         if (isMac())
             return getListAttribute(ATTR_NATIVE_DEPENDENCIES_MAC);
+        if (isUnix())
+            return getListAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX);
         return null;
     }
 
@@ -1242,8 +1242,10 @@ public class Capsule implements Runnable {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("mac");
     }
 
-    protected static final boolean isLinux() {
-        return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux");
+    protected static final boolean isUnix() {
+        return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux")
+                || System.getProperty(PROP_OS_NAME).toLowerCase().contains("solaris")
+                || System.getProperty(PROP_OS_NAME).toLowerCase().contains("aix");
     }
 
     private static boolean isDependency(String lib) {
