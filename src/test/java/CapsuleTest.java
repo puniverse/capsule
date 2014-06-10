@@ -99,11 +99,34 @@ public class CapsuleTest {
 
         Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
 
+        assertTrue(pb.command().contains("-Dcapsule.app=com.acme.Foo"));
+        assertTrue(pb.command().contains("-Dcapsule.dir=" + appCahce));
+
         assertTrue(Files.isDirectory(cache));
         assertTrue(Files.isDirectory(cache.resolve("apps")));
         assertTrue(Files.isDirectory(appCahce));
         assertTrue(Files.isRegularFile(appCahce.resolve(".extracted")));
         assertTrue(Files.isRegularFile(appCahce.resolve("foo.jar")));
+    }
+
+    @Test
+    public void testSystemProperties() throws Exception {
+        Jar jar = new Jar()
+                .setAttribute("Manifest-Version", "1.0")
+                .setAttribute("Main-Class", "Capsule")
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
+
+        Capsule capsule = newCapsule(jar, null, args);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        assertTrue(pb.command().contains("-Dfoo=x"));
+        assertTrue(pb.command().contains("-Dbar"));
+        assertTrue(pb.command().contains("-Dzzz"));
+        assertTrue(pb.command().contains("-Dbaz=33"));
     }
 
     private static <T> List<T> list(T... xs) {
