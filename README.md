@@ -50,7 +50,7 @@ Before we delve into the specifics of defining a Capsule distribution, let us lo
 
 We'll assume that the application's `gradle.build` file applies the [`java`](http://www.gradle.org/docs/current/userguide/java_plugin.html) and [`application`](http://www.gradle.org/docs/current/userguide/application_plugin.html) plugins, and that the build file declare the `capsule` configuration and contains the dependency `capsule 'co.paralleluniverse:capsule:VERSION'`.
 
-The first example creates what may be called a "full" capsule:
+The first example creates what may be called a *full* capsule:
 
 ``` groovy
 task fullCapsule(type: Jar, dependsOn: jar) {
