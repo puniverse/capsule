@@ -1,4 +1,4 @@
-# Capsule
+# Capsule [![Build Status](https://travis-ci.org/puniverse/capsule.svg?branch=master)](https://travis-ci.org/puniverse/capsule)
 
 ## Dead-Simple Packaging and Deployment for JVM Apps
 
