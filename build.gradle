@@ -120,6 +120,21 @@ configure (javadoc) {
     options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
     excludes = [ "co/paralleluniverse/capsule/**" ]
 }
+
+test {
+    beforeTest { desc ->
+        logger.quiet("Running test: " + desc)
+    }
+        
+    afterTest { desc, result -> 
+        if(result.resultType == TestResult.ResultType.FAILURE) {
+            logger.quiet("Failed test ${desc.name} [${desc.className}] with exception: ${result.exception}")
+            if(result.exception != null) {
+                result.exception.printStackTrace()
+            }
+        }
+    }
+}
     
 ///////// Publish Artifacts 
 apply plugin: 'maven'
