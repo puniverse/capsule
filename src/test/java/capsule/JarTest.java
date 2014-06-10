@@ -48,7 +48,7 @@ public class JarTest {
                     .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                     .write(new ByteArrayOutputStream());
 
-        printEntries(toInput(res));
+        // printEntries(toInput(res));
 
         assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
         assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
@@ -87,7 +87,7 @@ public class JarTest {
                     .write(new ByteArrayOutputStream());
 
             // test
-            printEntries(toInput(res));
+            // printEntries(toInput(res));
 
             assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
             assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
@@ -128,7 +128,7 @@ public class JarTest {
                 .write(new ByteArrayOutputStream());
 
         // test
-        printEntries(toInput(res));
+        // printEntries(toInput(res));
 
         assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
         assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));

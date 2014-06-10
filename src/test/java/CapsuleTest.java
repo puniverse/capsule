@@ -9,7 +9,6 @@
 
 import capsule.DependencyManager;
 import capsule.Jar;
-import com.google.jimfs.Configuration;
 import com.google.jimfs.Jimfs;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -31,7 +30,7 @@ public class CapsuleTest {
 
     @Before
     public void setup() {
-        fs = Jimfs.newFileSystem(Configuration.unix());
+        fs = Jimfs.newFileSystem();
         cache = fs.getPath("/cache");
     }
 
@@ -46,6 +45,12 @@ public class CapsuleTest {
         }
     }
 
+    private Jar newCapsuleJar() {
+        return new Jar()
+                .setAttribute("Manifest-Version", "1.0")
+                .setAttribute("Main-Class", "Capsule");
+    }
+    
     @Test
     public void testParseJavaVersion() {
         int[] ver;
@@ -85,9 +90,7 @@ public class CapsuleTest {
 
     @Test
     public void testSimpleExtract() throws Exception {
-        Jar jar = new Jar()
-                .setAttribute("Manifest-Version", "1.0")
-                .setAttribute("Main-Class", "Capsule")
+        Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .addEntry("foo.jar", Jar.toInputStream("", UTF8));
 
@@ -111,9 +114,7 @@ public class CapsuleTest {
 
     @Test
     public void testSystemProperties() throws Exception {
-        Jar jar = new Jar()
-                .setAttribute("Manifest-Version", "1.0")
-                .setAttribute("Main-Class", "Capsule")
+        Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .addEntry("foo.jar", Jar.toInputStream("", UTF8));
