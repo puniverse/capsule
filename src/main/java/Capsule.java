@@ -255,7 +255,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
 
-    protected final boolean isTest() {
+    protected final boolean isTest() { // so far only getEntry and extractJar run different code for tests
         return jar == null;
     }
 
