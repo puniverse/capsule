@@ -453,8 +453,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         return null;
     }
 
-    // visible for testing
-    final ProcessBuilder buildProcess(List<String> cmdLine, String[] args) {
+    private ProcessBuilder buildProcess(List<String> cmdLine, String[] args) {
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
             buildJavaProcess(pb, cmdLine);

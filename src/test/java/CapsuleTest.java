@@ -25,32 +25,14 @@ import org.junit.Before;
 
 public class CapsuleTest {
     private static final Charset UTF8 = Charset.forName("UTF-8");
-    private FileSystem fs;
     private Path cache;
 
     @Before
     public void setup() {
-        fs = Jimfs.newFileSystem();
+        FileSystem fs = Jimfs.newFileSystem();
         cache = fs.getPath("/cache");
     }
 
-    private Capsule newCapsule(Jar jar, DependencyManager dependencyManager, String... args) {
-        try {
-            ByteArrayOutputStream baos = jar.write(new ByteArrayOutputStream());
-            baos.close();
-
-            return new Capsule(Paths.get("test"), args, cache, baos.toByteArray(), dependencyManager);
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private Jar newCapsuleJar() {
-        return new Jar()
-                .setAttribute("Manifest-Version", "1.0")
-                .setAttribute("Main-Class", "Capsule");
-    }
-    
     @Test
     public void testParseJavaVersion() {
         int[] ver;
@@ -105,6 +87,8 @@ public class CapsuleTest {
         assertTrue(pb.command().contains("-Dcapsule.app=com.acme.Foo"));
         assertTrue(pb.command().contains("-Dcapsule.dir=" + appCahce));
 
+        assertEquals(getMainAndArgs(pb), list("com.acme.Foo", "hi", "there"));
+
         assertTrue(Files.isDirectory(cache));
         assertTrue(Files.isDirectory(cache.resolve("apps")));
         assertTrue(Files.isDirectory(appCahce));
@@ -128,6 +112,48 @@ public class CapsuleTest {
         assertTrue(pb.command().contains("-Dbar"));
         assertTrue(pb.command().contains("-Dzzz"));
         assertTrue(pb.command().contains("-Dbaz=33"));
+    }
+
+    //////////////// utilities
+    private Capsule newCapsule(Jar jar, DependencyManager dependencyManager, String... args) {
+        try {
+            ByteArrayOutputStream baos = jar.write(new ByteArrayOutputStream());
+            baos.close();
+
+            return new Capsule(Paths.get("test"), args, cache, baos.toByteArray(), dependencyManager);
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private Jar newCapsuleJar() {
+        return new Jar()
+                .setAttribute("Manifest-Version", "1.0")
+                .setAttribute("Main-Class", "Capsule");
+    }
+
+    private static List<String> getClassPath(ProcessBuilder pb) {
+        final List<String> cmd = pb.command();
+        final int i = cmd.indexOf("-classpath");
+        if (i < 0)
+            return null;
+        return Arrays.asList(cmd.get(i + 1).split(":"));
+    }
+
+    private static List<String> getMainAndArgs(ProcessBuilder pb) {
+        List<String> cmd = pb.command();
+        cmd = cmd.subList(1, cmd.size());
+
+        boolean prevClassPath = false;
+        int i = 0;
+        for (String c : cmd) {
+            if (c.startsWith("-") || prevClassPath)
+                i++;
+            else
+                break;
+            prevClassPath = c.equals("-classpath");
+        }
+        return cmd.subList(i, cmd.size());
     }
 
     private static <T> List<T> list(T... xs) {
