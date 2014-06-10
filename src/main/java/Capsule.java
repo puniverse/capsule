@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.PrintStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.Constructor;
@@ -327,15 +326,23 @@ public class Capsule implements Runnable {
     }
 
     private static void pipe(InputStream in, OutputStream out) {
-        try (BufferedReader r = new BufferedReader(new InputStreamReader(in))) {
-            PrintStream p = new PrintStream(out);
-            String line;
-            while ((line = r.readLine()) != null) {
-                p.println(line);
+        try {
+            int read;
+            byte[] buf = new byte[1024];
+            while (-1 != (read = in.read(buf))) {
+                out.write(buf, 0, read);
+                out.flush();
             }
         } catch (IOException e) {
             if (verbose)
                 e.printStackTrace(System.err);
+        } finally {
+            try {
+                out.close();
+            } catch (IOException e2) {
+                if (verbose)
+                   e2.printStackTrace(System.err);
+            }
         }
     }
 
