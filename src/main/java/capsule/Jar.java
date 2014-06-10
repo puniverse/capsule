@@ -21,7 +21,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +30,7 @@ import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+import java.util.jar.Pack200;
 
 /**
  * A JAR file that can be easily modified.
@@ -41,6 +41,7 @@ public class Jar {
     private final JarFile jar;
     private final JarInputStream jis;
     private JarOutputStream jos;
+    private Pack200.Packer packer;
 
     /**
      * Creates a new, empty, JAR
@@ -322,13 +323,30 @@ public class Jar {
     }
 
     /**
+     * Sets a {@link Pack200.Packer Pack200 packer} to use when writing the JAR.
+     * @param packer
+     * @return {@code this}
+     */
+    public Jar setPacker(Pack200.Packer packer) {
+        this.packer = packer;
+        return this;
+    }
+    
+    private void write(byte[] content, OutputStream os) throws IOException {
+        if(packer != null)
+            packer.pack(new JarInputStream(new ByteArrayInputStream(content)), os);
+        else
+            os.write(content);
+    }
+    
+    /**
      * Writes this JAR to an output stream.
      */
     public <T extends OutputStream> T write(T os) throws IOException {
         beginWriting();
         jos.close();
 
-        os.write(baos.toByteArray());
+        write(baos.toByteArray(), os);
         os.close();
         return os;
     }
@@ -357,9 +375,8 @@ public class Jar {
     }
 
     private static JarOutputStream updateJar(JarInputStream jar, Manifest manifest, OutputStream os) throws IOException {
-        final JarOutputStream jarOut = new JarOutputStream(os, manifest);
-        JarEntry entry;
-        while ((entry = jar.getNextJarEntry()) != null) {
+        final JarOutputStream jarOut = new JarOutputStream(os, manifest);      
+        for (JarEntry entry; (entry = jar.getNextJarEntry()) != null;) {
             if (entry.getName().equals(entry.toString())) {
                 if (entry.getName().equals("META-INF/MANIFEST.MF"))
                     continue;

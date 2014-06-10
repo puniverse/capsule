@@ -7,18 +7,17 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
+import capsule.AetherDependencyManager;
 import capsule.DependencyManager;
 import capsule.PomReader;
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -26,9 +25,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
@@ -45,11 +47,12 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Capsule implements Runnable {
+public class Capsule implements Runnable, FileVisitor<Path> {
     /*
      * This class contains several strange hacks to avoid creating more classes. 
      * We'd like this file to compile to a single .class file.
@@ -145,9 +148,10 @@ public class Capsule implements Runnable {
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
-    private static final Path cacheDir = getCacheDir();
-
-    private final JarFile jar;       // never null
+    private final Path cacheDir;
+    private final JarFile jar;       // null only in tests
+    private final byte[] jarBuffer;  // non-null only in tests
+    private final Path jarFile;      // never null
     private final Manifest manifest; // never null
     private final String javaHome;
     private final String appId;      // null iff isEmptyCapsule()
@@ -183,7 +187,7 @@ public class Capsule implements Runnable {
                 return;
             }
 
-            final Process p = capsule.launch(args);
+            final Process p = capsule.launch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
             if (p != null)
                 System.exit(p.waitFor());
         } catch (Throwable t) {
@@ -195,31 +199,34 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static Capsule newCapsule(JarFile jar, String[] args) {
+    private static Capsule newCapsule(Path jarFile, String[] args) {
         try {
             final Class<?> clazz = Class.forName(CUSTOM_CAPSULE_CLASS_NAME);
             try {
-                Constructor<?> ctor = clazz.getConstructor(JarFile.class, String[].class);
+                Constructor<?> ctor = clazz.getConstructor(Path.class, String[].class);
                 ctor.setAccessible(true);
-                return (Capsule) ctor.newInstance(jar, args);
+                return (Capsule) ctor.newInstance(jarFile, args);
             } catch (Exception e) {
                 throw new RuntimeException("Could not launch custom capsule.", e);
             }
         } catch (ClassNotFoundException e) {
-            return new Capsule(jar, args);
+            return new Capsule(jarFile, args);
         }
     }
 
-    protected Capsule(JarFile jar, String[] args) {
-        this.jar = jar;
+    protected Capsule(Path jarFile, String[] args) {
+        this.jarFile = jarFile;
         try {
+            this.jar = new JarFile(jarFile.toFile());
+            this.jarBuffer = null;
             this.manifest = jar.getManifest();
             if (manifest == null)
-                throw new RuntimeException("Jar file " + jar.getName() + " does not have a manifest");
+                throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
         } catch (IOException e) {
-            throw new RuntimeException("Could not read Jar file " + jar.getName() + " manifest");
+            throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
         }
 
+        this.cacheDir = initCacheDir(getCacheDir());
         this.javaHome = getJavaHome();
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
@@ -227,6 +234,38 @@ public class Capsule implements Runnable {
         this.appId = getAppId(args);
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
+    }
+
+    @Deprecated // Used only in tests
+    Capsule(Path jarFile, String[] args, Path cacheDir, byte[] jarBuffer, Object dependencyManager) {
+        this.jarFile = jarFile;
+        this.jar = null;
+        this.jarBuffer = jarBuffer;
+
+        this.manifest = getJarInputStream().getManifest();
+        if (manifest == null)
+            throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
+
+        this.cacheDir = initCacheDir(cacheDir);
+        this.javaHome = getJavaHome();
+        this.mode = System.getProperty(PROP_MODE);
+        this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
+        this.dependencyManager = dependencyManager;
+        this.appId = getAppId(args);
+        this.appCache = needsAppCache() ? getAppCacheDir() : null;
+        this.cacheUpToDate = appCache != null ? isUpToDate() : false;
+    }
+
+    protected final boolean isTest() {
+        return jar == null;
+    }
+
+    private JarInputStream getJarInputStream() {
+        try {
+            return new JarInputStream(new ByteArrayInputStream(jarBuffer));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private boolean needsDependencyManager() {
@@ -237,19 +276,10 @@ public class Capsule implements Runnable {
                 || getNativeDependencies() != null;
     }
 
-    private Process launch(String[] args) throws IOException, InterruptedException {
-        final Process cp = launchCapsule(args);
-        if (cp != null)
-            return cp;
-
-        verbose("Launching app " + appId);
-
-        ensureExtractedIfNecessary();
-
-        final ProcessBuilder pb = buildProcess(args);
-
-        if (appCache != null && !cacheUpToDate)
-            markCache();
+    private Process launch(List<String> cmdLine, String[] args) throws IOException, InterruptedException {
+        ProcessBuilder pb = launchCapsuleArtifact(cmdLine, args);
+        if (pb == null)
+            pb = prepareForLaunch(cmdLine, args);
 
         Runtime.getRuntime().addShutdownHook(new Thread(this));
 
@@ -259,6 +289,16 @@ public class Capsule implements Runnable {
         if (isInheritIoBug())
             pipeIoStreams();
         return child;
+    }
+
+    // visible for testing
+    final ProcessBuilder prepareForLaunch(List<String> cmdLine, String[] args) {
+        ensureExtractedIfNecessary();
+        final ProcessBuilder pb = buildProcess(cmdLine, args);
+        if (appCache != null && !cacheUpToDate)
+            markCache();
+        verbose("Launching app " + appId);
+        return pb;
     }
 
     private void printVersion() {
@@ -350,7 +390,7 @@ public class Capsule implements Runnable {
         else if (hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule()) {
             final String appArtifact = isEmptyCapsule() ? getCommandLineArtifact(args) : getAttribute(ATTR_APP_ARTIFACT);
             if (appArtifact == null)
-                throw new IllegalStateException("capsule " + jar.getName() + " has nothing to run");
+                throw new IllegalStateException("capsule " + jarFile + " has nothing to run");
             printDependencyTree(appArtifact);
         } else
             printDependencyTree(getDependencies(), "jar");
@@ -362,7 +402,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private Process launchCapsule(String[] args) {
+    private ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, String[] args) {
         if (getScript() == null) {
             String appArtifact = getAppArtifact(args);
             if (appArtifact != null) {
@@ -372,7 +412,9 @@ public class Capsule implements Runnable {
                         return null;
                     if (isCapsule(jars.get(0))) {
                         verbose("Running capsule " + jars.get(0));
-                        return launchCapsule(jars.get(0), isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
+                        return launchCapsule(jars.get(0),
+                                cmdLine,
+                                isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
                     } else if (isEmptyCapsule())
                         throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
                 } catch (RuntimeException e) {
@@ -391,7 +433,7 @@ public class Capsule implements Runnable {
         if (isEmptyCapsule()) {
             appArtifact = getCommandLineArtifact(args);
             if (appArtifact == null)
-                throw new IllegalStateException("capsule " + jar.getName() + " has nothing to run");
+                throw new IllegalStateException("Capsule " + jarFile + " has nothing to run");
         }
         if (appArtifact == null)
             appArtifact = getAttribute(ATTR_APP_ARTIFACT);
@@ -404,10 +446,11 @@ public class Capsule implements Runnable {
         return null;
     }
 
-    private ProcessBuilder buildProcess(String[] args) {
+    // visible for testing
+    final ProcessBuilder buildProcess(List<String> cmdLine, String[] args) {
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
-            buildJavaProcess(pb);
+            buildJavaProcess(pb, cmdLine);
 
         final List<String> command = pb.command();
         command.addAll(buildArgs(args));
@@ -431,13 +474,7 @@ public class Capsule implements Runnable {
         return args0;
     }
 
-    private boolean buildJavaProcess(ProcessBuilder pb) {
-        final RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
-        final List<String> cmdLine = runtimeBean.getInputArguments();
-
-//        final String classPath = runtimeBean.getClassPath();
-//        final String bootClassPath = runtimeBean.getBootClassPath();
-//        final String libraryPath = runtimeBean.getLibraryPath();
+    private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
         if (javaHome != null)
             pb.environment().put("JAVA_HOME", javaHome);
 
@@ -515,7 +552,7 @@ public class Capsule implements Runnable {
             // the capsule jar
             final String isCapsuleInClassPath = getAttribute(ATTR_CAPSULE_IN_CLASS_PATH);
             if (isCapsuleInClassPath == null || Boolean.parseBoolean(isCapsuleInClassPath))
-                classPath.add(Paths.get(jar.getName()));
+                classPath.add(jarFile);
             else if (appCache == null)
                 throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
                         + ATTR_EXTRACT + " attribute is also set to false");
@@ -638,7 +675,7 @@ public class Capsule implements Runnable {
         final List<Path> libraryPath = new ArrayList<Path>();
         resolveNativeDependencies();
         libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
-        libraryPath.addAll(toPath(Arrays.asList(ManagementFactory.getRuntimeMXBean().getLibraryPath().split(PATH_SEPARATOR))));
+        libraryPath.addAll(toPath(Arrays.asList(System.getProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR))));
         libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
         libraryPath.add(appCache);
         return libraryPath;
@@ -730,7 +767,7 @@ public class Capsule implements Runnable {
     }
 
     private String getJarPath() {
-        return Paths.get(jar.getName()).getParent().toAbsolutePath().toString();
+        return jarFile.toAbsolutePath().getParent().toString();
     }
 
     private static List<String> compileSystemProperties(Map<String, String> ps) {
@@ -807,7 +844,7 @@ public class Capsule implements Runnable {
             final String agentOptions = agent.getValue();
             try {
                 final Path agentPath = getPath(agent.getKey());
-                agents.add(agentPath + (agentOptions != null ? "=" + agentOptions : ""));
+                agents.add(agentPath + ((agentOptions != null && !agentOptions.isEmpty()) ? "=" + agentOptions : ""));
             } catch (IllegalStateException e) {
                 if (appCache == null)
                     throw new RuntimeException("Cannot run the embedded Java agent " + agentJar + " when the " + ATTR_EXTRACT + " attribute is set to false");
@@ -817,7 +854,7 @@ public class Capsule implements Runnable {
         return agents;
     }
 
-    private static JarFile getJarFile() {
+    private static Path getJarFile() {
         final URL url = Capsule.class.getClassLoader().getResource(Capsule.class.getName().replace('.', '/') + ".class");
         if (!"jar".equals(url.getProtocol()))
             throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
@@ -827,12 +864,7 @@ public class Capsule implements Runnable {
 
         try {
             final URI jarUri = new URI(path.substring(0, path.indexOf('!')));
-            try {
-                final JarFile jar = new JarFile(new File(jarUri));
-                return jar;
-            } catch (IOException e) {
-                throw new RuntimeException("Jar file containing the Capsule could not be opened: " + jarUri, e);
-            }
+            return Paths.get(jarUri);
         } catch (URISyntaxException e) {
             throw new AssertionError(e);
         }
@@ -855,7 +887,7 @@ public class Capsule implements Runnable {
         if (appName == null) {
             if (isEmptyCapsule())
                 return null;
-            throw new RuntimeException("Capsule jar " + jar.getName() + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
+            throw new RuntimeException("Capsule jar " + jarFile + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
                     + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
         }
 
@@ -880,9 +912,11 @@ public class Capsule implements Runnable {
         final List<Path> cp = new ArrayList<Path>();
         cp.add(appCache);
         // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
-        for (File f : appCache.toFile().listFiles()) {
-            if (f.isFile() && f.getName().endsWith(".jar"))
-                cp.add(f.toPath());
+        for (Path f : listDir(appCache)) {
+            if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar")) {
+                
+                cp.add(f.toAbsolutePath());
+            }
         }
 
         return cp;
@@ -1018,7 +1052,7 @@ public class Capsule implements Runnable {
                 else
                     throw new IllegalArgumentException("Element " + entry + " in \"" + map + "\" is not a key-value entry separated with " + kvSeparator + " and no default value provided");
             }
-            m.put(key, value);
+            m.put(key.trim(), value.trim());
         }
         return m;
     }
@@ -1044,6 +1078,10 @@ public class Capsule implements Runnable {
             final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
             cache = getCacheHome().resolve((isWindows() ? "" : ".") + cacheName);
         }
+        return cache;
+    }
+
+    private static Path initCacheDir(Path cache) {
         try {
             if (!Files.exists(cache))
                 Files.createDirectory(cache);
@@ -1098,11 +1136,11 @@ public class Capsule implements Runnable {
 
     private void resetAppCache() {
         try {
-            debug("Creating cache for " + jar.getName() + " in " + appCache.toAbsolutePath());
+            debug("Creating cache for " + jarFile + " in " + appCache.toAbsolutePath());
             delete(appCache);
             Files.createDirectory(appCache);
         } catch (IOException e) {
-            throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
+            throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
     }
 
@@ -1115,7 +1153,6 @@ public class Capsule implements Runnable {
                 return false;
             FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
 
-            Path jarFile = Paths.get(jar.getName());
             FileTime jarTime = Files.getLastModifiedTime(jarFile);
 
             return extractedTime.compareTo(jarTime) >= 0;
@@ -1126,11 +1163,13 @@ public class Capsule implements Runnable {
 
     private void extractCapsule() {
         try {
-            verbose("Extracting " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath());
-            extractJar(jar, appCache);
-
+            verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
+            if (!isTest())
+                extractJar(jar, appCache);
+            else
+                extractJar(getJarInputStream(), appCache);
         } catch (IOException e) {
-            throw new RuntimeException("Exception while extracting jar " + jar.getName() + " to app cache directory " + appCache.toAbsolutePath(), e);
+            throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
     }
 
@@ -1177,31 +1216,46 @@ public class Capsule implements Runnable {
 
     private static void extractJar(JarFile jar, Path targetDir) throws IOException {
         for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
-            final JarEntry file = (JarEntry) entries.nextElement();
-
-            if (file.isDirectory())
+            final JarEntry entry = (JarEntry) entries.nextElement();
+            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
                 continue;
 
-            if (file.getName().equals(Capsule.class.getName().replace('.', '/') + ".class")
-                    || (file.getName().startsWith(Capsule.class.getName().replace('.', '/') + "$") && file.getName().endsWith(".class")))
-                continue;
-            if (file.getName().endsWith(".class"))
-                continue;
-            if (file.getName().startsWith("capsule/"))
-                continue;
-
-            final String dir = getDirectory(file.getName());
-            if (dir != null && dir.startsWith("META-INF"))
-                continue;
-
-            if (dir != null)
-                Files.createDirectories(targetDir.resolve(dir));
-
-            final Path targetFile = targetDir.resolve(file.getName());
-            try (InputStream is = jar.getInputStream(file)) {
-                Files.copy(is, targetFile);
+            try (InputStream is = jar.getInputStream(entry)) {
+                writeFile(targetDir, entry.getName(), is);
             }
         }
+    }
+
+    private static void extractJar(JarInputStream jar, Path targetDir) throws IOException {
+        for (JarEntry entry; (entry = jar.getNextJarEntry()) != null;) {
+            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
+                continue;
+
+            writeFile(targetDir, entry.getName(), jar);
+        }
+    }
+
+    private static boolean shouldExtractFile(String fileName) {
+        if (fileName.equals(Capsule.class.getName().replace('.', '/') + ".class")
+                || (fileName.startsWith(Capsule.class.getName().replace('.', '/') + "$") && fileName.endsWith(".class")))
+            return false;
+        if (fileName.endsWith(".class"))
+            return false;
+        if (fileName.startsWith("capsule/"))
+            return false;
+        final String dir = getDirectory(fileName);
+        if (dir != null && dir.startsWith("META-INF"))
+            return false;
+        return true;
+    }
+
+    private static void writeFile(Path targetDir, String fileName, InputStream is) throws IOException {
+        final String dir = getDirectory(fileName);
+        if (dir != null)
+            Files.createDirectories(targetDir.resolve(dir));
+
+        final Path targetFile = targetDir.resolve(fileName);
+        Files.copy(is, targetFile);
     }
 
     private static String getDirectory(String filename) {
@@ -1311,15 +1365,40 @@ public class Capsule implements Runnable {
         return s.substring(i + 1);
     }
 
+    private boolean hasEntry(String name) {
+        try {
+            return getEntry(name) != null;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private InputStream getEntry(String name) throws IOException {
+        if (!isTest()) {
+            final JarEntry entry = jar.getJarEntry(name);
+            if (entry == null)
+                return null;
+            return jar.getInputStream(entry);
+        }
+
+        // test
+        final JarInputStream jis = getJarInputStream();
+        for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
+            if (name.equals(entry.getName()))
+                return jis;
+        }
+        return null;
+    }
+
     private boolean hasPom() {
-        return jar.getEntry(POM_FILE) != null;
+        return hasEntry(POM_FILE);
     }
 
     private Object createPomReader() {
         try {
-            return new PomReader(jar.getInputStream(jar.getEntry(POM_FILE)));
+            return new PomReader(getEntry(POM_FILE));
         } catch (NoClassDefFoundError e) {
-            throw new RuntimeException("Jar " + jar.getName()
+            throw new RuntimeException("Jar " + jarFile
                     + " contains a pom.xml file, while the necessary dependency management classes are not found in the jar");
         } catch (IOException e) {
             throw new RuntimeException("Failed reading pom", e);
@@ -1354,11 +1433,11 @@ public class Capsule implements Runnable {
             final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
             debug("Offline: " + offline);
 
-            final DependencyManager dm = new DependencyManager(localRepo.toAbsolutePath(), repositories, reset, offline);
+            final DependencyManager dm = new AetherDependencyManager(localRepo.toAbsolutePath(), repositories, reset, offline);
 
             return dm;
         } catch (NoClassDefFoundError e) {
-            throw new RuntimeException("Jar " + jar.getName()
+            throw new RuntimeException("Jar " + jarFile
                     + " specifies dependencies, while the necessary dependency management classes are not found in the jar");
         }
     }
@@ -1437,18 +1516,10 @@ public class Capsule implements Runnable {
         return depsJars.iterator().next().toAbsolutePath();
     }
 
-    private static void delete(Path dir) throws IOException {
+    private void delete(Path dir) throws IOException {
         // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
-        delete(dir.toFile());
-    }
-
-    private static void delete(File f) throws IOException {
-        if (f.isDirectory()) {
-            for (File c : f.listFiles())
-                delete(c);
-        }
-        if (!f.delete())
-            throw new FileNotFoundException("Failed to delete file: " + f);
+        for (Path f : listDir(dir, FILE_VISITOR_MODE_POSTORDER))
+            Files.delete(f);
     }
 
     private Path findJavaHome(boolean jdk) {
@@ -1472,7 +1543,7 @@ public class Capsule implements Runnable {
         return best;
     }
 
-    private static Map<String, Path> getJavaHomes(boolean jdk) {
+    private Map<String, Path> getJavaHomes(boolean jdk) {
         Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
         while (dir != null) {
             Map<String, Path> homes = getJavaHomes(dir, jdk);
@@ -1483,21 +1554,20 @@ public class Capsule implements Runnable {
         return null;
     }
 
-    private static Map<String, Path> getJavaHomes(Path dir, boolean jdk) {
-        File d = dir.toFile();
-        if (!d.isDirectory())
+    private Map<String, Path> getJavaHomes(Path dir, boolean jdk) {
+        if (!Files.isDirectory(dir))
             return null;
         Map<String, Path> dirs = new HashMap<String, Path>();
-        for (File f : d.listFiles()) {
-            if (f.isDirectory()) {
-                String dirName = f.toPath().getFileName().toString();
+        for (Path f : listDir(dir)) {
+            if (Files.isDirectory(f)) {
+                String dirName = f.getFileName().toString();
                 String ver = isJavaDir(dirName);
                 if (ver != null && (!jdk || isJDK(dirName))) {
-                    final File home = searchJavaHomeInDir(f);
+                    final Path home = searchJavaHomeInDir(f);
                     if (home != null) {
                         if (parseJavaVersion(ver)[3] == 0)
-                            ver = getActualJavaVersion(home.getPath());
-                        dirs.put(ver, home.toPath());
+                            ver = getActualJavaVersion(home.toString());
+                        dirs.put(ver, home);
                     }
                 }
             }
@@ -1521,26 +1591,26 @@ public class Capsule implements Runnable {
         return filename.toLowerCase().contains("jdk");
     }
 
-    private static File searchJavaHomeInDir(File dir) {
-        if (!dir.isDirectory())
+    private Path searchJavaHomeInDir(Path dir) {
+        if (!Files.isDirectory(dir))
             return null;
-        for (File f : dir.listFiles()) {
+        for (Path f : listDir(dir)) {
             if (isJavaHome(f))
                 return f;
-            File home = searchJavaHomeInDir(f);
+            Path home = searchJavaHomeInDir(f);
             if (home != null)
                 return home;
         }
         return null;
     }
 
-    private static boolean isJavaHome(File dir) {
-        if (dir.isDirectory()) {
-            for (File f : dir.listFiles()) {
-                if (f.isDirectory() && f.toPath().getFileName().toString().equals("bin")) {
-                    for (File f0 : f.listFiles()) {
-                        if (f0.isFile()) {
-                            String fname = f0.toPath().getFileName().toString().toLowerCase();
+    private boolean isJavaHome(Path dir) {
+        if (Files.isDirectory(dir)) {
+            for (Path f : listDir(dir)) {
+                if (Files.isDirectory(f) && f.getFileName().toString().equals("bin")) {
+                    for (Path f0 : listDir(f)) {
+                        if (Files.isRegularFile(f0)) {
+                            String fname = f0.getFileName().toString().toLowerCase();
                             if (fname.equals("java") || fname.equals("java.exe"))
                                 return true;
                         }
@@ -1779,9 +1849,79 @@ public class Capsule implements Runnable {
             System.err.println("CAPSULE: " + str);
     }
 
-    private static Process launchCapsule(Path path, String[] args) {
+    /////////////////// file visitor
+    /*
+     * This is written in a funny way because we don't want to create any classes, even anonymous ones, so that this file will compile
+     * to a single class file.
+     */
+    private final Object fileVisitorLock = new Object();
+    private int fileVisitorMode;
+    private Path fileVisitorStart;
+    private List<Path> fileVisitorResult;
+    private static final int FILE_VISITOR_MODE_NO_RECURSE = 0;
+    private static final int FILE_VISITOR_MODE_PREORDER = 1;
+    private static final int FILE_VISITOR_MODE_POSTORDER = 2;
+
+    protected final List<Path> listDir(Path dir) {
+        return listDir(dir, FILE_VISITOR_MODE_NO_RECURSE);
+    }
+
+    protected final List<Path> listDir(Path dir, int fileVisitorMode) {
+        synchronized (fileVisitorLock) {
+            this.fileVisitorMode = fileVisitorMode;
+            List<Path> res = new ArrayList<>();
+            this.fileVisitorStart = dir;
+            this.fileVisitorResult = res;
+            try {
+                Files.walkFileTree(dir, this);
+                return res;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                this.fileVisitorStart = null;
+                this.fileVisitorResult = null;
+                this.fileVisitorMode = -1;
+            }
+        }
+    }
+
+    @Override
+    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+        if(fileVisitorStart.equals(dir))
+            return FileVisitResult.CONTINUE;
+        
+        if (fileVisitorMode == FILE_VISITOR_MODE_PREORDER)
+            fileVisitorResult.add(dir);
+        else if (fileVisitorMode == FILE_VISITOR_MODE_NO_RECURSE) {
+            fileVisitorResult.add(dir);
+            return FileVisitResult.SKIP_SUBTREE;
+        }
+        return FileVisitResult.CONTINUE;
+    }
+
+    @Override
+    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+        if (exc != null)
+            throw exc;
+        if (fileVisitorMode == FILE_VISITOR_MODE_POSTORDER)
+            fileVisitorResult.add(dir);
+        return FileVisitResult.CONTINUE;
+    }
+
+    @Override
+    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+        fileVisitorResult.add(file);
+        return FileVisitResult.CONTINUE;
+    }
+
+    @Override
+    public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+        throw exc;
+    }
+
+    /////////////
+    private static ProcessBuilder launchCapsule(Path path, List<String> cmdLine, String[] args) {
         try {
-            final JarFile jar = new JarFile(path.toFile());
             final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
             Class clazz;
             try {
@@ -1791,14 +1931,15 @@ public class Capsule implements Runnable {
             }
             final Object capsule;
             try {
-                Constructor<?> ctor = clazz.getConstructor(JarFile.class, String[].class);
+                Constructor<?> ctor = clazz.getConstructor(Path.class, String[].class);
                 ctor.setAccessible(true);
-                capsule = ctor.newInstance(jar, args);
+                capsule = ctor.newInstance(path, args);
             } catch (Exception e) {
                 throw new RuntimeException("Could not launch custom capsule.", e);
             }
-            final Method launch = clazz.getMethod("launch", String[].class);
-            return (Process) launch.invoke(capsule, jar, args);
+            final Method launch = clazz.getMethod("prepareForLaunch", List.class, String[].class);
+            launch.setAccessible(true);
+            return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } catch (ClassNotFoundException | NoSuchMethodException e) {

@@ -7,10 +7,44 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
+import capsule.DependencyManager;
+import capsule.Jar;
+import com.google.jimfs.Configuration;
+import com.google.jimfs.Jimfs;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import org.junit.Before;
 
 public class CapsuleTest {
+    private static final Charset UTF8 = Charset.forName("UTF-8");
+    private FileSystem fs;
+    private Path cache;
+
+    @Before
+    public void setup() {
+        fs = Jimfs.newFileSystem(Configuration.unix());
+        cache = fs.getPath("/cache");
+    }
+
+    private Capsule newCapsule(Jar jar, DependencyManager dependencyManager, String... args) {
+        try {
+            ByteArrayOutputStream baos = jar.write(new ByteArrayOutputStream());
+            baos.close();
+
+            return new Capsule(Paths.get("test"), args, cache, baos.toByteArray(), dependencyManager);
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     @Test
     public void testParseJavaVersion() {
@@ -47,6 +81,37 @@ public class CapsuleTest {
         assertEquals("1.8.0", Capsule.shortJavaVersion("8"));
         assertEquals("1.8.0", Capsule.shortJavaVersion("1.8"));
         assertEquals("1.8.0", Capsule.shortJavaVersion("1.8.0"));
+    }
+
+    @Test
+    public void testSimpleExtract() throws Exception {
+        Jar jar = new Jar()
+                .setAttribute("Manifest-Version", "1.0")
+                .setAttribute("Main-Class", "Capsule")
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null, args);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+
+        assertTrue(Files.isDirectory(cache));
+        assertTrue(Files.isDirectory(cache.resolve("apps")));
+        assertTrue(Files.isDirectory(appCahce));
+        assertTrue(Files.isRegularFile(appCahce.resolve(".extracted")));
+        assertTrue(Files.isRegularFile(appCahce.resolve("foo.jar")));
+    }
+
+    private static <T> List<T> list(T... xs) {
+        return Arrays.asList(xs);
+    }
+
+    private static String[] strings(String... xs) {
+        return xs;
     }
 
     private static int[] ints(int... xs) {

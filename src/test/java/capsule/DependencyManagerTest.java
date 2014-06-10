@@ -93,7 +93,7 @@ public class DependencyManagerTest {
     }
 
     private static Dependency dep(String desc) {
-        return DependencyManager.toDependency(desc, "jar");
+        return AetherDependencyManager.toDependency(desc, "jar");
     }
 
     private static Exclusion exc(Dependency dep, int i) {
