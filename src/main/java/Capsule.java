@@ -881,7 +881,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         if (appName == null)
             appName = getAttribute(ATTR_APP_NAME);
         if (appName == null) {
-            appName = getApplicationArtifactId(getAppArtifact(args));
+            appName = getAppArtifact(args);
             if (appName != null)
                 return getAppArtifactLatestVersion(appName);
         }
