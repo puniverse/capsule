@@ -381,7 +381,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
                 out.close();
             } catch (IOException e2) {
                 if (verbose)
-                   e2.printStackTrace(System.err);
+                    e2.printStackTrace(System.err);
             }
         }
     }
@@ -905,7 +905,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         try {
             String mainClass = getAttribute(ATTR_APP_CLASS);
             if (mainClass == null && hasAttribute(ATTR_APP_ARTIFACT))
-                mainClass = getMainClass(new JarFile(classPath.get(0).toAbsolutePath().toString()));
+                mainClass = getMainClass(classPath.get(0).toAbsolutePath());
             if (mainClass == null)
                 throw new RuntimeException("Jar " + classPath.get(0).toAbsolutePath() + " does not have a main class defined in the manifest.");
             return mainClass;
@@ -920,7 +920,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
         for (Path f : listDir(appCache)) {
             if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar")) {
-                
+
                 cp.add(f.toAbsolutePath());
             }
         }
@@ -1188,19 +1188,18 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     private static boolean isCapsule(Path path) {
-        try {
-            if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
-                final JarFile jar = new JarFile(path.toFile());
+        if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
+            try (final JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
                 return isCapsule(jar);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-            return false;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
+        return false;
     }
 
-    private static boolean isCapsule(JarFile jar) {
-        return "Capsule".equals(getMainClass(jar));
+    private static boolean isCapsule(JarInputStream jar) {
+        return "Capsule".equals(getMainClass(jar.getManifest()));
 //        for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
 //            final JarEntry file = (JarEntry) entries.nextElement();
 //            if (file.getName().equals("Capsule.class"))
@@ -1209,15 +1208,16 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 //        return false;
     }
 
-    private static String getMainClass(JarFile jar) {
-        try {
-            final Manifest manifest = jar.getManifest();
-            if (manifest != null)
-                return manifest.getMainAttributes().getValue("Main-Class");
-            return null;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+    private static String getMainClass(Path jar) throws IOException {
+        try (final JarInputStream jis = new JarInputStream(Files.newInputStream(jar))) {
+            return getMainClass(jis.getManifest());
         }
+    }
+
+    private static String getMainClass(Manifest manifest) {
+        if (manifest != null)
+            return manifest.getMainAttributes().getValue("Main-Class");
+        return null;
     }
 
     private static void extractJar(JarFile jar, Path targetDir) throws IOException {
@@ -1893,9 +1893,9 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
     @Override
     public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-        if(fileVisitorStart.equals(dir))
+        if (fileVisitorStart.equals(dir))
             return FileVisitResult.CONTINUE;
-        
+
         if (fileVisitorMode == FILE_VISITOR_MODE_PREORDER)
             fileVisitorResult.add(dir);
         else if (fileVisitorMode == FILE_VISITOR_MODE_NO_RECURSE) {

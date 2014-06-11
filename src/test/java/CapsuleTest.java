@@ -74,7 +74,12 @@ public class CapsuleTest {
     public void testSimpleExtract() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("a.class", Jar.toInputStream("", UTF8))
+                .addEntry("b.txt", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/b.class", Jar.toInputStream("", UTF8))
+                .addEntry("META-INF/x.txt", Jar.toInputStream("", UTF8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
@@ -94,6 +99,13 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCahce));
         assertTrue(Files.isRegularFile(appCahce.resolve(".extracted")));
         assertTrue(Files.isRegularFile(appCahce.resolve("foo.jar")));
+        assertTrue(Files.isRegularFile(appCahce.resolve("b.txt")));
+        assertTrue(Files.isDirectory(appCahce.resolve("lib")));
+        assertTrue(Files.isRegularFile(appCahce.resolve("lib").resolve("a.jar")));
+        assertTrue(!Files.isRegularFile(appCahce.resolve("a.class")));
+        assertTrue(!Files.isRegularFile(appCahce.resolve("lib").resolve("b.class")));
+        assertTrue(!Files.isDirectory(appCahce.resolve("META-INF")));
+        assertTrue(!Files.isRegularFile(appCahce.resolve("META-INF").resolve("x.txt")));
     }
 
     @Test
