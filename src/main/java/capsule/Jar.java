@@ -270,6 +270,19 @@ public class Jar {
     /**
      * Adds an entry to this JAR.
      *
+     * @param path    the entry's path within the JAR
+     * @param content the entry's content
+     * @return {@code this}
+     */
+    public Jar addEntry(String path, byte[] content) throws IOException {
+        beginWriting();
+        addEntry(jos, path, content);
+        return this;
+    }
+
+    /**
+     * Adds an entry to this JAR.
+     *
      * @param path the entry's path within the JAR
      * @param is   the entry's content
      * @return {@code this}
@@ -324,6 +337,7 @@ public class Jar {
 
     /**
      * Sets a {@link Pack200.Packer Pack200 packer} to use when writing the JAR.
+     *
      * @param packer
      * @return {@code this}
      */
@@ -331,16 +345,16 @@ public class Jar {
         this.packer = packer;
         return this;
     }
-    
+
     private void write(byte[] content, OutputStream os) throws IOException {
-        if(packer != null)
+        if (packer != null)
             packer.pack(new JarInputStream(new ByteArrayInputStream(content)), os);
         else
             os.write(content);
     }
-    
+
     /**
-     * Writes this JAR to an output stream.
+     * Writes this JAR to an output stream, and closes the stream.
      */
     public <T extends OutputStream> T write(T os) throws IOException {
         beginWriting();
@@ -373,9 +387,20 @@ public class Jar {
     public void write(String file) throws IOException {
         write(Paths.get(file));
     }
+    
+    /**
+     * Returns this JAR file as an array of bytes.
+     */
+    public byte[] toByteArray() {
+        try {
+            return write(new ByteArrayOutputStream()).toByteArray();
+        } catch (IOException e) {
+            throw new AssertionError();
+        }
+    }
 
     private static JarOutputStream updateJar(JarInputStream jar, Manifest manifest, OutputStream os) throws IOException {
-        final JarOutputStream jarOut = new JarOutputStream(os, manifest);      
+        final JarOutputStream jarOut = new JarOutputStream(os, manifest);
         for (JarEntry entry; (entry = jar.getNextJarEntry()) != null;) {
             if (entry.getName().equals(entry.toString())) {
                 if (entry.getName().equals("META-INF/MANIFEST.MF"))
@@ -406,6 +431,11 @@ public class Jar {
     private static void addEntry(JarOutputStream jarOut, String path, InputStream is) throws IOException {
         jarOut.putNextEntry(new JarEntry(path));
         copy(is, jarOut);
+    }
+
+    private static void addEntry(JarOutputStream jarOut, String path, byte[] data) throws IOException {
+        jarOut.putNextEntry(new JarEntry(path));
+        jarOut.write(data);
     }
 
     private static void copy(InputStream is, OutputStream os) throws IOException {
@@ -466,9 +496,9 @@ public class Jar {
             return null;
         String[] es = str.split(separator);
         final List<String> list = new ArrayList<>(es.length);
-        for(String e : es) {
+        for (String e : es) {
             e = e.trim();
-            if(!e.isEmpty())
+            if (!e.isEmpty())
                 list.add(e);
         }
         return list;

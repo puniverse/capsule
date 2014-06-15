@@ -216,7 +216,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     protected Capsule(Path jarFile, String[] args) {
         this.jarFile = jarFile;
         try {
-            this.jar = new JarFile(jarFile.toFile());
+            this.jar = new JarFile(jarFile.toFile()); // only use of old File API
             this.jarBuffer = null;
             this.manifest = jar.getManifest();
             if (manifest == null)
@@ -571,7 +571,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
             for (String sp : getListAttribute(ATTR_APP_CLASS_PATH)) {
-                Path p = Paths.get(expand(sanitize(sp)));
+                Path p = path(expand(sanitize(sp)));
 
                 if (appCache == null && (!p.isAbsolute() || p.startsWith(appCache)))
                     throw new IllegalStateException("Cannot resolve " + sp + "  in " + ATTR_APP_CLASS_PATH + " attribute when the "
@@ -961,6 +961,10 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         return sb.toString();
     }
 
+    private Path path(String p, String... more) {
+        return cacheDir.getFileSystem().getPath(p, more);
+    }
+    
     private List<Path> getPath(List<String> ps) {
         if (ps == null)
             return null;
@@ -974,12 +978,12 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         return "jar:file:" + getJarPath() + "!/" + relPath;
     }
 
-    private static List<Path> toPath(List<String> ps) {
+    private List<Path> toPath(List<String> ps) {
         if (ps == null)
             return null;
         final List<Path> aps = new ArrayList<Path>(ps.size());
         for (String p : ps)
-            aps.add(Paths.get(p));
+            aps.add(path(p));
         return aps;
     }
 

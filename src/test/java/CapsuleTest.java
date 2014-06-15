@@ -10,26 +10,28 @@
 import capsule.DependencyManager;
 import capsule.Jar;
 import com.google.jimfs.Jimfs;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
+import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.collection.IsIn.*;
 
 public class CapsuleTest {
     private static final Charset UTF8 = Charset.forName("UTF-8");
+    private FileSystem fs;
     private Path cache;
 
     @Before
     public void setup() {
-        FileSystem fs = Jimfs.newFileSystem();
+        fs = Jimfs.newFileSystem();
         cache = fs.getPath("/cache");
     }
 
@@ -106,6 +108,84 @@ public class CapsuleTest {
         assertTrue(!Files.isRegularFile(appCahce.resolve("lib").resolve("b.class")));
         assertTrue(!Files.isDirectory(appCahce.resolve("META-INF")));
         assertTrue(!Files.isRegularFile(appCahce.resolve("META-INF").resolve("x.txt")));
+
+        assertThat(fs.getPath("capsule.jar"), isIn(getClassPath(pb)));
+        assertThat(appCahce, isIn(getClassPath(pb)));
+        assertThat(appCahce.resolve("foo.jar"), isIn(getClassPath(pb)));
+        assertThat(appCahce.resolve("lib").resolve("a.jar"), not(isIn(getClassPath(pb))));
+    }
+
+    @Test
+    public void testNoExtract() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false")
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null, args);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+        assertTrue(!Files.isDirectory(appCahce));
+    }
+
+    @Test
+    public void testClassPath() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("App-Class-Path", list("lib/a.jar", "lib/b.jar"))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null, args);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+
+        assertTrue(Files.isDirectory(appCahce.resolve("lib")));
+        assertTrue(Files.isRegularFile(appCahce.resolve("lib").resolve("a.jar")));
+
+        assertThat(fs.getPath("capsule.jar"), isIn(getClassPath(pb)));
+        assertThat(appCahce, isIn(getClassPath(pb)));
+        assertThat(appCahce.resolve("foo.jar"), isIn(getClassPath(pb)));
+        assertThat(appCahce.resolve("lib").resolve("a.jar"), isIn(getClassPath(pb)));
+        assertThat(appCahce.resolve("lib").resolve("b.jar"), isIn(getClassPath(pb)));
+    }
+
+    @Test
+    public void testCapsuleInClass() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("App-Class-Path", list("lib/a.jar", "lib/b.jar"))
+                .setAttribute("Capsule-In-Class-Path", "false")
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null, args);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+
+        assertTrue(Files.isDirectory(appCahce.resolve("lib")));
+        assertTrue(Files.isRegularFile(appCahce.resolve("lib").resolve("a.jar")));
+
+        assertThat(fs.getPath("capsule.jar"), not(isIn(getClassPath(pb))));
+        assertThat(appCahce, isIn(getClassPath(pb)));
+        assertThat(appCahce.resolve("foo.jar"), isIn(getClassPath(pb)));
+        assertThat(appCahce.resolve("lib").resolve("a.jar"), isIn(getClassPath(pb)));
+        assertThat(appCahce.resolve("lib").resolve("b.jar"), isIn(getClassPath(pb)));
     }
 
     @Test
@@ -120,22 +200,37 @@ public class CapsuleTest {
 
         Capsule capsule = newCapsule(jar, null, args);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        
         assertTrue(pb.command().contains("-Dfoo=x"));
         assertTrue(pb.command().contains("-Dbar"));
         assertTrue(pb.command().contains("-Dzzz"));
         assertTrue(pb.command().contains("-Dbaz=33"));
     }
 
+    @Test
+    public void testScript() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Unix-Script", "scr.sh")
+                .setAttribute("Windows-Script", "scr.bat")
+                .addEntry("scr.sh", Jar.toInputStream("", UTF8))
+                .addEntry("scr.bat", Jar.toInputStream("", UTF8))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null, args);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+
+        assertEquals(pb.command(), list(appCahce.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"));
+    }
+
     //////////////// utilities
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager, String... args) {
-        try {
-            ByteArrayOutputStream baos = jar.write(new ByteArrayOutputStream());
-            baos.close();
-
-            return new Capsule(Paths.get("test"), args, cache, baos.toByteArray(), dependencyManager);
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
+        return new Capsule(Paths.get("capsule.jar"), args, cache, jar.toByteArray(), dependencyManager);
     }
 
     private Jar newCapsuleJar() {
@@ -144,12 +239,16 @@ public class CapsuleTest {
                 .setAttribute("Main-Class", "Capsule");
     }
 
-    private static List<String> getClassPath(ProcessBuilder pb) {
+    private List<Path> getClassPath(ProcessBuilder pb) {
         final List<String> cmd = pb.command();
         final int i = cmd.indexOf("-classpath");
         if (i < 0)
             return null;
-        return Arrays.asList(cmd.get(i + 1).split(":"));
+        // return Arrays.asList(cmd.get(i + 1).split(":"));
+        final List<Path> res = new ArrayList<>();
+        for (String p : cmd.get(i + 1).split(":"))
+            res.add(fs.getPath(p));
+        return res;
     }
 
     private static List<String> getMainAndArgs(ProcessBuilder pb) {
@@ -178,5 +277,91 @@ public class CapsuleTest {
 
     private static int[] ints(int... xs) {
         return xs;
+    }
+
+    private static String globToRegex(String line) {
+        line = line.trim();
+        int strLen = line.length();
+        StringBuilder sb = new StringBuilder(strLen);
+        // Remove beginning and ending * globs because they're useless
+        if (line.startsWith("*")) {
+            line = line.substring(1);
+            strLen--;
+        }
+        if (line.endsWith("*")) {
+            line = line.substring(0, strLen - 1);
+            strLen--;
+        }
+        boolean escaping = false;
+        int inCurlies = 0;
+        for (char currentChar : line.toCharArray()) {
+            switch (currentChar) {
+                case '*':
+                    if (escaping)
+                        sb.append("\\*");
+                    else
+                        sb.append(".*");
+                    escaping = false;
+                    break;
+                case '?':
+                    if (escaping)
+                        sb.append("\\?");
+                    else
+                        sb.append('.');
+                    escaping = false;
+                    break;
+                case '.':
+                case '(':
+                case ')':
+                case '+':
+                case '|':
+                case '^':
+                case '$':
+                case '@':
+                case '%':
+                    sb.append('\\');
+                    sb.append(currentChar);
+                    escaping = false;
+                    break;
+                case '\\':
+                    if (escaping) {
+                        sb.append("\\\\");
+                        escaping = false;
+                    } else
+                        escaping = true;
+                    break;
+                case '{':
+                    if (escaping)
+                        sb.append("\\{");
+                    else {
+                        sb.append('(');
+                        inCurlies++;
+                    }
+                    escaping = false;
+                    break;
+                case '}':
+                    if (inCurlies > 0 && !escaping) {
+                        sb.append(')');
+                        inCurlies--;
+                    } else if (escaping)
+                        sb.append("\\}");
+                    else
+                        sb.append("}");
+                    escaping = false;
+                    break;
+                case ',':
+                    if (inCurlies > 0 && !escaping)
+                        sb.append('|');
+                    else if (escaping)
+                        sb.append("\\,");
+                    else
+                        sb.append(",");
+                    break;
+                default:
+                    escaping = false;
+                    sb.append(currentChar);
+            }
+        }
+        return sb.toString();
     }
 }
