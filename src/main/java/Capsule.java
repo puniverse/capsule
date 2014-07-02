@@ -214,57 +214,38 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     protected Capsule(Path jarFile) {
+        this(jarFile, getCacheDir(), null, null);
+    }
+
+    // Used directly by tests
+    private Capsule(Path jarFile, Path cacheDir, byte[] jarBuffer, Object dependencyManager) {
+        final boolean test = jarBuffer != null;
         this.jarFile = jarFile;
         try {
-            this.jar = new JarFile(jarFile.toFile()); // only use of old File API
-            this.jarBuffer = null;
-            this.manifest = jar.getManifest();
+            this.jar = jarBuffer == null ? new JarFile(jarFile.toFile()) : null; // only use of old File API;                                   // <----
+            this.jarBuffer = jarBuffer;
+            this.manifest = jar != null ? jar.getManifest() : getJarInputStream().getManifest();
             if (manifest == null)
                 throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
         }
 
-        this.cacheDir = initCacheDir(getCacheDir());
+        this.cacheDir = initCacheDir(cacheDir);
         this.javaHome = getJavaHome();
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
-        this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
+        if (test || dependencyManager != null)
+            this.dependencyManager = dependencyManager;
+        else
+            this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
         this.appId = getAppId();
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
 
-    @Deprecated // Used only in tests
-    Capsule(Path jarFile, String[] args, Path cacheDir, byte[] jarBuffer, Object dependencyManager) {
-        this.jarFile = jarFile;
-        this.jar = null;
-        this.jarBuffer = jarBuffer;
-
-        this.manifest = getJarInputStream().getManifest();
-        if (manifest == null)
-            throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
-
-        this.cacheDir = initCacheDir(cacheDir);
-        this.javaHome = getJavaHome();
-        this.mode = System.getProperty(PROP_MODE);
-        this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
-        this.dependencyManager = dependencyManager;
-        this.appId = getAppId(args);
-        this.appCache = needsAppCache() ? getAppCacheDir() : null;
-        this.cacheUpToDate = appCache != null ? isUpToDate() : false;
-    }
-
-    protected final boolean isTest() { // so far only getEntry and extractJar run different code for tests
-        return jar == null;
-    }
-
-    private JarInputStream getJarInputStream() {
-        try {
-            return new JarInputStream(new ByteArrayInputStream(jarBuffer));
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
+    private JarInputStream getJarInputStream() throws IOException {
+        return new JarInputStream(new ByteArrayInputStream(jarBuffer));
     }
 
     private boolean needsDependencyManager() {
@@ -1189,7 +1170,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     private void extractCapsule() {
         try {
             verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
-            if (!isTest())
+            if (jar != null)
                 extractJar(jar, appCache);
             else
                 extractJar(getJarInputStream(), appCache);
@@ -1399,7 +1380,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     private InputStream getEntry(String name) throws IOException {
-        if (!isTest()) {
+        if (jar != null) {
             final JarEntry entry = jar.getJarEntry(name);
             if (entry == null)
                 return null;

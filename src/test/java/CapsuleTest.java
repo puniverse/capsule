@@ -10,6 +10,8 @@
 import capsule.DependencyManager;
 import capsule.Jar;
 import com.google.jimfs.Jimfs;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
@@ -200,7 +202,7 @@ public class CapsuleTest {
 
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
-        
+
         assertTrue(pb.command().contains("-Dfoo=x"));
         assertTrue(pb.command().contains("-Dbar"));
         assertTrue(pb.command().contains("-Dzzz"));
@@ -222,7 +224,7 @@ public class CapsuleTest {
 
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
-        
+
         Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
 
         assertEquals(pb.command(), list(appCahce.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"));
@@ -230,7 +232,15 @@ public class CapsuleTest {
 
     //////////////// utilities
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
-        return new Capsule(Paths.get("capsule.jar"), cache, jar.toByteArray(), dependencyManager);
+        try {
+            Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, Path.class, byte[].class, Object.class);
+            ctor.setAccessible(true);
+            return ctor.newInstance(Paths.get("capsule.jar"), cache, jar.toByteArray(), dependencyManager);
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e.getCause());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     private Jar newCapsuleJar() {
