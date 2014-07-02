@@ -41,8 +41,8 @@ dependencies {
     compile 'org.eclipse.aether:aether-connector-basic:1.0.0.v20140518'
     // compile 'org.eclipse.aether:aether-transport-file:1.0.0.v20140518'
     compile 'org.eclipse.aether:aether-transport-http:1.0.0.v20140518'
-    compile 'org.apache.maven:maven-aether-provider:3.2.1'
-    compile 'org.apache.maven:maven-model:3.2.1'
+    compile 'org.apache.maven:maven-aether-provider:3.2.2'
+    compile 'org.apache.maven:maven-model:3.2.2'
     runtime 'org.slf4j:slf4j-nop:1.7.7'
     
     testCompile 'junit:junit:4.11'
