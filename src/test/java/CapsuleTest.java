@@ -86,7 +86,7 @@ public class CapsuleTest {
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null, args);
+        Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
@@ -126,7 +126,7 @@ public class CapsuleTest {
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null, args);
+        Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
@@ -145,7 +145,7 @@ public class CapsuleTest {
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null, args);
+        Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
@@ -173,7 +173,7 @@ public class CapsuleTest {
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null, args);
+        Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
@@ -198,7 +198,7 @@ public class CapsuleTest {
         String[] args = strings("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
 
-        Capsule capsule = newCapsule(jar, null, args);
+        Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
         
         assertTrue(pb.command().contains("-Dfoo=x"));
@@ -220,7 +220,7 @@ public class CapsuleTest {
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null, args);
+        Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
         
         Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
@@ -229,8 +229,8 @@ public class CapsuleTest {
     }
 
     //////////////// utilities
-    private Capsule newCapsule(Jar jar, DependencyManager dependencyManager, String... args) {
-        return new Capsule(Paths.get("capsule.jar"), args, cache, jar.toByteArray(), dependencyManager);
+    private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
+        return new Capsule(Paths.get("capsule.jar"), cache, jar.toByteArray(), dependencyManager);
     }
 
     private Jar newCapsuleJar() {

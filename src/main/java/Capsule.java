@@ -169,11 +169,11 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args) {
         try {
-            final Capsule capsule = newCapsule(getJarFile(), args);
+            final Capsule capsule = newCapsule(getJarFile());
 
             if (anyPropertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (anyPropertyDefined(PROP_VERSION))
-                    capsule.printVersion();
+                    capsule.printVersion(args);
 
                 if (anyPropertyDefined(PROP_PRINT_JRES))
                     capsule.printJVMs();
@@ -198,22 +198,22 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         }
     }
 
-    private static Capsule newCapsule(Path jarFile, String[] args) {
+    private static Capsule newCapsule(Path jarFile) {
         try {
             final Class<?> clazz = Class.forName(CUSTOM_CAPSULE_CLASS_NAME);
             try {
-                Constructor<?> ctor = clazz.getConstructor(Path.class, String[].class);
+                Constructor<?> ctor = clazz.getConstructor(Path.class);
                 ctor.setAccessible(true);
-                return (Capsule) ctor.newInstance(jarFile, args);
+                return (Capsule) ctor.newInstance(jarFile);
             } catch (Exception e) {
                 throw new RuntimeException("Could not launch custom capsule.", e);
             }
         } catch (ClassNotFoundException e) {
-            return new Capsule(jarFile, args);
+            return new Capsule(jarFile);
         }
     }
 
-    protected Capsule(Path jarFile, String[] args) {
+    protected Capsule(Path jarFile) {
         this.jarFile = jarFile;
         try {
             this.jar = new JarFile(jarFile.toFile()); // only use of old File API
@@ -230,7 +230,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
-        this.appId = getAppId(args);
+        this.appId = getAppId();
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
@@ -296,12 +296,12 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         final ProcessBuilder pb = buildProcess(cmdLine, args);
         if (appCache != null && !cacheUpToDate)
             markCache();
-        verbose("Launching app " + appId);
+        verbose("Launching app " + appId(args));
         return pb;
     }
 
-    private void printVersion() {
-        System.out.println("CAPSULE: Application " + appId);
+    private void printVersion(String[] args) {
+        System.out.println("CAPSULE: Application " + appId(args));
         System.out.println("CAPSULE: Capsule Version " + VERSION);
     }
 
@@ -391,7 +391,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     private void printDependencyTree(String[] args) {
-        System.out.println("Dependencies for " + appId);
+        System.out.println("Dependencies for " + appId(args));
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
         else if (hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule()) {
@@ -438,6 +438,8 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     private String getAppArtifact(String[] args) {
         String appArtifact = null;
         if (isEmptyCapsule()) {
+            if (args == null)
+                return null;
             appArtifact = getCommandLineArtifact(args);
             if (appArtifact == null)
                 throw new IllegalStateException("Capsule " + jarFile + " has nothing to run");
@@ -876,12 +878,14 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         }
     }
 
-    private String getAppId(String[] args) {
+    private String getAppId() {
+        if (isEmptyCapsule())
+            return null;
         String appName = System.getProperty(PROP_APP_ID);
         if (appName == null)
             appName = getAttribute(ATTR_APP_NAME);
         if (appName == null) {
-            appName = getAppArtifact(args);
+            appName = getAppArtifact(null);
             if (appName != null)
                 return getAppArtifactLatestVersion(appName);
         }
@@ -899,6 +903,16 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
         final String version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
         return appName + (version != null ? "_" + version : "");
+    }
+
+    private String appId(String[] args) {
+        if (appId != null)
+            return appId;
+        assert isEmptyCapsule();
+        String appName = getAppArtifact(args);
+        if (appName == null)
+            throw new RuntimeException("No application to run");
+        return getAppArtifactLatestVersion(appName);
     }
 
     private String getMainClass(List<Path> classPath) {
@@ -964,7 +978,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     private Path path(String p, String... more) {
         return cacheDir.getFileSystem().getPath(p, more);
     }
-    
+
     private List<Path> getPath(List<String> ps) {
         if (ps == null)
             return null;
@@ -1068,6 +1082,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     private Path getAppCacheDir() {
+        assert appId != null;
         Path appDir = cacheDir.resolve(APP_CACHE_NAME).resolve(appId);
         try {
             if (!Files.exists(appDir))
@@ -1941,9 +1956,9 @@ public class Capsule implements Runnable, FileVisitor<Path> {
             }
             final Object capsule;
             try {
-                Constructor<?> ctor = clazz.getConstructor(Path.class, String[].class);
+                Constructor<?> ctor = clazz.getConstructor(Path.class);
                 ctor.setAccessible(true);
-                capsule = ctor.newInstance(path, args);
+                capsule = ctor.newInstance(path);
             } catch (Exception e) {
                 throw new RuntimeException("Could not launch custom capsule.", e);
             }
