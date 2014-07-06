@@ -9,7 +9,7 @@
 
 import capsule.DependencyManager;
 import capsule.Jar;
-import com.google.jimfs.Jimfs;
+import com.google.common.jimfs.Jimfs;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
@@ -23,8 +23,9 @@ import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
-import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.collection.IsIn.*;
+import static org.truth0.Truth.*;
+//import static org.hamcrest.CoreMatchers.*;
+//import static org.hamcrest.collection.IsIn.*;
 
 public class CapsuleTest {
     private static final Charset UTF8 = Charset.forName("UTF-8");
@@ -111,10 +112,10 @@ public class CapsuleTest {
         assertTrue(!Files.isDirectory(appCahce.resolve("META-INF")));
         assertTrue(!Files.isRegularFile(appCahce.resolve("META-INF").resolve("x.txt")));
 
-        assertThat(fs.getPath("capsule.jar"), isIn(getClassPath(pb)));
-        assertThat(appCahce, isIn(getClassPath(pb)));
-        assertThat(appCahce.resolve("foo.jar"), isIn(getClassPath(pb)));
-        assertThat(appCahce.resolve("lib").resolve("a.jar"), not(isIn(getClassPath(pb))));
+        ASSERT.that(getClassPath(pb)).has().item(fs.getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCahce);
+        ASSERT.that(getClassPath(pb)).has().item(appCahce.resolve("foo.jar"));
+        ASSERT.that(getClassPath(pb)).has().noneOf(appCahce.resolve("lib").resolve("a.jar"));
     }
 
     @Test
@@ -155,11 +156,11 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCahce.resolve("lib")));
         assertTrue(Files.isRegularFile(appCahce.resolve("lib").resolve("a.jar")));
 
-        assertThat(fs.getPath("capsule.jar"), isIn(getClassPath(pb)));
-        assertThat(appCahce, isIn(getClassPath(pb)));
-        assertThat(appCahce.resolve("foo.jar"), isIn(getClassPath(pb)));
-        assertThat(appCahce.resolve("lib").resolve("a.jar"), isIn(getClassPath(pb)));
-        assertThat(appCahce.resolve("lib").resolve("b.jar"), isIn(getClassPath(pb)));
+        ASSERT.that(getClassPath(pb)).has().item(fs.getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCahce);
+        ASSERT.that(getClassPath(pb)).has().item(appCahce.resolve("foo.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCahce.resolve("lib").resolve("a.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCahce.resolve("lib").resolve("b.jar"));
     }
 
     @Test
@@ -183,11 +184,18 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCahce.resolve("lib")));
         assertTrue(Files.isRegularFile(appCahce.resolve("lib").resolve("a.jar")));
 
-        assertThat(fs.getPath("capsule.jar"), not(isIn(getClassPath(pb))));
-        assertThat(appCahce, isIn(getClassPath(pb)));
-        assertThat(appCahce.resolve("foo.jar"), isIn(getClassPath(pb)));
-        assertThat(appCahce.resolve("lib").resolve("a.jar"), isIn(getClassPath(pb)));
-        assertThat(appCahce.resolve("lib").resolve("b.jar"), isIn(getClassPath(pb)));
+        ASSERT.that(getClassPath(pb)).has().noneOf(fs.getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().allOf(
+                appCahce,
+                appCahce.resolve("foo.jar"),
+                appCahce.resolve("lib").resolve("a.jar"),
+                appCahce.resolve("lib").resolve("b.jar"));
+
+//        assertThat(fs.getPath("capsule.jar"), not(isIn(getClassPath(pb))));
+//        assertThat(appCahce, isIn(getClassPath(pb)));
+//        assertThat(appCahce.resolve("foo.jar"), isIn(getClassPath(pb)));
+//        assertThat(appCahce.resolve("lib").resolve("a.jar"), isIn(getClassPath(pb)));
+//        assertThat(appCahce.resolve("lib").resolve("b.jar"), isIn(getClassPath(pb)));
     }
 
     @Test
