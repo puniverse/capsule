@@ -84,7 +84,7 @@ public class AetherDependencyManager implements DependencyManager {
     }
 
     private static RepositorySystem newRepositorySystem() {
-        DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
+        final DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
         locator.setErrorHandler(new DefaultServiceLocator.ErrorHandler() {
             @Override
             public void serviceCreationFailed(Class<?> type, Class<?> impl, Throwable ex) {
@@ -95,7 +95,7 @@ public class AetherDependencyManager implements DependencyManager {
         locator.addService(TransporterFactory.class, HttpTransporterFactory.class);
         // locator.addService(TransporterFactory.class, FileTransporterFactory.class);
 
-        // Takari
+        // Takari (support concurrent downloads)
         locator.setService(org.eclipse.aether.impl.SyncContextFactory.class, LockingSyncContextFactory.class);
         locator.setService(org.eclipse.aether.spi.io.FileProcessor.class, LockingFileProcessor.class);
 

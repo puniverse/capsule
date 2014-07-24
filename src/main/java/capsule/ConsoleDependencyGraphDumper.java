@@ -86,6 +86,7 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
 //                buffer.append(", optional");
 //            buffer.append("]");
 //        }
+        
         final String premanagedVersion = DependencyManagerUtils.getPremanagedVersion(node);
         if (premanagedVersion != null && !premanagedVersion.equals(a.getBaseVersion()))
             buffer.append(" (version managed from ").append(premanagedVersion).append(")");
