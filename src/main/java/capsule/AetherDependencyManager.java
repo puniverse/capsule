@@ -85,9 +85,19 @@ public class AetherDependencyManager implements DependencyManager {
 
     private static RepositorySystem newRepositorySystem() {
         DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
+        locator.setErrorHandler(new DefaultServiceLocator.ErrorHandler() {
+            @Override
+            public void serviceCreationFailed(Class<?> type, Class<?> impl, Throwable ex) {
+                throw new RuntimeException("Service creation failed for type " + type.getName() + " with impl " + impl, ex);
+            }
+        });
         locator.addService(RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class);
-        // locator.addService(TransporterFactory.class, FileTransporterFactory.class);
         locator.addService(TransporterFactory.class, HttpTransporterFactory.class);
+        // locator.addService(TransporterFactory.class, FileTransporterFactory.class);
+
+        // Takari
+        locator.setService(org.eclipse.aether.impl.SyncContextFactory.class, LockingSyncContextFactory.class);
+        locator.setService(org.eclipse.aether.spi.io.FileProcessor.class, LockingFileProcessor.class);
 
         return locator.getService(RepositorySystem.class);
     }
@@ -234,9 +244,9 @@ public class AetherDependencyManager implements DependencyManager {
         if (!m.matches())
             throw new IllegalArgumentException("Could not parse dependency: " + depString);
 
-        if(m.group("exclusions") == null || m.group("exclusions").isEmpty())
+        if (m.group("exclusions") == null || m.group("exclusions").isEmpty())
             return null;
-        
+
         final List<String> exclusionPatterns = Arrays.asList(m.group("exclusions").split(","));
         final List<Exclusion> exclusions = new ArrayList<Exclusion>();
         for (String ex : exclusionPatterns) {
@@ -246,5 +256,20 @@ public class AetherDependencyManager implements DependencyManager {
             exclusions.add(new Exclusion(coords[0], coords[1], "*", "*"));
         }
         return exclusions;
+    }
+
+    // necessary to bypass Guice/Sisu injection
+    private static final io.takari.filemanager.FileManager takariFileManager = new io.takari.filemanager.internal.DefaultFileManager();
+
+    public static class LockingFileProcessor extends io.takari.aether.concurrency.LockingFileProcessor {
+        public LockingFileProcessor() {
+            super(takariFileManager);
+        }
+    }
+
+    public static class LockingSyncContextFactory extends io.takari.aether.concurrency.LockingSyncContextFactory {
+        public LockingSyncContextFactory() {
+            super(takariFileManager);
+        }
     }
 }

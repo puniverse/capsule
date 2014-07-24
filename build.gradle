@@ -34,7 +34,6 @@ configurations {
 }
 
 dependencies {
-    // compile 'io.takari.aether:takari-local-repository:0.10.3'
     compile 'org.eclipse.aether:aether-api:1.0.0.v20140518'
     compile 'org.eclipse.aether:aether-util:1.0.0.v20140518'
     runtime 'org.eclipse.aether:aether-impl:1.0.0.v20140518'
@@ -43,8 +42,12 @@ dependencies {
     compile 'org.eclipse.aether:aether-transport-http:1.0.0.v20140518'
     compile 'org.apache.maven:maven-aether-provider:3.2.2'
     compile 'org.apache.maven:maven-model:3.2.2'
+    
     runtime 'org.slf4j:slf4j-nop:1.7.7'
     
+    compile 'io.takari.aether:takari-local-repository:0.10.3'
+    compile 'io.takari:takari-filemanager:0.8.1'
+
     testCompile 'junit:junit:4.11'
     testCompile 'org.truth0:truth:0.23'
     testCompile 'org.mockito:mockito-all:1.9.5'
@@ -84,6 +87,8 @@ shadow {
     exclude 'META-INF/**'
     exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
     exclude 'about.html'
+    exclude 'io/takari/aether/localrepo/**'
+    
     relocation {
         pattern = 'org'
         shadedPattern = 'capsule.org'
