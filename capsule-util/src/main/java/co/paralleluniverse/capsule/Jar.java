@@ -6,7 +6,7 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package capsule;
+package co.paralleluniverse.capsule;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

@@ -1,65 +1,3 @@
-apply plugin: 'java'
-
-sourceCompatibility = '1.7'
-targetCompatibility = '1.7'
-
-[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
-
-group               = "co.paralleluniverse"
-version             = "0.6.0-SNAPSHOT"
-status              = "integration"
-description         = "Simple Java deployment"
-ext.url             = "https://github.com/puniverse/capsule"
-ext.vendor          = "Parallel Universe Software Co."
-ext.licenseName     = "Eclipse Public License - v 1.0"
-ext.licenseUrl      = "http://www.eclipse.org/legal/epl-v10.html"
-ext.scmUrl          = "https://github.com/puniverse/capsule"
-ext.scmConnection   = "https://github.com/puniverse/capsule.git"
-ext.distDir         = "$buildDir/dist"
-ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
-
-if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePassword")) {
-    println "sonatype username or password not set"
-    ext.sonatypeUsername = ""
-    ext.sonatypePassword = ""
-}
-
-repositories {
-    mavenCentral()
-}
-
-configurations {
-    all*.exclude group: 'org.eclipse.sisu', module: '*'
-    all*.exclude group: 'commons-codec', module: '*'
-}
-
-dependencies {
-    compile 'org.eclipse.aether:aether-api:1.0.0.v20140518'
-    compile 'org.eclipse.aether:aether-util:1.0.0.v20140518'
-    runtime 'org.eclipse.aether:aether-impl:1.0.0.v20140518'
-    compile 'org.eclipse.aether:aether-connector-basic:1.0.0.v20140518'
-    // compile 'org.eclipse.aether:aether-transport-file:1.0.0.v20140518'
-    compile 'org.eclipse.aether:aether-transport-http:1.0.0.v20140518'
-    compile 'org.apache.maven:maven-aether-provider:3.2.2'
-    compile 'org.apache.maven:maven-model:3.2.2'
-    
-    runtime 'org.slf4j:slf4j-nop:1.7.7'
-    
-    compile 'io.takari.aether:takari-local-repository:0.10.3'
-    compile 'io.takari:takari-filemanager:0.8.1'
-
-    testCompile 'junit:junit:4.11'
-    testCompile 'org.truth0:truth:0.23'
-    testCompile 'org.mockito:mockito-all:1.9.5'
-    testCompile 'com.google.jimfs:jimfs:1.0'
-}
-
-defaultTasks 'build'
-
-//tasks.withType(Compile) { 
-//    options.compilerArgs << "-Xlint:unchecked" 
-//}
-
 buildscript {
     repositories {
         jcenter()
@@ -69,159 +7,230 @@ buildscript {
     }
 }
 
-apply plugin: 'shadow'
+subprojects {
+    apply plugin: 'java'
 
-jar {   
-    manifest { 
-        attributes(
-	    'Main-Class'  :   'Capsule',
-        )
+    sourceCompatibility = '1.7'
+    targetCompatibility = '1.7'
+
+    [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+    group               = "co.paralleluniverse"
+    version             = "0.6.0-SNAPSHOT"
+    status              = "integration"
+    description         = "Simple Java deployment"
+    ext.url             = "https://github.com/puniverse/capsule"
+    ext.vendor          = "Parallel Universe Software Co."
+    ext.licenseName     = "Eclipse Public License - v 1.0"
+    ext.licenseUrl      = "http://www.eclipse.org/legal/epl-v10.html"
+    ext.scmUrl          = "https://github.com/puniverse/capsule"
+    ext.scmConnection   = "https://github.com/puniverse/capsule.git"
+    ext.distDir         = "$buildDir/dist"
+    ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+
+    if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePassword")) {
+        println "sonatype username or password not set"
+        ext.sonatypeUsername = ""
+        ext.sonatypePassword = ""
     }
-}
 
-shadow {
-    // artifactAttached = false
-    classifier = 'shadow'
-    destinationDir = "$buildDir/libs"
-    
-    exclude 'META-INF/**'
-    exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
-    exclude 'about.html'
-    exclude 'io/takari/aether/localrepo/**'
-    
-    relocation {
-        pattern = 'org'
-        shadedPattern = 'capsule.org'
+    repositories {
+        mavenCentral()
     }
-}
 
-shadowJar.doLast {
-    logger.info("$buildDir/libs/${project.name}-${project.version}-shadow.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
-    file("$buildDir/libs/${project.name}-${version}-shadow.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
-}
-
-build.dependsOn shadowJar
-
-//jar {
-//    from { configurations.runtime.collect { zipTree(it) } }
-//    exclude 'META-INF/**'
-//    exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
-//    exclude 'about.html'
-//    exclude 'org/apache/http/client/version.properties'
-//    exclude 'org/apache/http/version.properties'
-//    exclude 'org/apache/maven/model/pom-4.0.0.xml'
-//}
-    
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
-}
-
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
-} 
-
-configure (javadoc) {
-    options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
-    excludes = [ "co/paralleluniverse/capsule/**" ]
-}
-
-test {
-    beforeTest { desc ->
-        logger.quiet("Running test: " + desc)
+    dependencies {
+        testCompile 'junit:junit:4.11'
+        testCompile 'org.truth0:truth:0.23'
+        testCompile 'org.mockito:mockito-all:1.9.5'
     }
-        
-    afterTest { desc, result -> 
-        if(result.resultType == TestResult.ResultType.FAILURE) {
-            logger.quiet("Failed test ${desc.name} [${desc.className}] with exception: ${result.exception}")
-            if(result.exception != null) {
-                result.exception.printStackTrace()
+
+    test {
+        beforeTest { desc ->
+            logger.quiet("Running test: " + desc)
+        }
+
+        afterTest { desc, result ->
+            if(result.resultType == TestResult.ResultType.FAILURE) {
+                logger.quiet("Failed test ${desc.name} [${desc.className}] with exception: ${result.exception}")
+                if(result.exception != null) {
+                    result.exception.printStackTrace()
+                }
             }
         }
     }
-}
-    
-///////// Publish Artifacts 
-apply plugin: 'maven'
-apply plugin: 'signing'
 
-artifacts {
-    archives jar
-    archives sourcesJar
-    archives javadocJar
-    //    archives distZip
-}
+    task sourcesJar(type: Jar, dependsOn: classes) {
+        classifier = 'sources'
+        from sourceSets.main.allSource
+    }
 
-signing {
-    required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
-    sign configurations.archives
-}
+    task javadocJar(type: Jar, dependsOn: javadoc) {
+        classifier = 'javadoc'
+        from javadoc.destinationDir
+    }
 
-uploadArchives.dependsOn shadowJar
+    ///////// Publish Artifacts
+    apply plugin: 'maven'
+    apply plugin: 'signing'
 
-// remove dependencies from pom
-//install.repositories.mavenInstaller.pom.whenConfigured {
-//    it.dependencies.removeAll()
-//} 
+    artifacts {
+        archives jar
+        archives sourcesJar
+        archives javadocJar
+        //    archives distZip
+    }
 
-//configure(install.repositories.mavenInstaller) {
-//    pom.whenConfigured {
-//        it.dependencies.removeAll()
-//    }
-//}
+    signing {
+        required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
+        sign configurations.archives
+    }
 
-install.dependsOn shadowJar
-install {
-    repositories {
-        mavenInstaller {
-            pom.whenConfigured {
-                it.dependencies.clear()
+    uploadArchives {
+        repositories {
+            mavenDeployer {
+                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+                repository(
+                    url: (isReleaseVersion ?
+                              "https://oss.sonatype.org/service/local/staging/deploy/maven2" :
+                              "https://oss.sonatype.org/content/repositories/snapshots")) {
+                    // User and Password are taken from ~/.gradle/gradle.properties
+                    authentication(userName: sonatypeUsername, password: sonatypePassword)
+                }
+
+                pom.project {
+                    name project.name
+                    packaging 'jar'
+                    description project.description
+                    url project.url
+                    scm {
+                        url project.scmUrl
+                        connection project.scmConnection
+                        developerConnection project.scmConnection
+                    }
+                    licenses {
+                        license {
+                            name project.licenseName
+                            url project.licenseUrl
+                            distribution 'repo'
+                        }
+                    }
+                    developers {
+                        developer {
+                            id 'pron'
+                            name 'Ron Pressler'
+                        }
+                    }
+                }
             }
         }
     }
-}
-  
-uploadArchives.dependsOn shadowJar
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
 
-            repository(
-                url: (isReleaseVersion ? 
-	                        "https://oss.sonatype.org/service/local/staging/deploy/maven2" : 
-	                        "https://oss.sonatype.org/content/repositories/snapshots")) {
-                // User and Password are taken from ~/.gradle/gradle.properties
-                authentication(userName: sonatypeUsername, password: sonatypePassword)
-            }
-            pom.whenConfigured {
-                it.dependencies.clear()
-            }
-            pom.project {
-                name project.name
-                packaging 'jar'
-                description project.description
-                url project.url
-                scm {
-                    url project.scmUrl
-                    connection project.scmConnection
-                    developerConnection project.scmConnection
-                }
-                licenses {
-                    license {
-                        name project.licenseName
-                        url project.licenseUrl
-                        distribution 'repo'
-                    }
-                }
-                developers {
-                    developer {
-                        id 'pron'
-                        name 'Ron Pressler'
-                    }
-                }
-            }
+    defaultTasks 'build'
+}
+
+project (':capsule') {
+    configurations {
+        all*.exclude group: 'org.eclipse.sisu', module: '*'
+        all*.exclude group: 'commons-codec', module: '*'
+    }
+
+    dependencies {
+        compile 'org.eclipse.aether:aether-api:1.0.0.v20140518'
+        compile 'org.eclipse.aether:aether-util:1.0.0.v20140518'
+        runtime 'org.eclipse.aether:aether-impl:1.0.0.v20140518'
+        compile 'org.eclipse.aether:aether-connector-basic:1.0.0.v20140518'
+        // compile 'org.eclipse.aether:aether-transport-file:1.0.0.v20140518'
+        compile 'org.eclipse.aether:aether-transport-http:1.0.0.v20140518'
+        compile 'org.apache.maven:maven-aether-provider:3.2.2'
+        compile 'org.apache.maven:maven-model:3.2.2'
+
+        runtime 'org.slf4j:slf4j-nop:1.7.7'
+
+        compile 'io.takari.aether:takari-local-repository:0.10.3'
+        compile 'io.takari:takari-filemanager:0.8.1'
+
+        testCompile project(':capsule-util')
+        testCompile 'com.google.jimfs:jimfs:1.0'
+    }
+
+    //tasks.withType(Compile) {
+    //    options.compilerArgs << "-Xlint:unchecked"
+    //}
+
+    apply plugin: 'shadow'
+
+    jar {
+        manifest {
+            attributes(
+    	    'Main-Class'  :   'Capsule',
+            )
+        }
+    }
+
+    shadow {
+        // artifactAttached = false
+        classifier = 'shadow'
+        destinationDir = "$buildDir/libs"
+
+        exclude 'META-INF/**'
+        exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
+        exclude 'about.html'
+        exclude 'io/takari/aether/localrepo/**'
+
+        relocation {
+            pattern = 'org'
+            shadedPattern = 'capsule.org'
+        }
+    }
+
+    shadowJar.doLast {
+        logger.info("$buildDir/libs/${project.name}-${project.version}-shadow.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
+        file("$buildDir/libs/${project.name}-${version}-shadow.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
+    }
+
+    build.dependsOn shadowJar
+
+    //jar {
+    //    from { configurations.runtime.collect { zipTree(it) } }
+    //    exclude 'META-INF/**'
+    //    exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
+    //    exclude 'about.html'
+    //    exclude 'org/apache/http/client/version.properties'
+    //    exclude 'org/apache/http/version.properties'
+    //    exclude 'org/apache/maven/model/pom-4.0.0.xml'
+    //}
+
+
+    configure (javadoc) {
+        options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
+        excludes = [ "capsule/**" ]
+    }
+
+    install.dependsOn shadowJar
+    uploadArchives.dependsOn shadowJar
+
+    // remove dependencies from pom
+    //install.repositories.mavenInstaller.pom.whenConfigured {
+    //    it.dependencies.removeAll()
+    //}
+
+    //configure(install.repositories.mavenInstaller) {
+    //    pom.whenConfigured {
+    //        it.dependencies.removeAll()
+    //    }
+    //}
+
+
+    install.repositories.mavenInstaller {
+        pom.whenConfigured {
+            it.dependencies.clear()
+        }
+    }
+
+    uploadArchives.repositories.mavenDeployer {
+        pom.whenConfigured {
+            it.dependencies.clear()
         }
     }
 }

@@ -6,9 +6,8 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-
 import capsule.DependencyManager;
-import capsule.Jar;
+import co.paralleluniverse.capsule.Jar;
 import com.google.common.jimfs.Jimfs;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
