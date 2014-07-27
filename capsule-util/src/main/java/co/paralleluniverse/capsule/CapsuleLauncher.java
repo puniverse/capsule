@@ -15,6 +15,7 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -24,7 +25,17 @@ import java.util.List;
 public final class CapsuleLauncher {
     private static final String CAPSULE_CLASS_NAME = "Capsule";
     private static final String CUSTOM_CAPSULE_CLASS_NAME = "CustomCapsule";
+    private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
 
+    public static List<String> enableJMX(List<String> cmdLine) {
+        final String arg = "-D" + OPT_JMX_REMOTE;
+        if(cmdLine.contains(arg))
+            return cmdLine;
+        final List<String> cmdLine2 = new ArrayList<>(cmdLine);
+        cmdLine2.add(arg);
+        return cmdLine2;
+    }
+    
     public static ProcessBuilder launchCapsule(Path path, List<String> cmdLine, String[] args) {
         try {
             final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);

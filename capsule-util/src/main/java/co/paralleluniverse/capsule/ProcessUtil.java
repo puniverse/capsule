@@ -8,14 +8,13 @@
  */
 package co.paralleluniverse.capsule;
 
-import com.sun.tools.attach.AgentLoadException;
+import com.sun.jdmk.remote.cascading.CascadingService;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.lang.reflect.Field;
 import java.nio.file.Paths;
 import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
@@ -50,32 +49,51 @@ public class ProcessUtil {
         }
     }
 
-    private static String getLocalConnectorAddress(int pid) {
+    private static JMXServiceURL getLocalConnectorAddress(String id) {
+        VirtualMachine vm = null;
         try {
-            final VirtualMachine vm = VirtualMachine.attach(Integer.toString(pid));
+            vm = VirtualMachine.attach(id);
             String connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
             if (false && connectorAddr == null) {
                 final String agent = Paths.get(vm.getSystemProperties().getProperty("java.home"), "lib", "management-agent.jar").toString();
                 vm.loadAgent(agent);
                 connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
             }
-            vm.detach();
-            return connectorAddr;
+            return new JMXServiceURL(connectorAddr);
         } catch (AttachNotSupportedException e) {
             throw new UnsupportedOperationException(e);
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            try {
+                if (vm != null)
+                    vm.detach();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
     public static MBeanServerConnection attach(Process p) {
         try {
-            final int pid = getPid(p);
-            final String connectorAddr = getLocalConnectorAddress(pid);
-            final JMXServiceURL serviceURL = new JMXServiceURL(connectorAddr);
+            final String id = Integer.toString(getPid(p));
+            final JMXServiceURL serviceURL = getLocalConnectorAddress(id);
+            
             final JMXConnector connector = JMXConnectorFactory.connect(serviceURL);
             final MBeanServerConnection mbsc = connector.getMBeanServerConnection();
             return mbsc;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String attach(Process p, CascadingService cascade) {
+        try {
+            final String id = Integer.toString(getPid(p));
+            final JMXServiceURL serviceURL = getLocalConnectorAddress(id);
+
+            final String mountId = cascade.mount(serviceURL, null, ObjectName.WILDCARD, id);
+            return mountId;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
