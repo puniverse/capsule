@@ -29,14 +29,14 @@ public final class CapsuleLauncher {
 
     public static List<String> enableJMX(List<String> cmdLine) {
         final String arg = "-D" + OPT_JMX_REMOTE;
-        if(cmdLine.contains(arg))
+        if (cmdLine.contains(arg))
             return cmdLine;
         final List<String> cmdLine2 = new ArrayList<>(cmdLine);
         cmdLine2.add(arg);
         return cmdLine2;
     }
-    
-    public static ProcessBuilder launchCapsule(Path path, List<String> cmdLine, String[] args) {
+
+    public static Object getCapsule(Path path) {
         try {
             final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
             Class clazz;
@@ -53,13 +53,40 @@ public final class CapsuleLauncher {
             } catch (Exception e) {
                 throw new RuntimeException("Could not launch custom capsule.", e);
             }
-            final Method launch = clazz.getMethod("prepareForLaunch", List.class, String[].class);
-            launch.setAccessible(true);
-            return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
+            return capsule;
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } catch (ClassNotFoundException | NoSuchMethodException e) {
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
+        }
+    }
+
+    public static ProcessBuilder prepareForLaunch(Object capsule, List<String> cmdLine, String[] args) {
+        try {
+            final Method launch = capsule.getClass().getMethod("prepareForLaunch", List.class, String[].class);
+            launch.setAccessible(true);
+            return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException("Could not call prepareForLaunch on " + capsule + ". It does not appear to be a valid capsule.", e);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError();
+        } catch (InvocationTargetException e) {
+            final Throwable t = e.getTargetException();
+            if (t instanceof RuntimeException)
+                throw (RuntimeException) t;
+            if (t instanceof Error)
+                throw (Error) t;
+            throw new RuntimeException(t);
+        }
+    }
+
+    public static String getAppId(Object capsule) {
+        try {
+            final Method appId = capsule.getClass().getMethod("appId", String[].class);
+            appId.setAccessible(true);
+            return (String) appId.invoke(capsule, null);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException("Could not call appId on " + capsule + ". It does not appear to be a valid capsule.", e);
         } catch (IllegalAccessException e) {
             throw new AssertionError();
         } catch (InvocationTargetException e) {

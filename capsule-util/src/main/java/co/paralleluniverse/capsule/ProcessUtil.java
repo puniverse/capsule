@@ -87,10 +87,10 @@ public class ProcessUtil {
         }
     }
 
-    public static String attach(Process p, CascadingService cascade) {
+    public static String attach(Process p, String id, CascadingService cascade) {
         try {
-            final String id = Integer.toString(getPid(p));
-            final JMXServiceURL serviceURL = getLocalConnectorAddress(id);
+            final String pid = Integer.toString(getPid(p));
+            final JMXServiceURL serviceURL = getLocalConnectorAddress(pid);
 
             final String mountId = cascade.mount(serviceURL, null, ObjectName.WILDCARD, id);
             return mountId;
