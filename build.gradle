@@ -235,6 +235,13 @@ project (':capsule') {
     }
 }
 
+project (':capsule-util') {
+    dependencies {
+        compile files("${System.getProperty('java.home')}/../lib/tools.jar")
+        compile 'com.betfair.net.java.opendmk:core:1.0-b02'
+    }
+}
+
 task wrapper(type: Wrapper) {
     gradleVersion = '1.11'
 }
