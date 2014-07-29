@@ -52,20 +52,17 @@ public class CapsuleContainer {
             return id;
         } catch (Exception e) {
             if (e instanceof RuntimeException)
-                throw (RuntimeException)e;
+                throw (RuntimeException) e;
             throw new RuntimeException(e);
         }
     }
 
-    public void kill(String id, boolean forcibly) {
-        final ProcessInfo pi = processes.get(id);
-        if (pi == null)
-            return;
-        if (isAlive(pi.process))
-            pi.process.destroy();
-        else
-            processes.remove(id, pi);
-    }
+//    public void kill(String id, boolean forcibly) {
+//        Process p = getProcess(id);
+//        if (p == null)
+//            return;
+//        p.destroy();
+//    }
 
     public Map<String, Process> getProcesses() {
         final Map<String, Process> m = new HashMap<>();
@@ -78,6 +75,30 @@ public class CapsuleContainer {
                 it.remove();
         }
         return Collections.unmodifiableMap(m);
+    }
+
+    public Process getProcess(String id) {
+        final ProcessInfo pi = processes.get(id);
+        if (pi == null)
+            return null;
+        if (isAlive(pi.process))
+            return pi.process;
+        else {
+            processes.remove(id, pi);
+            return null;
+        }
+    }
+
+    public MBeanServerConnection getProcessMBeans(String id) {
+        final ProcessInfo pi = processes.get(id);
+        if (pi == null)
+            return null;
+        if (isAlive(pi.process))
+            return pi.getJMX();
+        else {
+            processes.remove(id, pi);
+            return null;
+        }
     }
 
     private static boolean isAlive(Process p) {
