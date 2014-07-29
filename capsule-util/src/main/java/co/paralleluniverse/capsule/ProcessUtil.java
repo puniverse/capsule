@@ -8,13 +8,11 @@
  */
 package co.paralleluniverse.capsule;
 
-import com.sun.jdmk.remote.cascading.CascadingService;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 import java.lang.reflect.Field;
 import java.nio.file.Paths;
 import javax.management.MBeanServerConnection;
-import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
@@ -24,6 +22,9 @@ import javax.management.remote.JMXServiceURL;
  * @author pron
  */
 public class ProcessUtil {
+    /*
+     * see https://weblogs.java.net/blog/emcmanus/archive/2007/08/combining_casca.html
+     */
     private static Field pidField;
     private static final String PROP_LOCAL_CONNECTOR_ADDRESS = "com.sun.management.jmxremote.localConnectorAddress";
 
@@ -74,26 +75,16 @@ public class ProcessUtil {
         }
     }
 
-    public static MBeanServerConnection attach(Process p) {
+    static JMXServiceURL getLocalConnectorAddress(Process p) {
+        return getLocalConnectorAddress(Integer.toString(getPid(p)));
+    }
+
+    public static MBeanServerConnection getMBeanServerConnection(Process p) {
         try {
-            final String id = Integer.toString(getPid(p));
-            final JMXServiceURL serviceURL = getLocalConnectorAddress(id);
-            
+            final JMXServiceURL serviceURL = getLocalConnectorAddress(p);
             final JMXConnector connector = JMXConnectorFactory.connect(serviceURL);
             final MBeanServerConnection mbsc = connector.getMBeanServerConnection();
             return mbsc;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static String attach(Process p, String id, CascadingService cascade) {
-        try {
-            final String pid = Integer.toString(getPid(p));
-            final JMXServiceURL serviceURL = getLocalConnectorAddress(pid);
-
-            final String mountId = cascade.mount(serviceURL, null, ObjectName.WILDCARD, id);
-            return mountId;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
