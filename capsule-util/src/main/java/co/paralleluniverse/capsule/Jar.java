@@ -16,6 +16,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,6 +44,7 @@ public class Jar {
     private final JarInputStream jis;
     private JarOutputStream jos;
     private Pack200.Packer packer;
+    private boolean reallyExecutable;
 
     /**
      * Creates a new, empty, JAR
@@ -246,6 +249,10 @@ public class Jar {
     private void beginWriting() throws IOException {
         if (jos != null)
             return;
+        if (reallyExecutable) {
+            final Writer out = new OutputStreamWriter(baos, Charset.defaultCharset());
+            out.write("#!/bin/sh\n\nexec java -jar $0 \"$@\"\n\n");
+        }
         if (jar != null)
             jos = updateJar(jar, manifest, baos);
         else if (jis != null)
@@ -346,6 +353,11 @@ public class Jar {
         return this;
     }
 
+    public Jar setReallyExecutable(boolean value) {
+        this.reallyExecutable = value;
+        return this;
+    }
+
     private void write(byte[] content, OutputStream os) throws IOException {
         if (packer != null)
             packer.pack(new JarInputStream(new ByteArrayInputStream(content)), os);
@@ -387,7 +399,7 @@ public class Jar {
     public void write(String file) throws IOException {
         write(Paths.get(file));
     }
-    
+
     /**
      * Returns this JAR file as an array of bytes.
      */
