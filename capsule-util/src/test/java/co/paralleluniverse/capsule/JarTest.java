@@ -8,7 +8,6 @@
  */
 package co.paralleluniverse.capsule;
 
-import co.paralleluniverse.capsule.Jar;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FilterOutputStream;
