@@ -10,6 +10,11 @@ This product depends on Apache Maven, a software project management and comprehe
     * LICENSE: Apache License v2.0 (http://www.apache.org/licenses/LICENSE-2.0.html)
     * HOMEPAGE: http://maven.apache.org/
 
+This product depends on Takari Concurrent Local Repository, an Aether plugin that enables concurrent dependency downloads.
+
+    Copyright (c) Copyright (c) 2010-2014 Takari, Inc., Sonatype, Inc.
+    * LICENSE: Eclipse Public License v1.0 (http://www.eclipse.org/legal/epl-v10.html)
+    * HOMEPAGE: https://github.com/takari/takari-local-repository
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
