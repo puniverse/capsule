@@ -25,14 +25,14 @@ public class MBeanCapsuleContainer extends CapsuleContainer {
     }
 
     @Override
-    protected ProcessInfo getProcessInfo(String id) {
-        return (ProcessInfo) super.getProcessInfo(id);
-    }
-
-    @Override
     protected CapsuleContainer.ProcessInfo mountProcess(Process p, String id) throws IOException, InstanceAlreadyExistsException {
         final JMXServiceURL connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
         return new ProcessInfo(p, connectorAddress);
+    }
+
+    @Override
+    protected ProcessInfo getProcessInfo(String id) {
+        return (ProcessInfo) super.getProcessInfo(id);
     }
 
     public final MBeanServerConnection getProcessMBeans(String id) {

@@ -32,15 +32,15 @@ public class CascadingCapsuleContainer extends MBeanCapsuleContainer {
     }
 
     @Override
-    protected ProcessInfo getProcessInfo(String id) {
-        return (ProcessInfo) super.getProcessInfo(id);
-    }
-
-    @Override
     protected CapsuleContainer.ProcessInfo mountProcess(Process p, String id) throws IOException, InstanceAlreadyExistsException {
         final JMXServiceURL connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
         final String mountId = cascade != null ? cascade.mount(connectorAddress, null, ObjectName.WILDCARD, id) : null;
         return new ProcessInfo(p, connectorAddress, mountId);
+    }
+
+    @Override
+    protected ProcessInfo getProcessInfo(String id) {
+        return (ProcessInfo) super.getProcessInfo(id);
     }
 
     protected static class ProcessInfo extends MBeanCapsuleContainer.ProcessInfo {
