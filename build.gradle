@@ -59,6 +59,20 @@ subprojects {
         }
     }
 
+    task run(type: JavaExec, dependsOn:[testClasses]) {
+        classpath = sourceSets.main.runtimeClasspath
+        if(project.hasProperty('mainClass')){
+            main = project.mainClass
+        }    
+        if(project.hasProperty('args')){
+            args project.args.split('\\s+')
+        }
+    }
+    
+    tasks.withType(JavaExec) { 
+        classpath += sourceSets.test.runtimeClasspath   
+    }
+    
     task sourcesJar(type: Jar, dependsOn: classes) {
         classifier = 'sources'
         from sourceSets.main.allSource
