@@ -8,9 +8,7 @@
  */
 package co.paralleluniverse.capsule;
 
-import com.sun.jdmk.remote.cascading.CascadingService;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,34 +18,26 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import javax.management.MBeanServerConnection;
-import javax.management.ObjectName;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
+import javax.management.InstanceAlreadyExistsException;
 
 /**
  *
  * @author pron
  */
 public class CapsuleContainer {
-    private final AtomicInteger counter = new AtomicInteger();
     private final ConcurrentMap<String, ProcessInfo> processes = new ConcurrentHashMap<String, ProcessInfo>();
-    private final CascadingService cascade;
-
-    public CapsuleContainer() {
-        this.cascade = new CascadingService(ManagementFactory.getPlatformMBeanServer());
-    }
+    private final AtomicInteger counter = new AtomicInteger();
 
     public String launchCapsule(Path capsulePath, List<String> cmdLine, String[] args) throws IOException {
         try {
             final Object capsule = CapsuleLauncher.getCapsule(capsulePath);
-            final String id = CapsuleLauncher.getAppId(capsule) + "-" + counter.incrementAndGet();
-            final ProcessBuilder pb = CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(cmdLine), args);
-            final Process p = pb.start();
-            final JMXServiceURL connectorAddress = ProcessUtil.getLocalConnectorAddress(p);
-            final String mountId = cascade.mount(connectorAddress, null, ObjectName.WILDCARD, id);
+            final ProcessBuilder pb = configureCapsuleProcess(CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(cmdLine), args));
 
-            processes.put(id, new ProcessInfo(p, mountId, connectorAddress));
+            final Process p = pb.start();
+
+            final String id = createProcessId(CapsuleLauncher.getAppId(capsule), p);
+            final ProcessInfo pi = mountProcess(p, id);
+            processes.put(id, pi);
 
             return id;
         } catch (Exception e) {
@@ -57,14 +47,25 @@ public class CapsuleContainer {
         }
     }
 
-//    public void kill(String id, boolean forcibly) {
-//        Process p = getProcess(id);
-//        if (p == null)
-//            return;
-//        p.destroy();
-//    }
+    protected ProcessInfo mountProcess(Process p, String id) throws IOException, InstanceAlreadyExistsException {
+        return new ProcessInfo(p);
+    }
 
-    public Map<String, Process> getProcesses() {
+    /**
+     * May be overriden to pipe app IO streams.
+     *
+     * @param pb The capsule's {@link ProcessBuilder}.
+     * @return {@code pb}
+     */
+    protected ProcessBuilder configureCapsuleProcess(ProcessBuilder pb) throws IOException {
+        return pb;
+    }
+
+    protected String createProcessId(String appId, Process p) {
+        return appId + "-" + counter.incrementAndGet();
+    }
+
+    public final Map<String, Process> getProcesses() {
         final Map<String, Process> m = new HashMap<>();
         for (Iterator<Map.Entry<String, Process>> it = m.entrySet().iterator(); it.hasNext();) {
             final Map.Entry<String, Process> e = it.next();
@@ -77,28 +78,21 @@ public class CapsuleContainer {
         return Collections.unmodifiableMap(m);
     }
 
-    public Process getProcess(String id) {
+    protected ProcessInfo getProcessInfo(String id) {
         final ProcessInfo pi = processes.get(id);
         if (pi == null)
             return null;
         if (isAlive(pi.process))
-            return pi.process;
+            return pi;
         else {
             processes.remove(id, pi);
             return null;
         }
     }
 
-    public MBeanServerConnection getProcessMBeans(String id) {
-        final ProcessInfo pi = processes.get(id);
-        if (pi == null)
-            return null;
-        if (isAlive(pi.process))
-            return pi.getJMX();
-        else {
-            processes.remove(id, pi);
-            return null;
-        }
+    public final Process getProcess(String id) {
+        final ProcessInfo pi = getProcessInfo(id);
+        return pi != null ? pi.process : null;
     }
 
     private static boolean isAlive(Process p) {
@@ -110,26 +104,11 @@ public class CapsuleContainer {
         }
     }
 
-    private static class ProcessInfo {
+    protected static class ProcessInfo {
         final Process process;
-        final String mountPoint;
-        final JMXServiceURL connectorAddress;
-        private MBeanServerConnection jmx;
 
-        public ProcessInfo(Process process, String mountPoint, JMXServiceURL connectorAddress) {
+        public ProcessInfo(Process process) {
             this.process = process;
-            this.mountPoint = mountPoint;
-            this.connectorAddress = connectorAddress;
-        }
-
-        public synchronized MBeanServerConnection getJMX() {
-            try {
-                if (jmx == null)
-                    this.jmx = JMXConnectorFactory.connect(connectorAddress).getMBeanServerConnection();
-                return jmx;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
         }
     }
 }

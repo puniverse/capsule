@@ -27,15 +27,6 @@ public final class CapsuleLauncher {
     private static final String CUSTOM_CAPSULE_CLASS_NAME = "CustomCapsule";
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
 
-    public static List<String> enableJMX(List<String> cmdLine) {
-        final String arg = "-D" + OPT_JMX_REMOTE;
-        if (cmdLine.contains(arg))
-            return cmdLine;
-        final List<String> cmdLine2 = new ArrayList<>(cmdLine);
-        cmdLine2.add(arg);
-        return cmdLine2;
-    }
-
     public static Object getCapsule(Path path) {
         try {
             final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
@@ -84,7 +75,7 @@ public final class CapsuleLauncher {
         try {
             final Method appId = capsule.getClass().getMethod("appId", String[].class);
             appId.setAccessible(true);
-            return (String) appId.invoke(capsule, null);
+            return (String) appId.invoke(capsule, (Object) null);
         } catch (NoSuchMethodException e) {
             throw new RuntimeException("Could not call appId on " + capsule + ". It does not appear to be a valid capsule.", e);
         } catch (IllegalAccessException e) {
@@ -97,6 +88,15 @@ public final class CapsuleLauncher {
                 throw (Error) t;
             throw new RuntimeException(t);
         }
+    }
+
+    public static List<String> enableJMX(List<String> cmdLine) {
+        final String arg = "-D" + OPT_JMX_REMOTE;
+        if (cmdLine.contains(arg))
+            return cmdLine;
+        final List<String> cmdLine2 = new ArrayList<>(cmdLine);
+        cmdLine2.add(arg);
+        return cmdLine2;
     }
 
     private CapsuleLauncher() {
