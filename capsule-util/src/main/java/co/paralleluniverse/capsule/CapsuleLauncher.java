@@ -8,6 +8,7 @@
  */
 package co.paralleluniverse.capsule;
 
+import co.paralleluniverse.common.JarClassLoader;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -29,7 +30,7 @@ public final class CapsuleLauncher {
 
     public static Object getCapsule(Path path) {
         try {
-            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
+            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()});
             Class clazz;
             try {
                 clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
@@ -38,7 +39,7 @@ public final class CapsuleLauncher {
             }
             final Object capsule;
             try {
-                Constructor<?> ctor = clazz.getConstructor(Path.class);
+                final Constructor<?> ctor = clazz.getConstructor(Path.class);
                 ctor.setAccessible(true);
                 capsule = ctor.newInstance(path);
             } catch (Exception e) {
@@ -49,6 +50,29 @@ public final class CapsuleLauncher {
             throw new RuntimeException(e);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
+        }
+    }
+
+    public static Object getCapsule(byte[] buf) {
+        try {
+            final ClassLoader cl = new JarClassLoader(buf);
+            Class clazz;
+            try {
+                clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
+            } catch (ClassNotFoundException e) {
+                clazz = cl.loadClass(CAPSULE_CLASS_NAME);
+            }
+            final Object capsule;
+            try {
+                final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class, byte[].class, Object.class);
+                ctor.setAccessible(true);
+                capsule = ctor.newInstance(null, null, buf, null);
+            } catch (Exception e) {
+                throw new RuntimeException("Could not launch custom capsule.", e);
+            }
+            return capsule;
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("The given buffer does not appear to be a valid capsule.", e);
         }
     }
 

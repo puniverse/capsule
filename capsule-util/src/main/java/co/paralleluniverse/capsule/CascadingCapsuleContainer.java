@@ -8,6 +8,7 @@
  */
 package co.paralleluniverse.capsule;
 
+import co.paralleluniverse.common.ProcessUtil;
 import com.sun.jdmk.remote.cascading.CascadingService;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;

@@ -8,6 +8,7 @@
  */
 package co.paralleluniverse.capsule;
 
+import co.paralleluniverse.common.ProcessUtil;
 import java.io.IOException;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.MBeanServerConnection;

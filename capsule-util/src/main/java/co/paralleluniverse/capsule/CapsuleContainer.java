@@ -29,8 +29,15 @@ public class CapsuleContainer {
     private final AtomicInteger counter = new AtomicInteger();
 
     public String launchCapsule(Path capsulePath, List<String> cmdLine, String[] args) throws IOException {
+        return launchCapsule(CapsuleLauncher.getCapsule(capsulePath), cmdLine, args);
+    }
+
+    public String launchCapsule(byte[] capsule, List<String> cmdLine, String[] args) throws IOException {
+        return launchCapsule(CapsuleLauncher.getCapsule(capsule), cmdLine, args);
+    }
+
+    private String launchCapsule(Object capsule, List<String> cmdLine, String[] args) throws IOException {
         try {
-            final Object capsule = CapsuleLauncher.getCapsule(capsulePath);
             final ProcessBuilder pb = configureCapsuleProcess(CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(cmdLine), args));
 
             final Process p = pb.start();

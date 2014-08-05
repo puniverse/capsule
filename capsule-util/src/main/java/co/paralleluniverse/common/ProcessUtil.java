@@ -6,10 +6,11 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package co.paralleluniverse.capsule;
+package co.paralleluniverse.common;
 
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -26,11 +27,14 @@ public final class ProcessUtil {
     /*
      * see https://weblogs.java.net/blog/emcmanus/archive/2007/08/combining_casca.html
      */
-    private static Field pidField;
+    private static volatile Field pidField;
     private static final String PROP_LOCAL_CONNECTOR_ADDRESS = "com.sun.management.jmxremote.localConnectorAddress";
     private static final String PROP_JAVA_HOME = "java.home";
     private static final Path MANAGEMENT_AGENT = Paths.get("lib", "management-agent.jar");
 
+    /**
+     * Returns the process ID on UNIX machines (fails on Windows).
+     */
     public static int getPid(Process process) {
         if (!process.getClass().getName().equals("java.lang.UNIXProcess"))
             throw new UnsupportedOperationException("This operation is only supported in POSIX environments (Linux/Unix/MacOS");
@@ -63,18 +67,19 @@ public final class ProcessUtil {
                 vm.loadAgent(agent);
                 connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
             }
-            return connectorAddr != null ? new JMXServiceURL(connectorAddr) : null;
+            final JMXServiceURL url = connectorAddr != null ? new JMXServiceURL(connectorAddr) : null;
+            vm.detach();
+            return url;
         } catch (AttachNotSupportedException e) {
             throw new UnsupportedOperationException(e);
         } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
             try {
                 if (vm != null)
                     vm.detach();
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (IOException ex) {
+                e.addSuppressed(ex);
             }
+            throw e instanceof RuntimeException ? (RuntimeException)e : new RuntimeException(e);
         }
     }
 

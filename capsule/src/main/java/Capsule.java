@@ -214,7 +214,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     protected Capsule(Path jarFile) {
-        this(jarFile, getCacheDir(), null, null);
+        this(jarFile, null, null, null);
     }
 
     // Used directly by tests
@@ -231,7 +231,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
             throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
         }
 
-        this.cacheDir = initCacheDir(cacheDir);
+        this.cacheDir = initCacheDir(cacheDir != null ? cacheDir : getCacheDir());
         this.javaHome = getJavaHome();
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
