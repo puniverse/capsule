@@ -38,13 +38,20 @@ On Maven Central.
 
 Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.google.com/forum/#!forum/capsule-user)
 
+### Build-Tool Plugins
+
+Maven:
+
+  * https://github.com/christokios/capsule-maven-plugin
+  * https://github.com/pguedes/capsule-maven-plugin (supports full capsules only)
+
 ### What's Missing/TODO (contributions happily accepted!)
 
-* Gradle, Maven and Leiningen plugins for easy creation of capsules.
+* Gradle and Leiningen plugins for easy creation of capsules.
 
 ## Usage Examples
 
-Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/). 
+Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/).
 
 **A complete usage example, for both Gradle and Maven**, is found in the [capsule-demo](https://github.com/puniverse/capsule-demo) project, which contains both a `build.gradle` file that creates a few kinds of capsules, as well as Maven POM and assemblies that create both a full capsule (with embedded dependencies) and a capsule with external dependencies (that are resolved at launch).
 
@@ -182,7 +189,7 @@ Capsule's JAR can be used standalone (without merging with any application binar
 
     java -jar capsule.jar com.acme:foo [app arguments]
 
-The above command will download (and cache) the Maven artifact and its dependencies, and run it, provided that it's a capsule itself, or even any executable JAR. 
+The above command will download (and cache) the Maven artifact and its dependencies, and run it, provided that it's a capsule itself, or even any executable JAR.
 
 Adding `-Dcapsule.log=verbose` or `-Dcapsule.log=debug`  before `-jar` will print information about Capsule's action.
 
