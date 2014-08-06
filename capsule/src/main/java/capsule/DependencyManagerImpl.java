@@ -49,12 +49,13 @@ import org.eclipse.aether.version.Version;
  * @author pron
  */
 public class DependencyManagerImpl implements DependencyManager {
-    private static final String PROP_LOG = "capsule.log";
+    private static final String MAVEN_CENTRAL_URL = "http://central.maven.org/maven2/";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
+    private static final String PROP_LOG = "capsule.log";
+
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
-    private static final String MAVEN_CENTRAL_URL = "http://central.maven.org/maven2/";
 
     private final boolean forceRefresh;
     private final boolean offline;
