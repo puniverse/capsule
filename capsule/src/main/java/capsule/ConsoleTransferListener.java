@@ -83,15 +83,6 @@ public class ConsoleTransferListener extends AbstractTransferListener {
             return complete + " B ";
     }
 
-    private void pad(StringBuilder buffer, int spaces) {
-        final String block = "                                        ";
-        while (spaces > 0) {
-            int n = Math.min(spaces, block.length());
-            buffer.append(block, 0, n);
-            spaces -= n;
-        }
-    }
-
     @Override
     public void transferSucceeded(TransferEvent event) {
         transferCompleted(event);
@@ -118,9 +109,14 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     @Override
     public void transferFailed(TransferEvent event) {
         transferCompleted(event);
-        
+
         if (!(event.getException() instanceof MetadataNotFoundException))
             event.getException().printStackTrace(out);
+    }
+
+    @Override
+    public void transferCorrupted(TransferEvent event) {
+        event.getException().printStackTrace(out);
     }
 
     private void transferCompleted(TransferEvent event) {
@@ -132,12 +128,16 @@ public class ConsoleTransferListener extends AbstractTransferListener {
         out.print(buffer);
     }
 
-    @Override
-    public void transferCorrupted(TransferEvent event) {
-        event.getException().printStackTrace(out);
+    private static long toKB(long bytes) {
+        return (bytes + 1023) / 1024;
     }
 
-    protected long toKB(long bytes) {
-        return (bytes + 1023) / 1024;
+    private static void pad(StringBuilder buffer, int spaces) {
+        final String block = "                                        ";
+        while (spaces > 0) {
+            int n = Math.min(spaces, block.length());
+            buffer.append(block, 0, n);
+            spaces -= n;
+        }
     }
 }

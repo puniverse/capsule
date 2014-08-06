@@ -7,7 +7,9 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
-import capsule.AetherDependencyManager;
+
+
+import capsule.DependencyManagerImpl;
 import capsule.DependencyManager;
 import capsule.PomReader;
 import java.io.BufferedReader;
@@ -53,10 +55,10 @@ import java.util.regex.Pattern;
 
 public class Capsule implements Runnable, FileVisitor<Path> {
     /*
-     * This class contains several strange hacks to avoid creating more classes. 
-     * We'd like this file to compile to a single .class file.
+     * This class contains several strange hacks to avoid creating more classes,  
+     * as we'd like this file to compile to a single .class file.
      *
-     * Also, the code here is not meant to be the most efficient, but methods should be as independent and stateless as possible.
+     * Also, the code is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few, methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      *
      * We do a lot of data transformations that would have really benefitted from Java 8's lambdas and streams, 
@@ -203,12 +205,19 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         }
     }
 
-    private static boolean anyPropertyDefined(String... props) {
-        for (String prop : props) {
-            if (System.getProperty(prop) != null)
-                return true;
+    private static Capsule newCapsule(Path jarFile) {
+        try {
+            final Class<?> clazz = Class.forName(CUSTOM_CAPSULE_CLASS_NAME);
+            try {
+                Constructor<?> ctor = clazz.getConstructor(Path.class);
+                ctor.setAccessible(true);
+                return (Capsule) ctor.newInstance(jarFile);
+            } catch (Exception e) {
+                throw new RuntimeException("Could not launch custom capsule.", e);
+            }
+        } catch (ClassNotFoundException e) {
+            return new Capsule(jarFile);
         }
-        return false;
     }
 
     private static Path getJarFile() {
@@ -227,19 +236,12 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         }
     }
 
-    private static Capsule newCapsule(Path jarFile) {
-        try {
-            final Class<?> clazz = Class.forName(CUSTOM_CAPSULE_CLASS_NAME);
-            try {
-                Constructor<?> ctor = clazz.getConstructor(Path.class);
-                ctor.setAccessible(true);
-                return (Capsule) ctor.newInstance(jarFile);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not launch custom capsule.", e);
-            }
-        } catch (ClassNotFoundException e) {
-            return new Capsule(jarFile);
+    private static boolean anyPropertyDefined(String... props) {
+        for (String prop : props) {
+            if (System.getProperty(prop) != null)
+                return true;
         }
+        return false;
     }
     //</editor-fold>
 
@@ -354,10 +356,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         resolveDependencies(getDependencies(), "jar");
         resolveNativeDependencies();
     }
-    //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Launch">
-    /////////// Launch ///////////////////////////////////
     private Process launch(List<String> cmdLine, String[] args) throws IOException, InterruptedException {
         ProcessBuilder pb = launchCapsuleArtifact(cmdLine, args);
         if (pb == null)
@@ -372,8 +371,11 @@ public class Capsule implements Runnable, FileVisitor<Path> {
             pipeIoStreams();
         return child;
     }
+    //</editor-fold>
 
-    // visible for testing
+    //<editor-fold defaultstate="collapsed" desc="Launch">
+    /////////// Launch ///////////////////////////////////
+    // directly used by CapsuleLauncher as well as by the tests
     final ProcessBuilder prepareForLaunch(List<String> cmdLine, String[] args) {
         ensureExtractedIfNecessary();
         final ProcessBuilder pb = buildProcess(cmdLine, args);
@@ -826,6 +828,17 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         return classPath;
     }
 
+    /**
+     * Returns a list of dependencies, each in the format {@code groupId:artifactId:version[:classifier]} (classifier is optional)
+     */
+    protected List<String> getDependencies() {
+        List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
+        if (deps == null && pom != null)
+            deps = getPomDependencies();
+
+        return deps != null ? Collections.unmodifiableList(deps) : null;
+    }
+
     private List<Path> buildBootClassPath(List<String> cmdLine) {
         String option = null;
         for (String o : cmdLine) {
@@ -1084,17 +1097,6 @@ public class Capsule implements Runnable, FileVisitor<Path> {
             return args[0];
         return null;
     }
-
-    /**
-     * Returns a list of dependencies, each in the format {@code groupId:artifactId:version[:classifier]} (classifier is optional)
-     */
-    protected List<String> getDependencies() {
-        List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
-        if (deps == null && pom != null)
-            deps = getPomDependencies();
-
-        return deps != null ? Collections.unmodifiableList(deps) : null;
-    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Get Java Home">
@@ -1254,7 +1256,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
             final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
             debug("Offline: " + offline);
 
-            final DependencyManager dm = new AetherDependencyManager(localRepo.toAbsolutePath(), repositories, reset, offline);
+            final DependencyManager dm = new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, offline);
 
             return dm;
         } catch (NoClassDefFoundError e) {

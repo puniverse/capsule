@@ -27,7 +27,6 @@ import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.collection.CollectResult;
 import org.eclipse.aether.collection.DependencyCollectionException;
-import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.impl.DefaultServiceLocator;
@@ -40,14 +39,16 @@ import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.eclipse.aether.resolution.VersionRangeRequest;
 import org.eclipse.aether.resolution.VersionRangeResolutionException;
 import org.eclipse.aether.resolution.VersionRangeResult;
-import org.eclipse.aether.spi.connector.RepositoryConnectorFactory;
-import org.eclipse.aether.spi.connector.transport.TransporterFactory;
-import org.eclipse.aether.transport.http.HttpTransporterFactory;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
 import org.eclipse.aether.version.Version;
 
-public class AetherDependencyManager implements DependencyManager {
+/**
+ * Uses Aether as the Maven dependency manager.
+ *
+ * @author pron
+ */
+public class DependencyManagerImpl implements DependencyManager {
     private static final String PROP_LOG = "capsule.log";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
@@ -61,7 +62,7 @@ public class AetherDependencyManager implements DependencyManager {
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
 
-    public AetherDependencyManager(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline) {
+    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline) {
         this.system = newRepositorySystem();
         this.forceRefresh = forceRefresh;
         this.offline = offline;
@@ -84,6 +85,10 @@ public class AetherDependencyManager implements DependencyManager {
     }
 
     private static RepositorySystem newRepositorySystem() {
+        /*
+         * We're using DefaultServiceLocator rather than Guice/Sisu because it's more lightweight.
+         * This method pulls together the necessary Aether components and plugins.
+         */
         final DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
         locator.setErrorHandler(new DefaultServiceLocator.ErrorHandler() {
             @Override
@@ -91,9 +96,10 @@ public class AetherDependencyManager implements DependencyManager {
                 throw new RuntimeException("Service creation failed for type " + type.getName() + " with impl " + impl, ex);
             }
         });
-        locator.addService(RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class);
-        locator.addService(TransporterFactory.class, HttpTransporterFactory.class);
-        // locator.addService(TransporterFactory.class, FileTransporterFactory.class);
+
+        locator.addService(org.eclipse.aether.spi.connector.RepositoryConnectorFactory.class, org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory.class);
+        locator.addService(org.eclipse.aether.spi.connector.transport.TransporterFactory.class, org.eclipse.aether.transport.http.HttpTransporterFactory.class);
+        // locator.addService(org.eclipse.aether.spi.connector.transport.TransporterFactory.class, org.eclipse.aether.transport.file.FileTransporterFactory.class);
 
         // Takari (support concurrent downloads)
         locator.setService(org.eclipse.aether.impl.SyncContextFactory.class, LockingSyncContextFactory.class);
@@ -115,12 +121,7 @@ public class AetherDependencyManager implements DependencyManager {
 
         s.setLocalRepositoryManager(system.newLocalRepositoryManager(s, localRepo));
 
-        final PrintStream out = new PrintStream(System.err) {
-            @Override
-            public void println(String x) {
-                super.println("CAPSULE: " + x);
-            }
-        };
+        final PrintStream out = prefixStream(System.err, "CAPSULE: ");
         s.setTransferListener(new ConsoleTransferListener(out));
         s.setRepositoryListener(new ConsoleRepositoryListener(verbose, out));
 
@@ -202,6 +203,7 @@ public class AetherDependencyManager implements DependencyManager {
         return new RemoteRepository.Builder(name, "default", url).setPolicy(policy).build();
     }
 
+    // visible for testing
     static Dependency toDependency(String coords, String type) {
         return new Dependency(coordsToArtifact(coords, type), JavaScopes.RUNTIME, false, getExclusions(coords));
     }
@@ -258,7 +260,16 @@ public class AetherDependencyManager implements DependencyManager {
         return exclusions;
     }
 
-    // necessary to bypass Guice/Sisu injection
+    private static PrintStream prefixStream(PrintStream out, final String prefix) {
+        return new PrintStream(out) {
+            @Override
+            public void println(String x) {
+                super.println(prefix + x);
+            }
+        };
+    }
+
+    // necessary if we want to forgo Guice/Sisu injection and use DefaultServiceLocator instead
     private static final io.takari.filemanager.FileManager takariFileManager = new io.takari.filemanager.internal.DefaultFileManager();
 
     public static class LockingFileProcessor extends io.takari.aether.concurrency.LockingFileProcessor {

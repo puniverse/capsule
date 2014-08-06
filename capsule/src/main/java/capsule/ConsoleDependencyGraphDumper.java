@@ -48,10 +48,6 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
         this.out = out;
     }
 
-    private boolean visit(DependencyNode node) {
-        return visitedNodes.add(node.getArtifact());
-    }
-
     @Override
     public boolean visitEnter(DependencyNode node) {
         final boolean visited = !visit(node);
@@ -60,6 +56,19 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
             out.println(formatIndentation() + nstr + (visited ? " (*)" : ""));
         childInfos.add(new ChildInfo(node.getChildren().size()));
         return !visited;
+    }
+
+    @Override
+    public boolean visitLeave(DependencyNode node) {
+        if (!childInfos.isEmpty())
+            childInfos.removeLast();
+        if (!childInfos.isEmpty())
+            childInfos.getLast().index++;
+        return true;
+    }
+
+    private boolean visit(DependencyNode node) {
+        return visitedNodes.add(node.getArtifact());
     }
 
     private String formatIndentation() {
@@ -86,7 +95,7 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
 //                buffer.append(", optional");
 //            buffer.append("]");
 //        }
-        
+
         final String premanagedVersion = DependencyManagerUtils.getPremanagedVersion(node);
         if (premanagedVersion != null && !premanagedVersion.equals(a.getBaseVersion()))
             buffer.append(" (version managed from ").append(premanagedVersion).append(")");
@@ -110,15 +119,6 @@ public class ConsoleDependencyGraphDumper implements DependencyVisitor {
 
     private String toString(Artifact a) {
         return a.getGroupId() + ":" + a.getArtifactId() + ":" + a.getVersion();
-    }
-
-    @Override
-    public boolean visitLeave(DependencyNode node) {
-        if (!childInfos.isEmpty())
-            childInfos.removeLast();
-        if (!childInfos.isEmpty())
-            childInfos.getLast().index++;
-        return true;
     }
 
     private static class ChildInfo {
