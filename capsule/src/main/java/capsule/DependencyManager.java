@@ -11,10 +11,6 @@ package capsule;
 import java.nio.file.Path;
 import java.util.List;
 
-/**
- *
- * @author pron
- */
 public interface DependencyManager {
     void printDependencyTree(List<String> coords, String type);
 
