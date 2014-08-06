@@ -240,9 +240,9 @@ public class CapsuleTest {
     //////////////// utilities
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
         try {
-            Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, Path.class, byte[].class, Object.class);
+            Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, byte[].class, Path.class, Object.class);
             ctor.setAccessible(true);
-            return ctor.newInstance(Paths.get("capsule.jar"), cache, jar.toByteArray(), dependencyManager);
+            return ctor.newInstance(Paths.get("capsule.jar"), jar.toByteArray(), cache, dependencyManager);
         } catch (InvocationTargetException e) {
             throw new RuntimeException(e.getCause());
         } catch (Exception e) {

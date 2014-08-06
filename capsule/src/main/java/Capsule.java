@@ -213,16 +213,30 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         }
     }
 
+    /**
+     * Constructs a capsule from the given JAR file
+     *
+     * @param jarFile the path to the JAR file
+     */
     protected Capsule(Path jarFile) {
         this(jarFile, null, null, null);
     }
 
+    /**
+     * Constructs a capsule from the given byte array
+     *
+     * @param jarBuffer a byte array containing the capsule JAR
+     */
+    protected Capsule(byte[] jarBuffer) {
+        this(null, jarBuffer, null, null);
+    }
+
     // Used directly by tests
-    private Capsule(Path jarFile, Path cacheDir, byte[] jarBuffer, Object dependencyManager) {
+    private Capsule(Path jarFile, byte[] jarBuffer, Path cacheDir, Object dependencyManager) {
         final boolean test = jarBuffer != null;
         this.jarFile = jarFile;
         try {
-            this.jar = jarBuffer == null ? new JarFile(jarFile.toFile()) : null; // only use of old File API;                                   // <----
+            this.jar = jarBuffer == null ? new JarFile(jarFile.toFile()) : null; // only use of old File API;
             this.jarBuffer = jarBuffer;
             this.manifest = jar != null ? jar.getManifest() : getJarInputStream().getManifest();
             if (manifest == null)
@@ -1200,12 +1214,6 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
     private static boolean isCapsule(JarInputStream jar) {
         return "Capsule".equals(getMainClass(jar.getManifest()));
-//        for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
-//            final JarEntry file = (JarEntry) entries.nextElement();
-//            if (file.getName().equals("Capsule.class"))
-//                return true;
-//        }
-//        return false;
     }
 
     private static String getMainClass(Path jar) throws IOException {

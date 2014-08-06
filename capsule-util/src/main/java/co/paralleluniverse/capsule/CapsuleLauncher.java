@@ -33,89 +33,89 @@ public final class CapsuleLauncher {
 
     public static Object getCapsule(Path path) {
         try {
-            // check manifest
             final Manifest mf;
             try (JarFile jar = new JarFile(path.toFile())) {
                 mf = jar.getManifest();
             }
-            final String mainClass = mf.getMainAttributes() != null ? mf.getMainAttributes().getValue(ATTR_MAIN_CLASS) : null;
-            if (mainClass == null || (!CAPSULE_CLASS_NAME.equals(mainClass) && !CUSTOM_CAPSULE_CLASS_NAME.equals(mainClass)))
+            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()});
+            final Class clazz = loadCapsuleClass(mf, cl);
+            if (clazz == null)
                 throw new RuntimeException(path + " does not appear to be a valid capsule.");
 
-            // load class
-            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()});
-            final Class clazz = cl.loadClass(mainClass);
-
-            // create capsule instance
-            final Object capsule;
-            try {
-                final Constructor<?> ctor = clazz.getConstructor(Path.class);
-                ctor.setAccessible(true);
-                capsule = ctor.newInstance(path);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not create capsule instance.", e);
-            }
-            return capsule;
+            return getCapsuleConstructor(clazz, Path.class).newInstance(path);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Could not create capsule instance.", e);
         }
     }
 
     public static Object getCapsule(byte[] buf) {
         try {
-            // check manifest
             final JarClassLoader cl = new JarClassLoader(buf);
-            final Manifest mf = cl.getManifest();
-            final String mainClass = mf.getMainAttributes() != null ? mf.getMainAttributes().getValue(ATTR_MAIN_CLASS) : null;
-            if (mainClass == null || (!CAPSULE_CLASS_NAME.equals(mainClass) && !CUSTOM_CAPSULE_CLASS_NAME.equals(mainClass)))
+            final Class clazz = loadCapsuleClass(cl.getManifest(), cl);
+            if (clazz == null)
                 throw new RuntimeException("The given buffer does not appear to be a valid capsule.");
 
-            // load class
-            final Class clazz = cl.loadClass(mainClass);
-
-            // create capsule instance
-            final Object capsule;
-            try {
-                final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class, byte[].class, Object.class);
-                ctor.setAccessible(true);
-                capsule = ctor.newInstance(null, null, buf, null);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not create capsule instance.", e);
-            }
-            return capsule;
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException("The given buffer does not appear to be a valid capsule.", e);
+            return getCapsuleConstructor(clazz, byte[].class).newInstance((Object) buf);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Could not create capsule instance.", e);
         }
     }
 
     public static ProcessBuilder prepareForLaunch(Object capsule, List<String> cmdLine, String[] args) {
-        try {
-            final Method launch = capsule.getClass().getMethod("prepareForLaunch", List.class, String[].class);
-            launch.setAccessible(true);
-            return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException("Could not call prepareForLaunch on " + capsule + ". It does not appear to be a valid capsule.", e);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
-        } catch (InvocationTargetException e) {
-            final Throwable t = e.getTargetException();
-            if (t instanceof RuntimeException)
-                throw (RuntimeException) t;
-            if (t instanceof Error)
-                throw (Error) t;
-            throw new RuntimeException(t);
-        }
+        final Method launch = getCapsuleMethod(capsule, "prepareForLaunch", List.class, String[].class);
+        return (ProcessBuilder) invoke(capsule, launch, cmdLine, args);
     }
 
     public static String getAppId(Object capsule) {
+        final Method appId = getCapsuleMethod(capsule, "appId", String[].class);
+        return (String) invoke(capsule, appId, (Object) null);
+    }
+
+    private static Class loadCapsuleClass(Manifest mf, ClassLoader cl) {
+        final String mainClass = mf.getMainAttributes() != null ? mf.getMainAttributes().getValue(ATTR_MAIN_CLASS) : null;
+        if (mainClass == null)
+            return null;
+
         try {
-            final Method appId = capsule.getClass().getMethod("appId", String[].class);
-            appId.setAccessible(true);
-            return (String) appId.invoke(capsule, (Object) null);
+            Class clazz;
+            if (CAPSULE_CLASS_NAME.equals(mainClass)) {
+                try {
+                    clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
+                } catch (ClassNotFoundException e) {
+                    clazz = cl.loadClass(CAPSULE_CLASS_NAME);
+                }
+            } else {
+                clazz = cl.loadClass(mainClass);
+                if (!CAPSULE_CLASS_NAME.equals(clazz.getSuperclass().getName()))
+                    clazz = null;
+            }
+            return clazz;
+        } catch (ClassNotFoundException e) {
+            return null;
+        }
+    }
+
+    private static Constructor<?> getCapsuleConstructor(Class<?> capsuleClass, Class<?>... paramTypes) throws NoSuchMethodException {
+        final Constructor<?> ctor = capsuleClass.getDeclaredConstructor(paramTypes);
+        ctor.setAccessible(true);
+        return ctor;
+    }
+
+    private static Method getCapsuleMethod(Object capsule, String name, Class<?>... paramTypes) {
+        try {
+            final Method method = capsule.getClass().getMethod(name, paramTypes);
+            method.setAccessible(true);
+            return method;
         } catch (NoSuchMethodException e) {
-            throw new RuntimeException("Could not call appId on " + capsule + ". It does not appear to be a valid capsule.", e);
+            throw new RuntimeException("Could not call prepareForLaunch on " + capsule + ". It does not appear to be a valid capsule.", e);
+        }
+    }
+
+    private static Object invoke(Object obj, Method method, Object... params) {
+        try {
+            return method.invoke(obj, params);
         } catch (IllegalAccessException e) {
             throw new AssertionError();
         } catch (InvocationTargetException e) {
