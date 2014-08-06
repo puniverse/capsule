@@ -468,6 +468,281 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
     //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Capsule Artifact">
+    /////////// Capsule Artifact ///////////////////////////////////
+    private ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, String[] args) {
+        if (getScript() == null) {
+            final String appArtifact = getAppArtifact(args);
+            if (appArtifact != null) {
+                try {
+                    final List<Path> jars = resolveAppArtifact(appArtifact);
+                    if (jars == null)
+                        return null;
+                    if (isCapsule(jars.get(0))) {
+                        verbose("Running capsule " + jars.get(0));
+                        return launchCapsule(jars.get(0),
+                                cmdLine,
+                                isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
+                    } else if (isEmptyCapsule())
+                        throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
+                } catch (RuntimeException e) {
+                    if (isEmptyCapsule())
+                        throw new RuntimeException("Usage: java -jar capsule.jar CAPSULE_ARTIFACT_COORDINATES", e);
+                    else
+                        throw e;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isCapsule(Path path) {
+        if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
+            try (final JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
+                return isCapsule(jar);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return false;
+    }
+
+    private static boolean isCapsule(JarInputStream jar) {
+        return "Capsule".equals(getMainClass(jar.getManifest()));
+    }
+
+    private static ProcessBuilder launchCapsule(Path path, List<String> cmdLine, String[] args) {
+        try {
+            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
+            Class clazz;
+            try {
+                clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
+            } catch (ClassNotFoundException e) {
+                clazz = cl.loadClass(Capsule.class.getName());
+            }
+            final Object capsule;
+            try {
+                Constructor<?> ctor = clazz.getConstructor(Path.class);
+                ctor.setAccessible(true);
+                capsule = ctor.newInstance(path);
+            } catch (Exception e) {
+                throw new RuntimeException("Could not launch custom capsule.", e);
+            }
+            final Method launch = clazz.getMethod("prepareForLaunch", List.class, String[].class);
+            launch.setAccessible(true);
+            return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
+            throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError();
+        } catch (InvocationTargetException e) {
+            final Throwable t = e.getTargetException();
+            if (t instanceof RuntimeException)
+                throw (RuntimeException) t;
+            if (t instanceof Error)
+                throw (Error) t;
+            throw new RuntimeException(t);
+        }
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="App ID">
+    /////////// App ID ///////////////////////////////////
+    private String getAppId() {
+        if (isEmptyCapsule())
+            return null;
+        String appName = System.getProperty(PROP_APP_ID);
+        if (appName == null)
+            appName = getAttribute(ATTR_APP_NAME);
+        if (appName == null) {
+            final String appArtifact = getAppArtifact(null);
+            if (appArtifact != null)
+                return getAppArtifactId(getAppArtifactLatestVersion(appArtifact));
+        }
+        if (appName == null) {
+            if (pom != null)
+                return getPomAppName();
+            appName = getAttribute(ATTR_APP_CLASS);
+        }
+        if (appName == null) {
+            if (isEmptyCapsule())
+                return null;
+            throw new RuntimeException("Capsule jar " + jarFile + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
+                    + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
+        }
+
+        final String version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
+        return appName + (version != null ? "_" + version : "");
+    }
+
+    private String appId(String[] args) {
+        if (appId != null)
+            return appId;
+        assert isEmptyCapsule();
+
+        String appArtifact = getAppArtifact(args);
+        if (appArtifact == null)
+            throw new RuntimeException("No application to run");
+        return getAppArtifactId(getAppArtifactLatestVersion(appArtifact));
+    }
+
+    private static String getAppArtifactId(String coords) {
+        if (coords == null)
+            return null;
+        final String[] cs = coords.split(":");
+        if (cs.length < 2)
+            throw new IllegalArgumentException("Illegal main artifact coordinates: " + coords);
+        String id = cs[0] + "_" + cs[1];
+        if (cs.length > 2)
+            id += "_" + cs[2];
+        return id;
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Capsule Cache">
+    /////////// Capsule Cache ///////////////////////////////////
+    private static Path getCacheDir() {
+        final Path cache;
+        final String cacheDirEnv = System.getenv(ENV_CACHE_DIR);
+        if (cacheDirEnv != null)
+            cache = Paths.get(cacheDirEnv);
+        else {
+            final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
+            final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
+            cache = getCacheHome().resolve((isWindows() ? "" : ".") + cacheName);
+        }
+        return cache;
+    }
+
+    private static Path initCacheDir(Path cache) {
+        try {
+            if (!Files.exists(cache))
+                Files.createDirectory(cache);
+            if (!Files.exists(cache.resolve(APP_CACHE_NAME)))
+                Files.createDirectory(cache.resolve(APP_CACHE_NAME));
+            if (!Files.exists(cache.resolve(DEPS_CACHE_NAME)))
+                Files.createDirectory(cache.resolve(DEPS_CACHE_NAME));
+
+            return cache;
+        } catch (IOException e) {
+            throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
+        }
+    }
+
+    private static Path getCacheHome() {
+        final Path userHome = Paths.get(System.getProperty(PROP_USER_HOME));
+        if (!isWindows())
+            return userHome;
+
+        Path localData;
+        final String localAppData = System.getenv("LOCALAPPDATA");
+        if (localAppData != null) {
+            localData = Paths.get(localAppData);
+            if (!Files.isDirectory(localData))
+                throw new RuntimeException("%LOCALAPPDATA% set to nonexistent directory " + localData);
+        } else {
+            localData = userHome.resolve(Paths.get("AppData", "Local"));
+            if (!Files.isDirectory(localData))
+                localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
+            if (!Files.isDirectory(localData))
+                throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
+                        + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
+                        + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
+        }
+        return localData;
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="App Cache">
+    /////////// App Cache ///////////////////////////////////
+    private Path getAppCacheDir() {
+        assert appId != null;
+        Path appDir = cacheDir.resolve(APP_CACHE_NAME).resolve(appId);
+        try {
+            if (!Files.exists(appDir))
+                Files.createDirectory(appDir);
+            return appDir;
+        } catch (IOException e) {
+            throw new RuntimeException("Application cache directory " + appDir.toAbsolutePath() + " could not be created.");
+        }
+    }
+
+    private boolean needsAppCache() {
+        if (isEmptyCapsule())
+            return false;
+        if (hasRenamedNativeDependencies())
+            return true;
+        if (hasAttribute(ATTR_APP_ARTIFACT))
+            return false;
+        return shouldExtract();
+    }
+
+    private boolean shouldExtract() {
+        final String extract = getAttribute(ATTR_EXTRACT);
+        return extract == null || Boolean.parseBoolean(extract);
+    }
+
+    private List<Path> getDefaultCacheClassPath() {
+        final List<Path> cp = new ArrayList<Path>();
+        cp.add(appCache);
+        for (Path f : listDir(appCache)) {
+            if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar"))
+                cp.add(f.toAbsolutePath());
+        }
+
+        return cp;
+    }
+
+    private void resetAppCache() {
+        try {
+            debug("Creating cache for " + jarFile + " in " + appCache.toAbsolutePath());
+            delete(appCache);
+            Files.createDirectory(appCache);
+        } catch (IOException e) {
+            throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
+        }
+    }
+
+    private boolean isUpToDate() {
+        if (Boolean.parseBoolean(System.getProperty(PROP_RESET, "false")))
+            return false;
+        try {
+            Path extractedFile = appCache.resolve(".extracted");
+            if (!Files.exists(extractedFile))
+                return false;
+            FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
+
+            FileTime jarTime = Files.getLastModifiedTime(jarFile);
+
+            return extractedTime.compareTo(jarTime) >= 0;
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private void extractCapsule() {
+        try {
+            verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
+            if (jar != null)
+                extractJar(jar, appCache);
+            else
+                extractJar(getJarInputStream(), appCache);
+        } catch (IOException e) {
+            throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
+        }
+    }
+
+    private void markCache() {
+        try {
+            Files.createFile(appCache.resolve(".extracted"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    //</editor-fold>
+
     //<editor-fold defaultstate="collapsed" desc="Build Java Process">
     /////////// Build Java Process ///////////////////////////////////
     private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
@@ -822,281 +1097,6 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Capsule Artifact">
-    /////////// Capsule Artifact ///////////////////////////////////
-    private ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, String[] args) {
-        if (getScript() == null) {
-            final String appArtifact = getAppArtifact(args);
-            if (appArtifact != null) {
-                try {
-                    final List<Path> jars = resolveAppArtifact(appArtifact);
-                    if (jars == null)
-                        return null;
-                    if (isCapsule(jars.get(0))) {
-                        verbose("Running capsule " + jars.get(0));
-                        return launchCapsule(jars.get(0),
-                                cmdLine,
-                                isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
-                    } else if (isEmptyCapsule())
-                        throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
-                } catch (RuntimeException e) {
-                    if (isEmptyCapsule())
-                        throw new RuntimeException("Usage: java -jar capsule.jar CAPSULE_ARTIFACT_COORDINATES", e);
-                    else
-                        throw e;
-                }
-            }
-        }
-        return null;
-    }
-
-    private static boolean isCapsule(Path path) {
-        if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
-            try (final JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
-                return isCapsule(jar);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return false;
-    }
-
-    private static boolean isCapsule(JarInputStream jar) {
-        return "Capsule".equals(getMainClass(jar.getManifest()));
-    }
-
-    private static ProcessBuilder launchCapsule(Path path, List<String> cmdLine, String[] args) {
-        try {
-            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
-            Class clazz;
-            try {
-                clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
-            } catch (ClassNotFoundException e) {
-                clazz = cl.loadClass(Capsule.class.getName());
-            }
-            final Object capsule;
-            try {
-                Constructor<?> ctor = clazz.getConstructor(Path.class);
-                ctor.setAccessible(true);
-                capsule = ctor.newInstance(path);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not launch custom capsule.", e);
-            }
-            final Method launch = clazz.getMethod("prepareForLaunch", List.class, String[].class);
-            launch.setAccessible(true);
-            return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException | NoSuchMethodException e) {
-            throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
-        } catch (InvocationTargetException e) {
-            final Throwable t = e.getTargetException();
-            if (t instanceof RuntimeException)
-                throw (RuntimeException) t;
-            if (t instanceof Error)
-                throw (Error) t;
-            throw new RuntimeException(t);
-        }
-    }
-    //</editor-fold>
-
-    //<editor-fold defaultstate="collapsed" desc="App ID">
-    /////////// App ID ///////////////////////////////////
-    private String getAppId() {
-        if (isEmptyCapsule())
-            return null;
-        String appName = System.getProperty(PROP_APP_ID);
-        if (appName == null)
-            appName = getAttribute(ATTR_APP_NAME);
-        if (appName == null) {
-            final String appArtifact = getAppArtifact(null);
-            if (appArtifact != null)
-                return getAppArtifactId(getAppArtifactLatestVersion(appArtifact));
-        }
-        if (appName == null) {
-            if (pom != null)
-                return getPomAppName();
-            appName = getAttribute(ATTR_APP_CLASS);
-        }
-        if (appName == null) {
-            if (isEmptyCapsule())
-                return null;
-            throw new RuntimeException("Capsule jar " + jarFile + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
-                    + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
-        }
-
-        final String version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
-        return appName + (version != null ? "_" + version : "");
-    }
-
-    private String appId(String[] args) {
-        if (appId != null)
-            return appId;
-        assert isEmptyCapsule();
-
-        String appArtifact = getAppArtifact(args);
-        if (appArtifact == null)
-            throw new RuntimeException("No application to run");
-        return getAppArtifactId(getAppArtifactLatestVersion(appArtifact));
-    }
-
-    private static String getAppArtifactId(String coords) {
-        if (coords == null)
-            return null;
-        final String[] cs = coords.split(":");
-        if (cs.length < 2)
-            throw new IllegalArgumentException("Illegal main artifact coordinates: " + coords);
-        String id = cs[0] + "_" + cs[1];
-        if (cs.length > 2)
-            id += "_" + cs[2];
-        return id;
-    }
-    //</editor-fold>
-
-    //<editor-fold defaultstate="collapsed" desc="Capsule Cache">
-    /////////// Capsule Cache ///////////////////////////////////
-    private static Path getCacheDir() {
-        final Path cache;
-        final String cacheDirEnv = System.getenv(ENV_CACHE_DIR);
-        if (cacheDirEnv != null)
-            cache = Paths.get(cacheDirEnv);
-        else {
-            final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
-            final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
-            cache = getCacheHome().resolve((isWindows() ? "" : ".") + cacheName);
-        }
-        return cache;
-    }
-
-    private static Path initCacheDir(Path cache) {
-        try {
-            if (!Files.exists(cache))
-                Files.createDirectory(cache);
-            if (!Files.exists(cache.resolve(APP_CACHE_NAME)))
-                Files.createDirectory(cache.resolve(APP_CACHE_NAME));
-            if (!Files.exists(cache.resolve(DEPS_CACHE_NAME)))
-                Files.createDirectory(cache.resolve(DEPS_CACHE_NAME));
-
-            return cache;
-        } catch (IOException e) {
-            throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
-        }
-    }
-
-    private static Path getCacheHome() {
-        final Path userHome = Paths.get(System.getProperty(PROP_USER_HOME));
-        if (!isWindows())
-            return userHome;
-
-        Path localData;
-        final String localAppData = System.getenv("LOCALAPPDATA");
-        if (localAppData != null) {
-            localData = Paths.get(localAppData);
-            if (!Files.isDirectory(localData))
-                throw new RuntimeException("%LOCALAPPDATA% set to nonexistent directory " + localData);
-        } else {
-            localData = userHome.resolve(Paths.get("AppData", "Local"));
-            if (!Files.isDirectory(localData))
-                localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
-            if (!Files.isDirectory(localData))
-                throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
-                        + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
-                        + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
-        }
-        return localData;
-    }
-    //</editor-fold>
-
-    //<editor-fold defaultstate="collapsed" desc="App Cache">
-    /////////// App Cache ///////////////////////////////////
-    private Path getAppCacheDir() {
-        assert appId != null;
-        Path appDir = cacheDir.resolve(APP_CACHE_NAME).resolve(appId);
-        try {
-            if (!Files.exists(appDir))
-                Files.createDirectory(appDir);
-            return appDir;
-        } catch (IOException e) {
-            throw new RuntimeException("Application cache directory " + appDir.toAbsolutePath() + " could not be created.");
-        }
-    }
-
-    private boolean needsAppCache() {
-        if (isEmptyCapsule())
-            return false;
-        if (hasRenamedNativeDependencies())
-            return true;
-        if (hasAttribute(ATTR_APP_ARTIFACT))
-            return false;
-        return shouldExtract();
-    }
-
-    private boolean shouldExtract() {
-        final String extract = getAttribute(ATTR_EXTRACT);
-        return extract == null || Boolean.parseBoolean(extract);
-    }
-
-    private List<Path> getDefaultCacheClassPath() {
-        final List<Path> cp = new ArrayList<Path>();
-        cp.add(appCache);
-        for (Path f : listDir(appCache)) {
-            if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar"))
-                cp.add(f.toAbsolutePath());
-        }
-
-        return cp;
-    }
-
-    private void resetAppCache() {
-        try {
-            debug("Creating cache for " + jarFile + " in " + appCache.toAbsolutePath());
-            delete(appCache);
-            Files.createDirectory(appCache);
-        } catch (IOException e) {
-            throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
-        }
-    }
-
-    private boolean isUpToDate() {
-        if (Boolean.parseBoolean(System.getProperty(PROP_RESET, "false")))
-            return false;
-        try {
-            Path extractedFile = appCache.resolve(".extracted");
-            if (!Files.exists(extractedFile))
-                return false;
-            FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
-
-            FileTime jarTime = Files.getLastModifiedTime(jarFile);
-
-            return extractedTime.compareTo(jarTime) >= 0;
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private void extractCapsule() {
-        try {
-            verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
-            if (jar != null)
-                extractJar(jar, appCache);
-            else
-                extractJar(getJarInputStream(), appCache);
-        } catch (IOException e) {
-            throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
-        }
-    }
-
-    private void markCache() {
-        try {
-            Files.createFile(appCache.resolve(".extracted"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-    //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="Get Java Home">
     /////////// Get Java Home ///////////////////////////////////
     private String getJavaHome() {
@@ -1176,44 +1176,6 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         final String javaHome1 = javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME);
         verbose("Using JVM: " + javaHome1 + (javaHome == null ? " (current)" : ""));
         return getJavaProcessName(javaHome1);
-    }
-    //</editor-fold>
-
-    //<editor-fold defaultstate="collapsed" desc="JAR Extraction">
-    /////////// JAR Extraction ///////////////////////////////////
-    private static void extractJar(JarFile jar, Path targetDir) throws IOException {
-        for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
-            final JarEntry entry = (JarEntry) entries.nextElement();
-            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
-                continue;
-
-            try (InputStream is = jar.getInputStream(entry)) {
-                writeFile(targetDir, entry.getName(), is);
-            }
-        }
-    }
-
-    private static void extractJar(JarInputStream jar, Path targetDir) throws IOException {
-        for (JarEntry entry; (entry = jar.getNextJarEntry()) != null;) {
-            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
-                continue;
-
-            writeFile(targetDir, entry.getName(), jar);
-        }
-    }
-
-    private static boolean shouldExtractFile(String fileName) {
-        if (fileName.equals(Capsule.class.getName().replace('.', '/') + ".class")
-                || (fileName.startsWith(Capsule.class.getName().replace('.', '/') + "$") && fileName.endsWith(".class")))
-            return false;
-        if (fileName.endsWith(".class"))
-            return false;
-        if (fileName.startsWith("capsule/"))
-            return false;
-        final String dir = getDirectory(fileName);
-        if (dir != null && dir.startsWith("META-INF"))
-            return false;
-        return true;
     }
     //</editor-fold>
 
@@ -1434,6 +1396,44 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         for (String p : ps)
             res.add(getPath(p));
         return res;
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="JAR Extraction">
+    /////////// JAR Extraction ///////////////////////////////////
+    private static void extractJar(JarFile jar, Path targetDir) throws IOException {
+        for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
+            final JarEntry entry = (JarEntry) entries.nextElement();
+            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
+                continue;
+
+            try (InputStream is = jar.getInputStream(entry)) {
+                writeFile(targetDir, entry.getName(), is);
+            }
+        }
+    }
+
+    private static void extractJar(JarInputStream jar, Path targetDir) throws IOException {
+        for (JarEntry entry; (entry = jar.getNextJarEntry()) != null;) {
+            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
+                continue;
+
+            writeFile(targetDir, entry.getName(), jar);
+        }
+    }
+
+    private static boolean shouldExtractFile(String fileName) {
+        if (fileName.equals(Capsule.class.getName().replace('.', '/') + ".class")
+                || (fileName.startsWith(Capsule.class.getName().replace('.', '/') + "$") && fileName.endsWith(".class")))
+            return false;
+        if (fileName.endsWith(".class"))
+            return false;
+        if (fileName.startsWith("capsule/"))
+            return false;
+        final String dir = getDirectory(fileName);
+        if (dir != null && dir.startsWith("META-INF"))
+            return false;
+        return true;
     }
     //</editor-fold>
 
