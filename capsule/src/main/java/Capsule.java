@@ -7,8 +7,6 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
-
-
 import capsule.DependencyManagerImpl;
 import capsule.DependencyManager;
 import capsule.PomReader;
@@ -1510,66 +1508,6 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="String Utils">
-    /////////// String Utils ///////////////////////////////////
-    private static List<String> split(String str, String separator) {
-        if (str == null)
-            return null;
-        String[] es = str.split(separator);
-        final List<String> list = new ArrayList<>(es.length);
-        for (String e : es) {
-            e = e.trim();
-            if (!e.isEmpty())
-                list.add(e);
-        }
-        return list;
-    }
-
-    private static Map<String, String> mapSplit(String map, char kvSeparator, String separator, String defaultValue) {
-        if (map == null)
-            return null;
-        Map<String, String> m = new HashMap<>();
-        for (String entry : split(map, separator)) {
-            final String key = getBefore(entry, kvSeparator);
-            String value = getAfter(entry, kvSeparator);
-            if (value == null) {
-                if (defaultValue != null)
-                    value = defaultValue;
-                else
-                    throw new IllegalArgumentException("Element " + entry + " in \"" + map + "\" is not a key-value entry separated with " + kvSeparator + " and no default value provided");
-            }
-            m.put(key.trim(), value.trim());
-        }
-        return m;
-    }
-
-    private static String join(Collection<?> coll, String separator) {
-        if (coll == null)
-            return null;
-        StringBuilder sb = new StringBuilder();
-        for (Object e : coll) {
-            if (e != null)
-                sb.append(e).append(separator);
-        }
-        sb.delete(sb.length() - separator.length(), sb.length());
-        return sb.toString();
-    }
-
-    private static String getBefore(String s, char separator) {
-        final int i = s.indexOf(separator);
-        if (i < 0)
-            return s;
-        return s.substring(0, i);
-    }
-
-    private static String getAfter(String s, char separator) {
-        final int i = s.indexOf(separator);
-        if (i < 0)
-            return null;
-        return s.substring(i + 1);
-    }
-    //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="JAR Utils">
     /////////// JAR Utils ///////////////////////////////////
     private static String getMainClass(Path jar) throws IOException {
@@ -1894,6 +1832,151 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         str = str.replaceAll("\\$" + VAR_JAVA_HOME, javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME));
         str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="String Utils">
+    /////////// String Utils ///////////////////////////////////
+    private static List<String> split(String str, String separator) {
+        if (str == null)
+            return null;
+        String[] es = str.split(separator);
+        final List<String> list = new ArrayList<>(es.length);
+        for (String e : es) {
+            e = e.trim();
+            if (!e.isEmpty())
+                list.add(e);
+        }
+        return list;
+    }
+
+    private static Map<String, String> mapSplit(String map, char kvSeparator, String separator, String defaultValue) {
+        if (map == null)
+            return null;
+        Map<String, String> m = new HashMap<>();
+        for (String entry : split(map, separator)) {
+            final String key = getBefore(entry, kvSeparator);
+            String value = getAfter(entry, kvSeparator);
+            if (value == null) {
+                if (defaultValue != null)
+                    value = defaultValue;
+                else
+                    throw new IllegalArgumentException("Element " + entry + " in \"" + map + "\" is not a key-value entry separated with " + kvSeparator + " and no default value provided");
+            }
+            m.put(key.trim(), value.trim());
+        }
+        return m;
+    }
+
+    private static String join(Collection<?> coll, String separator) {
+        if (coll == null)
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for (Object e : coll) {
+            if (e != null)
+                sb.append(e).append(separator);
+        }
+        sb.delete(sb.length() - separator.length(), sb.length());
+        return sb.toString();
+    }
+
+//    private static String globToRegex(String line) {
+//        line = line.trim();
+//        int strLen = line.length();
+//        StringBuilder sb = new StringBuilder(strLen);
+//        // Remove beginning and ending * globs because they're useless
+//        if (line.startsWith("*")) {
+//            line = line.substring(1);
+//            strLen--;
+//        }
+//        if (line.endsWith("*")) {
+//            line = line.substring(0, strLen - 1);
+//            strLen--;
+//        }
+//        boolean escaping = false;
+//        int inCurlies = 0;
+//        for (char currentChar : line.toCharArray()) {
+//            switch (currentChar) {
+//                case '*':
+//                    if (escaping)
+//                        sb.append("\\*");
+//                    else
+//                        sb.append(".*");
+//                    escaping = false;
+//                    break;
+//                case '?':
+//                    if (escaping)
+//                        sb.append("\\?");
+//                    else
+//                        sb.append('.');
+//                    escaping = false;
+//                    break;
+//                case '.':
+//                case '(':
+//                case ')':
+//                case '+':
+//                case '|':
+//                case '^':
+//                case '$':
+//                case '@':
+//                case '%':
+//                    sb.append('\\');
+//                    sb.append(currentChar);
+//                    escaping = false;
+//                    break;
+//                case '\\':
+//                    if (escaping) {
+//                        sb.append("\\\\");
+//                        escaping = false;
+//                    } else
+//                        escaping = true;
+//                    break;
+//                case '{':
+//                    if (escaping)
+//                        sb.append("\\{");
+//                    else {
+//                        sb.append('(');
+//                        inCurlies++;
+//                    }
+//                    escaping = false;
+//                    break;
+//                case '}':
+//                    if (inCurlies > 0 && !escaping) {
+//                        sb.append(')');
+//                        inCurlies--;
+//                    } else if (escaping)
+//                        sb.append("\\}");
+//                    else
+//                        sb.append("}");
+//                    escaping = false;
+//                    break;
+//                case ',':
+//                    if (inCurlies > 0 && !escaping)
+//                        sb.append('|');
+//                    else if (escaping)
+//                        sb.append("\\,");
+//                    else
+//                        sb.append(",");
+//                    break;
+//                default:
+//                    escaping = false;
+//                    sb.append(currentChar);
+//            }
+//        }
+//        return sb.toString();
+//    }
+    private static String getBefore(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return s;
+        return s.substring(0, i);
+    }
+
+    private static String getAfter(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return null;
+        return s.substring(i + 1);
     }
     //</editor-fold>
 
