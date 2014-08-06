@@ -6,6 +6,7 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
+
 import capsule.DependencyManager;
 import co.paralleluniverse.capsule.Jar;
 import com.google.common.jimfs.Jimfs;
@@ -23,6 +24,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
 import static org.truth0.Truth.*;
+import static org.mockito.Mockito.*;
 //import static org.hamcrest.CoreMatchers.*;
 //import static org.hamcrest.collection.IsIn.*;
 
@@ -163,6 +165,136 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testBootClassPath1() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Boot-Class-Path-A", list("lib/a.jar"))
+                .setListAttribute("Boot-Class-Path-P", list("lib/b.jar"))
+                .setListAttribute("Boot-Class-Path", list("lib/c.jar", "lib/d.jar"))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/d.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCahce.resolve("lib").resolve("c.jar"));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCahce.resolve("lib").resolve("d.jar"));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/a"))).isEqualTo(list(appCahce.resolve("lib").resolve("a.jar")));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCahce.resolve("lib").resolve("b.jar")));
+    }
+
+    @Test
+    public void testBootClassPath2() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Boot-Class-Path-A", list("lib/a.jar"))
+                .setListAttribute("Boot-Class-Path-P", list("lib/b.jar"))
+                .setListAttribute("Boot-Class-Path", list("lib/c.jar", "lib/d.jar"))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/d.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list("-Xbootclasspath:/foo/bar");
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+
+        ASSERT.that(getOption(pb, "-Xbootclasspath")).isEqualTo("/foo/bar");
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCahce.resolve("lib").resolve("c.jar"));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCahce.resolve("lib").resolve("d.jar"));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/a"))).isEqualTo(list(appCahce.resolve("lib").resolve("a.jar")));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCahce.resolve("lib").resolve("b.jar")));
+    }
+
+    @Test
+    public void testBootClassPathWithDeps() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Boot-Class-Path-A", list("com.acme:baz:3.4"))
+                .setListAttribute("Boot-Class-Path-P", list("lib/b.jar"))
+                .setListAttribute("Boot-Class-Path", list("lib/c.jar", "com.acme:bar:1.2"))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF8));
+
+        DependencyManager dm = mock(DependencyManager.class);
+        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
+        when(dm.resolveDependency("com.acme:bar:1.2", "jar")).thenReturn(list(barPath));
+        Path bazPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("bar-3.4.jar");
+        when(dm.resolveDependency("com.acme:baz:3.4", "jar")).thenReturn(list(bazPath));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, dm);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCahce.resolve("lib").resolve("c.jar"));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(barPath);
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/a"))).has().item(bazPath);
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCahce.resolve("lib").resolve("b.jar")));
+    }
+
+    @Test
+    public void testBootClassPathWithEmbeddedDeps() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Boot-Class-Path-P", list("lib/b.jar"))
+                .setListAttribute("Boot-Class-Path", list("lib/c.jar", "com.acme:bar:1.2"))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF8))
+                .addEntry("bar-1.2.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCahce = cache.resolve("apps").resolve("com.acme.Foo");
+
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCahce.resolve("lib").resolve("c.jar"));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCahce.resolve("bar-1.2.jar"));
+        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCahce.resolve("lib").resolve("b.jar")));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void whenDepManagerThenDontResolveEmbeddedDeps() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Boot-Class-Path", list("lib/c.jar", "com.acme:bar:1.2"))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("bar-1.2.jar", Jar.toInputStream("", UTF8));
+
+        DependencyManager dm = mock(DependencyManager.class);
+        
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, dm);
+        
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+    }
+
+    @Test
     public void testCapsuleInClass() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
@@ -261,11 +393,49 @@ public class CapsuleTest {
         final int i = cmd.indexOf("-classpath");
         if (i < 0)
             return null;
-        // return Arrays.asList(cmd.get(i + 1).split(":"));
+        final String cp = cmd.get(i + 1);
+        // return Arrays.asList(cp.split(":"));
+        return paths(cp);
+    }
+
+    private List<Path> paths(String cp) {
         final List<Path> res = new ArrayList<>();
-        for (String p : cmd.get(i + 1).split(":"))
+        for (String p : cp.split(":"))
             res.add(fs.getPath(p));
         return res;
+    }
+
+    private String getProperty(ProcessBuilder pb, String prop) {
+        return getOption(pb, "-D" + prop, '=');
+    }
+
+    private String getOption(ProcessBuilder pb, String opt) {
+        return getOption(pb, opt, ':');
+    }
+
+    private String getOption(ProcessBuilder pb, String opt, char separator) {
+        final List<String> cmd = pb.command();
+        for (String a : cmd) {
+            if (a.startsWith(opt)) {
+                String res = getAfter(a, separator);
+                return res != null ? res : "";
+            }
+        }
+        return null;
+    }
+
+    private static String getBefore(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return s;
+        return s.substring(0, i);
+    }
+
+    private static String getAfter(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return null;
+        return s.substring(i + 1);
     }
 
     private static List<String> getMainAndArgs(ProcessBuilder pb) {
