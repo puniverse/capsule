@@ -12,23 +12,41 @@ import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  *
  * @author pron
  */
 public class JarClassLoader extends ClassLoader {
+    private final Manifest mf;
     private final byte[] jar;
 
     public JarClassLoader(byte[] jar, ClassLoader parent) {
         super(parent);
         this.jar = jar;
+
+        try (JarInputStream jis = new JarInputStream(new ByteArrayInputStream(jar))) {
+            this.mf = jis.getManifest();
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     public JarClassLoader(byte[] jar) {
         this.jar = jar;
+        try (JarInputStream jis = new JarInputStream(new ByteArrayInputStream(jar))) {
+            this.mf = jis.getManifest();
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public Manifest getManifest() {
+        return mf;
     }
 
     @Override
@@ -49,8 +67,8 @@ public class JarClassLoader extends ClassLoader {
 
     private InputStream getEntryAsStream(String path) {
         try {
-            final JarInputStream jis = new JarInputStream(new ByteArrayInputStream(jar));
-            for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
+            final ZipInputStream jis = new ZipInputStream(new ByteArrayInputStream(jar));
+            for (ZipEntry entry; (entry = jis.getNextEntry()) != null;) {
                 if (path.equalsIgnoreCase(entry.getName())) {
                     if (entry.isDirectory())
                         throw new FileNotFoundException(path + " is a directory");
@@ -65,8 +83,8 @@ public class JarClassLoader extends ClassLoader {
     }
 
     private byte[] getEntry(String path) {
-        try (JarInputStream jis = new JarInputStream(new ByteArrayInputStream(jar))) {
-            for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
+        try (ZipInputStream jis = new ZipInputStream(new ByteArrayInputStream(jar))) {
+            for (ZipEntry entry; (entry = jis.getNextEntry()) != null;) {
                 if (path.equalsIgnoreCase(entry.getName())) {
                     if (entry.isDirectory())
                         throw new FileNotFoundException(path + " is a directory");

@@ -18,6 +18,8 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 
 /**
  *
@@ -27,23 +29,31 @@ public final class CapsuleLauncher {
     private static final String CAPSULE_CLASS_NAME = "Capsule";
     private static final String CUSTOM_CAPSULE_CLASS_NAME = "CustomCapsule";
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
+    private static final String ATTR_MAIN_CLASS = "Main-Class";
 
     public static Object getCapsule(Path path) {
         try {
-            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()});
-            Class clazz;
-            try {
-                clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
-            } catch (ClassNotFoundException e) {
-                clazz = cl.loadClass(CAPSULE_CLASS_NAME);
+            // check manifest
+            final Manifest mf;
+            try (JarFile jar = new JarFile(path.toFile())) {
+                mf = jar.getManifest();
             }
+            final String mainClass = mf.getMainAttributes() != null ? mf.getMainAttributes().getValue(ATTR_MAIN_CLASS) : null;
+            if (mainClass == null || (!CAPSULE_CLASS_NAME.equals(mainClass) && !CUSTOM_CAPSULE_CLASS_NAME.equals(mainClass)))
+                throw new RuntimeException(path + " does not appear to be a valid capsule.");
+
+            // load class
+            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()});
+            final Class clazz = cl.loadClass(mainClass);
+
+            // create capsule instance
             final Object capsule;
             try {
                 final Constructor<?> ctor = clazz.getConstructor(Path.class);
                 ctor.setAccessible(true);
                 capsule = ctor.newInstance(path);
             } catch (Exception e) {
-                throw new RuntimeException("Could not launch custom capsule.", e);
+                throw new RuntimeException("Could not create capsule instance.", e);
             }
             return capsule;
         } catch (IOException e) {
@@ -55,20 +65,24 @@ public final class CapsuleLauncher {
 
     public static Object getCapsule(byte[] buf) {
         try {
-            final ClassLoader cl = new JarClassLoader(buf);
-            Class clazz;
-            try {
-                clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
-            } catch (ClassNotFoundException e) {
-                clazz = cl.loadClass(CAPSULE_CLASS_NAME);
-            }
+            // check manifest
+            final JarClassLoader cl = new JarClassLoader(buf);
+            final Manifest mf = cl.getManifest();
+            final String mainClass = mf.getMainAttributes() != null ? mf.getMainAttributes().getValue(ATTR_MAIN_CLASS) : null;
+            if (mainClass == null || (!CAPSULE_CLASS_NAME.equals(mainClass) && !CUSTOM_CAPSULE_CLASS_NAME.equals(mainClass)))
+                throw new RuntimeException("The given buffer does not appear to be a valid capsule.");
+
+            // load class
+            final Class clazz = cl.loadClass(mainClass);
+
+            // create capsule instance
             final Object capsule;
             try {
                 final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class, byte[].class, Object.class);
                 ctor.setAccessible(true);
                 capsule = ctor.newInstance(null, null, buf, null);
             } catch (Exception e) {
-                throw new RuntimeException("Could not launch custom capsule.", e);
+                throw new RuntimeException("Could not create capsule instance.", e);
             }
             return capsule;
         } catch (ClassNotFoundException e) {
