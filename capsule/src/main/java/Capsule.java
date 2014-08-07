@@ -493,7 +493,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
                         throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
                 } catch (RuntimeException e) {
                     if (isEmptyCapsule())
-                        throw new RuntimeException("Usage: java -jar capsule.jar CAPSULE_ARTIFACT_COORDINATES", e);
+                        throw new RuntimeException("Usage: java -jar capsule.jar CAPSULE_ARTIFACT_COORDINATES\n" + e, e);
                     else
                         throw e;
                 }

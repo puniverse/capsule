@@ -555,5 +555,4 @@ public class Jar {
             return null;
         return s.substring(i + 1);
     }
-
 }
