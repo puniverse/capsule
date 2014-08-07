@@ -145,11 +145,11 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
-    //</editor-fold>
+    //</editor-fold>  /////////////////////////////////////////////////////////////////////////////////////////////////
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
+
     private final Path cacheDir;
     private final JarFile jar;       // null only in tests
     private final byte[] jarBuffer;  // non-null only in tests
@@ -243,6 +243,8 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
     //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Constructors">
+    /////////// Constructors ///////////////////////////////////
     /**
      * Constructs a capsule from the given JAR file
      *
@@ -287,10 +289,14 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
+    //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Properties">
+    /////////// Properties ///////////////////////////////////
     private boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
     }
+    //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
     /////////// Capsule JAR ///////////////////////////////////
@@ -1992,12 +1998,6 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         if (map == null)
             return Collections.emptyMap();
         return map;
-    }
-
-    private static <T> Collection<T> nullToEmpty(Collection<T> coll) {
-        if (coll == null)
-            return Collections.emptyList();
-        return coll;
     }
     //</editor-fold>
 
