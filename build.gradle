@@ -191,10 +191,15 @@ project (':capsule') {
         exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
         exclude 'about.html'
         exclude 'io/takari/aether/localrepo/**'
+        exclude 'javax/inject/**'
 
         relocation {
             pattern = 'org'
             shadedPattern = 'capsule.org'
+        }
+        relocation {
+            pattern = 'io'
+            shadedPattern = 'capsule.io'
         }
     }
 
