@@ -10,6 +10,7 @@ package co.paralleluniverse.capsule;
 
 import co.paralleluniverse.common.ProcessUtil;
 import java.io.IOException;
+import java.nio.file.Path;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnectorFactory;
@@ -20,6 +21,10 @@ import javax.management.remote.JMXServiceURL;
  * @author pron
  */
 public class MBeanCapsuleContainer extends CapsuleContainer {
+    public MBeanCapsuleContainer(Path cacheDir) {
+        super(cacheDir);
+    }
+
     @Override
     protected String createProcessId(String appId, Process p) {
         return super.createProcessId(appId, p) + "@" + ProcessUtil.getPid(p);

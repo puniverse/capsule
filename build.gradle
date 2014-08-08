@@ -34,6 +34,10 @@ subprojects {
         ext.sonatypePassword = ""
     }
 
+    configurations {
+        javancss
+    }
+    
     repositories {
         mavenCentral()
     }
@@ -42,6 +46,7 @@ subprojects {
         testCompile 'junit:junit:4.11'
         testCompile 'org.truth0:truth:0.23'
         testCompile 'org.mockito:mockito-all:1.9.5'
+        javancss 'org.codehaus.javancss:javancss:33.54'
     }
 
     test {
@@ -82,7 +87,27 @@ subprojects {
         classifier = 'javadoc'
         from javadoc.destinationDir
     }
-
+ 
+    task javancss(dependsOn: 'classes') << {
+//        ext.reportName = "$buildDir/javancss_metrics.txt"
+//        println 'Running javancss quality metrics tool to file://' + reportName
+        ant {
+            logging.level = LogLevel.INFO
+            taskdef(name:'javancss', classname:'javancss.JavancssAntTask', classpath: configurations.javancss.asPath)
+            javancss(
+                srcdir:'src/main/java', 
+                abortOnFail:'true', 
+                generateReport:'true', 
+                packageMetrics:'true',
+                classMetrics:'false',
+                functionMetrics:'false'
+                // outputFile: reportName,
+            )
+        }
+    }
+    
+    tasks.assemble.dependsOn javancss
+    
     ///////// Publish Artifacts
     apply plugin: 'maven'
     apply plugin: 'signing'

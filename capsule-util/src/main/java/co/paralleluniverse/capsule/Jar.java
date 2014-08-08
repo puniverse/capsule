@@ -19,9 +19,12 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -340,6 +343,46 @@ public class Jar {
      */
     public Jar addEntry(String path, String file) throws IOException {
         return addEntry(path, new FileInputStream(file));
+    }
+
+    /**
+     * Adds a class entry to this JAR.
+     *
+     * @param clazz the class to add to the JAR.
+     * @return {@code this}
+     */
+    public Jar addEntry(Class<?> clazz) throws IOException {
+        final String resource = clazz.getName().replace('.', '/') + ".class";
+        return addEntry(resource, clazz.getClassLoader().getResourceAsStream(resource));
+    }
+
+    /**
+     * Adds a directory (with all its subdirectories) to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param dir  the directory to add as an entry
+     * @return {@code this}
+     */
+    public Jar addEntries(final Path path, Path dir) throws IOException {
+        Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                addEntry(path.resolve(file), file);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return this;
+    }
+
+    /**
+     * Adds a directory (with all its subdirectories) to this JAR.
+     *
+     * @param path the entry's path within the JAR
+     * @param dir  the directory to add as an entry
+     * @return {@code this}
+     */
+    public Jar addEntries(String path, Path dir) throws IOException {
+        return addEntries(Paths.get(path), dir);
     }
 
     /**

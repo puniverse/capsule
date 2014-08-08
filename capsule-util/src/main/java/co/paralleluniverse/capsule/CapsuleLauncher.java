@@ -31,7 +31,7 @@ public final class CapsuleLauncher {
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
 
-    public static Object getCapsule(Path path) {
+    public static Object getCapsule(Path path, Path cacheDir) {
         try {
             final Manifest mf;
             try (JarFile jar = new JarFile(path.toFile())) {
@@ -42,7 +42,7 @@ public final class CapsuleLauncher {
             if (clazz == null)
                 throw new RuntimeException(path + " does not appear to be a valid capsule.");
 
-            return getCapsuleConstructor(clazz, Path.class).newInstance(path);
+            return getCapsuleConstructor(clazz, Path.class, Path.class).newInstance(path, cacheDir);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } catch (ReflectiveOperationException e) {
@@ -50,14 +50,14 @@ public final class CapsuleLauncher {
         }
     }
 
-    public static Object getCapsule(byte[] buf) {
+    public static Object getCapsule(byte[] buf, Path cacheDir) {
         try {
             final JarClassLoader cl = new JarClassLoader(buf);
             final Class clazz = loadCapsuleClass(cl.getManifest(), cl);
             if (clazz == null)
                 throw new RuntimeException("The given buffer does not appear to be a valid capsule.");
 
-            return getCapsuleConstructor(clazz, byte[].class).newInstance((Object) buf);
+            return getCapsuleConstructor(clazz, byte[].class, Path.class).newInstance((Object) buf, cacheDir);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not create capsule instance.", e);
         }
@@ -104,12 +104,19 @@ public final class CapsuleLauncher {
     }
 
     private static Method getCapsuleMethod(Object capsule, String name, Class<?>... paramTypes) {
+        final Method m = getMethod(capsule.getClass(), name, paramTypes);
+        if (m == null)
+            throw new RuntimeException("Could not call " + name + " on " + capsule + ". It does not appear to be a valid capsule.");
+        return m;
+    }
+
+    private static Method getMethod(Class clazz, String name, Class<?>... paramTypes) {
         try {
-            final Method method = capsule.getClass().getMethod(name, paramTypes);
+            final Method method = clazz.getDeclaredMethod(name, paramTypes);
             method.setAccessible(true);
             return method;
         } catch (NoSuchMethodException e) {
-            throw new RuntimeException("Could not call prepareForLaunch on " + capsule + ". It does not appear to be a valid capsule.", e);
+            return clazz.getSuperclass() != null ? getMethod(clazz.getSuperclass(), name, paramTypes) : null;
         }
     }
 

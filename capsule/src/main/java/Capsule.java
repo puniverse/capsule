@@ -9,6 +9,7 @@
 
 import capsule.DependencyManagerImpl;
 import capsule.DependencyManager;
+import capsule.PathClassLoader;
 import capsule.PomReader;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -23,7 +24,6 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
@@ -181,13 +181,14 @@ public class Capsule implements Runnable, FileVisitor<Path> {
                     capsule.printVersion(args);
 
                 if (anyPropertyDefined(PROP_PRINT_JRES))
-                    capsule.printJVMs();
+                    capsule.printJVMs(args);
 
                 if (anyPropertyDefined(PROP_TREE))
                     capsule.printDependencyTree(args);
 
                 if (anyPropertyDefined(PROP_RESOLVE))
                     capsule.resolve(args);
+
                 return;
             }
 
@@ -214,7 +215,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
                 throw new RuntimeException("Could not launch custom capsule.", e);
             }
         } catch (ClassNotFoundException e) {
-            return new Capsule(jarFile);
+            return new Capsule(jarFile, getCacheDir());
         }
     }
 
@@ -250,8 +251,8 @@ public class Capsule implements Runnable, FileVisitor<Path> {
      *
      * @param jarFile the path to the JAR file
      */
-    protected Capsule(Path jarFile) {
-        this(jarFile, null, null, null);
+    protected Capsule(Path jarFile, Path cacheDir) {
+        this(jarFile, null, cacheDir, null);
     }
 
     /**
@@ -259,23 +260,38 @@ public class Capsule implements Runnable, FileVisitor<Path> {
      *
      * @param jarBuffer a byte array containing the capsule JAR
      */
-    protected Capsule(byte[] jarBuffer) {
-        this(null, jarBuffer, null, null);
+    protected Capsule(byte[] jarBuffer, Path cacheDir) {
+        this(null, jarBuffer, cacheDir, null);
     }
 
     // Used directly by tests
     private Capsule(Path jarFile, byte[] jarBuffer, Path cacheDir, Object dependencyManager) {
-        final boolean test = jarBuffer != null;
         this.jarFile = jarFile;
         try {
-            this.jar = jarBuffer == null ? new JarFile(jarFile.toFile()) : null; // only use of old File API;
-            this.jarBuffer = jarBuffer;
+            if (jarBuffer == null) {
+                JarFile jf = null;
+                try {
+                    jf = new JarFile(jarFile.toFile()); // only use of old File API;
+                } catch (UnsupportedOperationException e) { // can happen in tests b/c jimfs doesn't support toFile
+                }
+                if (jf != null) {
+                    this.jar = jf;
+                    this.jarBuffer = null;
+                } else {
+                    this.jar = null;
+                    this.jarBuffer = Files.readAllBytes(jarFile);
+                }
+            } else {
+                this.jar = null;
+                this.jarBuffer = jarBuffer;
+            }
             this.manifest = jar != null ? jar.getManifest() : getJarInputStream().getManifest();
             if (manifest == null)
                 throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
         }
+        final boolean test = this.jarBuffer != null;
 
         this.cacheDir = initCacheDir(cacheDir != null ? cacheDir : getCacheDir());
         this.javaHome = getJavaHome();
@@ -320,7 +336,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         System.out.println("CAPSULE: Capsule Version " + VERSION);
     }
 
-    private void printJVMs() {
+    private void printJVMs(String[] args) {
         final Map<String, Path> jres = getJavaHomes(false);
         if (jres == null)
             println("No detected Java installations");
@@ -476,13 +492,14 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule Artifact">
     /////////// Capsule Artifact ///////////////////////////////////
-    private ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, String[] args) {
+    // visible for testing
+    ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, String[] args) {
         if (getScript() == null) {
             final String appArtifact = getAppArtifact(args);
             if (appArtifact != null) {
                 try {
                     final List<Path> jars = resolveAppArtifact(appArtifact);
-                    if (jars == null)
+                    if (jars == null || jars.isEmpty())
                         return null;
                     if (isCapsule(jars.get(0))) {
                         verbose("Running capsule " + jars.get(0));
@@ -493,7 +510,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
                         throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
                 } catch (RuntimeException e) {
                     if (isEmptyCapsule())
-                        throw new RuntimeException("Usage: java -jar capsule.jar CAPSULE_ARTIFACT_COORDINATES\n" + e, e);
+                        throw new RuntimeException("Usage: java -jar capsule.jar CAPSULE_ARTIFACT_COORDINATES args...\n" + e, e);
                     else
                         throw e;
                 }
@@ -517,9 +534,9 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         return "Capsule".equals(getMainClass(jar.getManifest()));
     }
 
-    private static ProcessBuilder launchCapsule(Path path, List<String> cmdLine, String[] args) {
+    private ProcessBuilder launchCapsule(Path path, List<String> cmdLine, String[] args) {
         try {
-            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
+            final ClassLoader cl = (ClassLoader) createClassLoader(path);
             Class clazz;
             try {
                 clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
@@ -528,18 +545,19 @@ public class Capsule implements Runnable, FileVisitor<Path> {
             }
             final Object capsule;
             try {
-                Constructor<?> ctor = clazz.getConstructor(Path.class);
+                Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
                 ctor.setAccessible(true);
-                capsule = ctor.newInstance(path);
+                capsule = ctor.newInstance(path, cacheDir);
             } catch (Exception e) {
-                throw new RuntimeException("Could not launch custom capsule.", e);
+                throw new RuntimeException("Could not launch capsule.", e);
             }
-            final Method launch = clazz.getMethod("prepareForLaunch", List.class, String[].class);
-            launch.setAccessible(true);
+            final Method launch = getMethod(clazz, "prepareForLaunch", List.class, String[].class);
+            if (launch == null)
+                throw new RuntimeException(path + " does not appear to be a valid capsule.");
             return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } catch (ClassNotFoundException | NoSuchMethodException e) {
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
         } catch (IllegalAccessException e) {
             throw new AssertionError();
@@ -550,6 +568,25 @@ public class Capsule implements Runnable, FileVisitor<Path> {
             if (t instanceof Error)
                 throw (Error) t;
             throw new RuntimeException(t);
+        }
+    }
+
+    private Object createClassLoader(Path path) throws IOException {
+        try {
+            return new PathClassLoader(new Path[]{path}, null);
+            // return jar == null ? new PathClassLoader(new Path[]{path}, null) : new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
+        } catch (NoClassDefFoundError e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static Method getMethod(Class clazz, String name, Class<?>... paramTypes) {
+        try {
+            final Method method = clazz.getDeclaredMethod(name, paramTypes);
+            method.setAccessible(true);
+            return method;
+        } catch (NoSuchMethodException e) {
+            return clazz.getSuperclass() != null ? getMethod(clazz.getSuperclass(), name, paramTypes) : null;
         }
     }
     //</editor-fold>
@@ -565,7 +602,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         if (appName == null) {
             final String appArtifact = getAppArtifact(null);
             if (appArtifact != null)
-                return getAppArtifactId(getAppArtifactLatestVersion(appArtifact));
+                return getAppArtifactId(getAppArtifactSpecificVersion(appArtifact));
         }
         if (appName == null) {
             if (pom != null)
@@ -583,7 +620,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         return appName + (version != null ? "_" + version : "");
     }
 
-    private String appId(String[] args) {
+    protected String appId(String[] args) {
         if (appId != null)
             return appId;
         assert isEmptyCapsule();
@@ -591,7 +628,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         String appArtifact = getAppArtifact(args);
         if (appArtifact == null)
             throw new RuntimeException("No application to run");
-        return getAppArtifactId(getAppArtifactLatestVersion(appArtifact));
+        return getAppArtifactId(getAppArtifactSpecificVersion(appArtifact));
     }
 
     private static String getAppArtifactId(String coords) {
@@ -1288,6 +1325,10 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         return ((DependencyManager) dependencyManager).resolveDependencies(dependencies, type);
     }
 
+    private String getAppArtifactSpecificVersion(String appArtifact) {
+        return hasSpecificVersion(appArtifact) ? appArtifact : getAppArtifactLatestVersion(appArtifact);
+    }
+
     private String getAppArtifactLatestVersion(String coords) {
         if (coords == null)
             return null;
@@ -1357,6 +1398,13 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     /////////// Dependency Utils ///////////////////////////////////
     private static boolean isDependency(String lib) {
         return lib.contains(":");
+    }
+
+    private static boolean hasSpecificVersion(String dep) {
+        String[] coords = dep.split(":");
+        if (coords.length < 3)
+            return false;
+        return Character.isDigit(coords[2].charAt(0));
     }
 
     private String dependencyToLocalJar(boolean withGroupId, String p) {
@@ -1573,7 +1621,6 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     private void delete(Path dir) throws IOException {
-        // we don't use Files.walkFileTree because we'd like to avoid creating more classes (Capsule$1.class etc.)
         for (Path f : listDir(dir, FILE_VISITOR_MODE_POSTORDER))
             Files.delete(f);
     }

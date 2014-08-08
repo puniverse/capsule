@@ -12,6 +12,7 @@ import co.paralleluniverse.common.ProcessUtil;
 import com.sun.jdmk.remote.cascading.CascadingService;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.nio.file.Path;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -24,12 +25,13 @@ import javax.management.remote.JMXServiceURL;
 public class CascadingCapsuleContainer extends MBeanCapsuleContainer {
     private final CascadingService cascade;
 
-    public CascadingCapsuleContainer(MBeanServer mbeanServer) {
+    public CascadingCapsuleContainer(Path cacheDir, MBeanServer mbeanServer) {
+        super(cacheDir);
         this.cascade = mbeanServer != null ? new CascadingService(mbeanServer) : null;
     }
 
-    public CascadingCapsuleContainer() {
-        this(ManagementFactory.getPlatformMBeanServer());
+    public CascadingCapsuleContainer(Path cacheDir) {
+        this(cacheDir, ManagementFactory.getPlatformMBeanServer());
     }
 
     @Override

@@ -27,13 +27,18 @@ import javax.management.InstanceAlreadyExistsException;
 public class CapsuleContainer {
     private final ConcurrentMap<String, ProcessInfo> processes = new ConcurrentHashMap<String, ProcessInfo>();
     private final AtomicInteger counter = new AtomicInteger();
+    private final Path cacheDir;
+
+    public CapsuleContainer(Path cacheDir) {
+        this.cacheDir = cacheDir;
+    }
 
     public String launchCapsule(Path capsulePath, List<String> cmdLine, String[] args) throws IOException {
-        return launchCapsule(CapsuleLauncher.getCapsule(capsulePath), cmdLine, args);
+        return launchCapsule(CapsuleLauncher.getCapsule(capsulePath, cacheDir), cmdLine, args);
     }
 
     public String launchCapsule(byte[] capsule, List<String> cmdLine, String[] args) throws IOException {
-        return launchCapsule(CapsuleLauncher.getCapsule(capsule), cmdLine, args);
+        return launchCapsule(CapsuleLauncher.getCapsule(capsule, cacheDir), cmdLine, args);
     }
 
     private String launchCapsule(Object capsule, List<String> cmdLine, String[] args) throws IOException {
