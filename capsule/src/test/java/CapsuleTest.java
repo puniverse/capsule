@@ -22,22 +22,17 @@ import java.util.Arrays;
 import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import org.junit.Before;
 import static org.truth0.Truth.*;
 import static org.mockito.Mockito.*;
-//import static org.hamcrest.CoreMatchers.*;
-//import static org.hamcrest.collection.IsIn.*;
 
 public class CapsuleTest {
     private static final Charset UTF8 = Charset.forName("UTF-8");
-    private FileSystem fs;
-    private Path cache;
-
-    @Before
-    public void setup() {
-        fs = Jimfs.newFileSystem();
-        cache = fs.getPath("/cache");
-    }
+    /*
+     * All the tests in this test suite use an in-memory file system, and don't 
+     * write to the disk at all.
+     */
+    private final FileSystem fs = Jimfs.newFileSystem();
+    private final Path cache = fs.getPath("/cache");
 
     @Test
     public void testParseJavaVersion() {
@@ -115,7 +110,7 @@ public class CapsuleTest {
         assertTrue(!Files.isDirectory(appCache.resolve("META-INF")));
         assertTrue(!Files.isRegularFile(appCache.resolve("META-INF").resolve("x.txt")));
 
-        ASSERT.that(getClassPath(pb)).has().item(fs.getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(getPath("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache);
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         ASSERT.that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
@@ -159,7 +154,7 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCache.resolve("lib")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib").resolve("a.jar")));
 
-        ASSERT.that(getClassPath(pb)).has().item(fs.getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(getPath("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache);
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
@@ -317,18 +312,12 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCache.resolve("lib")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib").resolve("a.jar")));
 
-        ASSERT.that(getClassPath(pb)).has().noneOf(fs.getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().noneOf(getPath("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().allOf(
                 appCache,
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"),
                 appCache.resolve("lib").resolve("b.jar"));
-
-//        assertThat(fs.getPath("capsule.jar"), not(isIn(getClassPath(pb))));
-//        assertThat(appCache, isIn(getClassPath(pb)));
-//        assertThat(appCache.resolve("foo.jar"), isIn(getClassPath(pb)));
-//        assertThat(appCache.resolve("lib").resolve("a.jar"), isIn(getClassPath(pb)));
-//        assertThat(appCache.resolve("lib").resolve("b.jar"), isIn(getClassPath(pb)));
     }
 
     @Test
@@ -377,6 +366,7 @@ public class CapsuleTest {
 
         Jar app = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("App-Class-Path", list("lib/a.jar"))
                 .addEntry(Capsule.class)
                 .addEntry("foo.jar", Jar.toInputStream("", UTF8))
                 .addEntry("a.class", Jar.toInputStream("", UTF8))
@@ -422,14 +412,26 @@ public class CapsuleTest {
         assertTrue(!Files.isDirectory(appCache.resolve("META-INF")));
         assertTrue(!Files.isRegularFile(appCache.resolve("META-INF").resolve("x.txt")));
 
-        ASSERT.that(getClassPath(pb)).has().item(fooPath);
-        ASSERT.that(getClassPath(pb)).has().item(appCache);
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
-        ASSERT.that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
+        ASSERT.that(getClassPath(pb)).has().allOf(
+                fooPath,
+                appCache,
+                appCache.resolve("foo.jar"),
+                appCache.resolve("lib").resolve("a.jar"));
     }
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
     /////////// Utilities ///////////////////////////////////
+    private Path getPath(String first, String... more) {
+        return fs.getPath(first, more);
+    }
+
+    private List<Path> paths(String cp) {
+        final List<Path> res = new ArrayList<>();
+        for (String p : cp.split(":"))
+            res.add(getPath(p));
+        return res;
+    }
+
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
         try {
             Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, byte[].class, Path.class, Object.class);
@@ -456,13 +458,6 @@ public class CapsuleTest {
         final String cp = cmd.get(i + 1);
         // return Arrays.asList(cp.split(":"));
         return paths(cp);
-    }
-
-    private List<Path> paths(String cp) {
-        final List<Path> res = new ArrayList<>();
-        for (String p : cp.split(":"))
-            res.add(fs.getPath(p));
-        return res;
     }
 
     private String getProperty(ProcessBuilder pb, String prop) {
