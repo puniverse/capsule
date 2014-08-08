@@ -249,7 +249,8 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     /**
      * Constructs a capsule from the given JAR file
      *
-     * @param jarFile the path to the JAR file
+     * @param jarFile  the path to the JAR file
+     * @param cacheDir the path to the (shared) Capsule cache directory
      */
     protected Capsule(Path jarFile, Path cacheDir) {
         this(jarFile, null, cacheDir, null);
@@ -259,6 +260,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
      * Constructs a capsule from the given byte array
      *
      * @param jarBuffer a byte array containing the capsule JAR
+     * @param cacheDir  the path to the (shared) Capsule cache directory
      */
     protected Capsule(byte[] jarBuffer, Path cacheDir) {
         this(null, jarBuffer, cacheDir, null);
