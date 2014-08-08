@@ -42,14 +42,13 @@ public class JarTest {
     @Test
     public void testCreateJar() throws Exception {
         ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
-                    .setAttribute("Foo", "1234")
-                    .setAttribute("Bar", "5678")
-                    .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                    .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
-                    .write(new ByteArrayOutputStream());
+                .setAttribute("Foo", "1234")
+                .setAttribute("Bar", "5678")
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
-
         assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
         assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
         Manifest man2 = toInput(res).getManifest();
@@ -82,13 +81,12 @@ public class JarTest {
                     .setAttribute("Baz", "hi!")
                     .setAttribute("Bar", "8765")
                     .setListAttribute("List", addLast(addFirst(jar.getListAttribute("List"), "0"), "c"))
-                    .setMapAttribute("Map", put(put(jar.getMapAttribute("Map", null), "z", "3"), "x" , "0"))
+                    .setMapAttribute("Map", put(put(jar.getMapAttribute("Map", null), "z", "3"), "x", "0"))
                     .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF8))
                     .write(new ByteArrayOutputStream());
 
             // test
             // printEntries(toInput(res));
-
             assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
             assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
             assertEquals("And I am baz!\n", getEntryAsString(toInput(res), Paths.get("dir", "baz.txt"), UTF8));
@@ -98,12 +96,12 @@ public class JarTest {
             assertEquals("hi!", man2.getMainAttributes().getValue("Baz"));
             assertEquals(Arrays.asList("0", "a", "b", "c"), new Jar(toInput(res)).getListAttribute("List"));
             assertEquals(new HashMap<String, String>() {
-                        {
-                            put("x", "0");
-                            put("y", "2");
-                            put("z", "3");
-                        }
-                    }, new Jar(toInput(res)).getMapAttribute("Map", null));
+                {
+                    put("x", "0");
+                    put("y", "2");
+                    put("z", "3");
+                }
+            }, new Jar(toInput(res)).getMapAttribute("Map", null));
         } finally {
             Files.delete(jarPath);
         }
@@ -129,7 +127,6 @@ public class JarTest {
 
         // test
         // printEntries(toInput(res));
-
         assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
         assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
         assertEquals("And I am baz!\n", getEntryAsString(toInput(res), Paths.get("dir", "baz.txt"), UTF8));
@@ -139,6 +136,8 @@ public class JarTest {
         assertEquals("hi!", man2.getMainAttributes().getValue("Baz"));
     }
 
+    //<editor-fold defaultstate="collapsed" desc="Utilities">
+    /////////// Utilities ///////////////////////////////////
     private static JarInputStream toInput(JarOutputStream jos) {
         try {
             Field outField = FilterOutputStream.class.getDeclaredField("out");
@@ -160,7 +159,7 @@ public class JarTest {
             throw new AssertionError(e);
         }
     }
-    
+
     private static <T> List<T> addLast(List<T> list, T value) {
         list.add(value);
         return list;
@@ -229,4 +228,5 @@ public class JarTest {
             is.close();
         }
     }
+    //</editor-fold>
 }

@@ -372,7 +372,7 @@ public class CapsuleTest {
     }
 
     @Test
-    public void testEmptyCapsule1() throws Exception {
+    public void testEmptyCapsule() throws Exception {
         Jar jar = newCapsuleJar();
 
         Jar app = newCapsuleJar()
