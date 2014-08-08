@@ -106,7 +106,7 @@ subprojects {
         }
     }
     
-    tasks.assemble.dependsOn javancss
+    assemble.dependsOn javancss
     
     ///////// Publish Artifacts
     apply plugin: 'maven'
