@@ -46,6 +46,7 @@ subprojects {
         testCompile 'junit:junit:4.11'
         testCompile 'org.truth0:truth:0.23'
         testCompile 'org.mockito:mockito-all:1.9.5'
+        testCompile 'com.google.jimfs:jimfs:1.0'
         javancss 'org.codehaus.javancss:javancss:33.54'
     }
 
@@ -190,7 +191,6 @@ project (':capsule') {
         compile 'io.takari:takari-filemanager:0.8.1'
 
         testCompile project(':capsule-util')
-        testCompile 'com.google.jimfs:jimfs:1.0'
     }
 
     //tasks.withType(Compile) {

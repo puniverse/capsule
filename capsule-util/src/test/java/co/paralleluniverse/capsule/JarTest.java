@@ -8,6 +8,8 @@
  */
 package co.paralleluniverse.capsule;
 
+import co.paralleluniverse.common.JarClassLoader;
+import com.google.common.jimfs.Jimfs;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FilterOutputStream;
@@ -16,6 +18,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -31,6 +34,7 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import org.junit.Before;
 
 /**
  *
@@ -58,7 +62,8 @@ public class JarTest {
 
     @Test
     public void testUpdateJar() throws Exception {
-        Path jarPath = Files.createTempFile("temp", ".jar");
+        FileSystem fs = Jimfs.newFileSystem();
+        Path jarPath = fs.getPath("test.jar");
         try {
             // create
             new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
@@ -134,6 +139,160 @@ public class JarTest {
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
         assertEquals("8765", man2.getMainAttributes().getValue("Bar"));
         assertEquals("hi!", man2.getMainAttributes().getValue("Baz"));
+    }
+
+    @Test
+    public void testAddDirectory1() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path myDir = fs.getPath("dir1", "dir2");
+
+        Files.createDirectories(myDir.resolve("da"));
+        Files.createDirectories(myDir.resolve("db"));
+        Files.createFile(myDir.resolve("da").resolve("x"));
+        Files.createFile(myDir.resolve("da").resolve("y"));
+        Files.createFile(myDir.resolve("db").resolve("w"));
+        Files.createFile(myDir.resolve("db").resolve("z"));
+
+        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+                .setAttribute("Foo", "1234")
+                .addEntries((Path) null, myDir)
+                .write(new ByteArrayOutputStream());
+
+        // printEntries(toInput(res));
+        assertTrue(getEntry(toInput(res), Paths.get("da", "x")) != null);
+        assertTrue(getEntry(toInput(res), Paths.get("da", "y")) != null);
+        assertTrue(getEntry(toInput(res), Paths.get("db", "w")) != null);
+        assertTrue(getEntry(toInput(res), Paths.get("db", "z")) != null);
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
+    public void testAddDirectory2() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path myDir = fs.getPath("dir1", "dir2");
+
+        Files.createDirectories(myDir.resolve("da"));
+        Files.createDirectories(myDir.resolve("db"));
+        Files.createFile(myDir.resolve("da").resolve("x"));
+        Files.createFile(myDir.resolve("da").resolve("y"));
+        Files.createFile(myDir.resolve("db").resolve("w"));
+        Files.createFile(myDir.resolve("db").resolve("z"));
+
+        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+                .setAttribute("Foo", "1234")
+                .addEntries(Paths.get("d1", "d2"), myDir)
+                .write(new ByteArrayOutputStream());
+
+        // printEntries(toInput(res));
+        assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "da", "x")) != null);
+        assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "da", "y")) != null);
+        assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "db", "w")) != null);
+        assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "db", "z")) != null);
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
+    public void testAddZip1() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path myZip = fs.getPath("zip1");
+
+        new Jar().addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .write(myZip);
+
+        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+                .setAttribute("Foo", "1234")
+                .addEntries((String) null, myZip)
+                .write(new ByteArrayOutputStream());
+
+        // printEntries(toInput(res));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
+    public void testAddZip2() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path myZip = fs.getPath("zip1");
+
+        new Jar().addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .write(myZip);
+
+        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+                .setAttribute("Foo", "1234")
+                .addEntries(Paths.get("d1", "d2"), myZip)
+                .write(new ByteArrayOutputStream());
+
+        // printEntries(toInput(res));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "foo.txt"), UTF8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "dir", "bar.txt"), UTF8));
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
+    public void testAddZip3() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+
+        ByteArrayOutputStream myZip = new Jar()
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .write(new ByteArrayOutputStream());
+
+        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+                .setAttribute("Foo", "1234")
+                .addEntries((Path) null, toInput(myZip))
+                .write(new ByteArrayOutputStream());
+
+        // printEntries(toInput(res));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
+    public void testAddZip4() throws Exception {
+        ByteArrayOutputStream myZip = new Jar()
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .write(new ByteArrayOutputStream());
+
+        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+                .setAttribute("Foo", "1234")
+                .addEntries(Paths.get("d1", "d2"), toInput(myZip))
+                .write(new ByteArrayOutputStream());
+
+        // printEntries(toInput(res));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "foo.txt"), UTF8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "dir", "bar.txt"), UTF8));
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
+    public void testAddPackage() throws Exception {
+        final Class clazz = JarClassLoader.class;
+        
+        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+                .setAttribute("Foo", "1234")
+                .addPackageOf(clazz)
+                .write(new ByteArrayOutputStream());
+
+        printEntries(toInput(res));
+        
+        final Path pp = Paths.get(clazz.getPackage().getName().replace('.', '/'));
+        
+        assertTrue(getEntry(toInput(res), pp.resolve(clazz.getSimpleName() + ".class")) != null);
+        assertTrue(getEntry(toInput(res), pp.resolve("ProcessUtil.class")) != null);
+
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
     }
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
