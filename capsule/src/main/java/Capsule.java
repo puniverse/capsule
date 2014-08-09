@@ -24,14 +24,11 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.FileVisitResult;
-import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
@@ -39,7 +36,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -53,7 +49,7 @@ import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Capsule implements Runnable, FileVisitor<Path> {
+public class Capsule implements Runnable {
     /*
      * This class contains several strange hacks to avoid creating more classes,  
      * as we'd like this file to compile to a single .class file.
@@ -147,6 +143,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
+    private static final Object DEFAULT = new Object();
     //</editor-fold>
 
     //<editor-fold desc="Main">
@@ -195,12 +192,12 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
 
-    private final Path cacheDir;
-    private final JarFile jar;       // null only in tests
-    private final byte[] jarBuffer;  // non-null only in tests
     private final Path jarFile;      // never null
+    private final FileSystem jarFs;
+    private final byte[] jarBuffer;
+    private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
-    private final String javaHome;
+    private final String javaHome;   // never null
     private final String appId;      // null iff isEmptyCapsule()
     private final Path appCache;     // non-null iff capsule is extracted
     private final boolean cacheUpToDate;
@@ -218,7 +215,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
      * @param cacheDir the path to the (shared) Capsule cache directory
      */
     protected Capsule(Path jarFile, Path cacheDir) {
-        this(jarFile, null, cacheDir, null);
+        this(jarFile, null, cacheDir, DEFAULT);
     }
 
     /**
@@ -228,43 +225,33 @@ public class Capsule implements Runnable, FileVisitor<Path> {
      * @param cacheDir  the path to the (shared) Capsule cache directory
      */
     protected Capsule(byte[] jarBuffer, Path cacheDir) {
-        this(null, jarBuffer, cacheDir, null);
+        this(null, jarBuffer, cacheDir, DEFAULT);
     }
 
     // Used directly by tests
     private Capsule(Path jarFile, byte[] jarBuffer, Path cacheDir, Object dependencyManager) {
         this.jarFile = jarFile;
+
         try {
+            this.jarFs = jarBuffer == null ? newZipFileSystem(jarFile) : null;
+            this.jarBuffer = jarBuffer;
             if (jarBuffer == null) {
-                JarFile jf = null;
-                try {
-                    jf = new JarFile(jarFile.toFile()); // only use of old File API;
-                } catch (UnsupportedOperationException e) { // can happen in tests b/c jimfs doesn't support toFile
+                try (InputStream is = Files.newInputStream(jarFs.getPath(JarFile.MANIFEST_NAME))) {
+                    this.manifest = new Manifest(is);
                 }
-                if (jf != null) {
-                    this.jar = jf;
-                    this.jarBuffer = null;
-                } else {
-                    this.jar = null;
-                    this.jarBuffer = Files.readAllBytes(jarFile);
-                }
-            } else {
-                this.jar = null;
-                this.jarBuffer = jarBuffer;
-            }
-            this.manifest = jar != null ? jar.getManifest() : getJarInputStream().getManifest();
+            } else
+                this.manifest = getJarInputStream().getManifest();
             if (manifest == null)
                 throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
         }
-        final boolean test = this.jarBuffer != null;
 
         this.cacheDir = initCacheDir(cacheDir != null ? cacheDir : getCacheDir());
         this.javaHome = getJavaHome();
         this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
-        if (test || dependencyManager != null)
+        if (dependencyManager != DEFAULT)
             this.dependencyManager = dependencyManager;
         else
             this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
@@ -656,9 +643,13 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     private List<Path> getDefaultCacheClassPath() {
         final List<Path> cp = new ArrayList<Path>();
         cp.add(appCache);
-        for (Path f : listDir(appCache)) {
-            if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar"))
-                cp.add(f.toAbsolutePath());
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(appCache)) {
+            for (Path f : ds) {
+                if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar"))
+                    cp.add(f.toAbsolutePath());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException();
         }
 
         return cp;
@@ -695,7 +686,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         try {
             verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
             if (jarBuffer == null)
-                extractJar(jar, appCache);
+                extractJar(jarFs, appCache);
             else
                 extractJar(getJarInputStream(), appCache);
         } catch (IOException e) {
@@ -1155,8 +1146,8 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     private Object createPomReader() {
-        try {
-            return new PomReader(getEntry(POM_FILE));
+        try (InputStream is = getEntry(POM_FILE)) {
+            return new PomReader(is);
         } catch (NoClassDefFoundError e) {
             throw new RuntimeException("Jar " + jarFile
                     + " contains a pom.xml file, while the necessary dependency management classes are not found in the jar");
@@ -1381,16 +1372,29 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
     //<editor-fold defaultstate="collapsed" desc="JAR Extraction">
     /////////// JAR Extraction ///////////////////////////////////
-    private static void extractJar(JarFile jar, Path targetDir) throws IOException {
-        for (Enumeration entries = jar.entries(); entries.hasMoreElements();) {
-            final JarEntry entry = (JarEntry) entries.nextElement();
-            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
-                continue;
+    private static void extractJar(FileSystem jarFs, Path targetDir) throws IOException {
+        for (Path root : jarFs.getRootDirectories())
+            extractJarDir(root, targetDir);
+    }
 
-            try (InputStream is = jar.getInputStream(entry)) {
-                writeFile(targetDir, entry.getName(), is);
+    private static void extractJarDir(Path p, Path targetDir) throws IOException {
+        // not using FileWalker so as not to create another class
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(p)) {
+            for (Path f : ds) {
+                final String fname = relativeToRoot(f).toString();
+                if (!shouldExtractFile(fname))
+                    continue;
+                if (Files.isDirectory(f)) {
+                    Files.createDirectory(targetDir.resolve(fname));
+                    extractJarDir(f, targetDir);
+                } else
+                    Files.copy(f, targetDir.resolve(fname));
             }
         }
+    }
+
+    private static Path relativeToRoot(Path p) {
+        return p != null ? p.getRoot().relativize(p) : null;
     }
 
     private static void extractJar(JarInputStream jar, Path targetDir) throws IOException {
@@ -1504,7 +1508,15 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
     private boolean hasEntry(String name) {
         try {
-            return getEntry(name) != null;
+            if (jarBuffer == null)
+                return Files.exists(jarFs.getPath(name));
+
+            final JarInputStream jis = getJarInputStream();
+            for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
+                if (name.equals(entry.getName()))
+                    return true;
+            }
+            return false;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -1512,13 +1524,11 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
     private InputStream getEntry(String name) throws IOException {
         if (jarBuffer == null) {
-            final JarEntry entry = jar.getJarEntry(name);
-            if (entry == null)
+            if (!Files.exists(jarFs.getPath(name)))
                 return null;
-            return jar.getInputStream(entry);
+            return Files.newInputStream(jarFs.getPath(name));
         }
 
-        // test
         final JarInputStream jis = getJarInputStream();
         for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
             if (name.equals(entry.getName()))
@@ -1530,6 +1540,17 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
     //<editor-fold defaultstate="collapsed" desc="File Utils">
     /////////// File Utils ///////////////////////////////////
+    protected static final List<Path> listDir(Path dir) {
+        final List<Path> list = new ArrayList<>();
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
+            for (Path f : ds)
+                list.add(f);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return list;
+    }
+
     private static void writeFile(Path targetDir, String fileName, InputStream is) throws IOException {
         final String dir = getDirectory(fileName);
         if (dir != null)
@@ -1546,9 +1567,18 @@ public class Capsule implements Runnable, FileVisitor<Path> {
         return filename.substring(0, index);
     }
 
-    private void delete(Path dir) throws IOException {
-        for (Path f : listDir(dir, FILE_VISITOR_MODE_POSTORDER))
-            Files.delete(f);
+    // visible for testing
+    static void delete(Path dir) throws IOException {
+        // not using FileWalker so as not to create another class
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
+            for (Path f : ds) {
+                if (Files.isDirectory(f))
+                    delete(f);
+                else
+                    Files.delete(f);
+            }
+        }
+        Files.delete(dir);
     }
 
     private static void ensureExecutable(Path file) {
@@ -2056,75 +2086,45 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="File Visitor">
-    /////////// File Visitor ///////////////////////////////////
-    /*
-     * This is written in a funny way because we don't want to create any classes, even anonymous ones, so that this file will compile
-     * to a single class file.
-     */
-    private final Object fileVisitorLock = new Object();
-    private int fileVisitorMode;
-    private Path fileVisitorStart;
-    private List<Path> fileVisitorResult;
-    private static final int FILE_VISITOR_MODE_NO_RECURSE = 0;
-    private static final int FILE_VISITOR_MODE_PREORDER = 1;
-    private static final int FILE_VISITOR_MODE_POSTORDER = 2;
+    //<editor-fold defaultstate="collapsed" desc="Zip Filesystem">
+    /////////// Zip Filesystem ///////////////////////////////////
+    // This is a workaround for the the check ZipFileSystemProvider.newFileSystem does to verify the zip is in the default filesystem.
+    private static final java.nio.file.spi.FileSystemProvider ZIP_FILE_SYSTEM_PROVIDER = getZipFileSystemProvider();
+    private static final Constructor<?> ZIP_FILE_SYSTEM_CONSTRUCTOR;
 
-    protected final List<Path> listDir(Path dir) {
-        return listDir(dir, FILE_VISITOR_MODE_NO_RECURSE);
-    }
-
-    protected final List<Path> listDir(Path dir, int fileVisitorMode) {
-        synchronized (fileVisitorLock) {
-            this.fileVisitorMode = fileVisitorMode;
-            List<Path> res = new ArrayList<>();
-            this.fileVisitorStart = dir;
-            this.fileVisitorResult = res;
-            try {
-                Files.walkFileTree(dir, this);
-                return res;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } finally {
-                this.fileVisitorStart = null;
-                this.fileVisitorResult = null;
-                this.fileVisitorMode = -1;
-            }
+    static {
+        try {
+            Constructor c = com.sun.nio.zipfs.ZipFileSystem.class.getDeclaredConstructor(com.sun.nio.zipfs.ZipFileSystemProvider.class, Path.class, Map.class);
+            c.setAccessible(true);
+            ZIP_FILE_SYSTEM_CONSTRUCTOR = c;
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError(e);
         }
     }
 
-    @Override
-    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-        if (fileVisitorStart.equals(dir))
-            return FileVisitResult.CONTINUE;
-
-        if (fileVisitorMode == FILE_VISITOR_MODE_PREORDER)
-            fileVisitorResult.add(dir);
-        else if (fileVisitorMode == FILE_VISITOR_MODE_NO_RECURSE) {
-            fileVisitorResult.add(dir);
-            return FileVisitResult.SKIP_SUBTREE;
+    private static java.nio.file.spi.FileSystemProvider getZipFileSystemProvider() {
+        for (java.nio.file.spi.FileSystemProvider fsr : java.nio.file.spi.FileSystemProvider.installedProviders()) {
+            if (fsr instanceof com.sun.nio.zipfs.ZipFileSystemProvider)
+                return fsr;
         }
-        return FileVisitResult.CONTINUE;
+        throw new AssertionError("Zip file system not installed!");
     }
 
-    @Override
-    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-        if (exc != null)
-            throw exc;
-        if (fileVisitorMode == FILE_VISITOR_MODE_POSTORDER)
-            fileVisitorResult.add(dir);
-        return FileVisitResult.CONTINUE;
-    }
-
-    @Override
-    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-        fileVisitorResult.add(file);
-        return FileVisitResult.CONTINUE;
-    }
-
-    @Override
-    public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-        throw exc;
+    private static FileSystem newZipFileSystem(Path path) throws IOException {
+        // return FileSystems.newFileSystem(path, null);
+        if (path.getFileSystem() instanceof com.sun.nio.zipfs.ZipFileSystem)
+            throw new IllegalArgumentException("Can't create a ZIP file system nested in a ZIP file system. (" + path + " is nested in " + path.getFileSystem() + ")");
+        try {
+            return (FileSystem) ZIP_FILE_SYSTEM_CONSTRUCTOR.newInstance(ZIP_FILE_SYSTEM_PROVIDER, path, Collections.emptyMap());
+        } catch (InvocationTargetException e) {
+            if (e.getCause() instanceof RuntimeException)
+                throw (RuntimeException) e.getCause();
+            if (e.getCause() instanceof Error)
+                throw (Error) e.getCause();
+            throw new RuntimeException(e.getCause());
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
     }
     //</editor-fold>
 
@@ -2184,8 +2184,8 @@ public class Capsule implements Runnable, FileVisitor<Path> {
 
     private static Object createClassLoader(Path path) throws IOException {
         try {
-            return new PathClassLoader(new Path[]{path}, null);
-            // return jar == null ? new PathClassLoader(new Path[]{path}, null) : new URLClassLoader(new URL[]{path.toUri().toURL()}, null);
+            return new PathClassLoader(new Path[]{path});
+            // return jar == null ? new PathClassLoader(new Path[]{path}) : new URLClassLoader(new URL[]{path.toUri().toURL()});
         } catch (NoClassDefFoundError e) {
             throw new AssertionError(e);
         }

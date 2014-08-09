@@ -15,9 +15,12 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
 import java.nio.file.FileSystem;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -73,6 +76,26 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testDelete() throws Exception {
+        Files.createDirectories(fs.getPath("a", "b", "c"));
+        Files.createDirectories(fs.getPath("a", "b1"));
+        Files.createDirectories(fs.getPath("a", "b", "c1"));
+        Files.createFile(fs.getPath("a", "x"));
+        Files.createFile(fs.getPath("a", "b", "x"));
+        Files.createFile(fs.getPath("a", "b1", "x"));
+        Files.createFile(fs.getPath("a", "b", "c", "x"));
+        Files.createFile(fs.getPath("a", "b", "c1", "x"));
+
+        assertTrue(Files.exists(fs.getPath("a")));
+        assertTrue(Files.isDirectory(fs.getPath("a")));
+
+        //Files.delete(fs.getPath("a"));
+        Capsule.delete(fs.getPath("a"));
+
+        assertTrue(!Files.exists(fs.getPath("a")));
+    }
+
+    @Test
     public void testSimpleExtract() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
@@ -89,6 +112,8 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
+        // dumpFileSystem(fs);
+        
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         assertEquals(getProperty(pb, "capsule.app"), "com.acme.Foo");
@@ -390,6 +415,8 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, dm);
         ProcessBuilder pb = capsule.launchCapsuleArtifact(cmdLine, args);
 
+        // dumpFileSystem(fs);
+
         assertTrue(pb != null);
 
         String appId = capsule.appId(args);
@@ -520,6 +547,21 @@ public class CapsuleTest {
 
     private static int[] ints(int... xs) {
         return xs;
+    }
+
+    private static void dumpFileSystem(FileSystem fs) {
+        try {
+            Files.walkFileTree(fs.getRootDirectories().iterator().next(), new SimpleFileVisitor<Path>() {
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    System.out.println("-- " + file);
+                    return super.visitFile(file, attrs);
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
     //</editor-fold>
 }
