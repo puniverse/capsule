@@ -10,6 +10,7 @@
 import capsule.DependencyManager;
 import co.paralleluniverse.capsule.Jar;
 import com.google.common.jimfs.Jimfs;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
@@ -367,7 +368,7 @@ public class CapsuleTest {
         Jar app = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("App-Class-Path", list("lib/a.jar"))
-                .addEntry(Capsule.class)
+                .addClass(Capsule.class)
                 .addEntry("foo.jar", Jar.toInputStream("", UTF8))
                 .addEntry("a.class", Jar.toInputStream("", UTF8))
                 .addEntry("b.txt", Jar.toInputStream("", UTF8))

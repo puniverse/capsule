@@ -237,8 +237,6 @@ public class JarTest {
 
     @Test
     public void testAddZip3() throws Exception {
-        FileSystem fs = Jimfs.newFileSystem();
-
         ByteArrayOutputStream myZip = new Jar()
                 .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
                 .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))

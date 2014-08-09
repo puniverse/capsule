@@ -24,6 +24,8 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
@@ -692,7 +694,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     private void extractCapsule() {
         try {
             verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
-            if (jar != null)
+            if (jarBuffer == null)
                 extractJar(jar, appCache);
             else
                 extractJar(getJarInputStream(), appCache);
@@ -1509,7 +1511,7 @@ public class Capsule implements Runnable, FileVisitor<Path> {
     }
 
     private InputStream getEntry(String name) throws IOException {
-        if (jar != null) {
+        if (jarBuffer == null) {
             final JarEntry entry = jar.getJarEntry(name);
             if (entry == null)
                 return null;
