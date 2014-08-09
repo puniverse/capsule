@@ -101,7 +101,7 @@ public class PathClassLoader extends ClassLoader {
         try {
             for (Object o : paths) {
                 final Path p = resolve(o, name);
-                if (isValidResource(p))
+                if (Files.exists(p))
                     return p.toUri().toURL();
             }
             return null;
@@ -116,7 +116,7 @@ public class PathClassLoader extends ClassLoader {
             List<URL> urls = new ArrayList<>();
             for (Object o : paths) {
                 final Path p = resolve(o, name);
-                if (isValidResource(p))
+                if (Files.exists(p))
                     urls.add(p.toUri().toURL());
             }
             return Collections.enumeration(urls);
@@ -129,7 +129,7 @@ public class PathClassLoader extends ClassLoader {
         try {
             for (Object o : paths) {
                 final Path p = resolve(o, name);
-                if (isValidResource(p))
+                if (isFileResource(p))
                     return Files.newInputStream(p);
             }
             return null;
@@ -142,7 +142,7 @@ public class PathClassLoader extends ClassLoader {
         try {
             for (Object o : paths) {
                 final Path p = resolve(o, name);
-                if (isValidResource(p))
+                if (isFileResource(p))
                     return Files.readAllBytes(p);
             }
             return null;
@@ -151,7 +151,7 @@ public class PathClassLoader extends ClassLoader {
         }
     }
 
-    private boolean isValidResource(Path p) {
+    private boolean isFileResource(Path p) {
         return Files.exists(p) && !Files.isDirectory(p);
     }
 }
