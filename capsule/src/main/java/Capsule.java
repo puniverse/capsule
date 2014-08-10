@@ -685,6 +685,15 @@ public class Capsule implements Runnable {
         }
     }
 
+    private void markCache() {
+        try {
+            Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
+            unlockAppCache();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private void lockAppCache() throws IOException {
         final FileChannel c = FileChannel.open(appCache.resolve(LOCK_FILE_NAME), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         this.appCacheLock = c.lock();
@@ -695,15 +704,6 @@ public class Capsule implements Runnable {
             appCacheLock.release();
             appCacheLock.acquiredBy().close();
             appCacheLock = null;
-        }
-    }
-
-    private void markCache() {
-        try {
-            Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
-            unlockAppCache();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
     //</editor-fold>

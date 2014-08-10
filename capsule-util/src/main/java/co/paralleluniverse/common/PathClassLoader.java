@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
-import sun.misc.CompoundEnumeration;
 
 /**
  *
@@ -164,7 +163,7 @@ public class PathClassLoader extends ClassLoader {
         Enumeration[] tmp = new Enumeration[2];
         tmp[childFirst ? 1 : 0] = super.getResources(name);
         tmp[childFirst ? 0 : 1] = findResources1(name);
-        return new CompoundEnumeration<>(tmp);
+        return new sun.misc.CompoundEnumeration<>(tmp);
     }
 
     protected Enumeration<URL> findResources1(String name) throws IOException {

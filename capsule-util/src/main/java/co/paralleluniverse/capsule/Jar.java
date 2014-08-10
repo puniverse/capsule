@@ -449,7 +449,7 @@ public class Jar {
     }
 
     /**
-     * Sets a {@link Pack200.Packer Pack200 packer} to use when writing the JAR.
+     * Sets a {@link Pack200} packer to use when writing the JAR.
      *
      * @param packer
      * @return {@code this}
