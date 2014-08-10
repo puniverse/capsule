@@ -7,10 +7,12 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.jar.Manifest;
 
 /**
  * A custom capsule example
@@ -20,6 +22,11 @@ public class MyCapsule extends Capsule {
         super(jarFile, cacheDir);
     }
 
+    @Override
+    protected Manifest getManifest() throws IOException {
+        return super.getManifest();
+    }
+    
     @Override
     protected List<Path> buildBootClassPathA() {
         return super.buildBootClassPathA();
@@ -72,8 +79,8 @@ public class MyCapsule extends Capsule {
     }
 
     @Override
-    protected String appId(String[] args) {
-        return super.appId(args);
+    protected String getAppId() {
+        return super.getAppId();
     }
 
     @Override

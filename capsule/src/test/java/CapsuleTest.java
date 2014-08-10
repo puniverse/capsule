@@ -406,6 +406,17 @@ public class CapsuleTest {
         }
     }
 
+    @Test(expected = Exception.class)
+    public void testMode2() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .setAttribute("ModeX", "Application-Class", "com.acme.Bar")
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+
+        Capsule capsule = newCapsule(jar, null);
+    }
+
     @Test
     public void testScript() throws Exception {
         Jar jar = newCapsuleJar()

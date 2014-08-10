@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -123,6 +124,9 @@ public class Capsule implements Runnable {
     private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
     private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
 
+    private static final Set<String> NON_MODAL_ATTRS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+            new String[]{ATTR_APP_NAME, ATTR_APP_VERSION}
+    )));
     // outgoing
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
@@ -223,6 +227,7 @@ public class Capsule implements Runnable {
     }
 
     // Used directly by tests
+    @SuppressWarnings("OverridableMethodCallInConstructor")
     private Capsule(Path jarFile, Path cacheDir, Object dependencyManager) {
         Objects.requireNonNull(jarFile, "jarFile can't be null");
         Objects.requireNonNull(cacheDir, "cacheDir can't be null");
@@ -230,19 +235,19 @@ public class Capsule implements Runnable {
 
         try {
             this.jarFs = newZipFileSystem(jarFile);
-            try (InputStream is = Files.newInputStream(jarFs.getPath(MANIFEST_NAME))) {
-                this.manifest = new Manifest(is);
-            }
+            this.manifest = getManifest();
             if (manifest == null)
-                throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
+                throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
         }
+        verifyNonModalAttributes(manifest);
 
-        this.cacheDir = initCacheDir(cacheDir);
         this.mode = emptyToNull(System.getProperty(PROP_MODE));
         if (mode != null && manifest.getAttributes(mode) == null)
             throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
+
+        this.cacheDir = initCacheDir(cacheDir);
 
         this.javaHome = getJavaHome();
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
@@ -253,6 +258,12 @@ public class Capsule implements Runnable {
         this.appId = getAppId();
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
+    }
+
+    protected Manifest getManifest() throws IOException {
+        try (InputStream is = Files.newInputStream(jarFs.getPath(MANIFEST_NAME))) {
+            return new Manifest(is);
+        }
     }
     //</editor-fold>
 
@@ -493,26 +504,34 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="App ID">
     /////////// App ID ///////////////////////////////////
-    private String getAppId() {
+    protected String getAppId() {
         if (isEmptyCapsule())
             return null;
         String appName = System.getProperty(PROP_APP_ID);
         if (appName == null)
             appName = getAttribute(ATTR_APP_NAME);
+
         if (appName == null) {
-            final String appArtifact = getAppArtifact(null);
-            if (appArtifact != null)
+            final String appArtifact = getAttribute(ATTR_APP_ARTIFACT);
+            if (appArtifact != null) {
+                if (hasModalAttribute(ATTR_APP_ARTIFACT))
+                    throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_ARTIFACT + " is defined in a modal section of the manifest. "
+                            + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
                 return getAppArtifactId(getAppArtifactSpecificVersion(appArtifact));
+            }
         }
         if (appName == null) {
             if (pom != null)
                 return getPomAppName();
             appName = getAttribute(ATTR_APP_CLASS);
+            if (appName != null && hasModalAttribute(ATTR_APP_CLASS))
+                throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_CLASS + " is defined in a modal section of the manifest. "
+                        + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
         }
         if (appName == null) {
             if (isEmptyCapsule())
                 return null;
-            throw new RuntimeException("Capsule jar " + jarFile + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
+            throw new IllegalArgumentException("Capsule jar " + jarFile + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
                     + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
         }
 
@@ -520,7 +539,7 @@ public class Capsule implements Runnable {
         return appName + (version != null ? "_" + version : "");
     }
 
-    protected String appId(String[] args) {
+    final String appId(String[] args) {
         if (appId != null)
             return appId;
         assert isEmptyCapsule();
@@ -1325,32 +1344,40 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Attributes">
     /////////// Attributes ///////////////////////////////////
+    private static void verifyNonModalAttributes(Manifest manifest) {
+        for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
+            for (String attr : NON_MODAL_ATTRS) {
+                if (entry.getValue().containsKey(new Attributes.Name(attr)))
+                    throw new IllegalStateException("Manifest section " + entry.getKey() + " contains non-modal attribute " + attr);
+            }
+        }
+    }
+
+    private boolean hasModalAttribute(String attr) {
+        final Attributes.Name key = new Attributes.Name(attr);
+        for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
+            if (entry.getValue().containsKey(key))
+                return true;
+        }
+        return false;
+    }
+
     protected final String getAttribute(String attr) {
         String value = null;
-        Attributes atts;
-        if (mode != null) {
-            atts = manifest.getAttributes(mode);
-            if (atts == null)
-                throw new IllegalArgumentException("Mode " + mode + " not defined in manifest");
-            value = atts.getValue(attr);
-        }
-        if (value == null) {
-            atts = manifest.getMainAttributes();
-            value = atts.getValue(attr);
-        }
+        if (mode != null && !NON_MODAL_ATTRS.contains(attr))
+            value = manifest.getAttributes(mode).getValue(attr);
+        if (value == null)
+            value = manifest.getMainAttributes().getValue(attr);
         return value;
     }
 
     protected final boolean hasAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
-        Attributes atts;
-        if (mode != null) {
-            atts = manifest.getAttributes(mode);
-            if (atts != null && atts.containsKey(key))
+        if (mode != null && !NON_MODAL_ATTRS.contains(attr)) {
+            if (manifest.getAttributes(mode).containsKey(key))
                 return true;
         }
-        atts = manifest.getMainAttributes();
-        return atts.containsKey(new Attributes.Name(attr));
+        return manifest.getMainAttributes().containsKey(new Attributes.Name(attr));
     }
 
     protected final List<String> getListAttribute(String attr) {
@@ -2229,6 +2256,8 @@ public class Capsule implements Runnable {
             throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
         } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(jarFile + " does not appear to be a valid capsule.", e);
+        } catch (InvocationTargetException e) {
+            throw rethrow(e.getTargetException());
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not instantiate capsule.", e);
         }
@@ -2247,13 +2276,16 @@ public class Capsule implements Runnable {
         } catch (IllegalAccessException e) {
             throw new AssertionError();
         } catch (InvocationTargetException e) {
-            final Throwable t = e.getTargetException();
-            if (t instanceof RuntimeException)
-                throw (RuntimeException) t;
-            if (t instanceof Error)
-                throw (Error) t;
-            throw new RuntimeException(t);
+            throw rethrow(e.getTargetException());
         }
+    }
+
+    private static RuntimeException rethrow(Throwable t) {
+        if (t instanceof RuntimeException)
+            throw (RuntimeException) t;
+        if (t instanceof Error)
+            throw (Error) t;
+        throw new RuntimeException(t);
     }
 
     private static boolean isCapsuleClass(Class<?> clazz) {
