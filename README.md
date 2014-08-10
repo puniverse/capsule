@@ -345,7 +345,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
 * `capsule.offline`: if defined (without a value) or set to `true`, Capsule will not attempt to contact online repositories for dependencies
 * `capsule.local`: the path for the local Maven repository; defaults to CAPSULE_CACHE/deps
-* `capsule.resolve`: all external depndencies, if any, will be downloaded (if not cached already), and/or the capsule will be extracted if necessary, but the application will not be launched
+* `capsule.resolve`: all external dependencies, if any, will be downloaded (if not cached already), and/or the capsule will be extracted if necessary, but the application will not be launched
 
 Capsule defines these system properties in the application's process:
 
@@ -362,6 +362,33 @@ Capsule defines these variables in the application's environment:
 
 * `CAPSULE_JAR`: the full path to the capsule's JAR
 * `CAPSULE_DIR`: if the JAR has been extracted, the full path of the application cache.
+
+## "Really Executable" Capsules
+
+A JAR file can be made "really executable" in UNIX/Linux/MacOS environments -- i.e. it can be run simply as `capsule.jar ARGS` rather than `java -jar capsule.jar ARGS` -- by [prepending a couple of shell script lines to the JAR](http://skife.org/java/unix/2011/06/20/really_executable_jars.html) (it turns out JAR files can tolerate any prepended headers). In Maven, you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) plugin to make your capsule really executable. In Gradle, this can be done by adding the following function to your build file:
+
+~~~ groovy
+def reallyExecutable(jar) {
+    ant.concat(destfile: "tmp.jar", binary: true) {
+        zipentry(zipfile: configurations.capsule.singleFile, name: 'capsule/execheader.sh')
+        fileset(dir: jar.destinationDir) {
+            include(name: jar.archiveName)
+        }
+    }
+    copy {
+        from 'tmp.jar'
+        into jar.destinationDir
+        rename { jar.archiveName }
+    }
+    delete 'tmp.jar'
+}
+~~~
+
+and then
+
+~~~ groovy
+capsule.doLast { task -> reallyExecutable(task) }
+~~~
 
 ## License
 
