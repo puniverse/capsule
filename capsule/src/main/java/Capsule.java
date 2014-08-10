@@ -2124,7 +2124,17 @@ public class Capsule implements Runnable {
 
     private static Object newCapsule(Path jarFile, Path cacheDir, ClassLoader cl) {
         try {
-            final Manifest manifest = new Manifest(cl.getResourceAsStream(MANIFEST_NAME));
+
+	        // pulled from constructor
+	        Manifest manifest = null;
+	        final FileSystem jarFs = newZipFileSystem(jarFile);
+	        try (InputStream is = Files.newInputStream(jarFs.getPath(MANIFEST_NAME))) {
+		        manifest = new Manifest(is);
+	        }
+	        if (manifest == null)
+		        throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
+
+//            final Manifest manifest = new Manifest(cl.getResourceAsStream(MANIFEST_NAME));
             final String mainClassName = getMainClass(manifest);
             if (mainClassName != null) {
                 final Class<?> clazz = cl.loadClass(mainClassName);
@@ -2135,7 +2145,9 @@ public class Capsule implements Runnable {
                 }
             }
             throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (IOException e) {
+            throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(jarFile + " does not appear to be a valid capsule.", e);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not instantiate capsule.", e);
