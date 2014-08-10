@@ -23,11 +23,14 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
@@ -198,6 +201,7 @@ public class Capsule implements Runnable {
     private final String appId;      // null iff isEmptyCapsule()
     private final Path appCache;     // non-null iff capsule is extracted
     private final boolean cacheUpToDate;
+    private FileLock appCacheLock;
     private final String mode;
     private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final Object dependencyManager; // non-null iff needsDependencyManager is true
@@ -641,6 +645,21 @@ public class Capsule implements Runnable {
     }
 
     private boolean isUpToDate() {
+        try {
+            boolean res = isUpToDate0();
+            if (!res) {
+                lockAppCache();
+                res = isUpToDate0();
+                if (res)
+                    unlockAppCache();
+            }
+            return res;
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private boolean isUpToDate0() {
         if (Boolean.parseBoolean(System.getProperty(PROP_RESET, "false")))
             return false;
         try {
@@ -648,9 +667,7 @@ public class Capsule implements Runnable {
             if (!Files.exists(extractedFile))
                 return false;
             FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
-
             FileTime jarTime = Files.getLastModifiedTime(jarFile);
-
             return extractedTime.compareTo(jarTime) >= 0;
         } catch (IOException e) {
             throw new AssertionError(e);
@@ -666,9 +683,23 @@ public class Capsule implements Runnable {
         }
     }
 
+    private void lockAppCache() throws IOException {
+        final FileChannel c = FileChannel.open(appCache.resolve(".lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        this.appCacheLock = c.lock();
+    }
+
+    private void unlockAppCache() throws IOException {
+        if (appCacheLock != null) {
+            appCacheLock.release();
+            appCacheLock.acquiredBy().close();
+            appCacheLock = null;
+        }
+    }
+
     private void markCache() {
         try {
             Files.createFile(appCache.resolve(".extracted"));
+            unlockAppCache();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
