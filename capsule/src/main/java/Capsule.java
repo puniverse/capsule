@@ -12,7 +12,6 @@ import capsule.DependencyManager;
 import capsule.PathClassLoader;
 import capsule.PomReader;
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -42,8 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.jar.Attributes;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
@@ -140,6 +137,7 @@ public class Capsule implements Runnable {
     private static final String POM_FILE = "pom.xml";
     private static final String DOT = "\\.";
     private static final String CUSTOM_CAPSULE_CLASS_NAME = "CustomCapsule";
+    private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
@@ -194,7 +192,6 @@ public class Capsule implements Runnable {
 
     private final Path jarFile;      // never null
     private final FileSystem jarFs;
-    private final byte[] jarBuffer;
     private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
     private final String javaHome;   // never null
@@ -215,32 +212,18 @@ public class Capsule implements Runnable {
      * @param cacheDir the path to the (shared) Capsule cache directory
      */
     protected Capsule(Path jarFile, Path cacheDir) {
-        this(jarFile, null, cacheDir, DEFAULT);
-    }
-
-    /**
-     * Constructs a capsule from the given byte array
-     *
-     * @param jarBuffer a byte array containing the capsule JAR
-     * @param cacheDir  the path to the (shared) Capsule cache directory
-     */
-    protected Capsule(byte[] jarBuffer, Path cacheDir) {
-        this(null, jarBuffer, cacheDir, DEFAULT);
+        this(jarFile, cacheDir, DEFAULT);
     }
 
     // Used directly by tests
-    private Capsule(Path jarFile, byte[] jarBuffer, Path cacheDir, Object dependencyManager) {
+    private Capsule(Path jarFile, Path cacheDir, Object dependencyManager) {
         this.jarFile = jarFile;
 
         try {
-            this.jarFs = jarBuffer == null ? newZipFileSystem(jarFile) : null;
-            this.jarBuffer = jarBuffer;
-            if (jarBuffer == null) {
-                try (InputStream is = Files.newInputStream(jarFs.getPath(JarFile.MANIFEST_NAME))) {
-                    this.manifest = new Manifest(is);
-                }
-            } else
-                this.manifest = getJarInputStream().getManifest();
+            this.jarFs = newZipFileSystem(jarFile);
+            try (InputStream is = Files.newInputStream(jarFs.getPath(MANIFEST_NAME))) {
+                this.manifest = new Manifest(is);
+            }
             if (manifest == null)
                 throw new RuntimeException("JAR file " + jarFile + " does not have a manifest");
         } catch (IOException e) {
@@ -284,10 +267,6 @@ public class Capsule implements Runnable {
         } catch (URISyntaxException e) {
             throw new AssertionError(e);
         }
-    }
-
-    private JarInputStream getJarInputStream() throws IOException {
-        return new JarInputStream(new ByteArrayInputStream(jarBuffer));
     }
 
     private String getJarPath() {
@@ -685,10 +664,7 @@ public class Capsule implements Runnable {
     private void extractCapsule() {
         try {
             verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
-            if (jarBuffer == null)
-                extractJar(jarFs, appCache);
-            else
-                extractJar(getJarInputStream(), appCache);
+            extractJar(jarFs, appCache);
         } catch (IOException e) {
             throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
@@ -1027,7 +1003,7 @@ public class Capsule implements Runnable {
         try {
             String mainClass = getAttribute(ATTR_APP_CLASS);
             if (mainClass == null && hasAttribute(ATTR_APP_ARTIFACT))
-                mainClass = getMainClass(classPath.get(0).toAbsolutePath());
+                mainClass = getMainClass(classPath.get(0));
             if (mainClass == null)
                 throw new RuntimeException("Jar " + classPath.get(0).toAbsolutePath() + " does not have a main class defined in the manifest.");
             return mainClass;
@@ -1397,15 +1373,6 @@ public class Capsule implements Runnable {
         return p != null ? p.getRoot().relativize(p) : null;
     }
 
-    private static void extractJar(JarInputStream jar, Path targetDir) throws IOException {
-        for (JarEntry entry; (entry = jar.getNextJarEntry()) != null;) {
-            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
-                continue;
-
-            writeFile(targetDir, entry.getName(), jar);
-        }
-    }
-
     private static boolean shouldExtractFile(String fileName) {
         if (fileName.equals(Capsule.class.getName().replace('.', '/') + ".class")
                 || (fileName.startsWith(Capsule.class.getName().replace('.', '/') + "$") && fileName.endsWith(".class")))
@@ -1507,34 +1474,13 @@ public class Capsule implements Runnable {
     }
 
     private boolean hasEntry(String name) {
-        try {
-            if (jarBuffer == null)
-                return Files.exists(jarFs.getPath(name));
-
-            final JarInputStream jis = getJarInputStream();
-            for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
-                if (name.equals(entry.getName()))
-                    return true;
-            }
-            return false;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return Files.exists(jarFs.getPath(name));
     }
 
     private InputStream getEntry(String name) throws IOException {
-        if (jarBuffer == null) {
-            if (!Files.exists(jarFs.getPath(name)))
-                return null;
-            return Files.newInputStream(jarFs.getPath(name));
-        }
-
-        final JarInputStream jis = getJarInputStream();
-        for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
-            if (name.equals(entry.getName()))
-                return jis;
-        }
-        return null;
+        if (!Files.exists(jarFs.getPath(name)))
+            return null;
+        return Files.newInputStream(jarFs.getPath(name));
     }
     //</editor-fold>
 

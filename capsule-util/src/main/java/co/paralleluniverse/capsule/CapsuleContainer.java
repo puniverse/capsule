@@ -37,10 +37,6 @@ public class CapsuleContainer {
         return launchCapsule(CapsuleLauncher.getCapsule(capsulePath, cacheDir), cmdLine, args);
     }
 
-    public String launchCapsule(byte[] capsule, List<String> cmdLine, String[] args) throws IOException {
-        return launchCapsule(CapsuleLauncher.getCapsule(capsule, cacheDir), cmdLine, args);
-    }
-
     private String launchCapsule(Object capsule, List<String> cmdLine, String[] args) throws IOException {
         try {
             final ProcessBuilder pb = configureCapsuleProcess(CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(cmdLine), args));

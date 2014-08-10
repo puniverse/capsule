@@ -18,7 +18,6 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -460,11 +459,14 @@ public class CapsuleTest {
         return res;
     }
 
+    // may be called once per test (always writes jar into /capsule.jar)
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
         try {
-            Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, byte[].class, Path.class, Object.class);
+            final Path capsuleJar = getPath("capsule.jar");
+            jar.write(capsuleJar);
+            Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, Path.class, Object.class);
             ctor.setAccessible(true);
-            return ctor.newInstance(Paths.get("capsule.jar"), jar.toByteArray(), cache, dependencyManager);
+            return ctor.newInstance(capsuleJar, cache, dependencyManager);
         } catch (InvocationTargetException e) {
             throw new RuntimeException(e.getCause());
         } catch (Exception e) {

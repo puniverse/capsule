@@ -8,7 +8,6 @@
  */
 package co.paralleluniverse.capsule;
 
-import co.paralleluniverse.common.JarClassLoader;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -45,19 +44,6 @@ public final class CapsuleLauncher {
             return getCapsuleConstructor(clazz, Path.class, Path.class).newInstance(path, cacheDir);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException("Could not create capsule instance.", e);
-        }
-    }
-
-    public static Object getCapsule(byte[] buf, Path cacheDir) {
-        try {
-            final JarClassLoader cl = new JarClassLoader(buf);
-            final Class clazz = loadCapsuleClass(cl.getManifest(), cl);
-            if (clazz == null)
-                throw new RuntimeException("The given buffer does not appear to be a valid capsule.");
-
-            return getCapsuleConstructor(clazz, byte[].class, Path.class).newInstance((Object) buf, cacheDir);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not create capsule instance.", e);
         }
