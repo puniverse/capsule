@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
@@ -135,7 +136,12 @@ public class Jar {
         verifyNotSealed();
         if (jos != null)
             throw new IllegalStateException("Manifest cannot be modified after entries are added.");
-        getManifest().getAttributes(section).putValue(name, value);
+        Attributes attr = getManifest().getAttributes(section);
+        if (attr == null) {
+            attr = new Attributes();
+            getManifest().getEntries().put(section, attr);
+        }
+        attr.putValue(name, value);
         return this;
     }
 
@@ -209,7 +215,8 @@ public class Jar {
      * @param name    the attribute's name
      */
     public String getAttribute(String section, String name) {
-        return getManifest().getAttributes(section).getValue(name);
+        Attributes attr = getManifest().getAttributes(section);
+        return attr != null ? attr.getValue(name) : null;
     }
 
     /**

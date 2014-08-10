@@ -112,15 +112,14 @@ public class CapsuleTest {
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
-        
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        assertEquals(getProperty(pb, "capsule.app"), "com.acme.Foo");
-        assertEquals(getProperty(pb, "capsule.dir"), appCache.toString());
+        assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
+        assertEquals(appCache.toString(), getProperty(pb, "capsule.dir"));
 //        assertTrue(pb.command().contains("-Dcapsule.app=com.acme.Foo"));
 //        assertTrue(pb.command().contains("-Dcapsule.dir=" + appCache));
 
-        assertEquals(getMainAndArgs(pb), list("com.acme.Foo", "hi", "there"));
+        assertEquals(list("com.acme.Foo", "hi", "there"), getMainAndArgs(pb));
 
         assertTrue(Files.isDirectory(cache));
         assertTrue(Files.isDirectory(cache.resolve("apps")));
@@ -317,7 +316,7 @@ public class CapsuleTest {
     }
 
     @Test
-    public void testCapsuleInClass() throws Exception {
+    public void testCapsuleInClassPath() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("App-Class-Path", list("lib/a.jar", "lib/b.jar"))
@@ -358,10 +357,53 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        assertTrue(pb.command().contains("-Dfoo=x"));
-        assertTrue(pb.command().contains("-Dbar"));
-        assertTrue(pb.command().contains("-Dzzz"));
-        assertTrue(pb.command().contains("-Dbaz=33"));
+        assertEquals("x", getProperty(pb, "foo"));
+        assertEquals("", getProperty(pb, "bar"));
+        assertEquals("", getProperty(pb, "zzz"));
+        assertEquals("33", getProperty(pb, "baz"));
+    }
+
+    @Test
+    public void testJVMArgs() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list("-Xms15");
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertTrue(pb.command().contains("-Xmx100"));
+        assertTrue(pb.command().contains("-Xms15"));
+        assertTrue(!pb.command().contains("-Xms10"));
+    }
+
+    @Test
+    public void testMode() throws Exception {
+        System.setProperty("capsule.mode", "ModeX");
+        try {
+            Jar jar = newCapsuleJar()
+                    .setAttribute("Application-Class", "com.acme.Foo")
+                    .setAttribute("System-Properties", "bar baz=33 foo=y")
+                    .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
+                    .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+
+            String[] args = strings("hi", "there");
+            List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
+
+            Capsule capsule = newCapsule(jar, null);
+            ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+            assertEquals("x", getProperty(pb, "foo"));
+            assertEquals("", getProperty(pb, "bar"));
+            assertEquals("", getProperty(pb, "zzz"));
+            assertEquals("55", getProperty(pb, "baz"));
+        } finally {
+            System.setProperty("capsule.mode", "");
+        }
     }
 
     @Test
@@ -382,7 +424,37 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        assertEquals(pb.command(), list(appCache.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"));
+        assertEquals(list(appCache.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"),
+                pb.command());
+    }
+
+    @Test
+    public void testCustomCapsule() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .addClass(MyCapsule.class);
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
+
+        final Path capsuleJar = getPath("capsule.jar");
+        jar.write(capsuleJar);
+        Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
+
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertEquals("x", getProperty(pb, "foo"));
+        assertEquals("", getProperty(pb, "bar"));
+        assertEquals("", getProperty(pb, "zzz"));
+        assertEquals("44", getProperty(pb, "baz"));
+
+        assertTrue(pb.command().contains("-Xmx3000"));
+        assertTrue(!pb.command().contains("-Xmx100"));
+        assertTrue(pb.command().contains("-Xms15"));
+        assertTrue(!pb.command().contains("-Xms10"));
     }
 
     @Test
@@ -415,16 +487,15 @@ public class CapsuleTest {
         ProcessBuilder pb = capsule.launchCapsuleArtifact(cmdLine, args);
 
         // dumpFileSystem(fs);
-
         assertTrue(pb != null);
 
         String appId = capsule.appId(args);
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        assertEquals(getProperty(pb, "capsule.app"), "com.acme.Foo");
-        assertEquals(getProperty(pb, "capsule.dir"), appCache.toString());
+        assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
+        assertEquals(appCache.toString(), getProperty(pb, "capsule.dir"));
 
-        assertEquals(getMainAndArgs(pb), list("com.acme.Foo", "hi", "there"));
+        assertEquals(list("com.acme.Foo", "hi", "there"), getMainAndArgs(pb));
 
         assertTrue(Files.isDirectory(cache));
         assertTrue(Files.isDirectory(cache.resolve("apps")));
@@ -448,17 +519,6 @@ public class CapsuleTest {
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
     /////////// Utilities ///////////////////////////////////
-    private Path getPath(String first, String... more) {
-        return fs.getPath(first, more);
-    }
-
-    private List<Path> paths(String cp) {
-        final List<Path> res = new ArrayList<>();
-        for (String p : cp.split(":"))
-            res.add(getPath(p));
-        return res;
-    }
-
     // may be called once per test (always writes jar into /capsule.jar)
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
         try {
@@ -478,6 +538,17 @@ public class CapsuleTest {
         return new Jar()
                 .setAttribute("Manifest-Version", "1.0")
                 .setAttribute("Main-Class", "Capsule");
+    }
+
+    private Path getPath(String first, String... more) {
+        return fs.getPath(first, more);
+    }
+
+    private List<Path> paths(String cp) {
+        final List<Path> res = new ArrayList<>();
+        for (String p : cp.split(":"))
+            res.add(getPath(p));
+        return res;
     }
 
     private List<Path> getClassPath(ProcessBuilder pb) {

@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
@@ -223,6 +224,8 @@ public class Capsule implements Runnable {
 
     // Used directly by tests
     private Capsule(Path jarFile, Path cacheDir, Object dependencyManager) {
+        Objects.requireNonNull(jarFile, "jarFile can't be null");
+        Objects.requireNonNull(cacheDir, "cacheDir can't be null");
         this.jarFile = jarFile;
 
         try {
@@ -236,9 +239,12 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
         }
 
-        this.cacheDir = initCacheDir(cacheDir != null ? cacheDir : getCacheDir());
+        this.cacheDir = initCacheDir(cacheDir);
+        this.mode = emptyToNull(System.getProperty(PROP_MODE));
+        if (mode != null && manifest.getAttributes(mode) == null)
+            throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
+
         this.javaHome = getJavaHome();
-        this.mode = System.getProperty(PROP_MODE);
         this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         if (dependencyManager != DEFAULT)
             this.dependencyManager = dependencyManager;
@@ -448,7 +454,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Capsule Artifact">
     /////////// Capsule Artifact ///////////////////////////////////
     // visible for testing
-    ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, String[] args) {
+    final ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, String[] args) {
         if (getScript() == null) {
             final String appArtifact = getAppArtifact(args);
             if (appArtifact != null) {
@@ -722,8 +728,8 @@ public class Capsule implements Runnable {
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
         addOption(command, "-Xbootclasspath:", compileClassPath(buildBootClassPath(cmdLine)));
-        addOption(command, "-Xbootclasspath/p:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_P)));
-        addOption(command, "-Xbootclasspath/a:", compileClassPath(buildClassPath(ATTR_BOOT_CLASS_PATH_A)));
+        addOption(command, "-Xbootclasspath/p:", compileClassPath(buildBootClassPathP()));
+        addOption(command, "-Xbootclasspath/a:", compileClassPath(buildBootClassPathA()));
 
         final List<Path> classPath = buildClassPath();
         command.add("-classpath");
@@ -753,7 +759,10 @@ public class Capsule implements Runnable {
         cmdLine.add(prefix + value);
     }
 
-    private List<Path> buildClassPath() {
+    /**
+     * Compiles and returns the application's classpath as a list of paths.
+     */
+    protected List<Path> buildClassPath() {
         final List<Path> classPath = new ArrayList<Path>();
 
         if (!isEmptyCapsule() && !hasAttribute(ATTR_APP_ARTIFACT)) {
@@ -802,6 +811,9 @@ public class Capsule implements Runnable {
         return deps != null ? Collections.unmodifiableList(deps) : null;
     }
 
+    /**
+     * Compiles and returns the application's boot classpath as a list of paths.
+     */
     private List<Path> buildBootClassPath(List<String> cmdLine) {
         String option = null;
         for (String o : cmdLine) {
@@ -810,19 +822,50 @@ public class Capsule implements Runnable {
         }
         if (option != null)
             return toPath(Arrays.asList(option.split(PATH_SEPARATOR)));
+        return buildBootClassPath();
+    }
+
+    /**
+     * Compiles and returns the application's boot classpath as a list of paths.
+     */
+    protected List<Path> buildBootClassPath() {
         return getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
+    }
+
+    /**
+     * Compiles and returns the paths to be prepended to the application's boot classpath.
+     */
+    protected List<Path> buildBootClassPathP() {
+        return buildClassPath(ATTR_BOOT_CLASS_PATH_P);
+    }
+
+    /**
+     * Compiles and returns the paths to be appended to the application's boot classpath.
+     */
+    protected List<Path> buildBootClassPathA() {
+        return buildClassPath(ATTR_BOOT_CLASS_PATH_A);
     }
 
     private List<Path> buildClassPath(String attr) {
         return getPath(getListAttribute(attr));
     }
 
+    private Map<String, String> buildSystemProperties(List<String> cmdLine) {
+        final Map<String, String> systemProperties = buildSystemProperties();
+
+        // command line overrides everything
+        for (String option : cmdLine) {
+            if (option.startsWith("-D"))
+                addSystemProperty(option.substring(2), systemProperties);
+        }
+
+        return systemProperties;
+    }
+
     /**
      * Returns a map of system properties (property-value pairs).
-     *
-     * @param cmdLine the list of JVM arguments passed to the capsule at launch
      */
-    protected Map<String, String> buildSystemProperties(List<String> cmdLine) {
+    protected Map<String, String> buildSystemProperties() {
         final Map<String, String> systemProperties = new HashMap<String, String>();
 
         // attribute
@@ -853,12 +896,6 @@ public class Capsule implements Runnable {
             systemProperties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
         systemProperties.put(PROP_CAPSULE_JAR, getJarPath());
         systemProperties.put(PROP_CAPSULE_APP, appId);
-
-        // command line
-        for (String option : cmdLine) {
-            if (option.startsWith("-D"))
-                addSystemProperty(option.substring(2), systemProperties);
-        }
 
         return systemProperties;
     }
@@ -961,23 +998,30 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
+    private List<String> buildJVMArgs(List<String> cmdLine) {
+        final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
+
+        for (String option : buildJVMArgs())
+            addJvmArg(option, jvmArgs);
+
+        // command line overrides everything
+        for (String option : cmdLine) {
+            if (!option.startsWith("-D") && !option.startsWith("-Xbootclasspath:"))
+                addJvmArg(option, jvmArgs);
+        }
+        return new ArrayList<String>(jvmArgs.values());
+    }
+
     /**
      * Returns a list of JVM arguments.
-     *
-     * @param cmdLine the list of JVM arguments passed to the capsule at launch
      */
-    protected List<String> buildJVMArgs(List<String> cmdLine) {
+    protected List<String> buildJVMArgs() {
         final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
 
         for (String a : nullToEmpty(getListAttribute(ATTR_JVM_ARGS))) {
             a = a.trim();
             if (!a.isEmpty() && !a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
                 addJvmArg(expand(a), jvmArgs);
-        }
-
-        for (String option : cmdLine) {
-            if (!option.startsWith("-D") && !option.startsWith("-Xbootclasspath:"))
-                addJvmArg(option, jvmArgs);
         }
 
         return new ArrayList<String>(jvmArgs.values());
@@ -997,10 +1041,12 @@ public class Capsule implements Runnable {
             return "-jre-restrict-search";
         if (a.startsWith("-Xloggc:"))
             return "-Xloggc";
-        if (a.startsWith("-Xloggc:"))
-            return "-Xloggc";
         if (a.startsWith("-Xss"))
             return "-Xss";
+        if (a.startsWith("-Xmx"))
+            return "-Xmx";
+        if (a.startsWith("-Xms"))
+            return "-Xms";
         if (a.startsWith("-XX:+") || a.startsWith("-XX:-"))
             return "-XX:" + a.substring("-XX:+".length());
         if (a.contains("="))
@@ -1279,7 +1325,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Attributes">
     /////////// Attributes ///////////////////////////////////
-    private String getAttribute(String attr) {
+    protected final String getAttribute(String attr) {
         String value = null;
         Attributes atts;
         if (mode != null) {
@@ -1295,7 +1341,7 @@ public class Capsule implements Runnable {
         return value;
     }
 
-    private boolean hasAttribute(String attr) {
+    protected final boolean hasAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
         Attributes atts;
         if (mode != null) {
@@ -1307,11 +1353,11 @@ public class Capsule implements Runnable {
         return atts.containsKey(new Attributes.Name(attr));
     }
 
-    private List<String> getListAttribute(String attr) {
+    protected final List<String> getListAttribute(String attr) {
         return split(getAttribute(attr), "\\s+");
     }
 
-    private Map<String, String> getMapAttribute(String attr, String defaultValue) {
+    protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
         return mapSplit(getAttribute(attr), '=', "\\s+", defaultValue);
     }
     //</editor-fold>
@@ -1537,15 +1583,6 @@ public class Capsule implements Runnable {
             throw new RuntimeException(e);
         }
         return list;
-    }
-
-    private static void writeFile(Path targetDir, String fileName, InputStream is) throws IOException {
-        final String dir = getDirectory(fileName);
-        if (dir != null)
-            Files.createDirectories(targetDir.resolve(dir));
-
-        final Path targetFile = targetDir.resolve(fileName);
-        Files.copy(is, targetFile);
     }
 
     private static String getDirectory(String filename) {
@@ -1868,6 +1905,8 @@ public class Capsule implements Runnable {
     private static String join(Collection<?> coll, String separator) {
         if (coll == null)
             return null;
+        if (coll.isEmpty())
+            return "";
         StringBuilder sb = new StringBuilder();
         for (Object e : coll) {
             if (e != null)
@@ -1875,6 +1914,20 @@ public class Capsule implements Runnable {
         }
         sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
+    }
+
+    private static String getBefore(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return s;
+        return s.substring(0, i);
+    }
+
+    private static String getAfter(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return null;
+        return s.substring(i + 1);
     }
 
 //    private static String globToRegex(String line) {
@@ -1962,18 +2015,11 @@ public class Capsule implements Runnable {
 //        }
 //        return sb.toString();
 //    }
-    private static String getBefore(String s, char separator) {
-        final int i = s.indexOf(separator);
-        if (i < 0)
-            return s;
-        return s.substring(0, i);
-    }
-
-    private static String getAfter(String s, char separator) {
-        final int i = s.indexOf(separator);
-        if (i < 0)
+    private static String emptyToNull(String s) {
+        if (s == null)
             return null;
-        return s.substring(i + 1);
+        s = s.trim();
+        return s.isEmpty() ? null : s;
     }
     //</editor-fold>
 
@@ -2099,7 +2145,7 @@ public class Capsule implements Runnable {
     }
 
     private static FileSystem newZipFileSystem(Path path) throws IOException {
-        // return FileSystems.newFileSystem(path, null);
+        // return java.nio.file.FileSystems.newFileSystem(path, null);
         if (path.getFileSystem() instanceof com.sun.nio.zipfs.ZipFileSystem)
             throw new IllegalArgumentException("Can't create a ZIP file system nested in a ZIP file system. (" + path + " is nested in " + path.getFileSystem() + ")");
         try {
@@ -2116,9 +2162,56 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Object Methods">
+    /////////// Object Methods ///////////////////////////////////
+    @Override
+    protected final Object clone() throws CloneNotSupportedException {
+        return super.clone();
+    }
+
+    @Override
+    public final int hashCode() {
+        int hash = 3;
+        hash = 47 * hash + Objects.hashCode(this.jarFile);
+        hash = 47 * hash + Objects.hashCode(this.mode);
+        return hash;
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        final Capsule other = (Capsule) obj;
+        if (!Objects.equals(this.jarFile, other.jarFile))
+            return false;
+        if (!Objects.equals(this.mode, other.mode))
+            return false;
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(getClass().getName()).append('[');
+        sb.append(jarFile);
+        if (appId != null) {
+            sb.append(", ").append(appId);
+            sb.append(getAttribute(ATTR_APP_CLASS) != null ? getAttribute(ATTR_APP_CLASS) : getAttribute(ATTR_APP_ARTIFACT));
+        } else
+            sb.append(", ").append("empty");
+        if (mode != null)
+            sb.append(", ").append("mode: ").append(mode);
+        sb.append(']');
+        return sb.toString();
+    }
+    //</editor-fold>
+
     //<editor-fold defaultstate="collapsed" desc="Capsule Loading and Launching">
     /////////// Capsule Loading and Launching ///////////////////////////////////
-    private static Capsule newCapsule(Path jarFile, Path cacheDir) {
+    // visible for testing
+    static Capsule newCapsule(Path jarFile, Path cacheDir) {
         return (Capsule) newCapsule(jarFile, cacheDir, Capsule.class.getClassLoader());
     }
 
