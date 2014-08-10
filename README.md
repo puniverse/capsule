@@ -201,13 +201,11 @@ It is possible to specify different values for each of the configurations -- to 
 
 Example:
 
-``` txt
-Attribute-X: foo
-Attribute-Y: bar
+    Attribute-X: foo
+    Attribute-Y: bar
 
-Name: Special
-Attribute-Y: baz
-```
+    Name: Special
+    Attribute-Y: baz
 
 When running in the `Special` mode, `Attribute-Y` will have the value `baz`, while the non-overriden `Attribute-X` will have the value `foo`, as in the default mode.
 
@@ -316,9 +314,7 @@ If any of these three properties is set, a security manager will be in effect wh
 
 You can customize many of the capsule's inner workings by creating a *custom capsule*. A custom capsule is a subclass of `Capsule` that overrides some of the overridable methods. To use your custom capsule, include its class in the root of the capsule JAR, and simply indicate it is the JAR's main class in the mainfest, like so:
 
-``` txt
-Main-Class: MyCustomCapsule
-```
+    Main-Class: MyCustomCapsule
 
 ## Reference
 
