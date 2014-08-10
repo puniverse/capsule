@@ -127,6 +127,7 @@ public class Capsule implements Runnable {
     private static final Set<String> NON_MODAL_ATTRS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             new String[]{ATTR_APP_NAME, ATTR_APP_VERSION}
     )));
+
     // outgoing
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
@@ -378,10 +379,13 @@ public class Capsule implements Runnable {
     }
 
     private void ensureExtractedIfNecessary() {
-        if (appCache != null && !cacheUpToDate) {
-            resetAppCache();
-            if (shouldExtract())
-                extractCapsule();
+        if (appCache != null) {
+            if (!cacheUpToDate) {
+                resetAppCache();
+                if (shouldExtract())
+                    extractCapsule();
+            } else
+                verbose("App cache " + appCache + " is up to date.");
         }
     }
 
@@ -720,12 +724,15 @@ public class Capsule implements Runnable {
     }
 
     private void lockAppCache() throws IOException {
-        final FileChannel c = FileChannel.open(appCache.resolve(LOCK_FILE_NAME), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        final Path lockFile = appCache.resolve(LOCK_FILE_NAME);
+        verbose("Locking " + lockFile);
+        final FileChannel c = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         this.appCacheLock = c.lock();
     }
 
     private void unlockAppCache() throws IOException {
         if (appCacheLock != null) {
+            verbose("Unocking " + appCache.resolve(LOCK_FILE_NAME));
             appCacheLock.release();
             appCacheLock.acquiredBy().close();
             appCacheLock = null;

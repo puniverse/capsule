@@ -26,7 +26,7 @@ With Capsule, you just distribute a single JAR and run it.
 
 or:
 
-    co.paralleluniverse:capsule:0.5.0
+    co.paralleluniverse:capsule:0.6.0
 
 On Maven Central.
 
