@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
@@ -136,7 +137,6 @@ public class Capsule implements Runnable {
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
     private static final String DOT = "\\.";
-    private static final String CUSTOM_CAPSULE_CLASS_NAME = "CustomCapsule";
     private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
@@ -468,18 +468,14 @@ public class Capsule implements Runnable {
     }
 
     private static boolean isCapsule(Path path) {
-        if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
-            try (final JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
-                return isCapsule(jar);
+        if (Files.isRegularFile(path)) {
+            try {
+                return hasEntry(path, "Capsule.class");
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
         return false;
-    }
-
-    private static boolean isCapsule(JarInputStream jar) {
-        return "Capsule".equals(getMainClass(jar.getManifest()));
     }
     //</editor-fold>
 
@@ -1468,9 +1464,9 @@ public class Capsule implements Runnable {
     }
 
     private static String getMainClass(Manifest manifest) {
-        if (manifest != null)
-            return manifest.getMainAttributes().getValue("Main-Class");
-        return null;
+        if (manifest == null)
+            return null;
+        return manifest.getMainAttributes().getValue("Main-Class");
     }
 
     private boolean hasEntry(String name) {
@@ -1481,6 +1477,19 @@ public class Capsule implements Runnable {
         if (!Files.exists(jarFs.getPath(name)))
             return null;
         return Files.newInputStream(jarFs.getPath(name));
+    }
+
+    private static boolean hasEntry(Path jarFile, String name) throws IOException {
+        try (final JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
+            for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
+                if (name.equals(entry.getName()))
+                    return true;
+            }
+            return false;
+        }
+//        try (FileSystem zfs = newZipFileSystem(jarFile)) {
+//            return Files.exists(zfs.getPath(name));
+//        }
     }
     //</editor-fold>
 
@@ -2077,45 +2086,39 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Capsule Loading and Launching">
     /////////// Capsule Loading and Launching ///////////////////////////////////
     private static Capsule newCapsule(Path jarFile, Path cacheDir) {
+        return (Capsule) newCapsule(jarFile, cacheDir, Capsule.class.getClassLoader());
+    }
+
+    private static Object newCapsule(Path jarFile, Path cacheDir, ClassLoader cl) {
         try {
-            final Class<?> clazz = Class.forName(CUSTOM_CAPSULE_CLASS_NAME);
-            try {
-                Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
-                ctor.setAccessible(true);
-                return (Capsule) ctor.newInstance(jarFile, cacheDir);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not launch custom capsule.", e);
+            final Manifest manifest = new Manifest(cl.getResourceAsStream(MANIFEST_NAME));
+            final String mainClassName = getMainClass(manifest);
+            if (mainClassName != null) {
+                final Class<?> clazz = cl.loadClass(mainClassName);
+                if (isCapsuleClass(clazz)) {
+                    final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
+                    ctor.setAccessible(true);
+                    return ctor.newInstance(jarFile, cacheDir);
+                }
             }
-        } catch (ClassNotFoundException e) {
-            return new Capsule(jarFile, cacheDir);
+            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
+        } catch (IOException | ClassNotFoundException e) {
+            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.", e);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Could not instantiate capsule.", e);
         }
     }
 
     private static ProcessBuilder launchCapsule(Path path, Path cacheDir, List<String> cmdLine, String[] args) {
         try {
             final ClassLoader cl = (ClassLoader) createClassLoader(path);
-            Class clazz;
-            try {
-                clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
-            } catch (ClassNotFoundException e) {
-                clazz = cl.loadClass(Capsule.class.getName());
-            }
-            final Object capsule;
-            try {
-                Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
-                ctor.setAccessible(true);
-                capsule = ctor.newInstance(path, cacheDir);
-            } catch (Exception e) {
-                throw new RuntimeException("Could not launch capsule.", e);
-            }
-            final Method launch = getMethod(clazz, "prepareForLaunch", List.class, String[].class);
-            if (launch == null)
-                throw new RuntimeException(path + " does not appear to be a valid capsule.");
-            return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
+            final Object capsule = newCapsule(path, cacheDir, cl);
+            final Method launch = getMethod(capsule.getClass(), "prepareForLaunch", List.class, String[].class);
+            if (launch != null)
+                return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
+            throw new RuntimeException(path + " does not appear to be a valid capsule.");
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(path + " does not appear to be a valid capsule.", e);
         } catch (IllegalAccessException e) {
             throw new AssertionError();
         } catch (InvocationTargetException e) {
@@ -2128,9 +2131,17 @@ public class Capsule implements Runnable {
         }
     }
 
+    private static boolean isCapsuleClass(Class<?> clazz) {
+        if (clazz == null)
+            return false;
+        if (Capsule.class.getName().equals(clazz.getName()))
+            return true;
+        return isCapsuleClass(clazz.getSuperclass());
+    }
+
     private static Object createClassLoader(Path path) throws IOException {
         try {
-            return new PathClassLoader(new Path[]{path});
+            return new PathClassLoader(new Path[]{path}, true);
             // return jar == null ? new PathClassLoader(new Path[]{path}) : new URLClassLoader(new URL[]{path.toUri().toURL()});
         } catch (NoClassDefFoundError e) {
             throw new AssertionError(e);

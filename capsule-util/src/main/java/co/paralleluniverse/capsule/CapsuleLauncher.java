@@ -26,7 +26,6 @@ import java.util.jar.Manifest;
  */
 public final class CapsuleLauncher {
     private static final String CAPSULE_CLASS_NAME = "Capsule";
-    private static final String CUSTOM_CAPSULE_CLASS_NAME = "CustomCapsule";
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
 
@@ -65,22 +64,21 @@ public final class CapsuleLauncher {
             return null;
 
         try {
-            Class clazz;
-            if (CAPSULE_CLASS_NAME.equals(mainClass)) {
-                try {
-                    clazz = cl.loadClass(CUSTOM_CAPSULE_CLASS_NAME);
-                } catch (ClassNotFoundException e) {
-                    clazz = cl.loadClass(CAPSULE_CLASS_NAME);
-                }
-            } else {
-                clazz = cl.loadClass(mainClass);
-                if (!CAPSULE_CLASS_NAME.equals(clazz.getSuperclass().getName()))
-                    clazz = null;
-            }
+            Class clazz = cl.loadClass(mainClass);
+            if (!isCapsuleClass(clazz))
+                clazz = null;
             return clazz;
         } catch (ClassNotFoundException e) {
             return null;
         }
+    }
+
+    private static boolean isCapsuleClass(Class<?> clazz) {
+        if (clazz == null)
+            return false;
+        if (CAPSULE_CLASS_NAME.equals(clazz.getName()))
+            return true;
+        return isCapsuleClass(clazz.getSuperclass());
     }
 
     private static Constructor<?> getCapsuleConstructor(Class<?> capsuleClass, Class<?>... paramTypes) throws NoSuchMethodException {
