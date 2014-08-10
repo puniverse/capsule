@@ -140,6 +140,8 @@ public class Capsule implements Runnable {
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
     private static final String DOT = "\\.";
+    private static final String LOCK_FILE_NAME = ".lock";
+    private static final String TIMESTAMP_FILE_NAME = ".extracted";
     private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
@@ -663,7 +665,7 @@ public class Capsule implements Runnable {
         if (Boolean.parseBoolean(System.getProperty(PROP_RESET, "false")))
             return false;
         try {
-            Path extractedFile = appCache.resolve(".extracted");
+            Path extractedFile = appCache.resolve(TIMESTAMP_FILE_NAME);
             if (!Files.exists(extractedFile))
                 return false;
             FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
@@ -684,7 +686,7 @@ public class Capsule implements Runnable {
     }
 
     private void lockAppCache() throws IOException {
-        final FileChannel c = FileChannel.open(appCache.resolve(".lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        final FileChannel c = FileChannel.open(appCache.resolve(LOCK_FILE_NAME), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         this.appCacheLock = c.lock();
     }
 
@@ -698,7 +700,7 @@ public class Capsule implements Runnable {
 
     private void markCache() {
         try {
-            Files.createFile(appCache.resolve(".extracted"));
+            Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
             unlockAppCache();
         } catch (IOException e) {
             throw new RuntimeException(e);
