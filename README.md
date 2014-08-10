@@ -193,6 +193,28 @@ The above command will download (and cache) the Maven artifact and its dependenc
 
 Adding `-Dcapsule.log=verbose` or `-Dcapsule.log=debug`  before `-jar` will print information about Capsule's action.
 
+### Capsule Configuration and Modes
+
+A capsule is (mostly) configured by attributes in its manifest. Manifest attributes specify which Java version to use when launching the application, what agents to load, the JVM arguments, system properties, dependencies and more.
+
+It is possible to specify different values for each of the configurations -- to be selected at launch time -- by creating several capsule *modes*. Modes are defined by manifest sections, each section's name corresponds to the mode. Attributes in the manifest's main section are used in the default mode, and those listed in the named sections can override them when the respective node is selected (configurations without overrides will be taken from the main section).
+
+Example:
+
+``` txt
+Attribute-X: foo
+Attribute-Y: bar
+
+Name: Special
+Attribute-Y: baz
+```
+
+When running in the `Special` mode, `Attribute-Y` will have the value `baz`, while the non-overriden `Attribute-X` will have the value `foo`, as in the default mode.
+
+To select a non default mode, you launch the capsule with the `-Dcapsule.mode=MODE` command line argument.
+
+The `Application-Name` and `Application-Version` attributes (see the next section) can only be listed in the manifest's main section.
+
 ### Application ID
 
 The application ID is used to find the capsule's application cache, where the capsule's contents will be extracted if necessary. If the manifest has an `Application-Name`, it will be the application's ID, combined with the `Application-Version` attribute, if found. If there is no `Application-Name` attribute, and a `pom.xml` file is found in the JAR's root, the ID will be formed by joining the POM's groupId, artifactId, and version properties. If there is no POM file, the `Application-Class` attribute will serve as the application name.
@@ -290,6 +312,14 @@ The `Security-Policy` attribute specifies a Java [security policy file](http://d
 
 If any of these three properties is set, a security manager will be in effect when the application runs. If the `Security-Manager` attribute is not set, the default security manager will be used.
 
+### Custom Capsules
+
+You can customize many of the capsule's inner workings by creating a *custom capsule*. A custom capsule is a subclass of `Capsule` that overrides some of the overridable methods. To use your custom capsule, include its class in the root of the capsule JAR, and simply indicate it is the JAR's main class in the mainfest, like so:
+
+``` txt
+Main-Class: MyCustomCapsule
+```
+
 ## Reference
 
 ### Manifest Attributes
@@ -336,6 +366,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 
 ### System Properties
 
+* `capsule.mode`: if set, the capsule will be launched in the specified mode (see *Capsule Configuration and Modes*)
 * `capsule.version`: if set, the capsule will print the application ID, its Capsule version and quit without launching the app
 * `capsule.tree`: if set, the capsule will print the app's dependency tree, and then quit without launching the app
 * `capsule.jvms`: if set, the capsule will print the JVM installations it can locate with their versions, and then quit without launching the app
@@ -367,7 +398,7 @@ Capsule defines these variables in the application's environment:
 
 A JAR file can be made "really executable" in UNIX/Linux/MacOS environments -- i.e. it can be run simply as `capsule.jar ARGS` rather than `java -jar capsule.jar ARGS` -- by [prepending a couple of shell script lines to the JAR](http://skife.org/java/unix/2011/06/20/really_executable_jars.html) (it turns out JAR files can tolerate any prepended headers). In Maven, you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) plugin to make your capsule really executable. In Gradle, this can be done by adding the following function to your build file:
 
-~~~ groovy
+``` groovy
 def reallyExecutable(jar) {
     ant.concat(destfile: "tmp.jar", binary: true) {
         zipentry(zipfile: configurations.capsule.singleFile, name: 'capsule/execheader.sh')
@@ -382,13 +413,13 @@ def reallyExecutable(jar) {
     }
     delete 'tmp.jar'
 }
-~~~
+```
 
 and then
 
-~~~ groovy
+``` groovy
 capsule.doLast { task -> reallyExecutable(task) }
-~~~
+```
 
 ## License
 
