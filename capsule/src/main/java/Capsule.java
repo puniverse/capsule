@@ -2124,8 +2124,7 @@ public class Capsule implements Runnable {
 
     private static Object newCapsule(Path jarFile, Path cacheDir, ClassLoader cl) {
         try {
-            final Manifest manifest = new Manifest(cl.getResourceAsStream(MANIFEST_NAME));
-            final String mainClassName = getMainClass(manifest);
+            final String mainClassName = getMainClass(jarFile);
             if (mainClassName != null) {
                 final Class<?> clazz = cl.loadClass(mainClassName);
                 if (isCapsuleClass(clazz)) {
