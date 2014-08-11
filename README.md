@@ -1,4 +1,4 @@
-# Capsule [![Build Status](https://travis-ci.org/puniverse/capsule.svg?branch=master)](https://travis-ci.org/puniverse/capsule) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030)
+# Capsule [![Build Status](https://travis-ci.org/puniverse/capsule.svg?branch=master?style=flat)](https://travis-ci.org/puniverse/capsule) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030)
 
 ## Dead-Simple Packaging and Deployment for JVM Apps
 
