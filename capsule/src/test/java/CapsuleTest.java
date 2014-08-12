@@ -10,7 +10,10 @@
 import capsule.DependencyManager;
 import co.paralleluniverse.capsule.Jar;
 import com.google.common.jimfs.Jimfs;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
@@ -23,6 +26,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import static org.truth0.Truth.*;
@@ -72,6 +77,15 @@ public class CapsuleTest {
         assertEquals("1.8.0", Capsule.shortJavaVersion("8"));
         assertEquals("1.8.0", Capsule.shortJavaVersion("1.8"));
         assertEquals("1.8.0", Capsule.shortJavaVersion("1.8.0"));
+    }
+
+    @Test
+    public void isJavaDir() {
+        assertEquals("1.7.0", Capsule.isJavaDir("jre7"));
+        assertEquals("1.7.0_45", Capsule.isJavaDir("jdk1.7.0_45"));
+        assertEquals("1.7.0_51", Capsule.isJavaDir("jdk1.7.0_51.jdk"));
+        assertEquals("1.7.0", Capsule.isJavaDir("1.7.0.jdk"));
+        assertEquals("1.8.0", Capsule.isJavaDir("jdk1.8.0.jdk"));
     }
 
     @Test
@@ -440,6 +454,26 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testReallyExecutableCapsule() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .setReallyExecutable(true)
+                .addEntry("a.class", Jar.toInputStream("", UTF8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
+
+        final Path capsuleJar = getPath("capsule.jar");
+        jar.write(capsuleJar);
+        Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
+
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+    }
+
+    @Test
     public void testCustomCapsule() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Main-Class", "MyCapsule")
@@ -553,6 +587,21 @@ public class CapsuleTest {
 
     private Path getPath(String first, String... more) {
         return fs.getPath(first, more);
+    }
+
+    private Model newPom() {
+        return new Model();
+    }
+
+    private InputStream pom(Model model) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            new MavenXpp3Writer().write(baos, model);
+            baos.close();
+            return new ByteArrayInputStream(baos.toByteArray());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private List<Path> paths(String cp) {

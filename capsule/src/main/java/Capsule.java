@@ -9,8 +9,9 @@
 
 import capsule.DependencyManagerImpl;
 import capsule.DependencyManager;
-import capsule.PathClassLoader;
+import capsule.JarClassLoader;
 import capsule.PomReader;
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,10 +24,10 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -51,6 +52,8 @@ import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class Capsule implements Runnable {
     /*
@@ -58,7 +61,7 @@ public class Capsule implements Runnable {
      * as we'd like this file to compile to a single .class file.
      *
      * Also, the code is not meant to be the most efficient, but methods should be as independent and stateless as possible.
-     * Other than those few, methods called in the constructor, all others are can be called in any order, and don't rely on any state.
+     * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      *
      * We do a lot of data transformations that would have really benefitted from Java 8's lambdas and streams, 
      * but we want Capsule to support Java 7.
@@ -122,6 +125,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_NATIVE_DEPENDENCIES_LINUX = "Native-Dependencies-Linux";
     private static final String ATTR_NATIVE_DEPENDENCIES_WIN = "Native-Dependencies-Win";
     private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
+    private static final String ATTR_MAIN_CLASS = "Main-Class";
     private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
 
     private static final Set<String> NON_MODAL_ATTRS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
@@ -183,7 +187,7 @@ public class Capsule implements Runnable {
                 return;
             }
 
-            final Process p = capsule.launch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
+            final Process p = capsule.launch(args);
             if (p != null)
                 System.exit(p.waitFor());
         } catch (Throwable t) {
@@ -202,7 +206,6 @@ public class Capsule implements Runnable {
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
 
     private final Path jarFile;      // never null
-    private final FileSystem jarFs;
     private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
     private final String javaHome;   // never null
@@ -234,16 +237,17 @@ public class Capsule implements Runnable {
         Objects.requireNonNull(cacheDir, "cacheDir can't be null");
         this.jarFile = jarFile;
 
-        try {
-            this.jarFs = newZipFileSystem(jarFile);
-            this.manifest = getManifest();
+        try (JarInputStream jis = openJarInputStream()) {
+            this.manifest = configureManifest(jis.getManifest());
             if (manifest == null)
                 throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
+            verifyNonModalAttributes(manifest);
+            
+            this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader(jis) : null;
         } catch (IOException e) {
-            throw new RuntimeException("Could not read JAR file " + jarFile + " manifest");
+            throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
-        verifyNonModalAttributes(manifest);
-
+        
         this.mode = emptyToNull(System.getProperty(PROP_MODE));
         if (mode != null && manifest.getAttributes(mode) == null)
             throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
@@ -251,7 +255,6 @@ public class Capsule implements Runnable {
         this.cacheDir = initCacheDir(cacheDir);
 
         this.javaHome = getJavaHome();
-        this.pom = (!hasAttribute(ATTR_DEPENDENCIES) && hasPom()) ? createPomReader() : null;
         if (dependencyManager != DEFAULT)
             this.dependencyManager = dependencyManager;
         else
@@ -261,10 +264,8 @@ public class Capsule implements Runnable {
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
 
-    protected Manifest getManifest() throws IOException {
-        try (InputStream is = Files.newInputStream(jarFs.getPath(MANIFEST_NAME))) {
-            return new Manifest(is);
-        }
+    protected Manifest configureManifest(Manifest manifest) throws IOException {
+        return manifest;
     }
     //</editor-fold>
 
@@ -299,6 +300,18 @@ public class Capsule implements Runnable {
 
     private String toJarUrl(String relPath) {
         return "jar:file:" + getJarPath() + "!/" + relPath;
+    }
+
+    private JarInputStream openJarInputStream() throws IOException {
+        return new JarInputStream(skipToZipStart(Files.newInputStream(jarFile)));
+    }
+
+    private InputStream getEntry(ZipInputStream zis, String name) throws IOException {
+        for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
+            if (entry.getName().equals(name))
+                return zis;
+        }
+        return null;
     }
     //</editor-fold>
 
@@ -350,7 +363,8 @@ public class Capsule implements Runnable {
         resolveNativeDependencies();
     }
 
-    private Process launch(List<String> cmdLine, String[] args) throws IOException, InterruptedException {
+    private Process launch(String[] args) throws IOException, InterruptedException {
+        final List<String> cmdLine = ManagementFactory.getRuntimeMXBean().getInputArguments();
         ProcessBuilder pb = launchCapsuleArtifact(cmdLine, args);
         if (pb == null)
             pb = prepareForLaunch(cmdLine, args);
@@ -708,7 +722,7 @@ public class Capsule implements Runnable {
     private void extractCapsule() {
         try {
             verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
-            extractJar(jarFs, appCache);
+            extractJar(openJarInputStream(), appCache);
         } catch (IOException e) {
             throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
@@ -1218,18 +1232,15 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="POM">
     /////////// POM ///////////////////////////////////
-    private boolean hasPom() {
-        return hasEntry(POM_FILE);
-    }
-
-    private Object createPomReader() {
-        try (InputStream is = getEntry(POM_FILE)) {
+    private Object createPomReader(ZipInputStream zis) throws IOException {
+        final InputStream is = getEntry(zis, POM_FILE);
+        if (is == null)
+            return null;
+        try {
             return new PomReader(is);
         } catch (NoClassDefFoundError e) {
             throw new RuntimeException("Jar " + jarFile
                     + " contains a pom.xml file, while the necessary dependency management classes are not found in the jar");
-        } catch (IOException e) {
-            throw new RuntimeException("Failed reading pom", e);
         }
     }
 
@@ -1457,29 +1468,13 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="JAR Extraction">
     /////////// JAR Extraction ///////////////////////////////////
-    private static void extractJar(FileSystem jarFs, Path targetDir) throws IOException {
-        for (Path root : jarFs.getRootDirectories())
-            extractJarDir(root, targetDir);
-    }
+    private static void extractJar(JarInputStream jar, Path targetDir) throws IOException {
+        for (JarEntry entry; (entry = jar.getNextJarEntry()) != null;) {
+            if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
+                continue;
 
-    private static void extractJarDir(Path p, Path targetDir) throws IOException {
-        // not using FileWalker so as not to create another class
-        try (DirectoryStream<Path> ds = Files.newDirectoryStream(p)) {
-            for (Path f : ds) {
-                final String fname = relativeToRoot(f).toString();
-                if (!shouldExtractFile(fname))
-                    continue;
-                if (Files.isDirectory(f)) {
-                    Files.createDirectory(targetDir.resolve(fname));
-                    extractJarDir(f, targetDir);
-                } else
-                    Files.copy(f, targetDir.resolve(fname));
-            }
+            writeFile(targetDir, entry.getName(), jar);
         }
-    }
-
-    private static Path relativeToRoot(Path p) {
-        return p != null ? p.getRoot().relativize(p) : null;
     }
 
     private static boolean shouldExtractFile(String fileName) {
@@ -1501,6 +1496,10 @@ public class Capsule implements Runnable {
     /////////// Path Utils ///////////////////////////////////
     private Path path(String p, String... more) {
         return cacheDir.getFileSystem().getPath(p, more);
+    }
+
+    private static Path relativeToRoot(Path p) {
+        return p != null ? p.getRoot().relativize(p) : null;
     }
 
     private List<Path> toPath(List<String> ps) {
@@ -1571,38 +1570,61 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="JAR Utils">
     /////////// JAR Utils ///////////////////////////////////
     private static String getMainClass(Path jar) throws IOException {
-        try (final JarInputStream jis = new JarInputStream(Files.newInputStream(jar))) {
-            return getMainClass(jis.getManifest());
-        }
+        return getMainClass(getManifest(jar));
     }
 
     private static String getMainClass(Manifest manifest) {
         if (manifest == null)
             return null;
-        return manifest.getMainAttributes().getValue("Main-Class");
+        return manifest.getMainAttributes().getValue(ATTR_MAIN_CLASS);
     }
 
-    private boolean hasEntry(String name) {
-        return Files.exists(jarFs.getPath(name));
-    }
-
-    private InputStream getEntry(String name) throws IOException {
-        if (!Files.exists(jarFs.getPath(name)))
-            return null;
-        return Files.newInputStream(jarFs.getPath(name));
+    private static Manifest getManifest(Path jar) throws IOException {
+        try (final JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jar)))) {
+            return jis.getManifest();
+        }
+        // Unfortunately ZipFS/JarInputStream don't support extra ZIP header (for really executable JARs)
+//        try (FileSystem zfs = newZipFileSystem(jar);
+//                InputStream is = Files.newInputStream(zfs.getPath(MANIFEST_NAME))) {
+//            return new Manifest(is);
+//        }
     }
 
     private static boolean hasEntry(Path jarFile, String name) throws IOException {
-        try (final JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
+        try (final JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jarFile)))) {
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
                 if (name.equals(entry.getName()))
                     return true;
             }
             return false;
         }
+        // Unfortunately ZipFS/JarInputStream don't support extra ZIP header (for really executable JARs)
 //        try (FileSystem zfs = newZipFileSystem(jarFile)) {
 //            return Files.exists(zfs.getPath(name));
 //        }
+    }
+
+    private static int[] ZIP_HEADER = new int[]{'\n', 'P', 'K', 0x03, 0x04};
+
+    private static InputStream skipToZipStart(InputStream is) throws IOException {
+        if (!is.markSupported())
+            is = new BufferedInputStream(is);
+        int state = 1;
+        for (;;) {
+            if (state == 1)
+                is.mark(ZIP_HEADER.length);
+            final int b = is.read();
+            if (b < 0)
+                throw new IllegalArgumentException("Not a JAR/ZIP file");
+            if (b == ZIP_HEADER[state]) {
+                state++;
+                if (state == ZIP_HEADER.length)
+                    break;
+            } else
+                state = 0;
+        }
+        is.reset();
+        return is;
     }
     //</editor-fold>
 
@@ -1624,6 +1646,15 @@ public class Capsule implements Runnable {
         if (index < 0)
             return null;
         return filename.substring(0, index);
+    }
+
+    private static void writeFile(Path targetDir, String fileName, InputStream is) throws IOException {
+        final String dir = getDirectory(fileName);
+        if (dir != null)
+            Files.createDirectories(targetDir.resolve(dir));
+
+        final Path targetFile = targetDir.resolve(fileName);
+        Files.copy(is, targetFile);
     }
 
     // visible for testing
@@ -1691,7 +1722,8 @@ public class Capsule implements Runnable {
         return !dirs.isEmpty() ? dirs : null;
     }
 
-    private static String isJavaDir(String fileName) {
+    // visible for testing
+    static String isJavaDir(String fileName) {
         fileName = fileName.toLowerCase();
         if (fileName.startsWith("jdk") || fileName.startsWith("jre") || fileName.endsWith(".jdk") || fileName.endsWith(".jre")) {
             if (fileName.startsWith("jdk") || fileName.startsWith("jre"))
@@ -2154,48 +2186,6 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Zip Filesystem">
-    /////////// Zip Filesystem ///////////////////////////////////
-    // This is a workaround for the the check ZipFileSystemProvider.newFileSystem does to verify the zip is in the default filesystem.
-    private static final java.nio.file.spi.FileSystemProvider ZIP_FILE_SYSTEM_PROVIDER = getZipFileSystemProvider();
-    private static final Constructor<?> ZIP_FILE_SYSTEM_CONSTRUCTOR;
-
-    static {
-        try {
-            Constructor c = com.sun.nio.zipfs.ZipFileSystem.class.getDeclaredConstructor(com.sun.nio.zipfs.ZipFileSystemProvider.class, Path.class, Map.class);
-            c.setAccessible(true);
-            ZIP_FILE_SYSTEM_CONSTRUCTOR = c;
-        } catch (NoSuchMethodException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private static java.nio.file.spi.FileSystemProvider getZipFileSystemProvider() {
-        for (java.nio.file.spi.FileSystemProvider fsr : java.nio.file.spi.FileSystemProvider.installedProviders()) {
-            if (fsr instanceof com.sun.nio.zipfs.ZipFileSystemProvider)
-                return fsr;
-        }
-        throw new AssertionError("Zip file system not installed!");
-    }
-
-    private static FileSystem newZipFileSystem(Path path) throws IOException {
-        // return java.nio.file.FileSystems.newFileSystem(path, null);
-        if (path.getFileSystem() instanceof com.sun.nio.zipfs.ZipFileSystem)
-            throw new IllegalArgumentException("Can't create a ZIP file system nested in a ZIP file system. (" + path + " is nested in " + path.getFileSystem() + ")");
-        try {
-            return (FileSystem) ZIP_FILE_SYSTEM_CONSTRUCTOR.newInstance(ZIP_FILE_SYSTEM_PROVIDER, path, Collections.emptyMap());
-        } catch (InvocationTargetException e) {
-            if (e.getCause() instanceof RuntimeException)
-                throw (RuntimeException) e.getCause();
-            if (e.getCause() instanceof Error)
-                throw (Error) e.getCause();
-            throw new RuntimeException(e.getCause());
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
-    }
-    //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="Object Methods">
     /////////// Object Methods ///////////////////////////////////
     @Override
@@ -2305,8 +2295,11 @@ public class Capsule implements Runnable {
 
     private static Object createClassLoader(Path path) throws IOException {
         try {
-            return new PathClassLoader(new Path[]{path}, true);
-            // return jar == null ? new PathClassLoader(new Path[]{path}) : new URLClassLoader(new URL[]{path.toUri().toURL()});
+            try {
+                return new URLClassLoader(new URL[]{path.toUri().toURL()});
+            } catch (Exception e) {
+                return new JarClassLoader(path, true);
+            }
         } catch (NoClassDefFoundError e) {
             throw new AssertionError(e);
         }

@@ -34,7 +34,7 @@ public class CapsuleContainer {
     }
 
     public String launchCapsule(Path capsulePath, List<String> cmdLine, String[] args) throws IOException {
-        return launchCapsule(CapsuleLauncher.getCapsule(capsulePath, cacheDir), cmdLine, args);
+        return launchCapsule(CapsuleLauncher.newCapsule(capsulePath, cacheDir), cmdLine, args);
     }
 
     private String launchCapsule(Object capsule, List<String> cmdLine, String[] args) throws IOException {

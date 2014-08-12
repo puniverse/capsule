@@ -23,8 +23,8 @@ public class MyCapsule extends Capsule {
     }
 
     @Override
-    protected Manifest getManifest() throws IOException {
-        return super.getManifest();
+    protected Manifest configureManifest(Manifest manifest) throws IOException {
+        return super.configureManifest(manifest);
     }
     
     @Override

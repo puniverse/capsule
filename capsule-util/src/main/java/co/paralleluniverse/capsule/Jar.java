@@ -8,8 +8,6 @@
  */
 package co.paralleluniverse.capsule;
 
-import com.sun.nio.zipfs.ZipFileSystem;
-import com.sun.nio.zipfs.ZipFileSystemProvider;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -21,8 +19,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -33,27 +29,28 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.jar.Pack200;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import static co.paralleluniverse.capsule.ZipFS.newZipFileSystem;
 
 /**
  * A JAR file that can be easily modified.
  * This class is not thread-safe.
  */
 public class Jar {
+    private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
+    private static final Charset UTF8 = Charset.forName("UTF-8");
+    private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
     private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private final Manifest manifest;
     private final Path jar;
@@ -124,7 +121,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setAttribute(String name, String value) {
+    public final Jar setAttribute(String name, String value) {
         verifyNotSealed();
         if (jos != null)
             throw new IllegalStateException("Manifest cannot be modified after entries are added.");
@@ -132,7 +129,7 @@ public class Jar {
         return this;
     }
 
-    public Jar setAttribute(String section, String name, String value) {
+    public final Jar setAttribute(String section, String name, String value) {
         verifyNotSealed();
         if (jos != null)
             throw new IllegalStateException("Manifest cannot be modified after entries are added.");
@@ -399,7 +396,7 @@ public class Jar {
         try (ZipInputStream zis = zip) {
             for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
                 final String target = path != null ? path.resolve(entry.getName()).toString() : entry.getName();
-                if (target.equals(JarFile.MANIFEST_NAME))
+                if (target.equals(MANIFEST_NAME))
                     continue;
                 addEntryNoClose(jos, target, zis);
             }
@@ -448,7 +445,7 @@ public class Jar {
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 final Path p = dir.relativize(file);
                 final Path target = path != null ? path.resolve(p.toString()) : p;
-                if (!target.toString().equals(JarFile.MANIFEST_NAME))
+                if (!target.toString().equals(MANIFEST_NAME))
                     addEntry(target, file);
                 return FileVisitResult.CONTINUE;
             }
@@ -473,6 +470,9 @@ public class Jar {
      * @return {@code this}
      */
     public Jar setReallyExecutable(boolean value) {
+        verifyNotSealed();
+        if (jos != null)
+            throw new IllegalStateException("Really executable cannot be set after entries are added.");
         this.reallyExecutable = value;
         return this;
     }
@@ -482,14 +482,17 @@ public class Jar {
         if (jos != null)
             return;
         if (reallyExecutable) {
-            final Writer out = new OutputStreamWriter(baos, Charset.defaultCharset());
-            out.write("#!/bin/sh\n\nexec java -jar $0 \"$@\"\n\n");
+            final Writer out = new OutputStreamWriter(baos, UTF8);
+            out.write("#!/bin/sh\n\nexec java -jar $0 \"$@\"\n");
+            out.flush();
         }
+        if (getAttribute(ATTR_MANIFEST_VERSION) == null)
+            setAttribute(ATTR_MANIFEST_VERSION, "1.0");
         jos = new JarOutputStream(baos, manifest);
         if (jar != null)
-            jos = updateJar(jar);
+            addEntries((Path) null, jar);
         else if (jis != null)
-            jos = updateJar(jis);
+            addEntries(null, jis);
     }
 
     /**
@@ -512,7 +515,7 @@ public class Jar {
     }
 
     private void writeManifest() throws IOException {
-        jos.putNextEntry(new ZipEntry(JarFile.MANIFEST_NAME));
+        jos.putNextEntry(new ZipEntry(MANIFEST_NAME));
         manifest.write(new BufferedOutputStream(jos));
         jos.closeEntry();
     }
@@ -556,19 +559,6 @@ public class Jar {
         }
     }
 
-    private JarOutputStream updateJar(JarInputStream jar) throws IOException {
-        addEntries(null, jar);
-        return jos;
-    }
-
-    private JarOutputStream updateJar(Path jar) throws IOException {
-        try (FileSystem zipfs = newZipFileSystem(jar)) {
-            for (Path root : zipfs.getRootDirectories())
-                addDir(null, root, true);
-        }
-        return jos;
-    }
-
     private static void addEntry(JarOutputStream jarOut, String path, InputStream is) throws IOException {
         jarOut.putNextEntry(new JarEntry(path));
         copy(is, jarOut);
@@ -584,6 +574,7 @@ public class Jar {
     private static void addEntry(JarOutputStream jarOut, String path, byte[] data) throws IOException {
         jarOut.putNextEntry(new JarEntry(path));
         jarOut.write(data);
+        jarOut.flush();
         jarOut.closeEntry();
     }
 
@@ -597,7 +588,7 @@ public class Jar {
 
     private static Manifest getManifest(Path jarFile) throws IOException {
         try (FileSystem zipfs = newZipFileSystem(jarFile)) {
-            final InputStream is = Files.newInputStream(zipfs.getPath(JarFile.MANIFEST_NAME));
+            final InputStream is = Files.newInputStream(zipfs.getPath(MANIFEST_NAME));
             return is != null ? new Manifest(is) : null;
         }
     }
@@ -606,6 +597,7 @@ public class Jar {
         final byte[] buffer = new byte[1024];
         for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
             os.write(buffer, 0, bytesRead);
+        os.flush();
     }
 
     /**
@@ -698,44 +690,5 @@ public class Jar {
         if (i < 0)
             return null;
         return s.substring(i + 1);
-    }
-
-    /// The following is necessary to bypass the check in ZipFileSystemProvider.newFileSystem that verifies that the given path is in the default FileSystem
-    private static final ZipFileSystemProvider ZIP_FILE_SYSTEM_PROVIDER = getZipFileSystemProvider();
-    private static final Constructor<ZipFileSystem> ZIP_FILE_SYSTEM_CONSTRUCTOR;
-
-    static {
-        try {
-            Constructor c = ZipFileSystem.class.getDeclaredConstructor(ZipFileSystemProvider.class, Path.class, Map.class);
-            c.setAccessible(true);
-            ZIP_FILE_SYSTEM_CONSTRUCTOR = c;
-        } catch (NoSuchMethodException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private static ZipFileSystemProvider getZipFileSystemProvider() {
-        for (FileSystemProvider fsr : FileSystemProvider.installedProviders()) {
-            if (fsr instanceof ZipFileSystemProvider)
-                return (ZipFileSystemProvider) fsr;
-        }
-        throw new AssertionError("Zip file system not installed!");
-    }
-
-    private static FileSystem newZipFileSystem(Path path) throws IOException {
-        // return FileSystems.newFileSystem(path, null);
-        if (path.getFileSystem() instanceof ZipFileSystem)
-            throw new IllegalArgumentException("Can't create a ZIP file system nested in a ZIP file system. (" + path + " is nested in " + path.getFileSystem() + ")");
-        try {
-            return (ZipFileSystem) ZIP_FILE_SYSTEM_CONSTRUCTOR.newInstance(ZIP_FILE_SYSTEM_PROVIDER, path, Collections.emptyMap());
-        } catch (InvocationTargetException e) {
-            if (e.getCause() instanceof RuntimeException)
-                throw (RuntimeException) e.getCause();
-            if (e.getCause() instanceof Error)
-                throw (Error) e.getCause();
-            throw new RuntimeException(e.getCause());
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
     }
 }

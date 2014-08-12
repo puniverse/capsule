@@ -8,16 +8,16 @@
  */
 package co.paralleluniverse.capsule;
 
+import co.paralleluniverse.common.JarClassLoader;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
@@ -29,33 +29,26 @@ public final class CapsuleLauncher {
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
 
-    public static Object getCapsule(Path path, Path cacheDir) {
+    public static Object newCapsule(Path jarFile, Path cacheDir) {
         try {
             final Manifest mf;
-            try (JarFile jar = new JarFile(path.toFile())) {
-                mf = jar.getManifest();
+            try (final JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
+                mf = jis.getManifest();
             }
-            final ClassLoader cl = new URLClassLoader(new URL[]{path.toUri().toURL()});
+
+            final ClassLoader cl = new JarClassLoader(jarFile, true);
             final Class clazz = loadCapsuleClass(mf, cl);
             if (clazz == null)
-                throw new RuntimeException(path + " does not appear to be a valid capsule.");
+                throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
 
-            return getCapsuleConstructor(clazz, Path.class, Path.class).newInstance(path, cacheDir);
+            final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
+            ctor.setAccessible(true);
+            return ctor.newInstance(jarFile, cacheDir);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not create capsule instance.", e);
         }
-    }
-
-    public static ProcessBuilder prepareForLaunch(Object capsule, List<String> cmdLine, String[] args) {
-        final Method launch = getCapsuleMethod(capsule, "prepareForLaunch", List.class, String[].class);
-        return (ProcessBuilder) invoke(capsule, launch, cmdLine, args);
-    }
-
-    public static String getAppId(Object capsule) {
-        final Method appId = getCapsuleMethod(capsule, "appId", String[].class);
-        return (String) invoke(capsule, appId, (Object) null);
     }
 
     private static Class loadCapsuleClass(Manifest mf, ClassLoader cl) {
@@ -81,10 +74,14 @@ public final class CapsuleLauncher {
         return isCapsuleClass(clazz.getSuperclass());
     }
 
-    private static Constructor<?> getCapsuleConstructor(Class<?> capsuleClass, Class<?>... paramTypes) throws NoSuchMethodException {
-        final Constructor<?> ctor = capsuleClass.getDeclaredConstructor(paramTypes);
-        ctor.setAccessible(true);
-        return ctor;
+    public static ProcessBuilder prepareForLaunch(Object capsule, List<String> cmdLine, String[] args) {
+        final Method launch = getCapsuleMethod(capsule, "prepareForLaunch", List.class, String[].class);
+        return (ProcessBuilder) invoke(capsule, launch, cmdLine, args);
+    }
+
+    public static String getAppId(Object capsule) {
+        final Method appId = getCapsuleMethod(capsule, "appId", String[].class);
+        return (String) invoke(capsule, appId, (Object) null);
     }
 
     private static Method getCapsuleMethod(Object capsule, String name, Class<?>... paramTypes) {

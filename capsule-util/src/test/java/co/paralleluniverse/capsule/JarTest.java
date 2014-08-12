@@ -10,12 +10,15 @@ package co.paralleluniverse.capsule;
 
 import co.paralleluniverse.common.JarClassLoader;
 import com.google.common.jimfs.Jimfs;
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.file.FileSystem;
@@ -45,7 +48,7 @@ public class JarTest {
 
     @Test
     public void testCreateJar() throws Exception {
-        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+        ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .setAttribute("Bar", "5678")
                 .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
@@ -66,7 +69,7 @@ public class JarTest {
         Path jarPath = fs.getPath("test.jar");
         try {
             // create
-            new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+            new Jar()
                     .setAttribute("Foo", "1234")
                     .setAttribute("Bar", "5678")
                     .setListAttribute("List", Arrays.asList("a", "b"))
@@ -116,7 +119,6 @@ public class JarTest {
     public void testUpdateJar2() throws Exception {
         // create
         ByteArrayOutputStream baos = new Jar()
-                .setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
                 .setAttribute("Foo", "1234")
                 .setAttribute("Bar", "5678")
                 .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
@@ -153,7 +155,7 @@ public class JarTest {
         Files.createFile(myDir.resolve("db").resolve("w"));
         Files.createFile(myDir.resolve("db").resolve("z"));
 
-        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+        ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .addEntries((Path) null, myDir)
                 .write(new ByteArrayOutputStream());
@@ -179,7 +181,7 @@ public class JarTest {
         Files.createFile(myDir.resolve("db").resolve("w"));
         Files.createFile(myDir.resolve("db").resolve("z"));
 
-        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+        ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .addEntries(Paths.get("d1", "d2"), myDir)
                 .write(new ByteArrayOutputStream());
@@ -202,7 +204,7 @@ public class JarTest {
                 .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                 .write(myZip);
 
-        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+        ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .addEntries((String) null, myZip)
                 .write(new ByteArrayOutputStream());
@@ -223,7 +225,7 @@ public class JarTest {
                 .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                 .write(myZip);
 
-        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+        ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .addEntries(Paths.get("d1", "d2"), myZip)
                 .write(new ByteArrayOutputStream());
@@ -242,7 +244,7 @@ public class JarTest {
                 .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                 .write(new ByteArrayOutputStream());
 
-        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+        ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .addEntries((Path) null, toInput(myZip))
                 .write(new ByteArrayOutputStream());
@@ -261,7 +263,7 @@ public class JarTest {
                 .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
                 .write(new ByteArrayOutputStream());
 
-        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+        ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .addEntries(Paths.get("d1", "d2"), toInput(myZip))
                 .write(new ByteArrayOutputStream());
@@ -276,21 +278,40 @@ public class JarTest {
     @Test
     public void testAddPackage() throws Exception {
         final Class clazz = JarClassLoader.class;
-        
-        ByteArrayOutputStream res = new Jar().setAttribute("Manifest-Version", "1.0") // necessary, otherwise the manifest won't be written to the jar
+
+        ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .addPackageOf(clazz)
                 .write(new ByteArrayOutputStream());
 
-        printEntries(toInput(res));
-        
+        // printEntries(toInput(res));
+
         final Path pp = Paths.get(clazz.getPackage().getName().replace('.', '/'));
-        
+
         assertTrue(getEntry(toInput(res), pp.resolve(clazz.getSimpleName() + ".class")) != null);
         assertTrue(getEntry(toInput(res), pp.resolve("ProcessUtil.class")) != null);
 
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
+    public void testReallyExecutableJar() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path jarPath = fs.getPath("test.jar");
+
+        new Jar()
+                .setAttribute("Foo", "1234")
+                .setAttribute("Bar", "5678")
+                .setReallyExecutable(true)
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .write(jarPath);
+
+        // printEntries(toInput(res));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(jarPath), UTF8), 10); // Files.newBufferedReader(jarPath, UTF8);
+        String firstLine = reader.readLine();
+        assertEquals("#!/bin/sh", firstLine);
     }
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
@@ -340,6 +361,26 @@ public class JarTest {
     private static String getEntryAsString(JarFile jar, Path entry, Charset charset) throws IOException {
         byte[] buffer = getEntry(jar, entry);
         return buffer != null ? new String(buffer, charset) : null;
+    }
+
+    private static String getEntryAsString(Path jar, Path entry, Charset charset) throws IOException {
+        byte[] buffer = getEntry(jar, entry);
+        return buffer != null ? new String(buffer, charset) : null;
+    }
+
+    private static byte[] getEntry(Path jar, Path entry) throws IOException {
+        try (FileSystem zipfs = ZipFS.newZipFileSystem(jar)) {
+            return Files.readAllBytes(zipfs.getPath(entry.toString()));
+        }
+    }
+
+    private static Manifest getManifest(Path jar, boolean useZipfs) throws IOException {
+        if (useZipfs) {
+            try (FileSystem zipfs = ZipFS.newZipFileSystem(jar)) {
+                return new Manifest(Files.newInputStream(zipfs.getPath(JarFile.MANIFEST_NAME)));
+            }
+        } else
+            return new JarInputStream(Files.newInputStream(jar)).getManifest();
     }
 
     private static byte[] getEntry(JarFile jar, Path entry) throws IOException {

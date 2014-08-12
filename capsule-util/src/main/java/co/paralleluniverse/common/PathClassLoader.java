@@ -1,5 +1,4 @@
 /*
- * Capsule
  * Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
  * 
  * This program and the accompanying materials are licensed under the terms 
@@ -25,20 +24,17 @@ import java.util.List;
  *
  * @author pron
  */
-public class PathClassLoader extends ClassLoader {
+public class PathClassLoader extends FlexibleClassLoader {
     private final Object[] paths;
-    private final boolean childFirst;
-    private final ThreadLocal<Boolean> inGetResourceAsStream = new ThreadLocal<Boolean>();
 
     public PathClassLoader(Path[] paths, ClassLoader parent, boolean childFirst) throws IOException {
-        super(parent);
+        super(parent, childFirst);
         this.paths = process(paths);
-        this.childFirst = childFirst;
     }
 
     public PathClassLoader(Path[] paths, boolean childFirst) throws IOException {
+        super(childFirst);
         this.paths = process(paths);
-        this.childFirst = childFirst;
     }
 
     public PathClassLoader(Path[] paths, ClassLoader parent) throws IOException {
@@ -83,33 +79,6 @@ public class PathClassLoader extends ClassLoader {
         }
     }
 
-    @Override
-    public URL getResource(String name) {
-        if (!childFirst)
-            return super.getResource(name);
-        URL url = findResource(name);
-        if (url == null)
-            url = super.getResource(name);
-        return url;
-    }
-
-    @Override
-    public InputStream getResourceAsStream(String name) {
-        inGetResourceAsStream.set(Boolean.TRUE);
-        try {
-            InputStream is = null;
-            if (!childFirst)
-                is = super.getResourceAsStream(name);
-            if (is == null)
-                is = findResourceAsStream(name);
-            if (is == null && childFirst)
-                is = super.getResourceAsStream(name);
-            return is;
-        } finally {
-            inGetResourceAsStream.remove();
-        }
-    }
-
     private Path resolve(Object o, String name) {
         final Path p;
         if (o instanceof FileSystem)
@@ -120,32 +89,7 @@ public class PathClassLoader extends ClassLoader {
     }
 
     @Override
-    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-        if (!childFirst)
-            return super.loadClass(name, resolve);
-        Class c;
-        try {
-            c = findClass(name);
-            if (resolve)
-                resolveClass(c);
-            return c;
-        } catch (ClassNotFoundException e) {
-        }
-        return super.loadClass(name, resolve);
-    }
-
-    @Override
-    protected Class<?> findClass(String name) throws ClassNotFoundException {
-        final byte[] buf = readResource(name.replace('.', '/') + ".class");
-        if (buf == null)
-            throw new ClassNotFoundException(name);
-        return defineClass(name, buf, 0, buf.length);
-    }
-
-    @Override
-    protected URL findResource(String name) {
-        if (inGetResourceAsStream.get() == Boolean.TRUE)
-            return null;
+    protected URL findResource1(String name) {
         try {
             for (Object o : paths) {
                 final Path p = resolve(o, name);
@@ -159,14 +103,7 @@ public class PathClassLoader extends ClassLoader {
     }
 
     @Override
-    public Enumeration<URL> getResources(String name) throws IOException {
-        Enumeration[] tmp = new Enumeration[2];
-        tmp[childFirst ? 1 : 0] = super.getResources(name);
-        tmp[childFirst ? 0 : 1] = findResources1(name);
-        return new sun.misc.CompoundEnumeration<>(tmp);
-    }
-
-    protected Enumeration<URL> findResources1(String name) throws IOException {
+    protected Enumeration<URL> findResources1(String name) {
         try {
             List<URL> urls = new ArrayList<>();
             for (Object o : paths) {
@@ -180,7 +117,8 @@ public class PathClassLoader extends ClassLoader {
         }
     }
 
-    private InputStream findResourceAsStream(String name) {
+    @Override
+    protected InputStream findResourceAsStream(String name) {
         try {
             for (Object o : paths) {
                 final Path p = resolve(o, name);
@@ -193,7 +131,8 @@ public class PathClassLoader extends ClassLoader {
         }
     }
 
-    private byte[] readResource(String name) {
+    @Override
+    protected byte[] readResource(String name) {
         try {
             for (Object o : paths) {
                 final Path p = resolve(o, name);

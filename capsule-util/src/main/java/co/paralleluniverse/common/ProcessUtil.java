@@ -1,5 +1,4 @@
 /*
- * Capsule
  * Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
  * 
  * This program and the accompanying materials are licensed under the terms 
