@@ -1583,11 +1583,6 @@ public class Capsule implements Runnable {
         try (final JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jar)))) {
             return jis.getManifest();
         }
-        // Unfortunately ZipFS/JarInputStream don't support extra ZIP header (for really executable JARs)
-//        try (FileSystem zfs = newZipFileSystem(jar);
-//                InputStream is = Files.newInputStream(zfs.getPath(MANIFEST_NAME))) {
-//            return new Manifest(is);
-//        }
     }
 
     private static boolean hasEntry(Path jarFile, String name) throws IOException {
@@ -1598,10 +1593,6 @@ public class Capsule implements Runnable {
             }
             return false;
         }
-        // Unfortunately ZipFS/JarInputStream don't support extra ZIP header (for really executable JARs)
-//        try (FileSystem zfs = newZipFileSystem(jarFile)) {
-//            return Files.exists(zfs.getPath(name));
-//        }
     }
 
     private static int[] ZIP_HEADER = new int[]{'\n', 'P', 'K', 0x03, 0x04};
