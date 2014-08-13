@@ -221,7 +221,8 @@ public class DependencyManagerImpl implements DependencyManager {
     private static String artifactToCoords(Artifact artifact) {
         if (artifact == null)
             return null;
-        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion();
+        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion() 
+                + (artifact.getClassifier() != null ? (":" + artifact.getClassifier()): "");
     }
 
     private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");

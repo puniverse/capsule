@@ -848,7 +848,7 @@ public class Capsule implements Runnable {
         if (deps == null && pom != null)
             deps = getPomDependencies();
 
-        return deps != null ? Collections.unmodifiableList(deps) : null;
+        return (deps != null && !deps.isEmpty()) ? Collections.unmodifiableList(deps) : null;
     }
 
     /**
@@ -1263,7 +1263,6 @@ public class Capsule implements Runnable {
     private boolean needsDependencyManager() {
         return hasAttribute(ATTR_APP_ARTIFACT)
                 || isEmptyCapsule()
-                || pom != null
                 || getDependencies() != null
                 || getNativeDependencies() != null;
     }
