@@ -25,7 +25,13 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.Exclusion;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
 import org.junit.Test;
@@ -173,6 +179,30 @@ public class CapsuleTest {
     }
 
     @Test
+    public void whenNoNameAndPomTakeIdFromPom() throws Exception {
+        Model pom = newPom();
+        pom.setGroupId("com.acme");
+        pom.setArtifactId("foo");
+        pom.setVersion("1.0");
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false")
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("pom.xml", toInputStream(pom));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        String appId = capsule.appId(null);
+        assertEquals("com.acme_foo_1.0", appId);
+    }
+
+    @Test
     public void testClassPath() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
@@ -309,6 +339,52 @@ public class CapsuleTest {
         ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("c.jar"));
         ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("bar-1.2.jar"));
         ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
+    }
+
+    @Test
+    public void testDependencies1() throws Exception {
+        List<String> deps = list("com.acme:bar:1.2", "com.acme:baz:3.4:jdk8");
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Dependencies", deps)
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+
+        DependencyManager dm = mock(DependencyManager.class);
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, dm);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        verify(dm).resolveDependencies(deps, "jar");
+    }
+
+    @Test
+    public void testPomDependencies1() throws Exception {
+        List<String> deps = list("com.acme:bar:1.2", "com.acme:baz:3.4:jdk8");
+
+        Model pom = newPom();
+        pom.setGroupId("com.acme");
+        pom.setArtifactId("foo");
+        pom.setVersion("1.0");
+        for (String dep : deps)
+            pom.addDependency(coordsToDependency(dep));
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("pom.xml", toInputStream(pom));
+
+        DependencyManager dm = mock(DependencyManager.class);
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, dm);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        verify(dm).resolveDependencies(deps, "jar");
     }
 
     @Test(expected = RuntimeException.class)
@@ -590,10 +666,11 @@ public class CapsuleTest {
     }
 
     private Model newPom() {
+        Model a;
         return new Model();
     }
 
-    private InputStream pom(Model model) {
+    private InputStream toInputStream(Model model) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             new MavenXpp3Writer().write(baos, model);
@@ -680,6 +757,49 @@ public class CapsuleTest {
 
     private static int[] ints(int... xs) {
         return xs;
+    }
+
+    private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
+
+    static Dependency coordsToDependency(final String depString) {
+        final Matcher m = PAT_DEPENDENCY.matcher(depString);
+        if (!m.matches())
+            throw new IllegalArgumentException("Could not parse dependency: " + depString);
+
+        Dependency d = new Dependency();
+        d.setGroupId(m.group("groupId"));
+        d.setArtifactId(m.group("artifactId"));
+        String version = m.group("version");
+        if (version == null || version.isEmpty())
+            version = "[0,)";
+        d.setVersion(version);
+        d.setClassifier(m.group("classifier"));
+        d.setScope("runtime");
+        for (Exclusion ex : getExclusions(depString))
+            d.addExclusion(ex);
+        return d;
+    }
+
+    static Collection<Exclusion> getExclusions(String depString) {
+        final Matcher m = PAT_DEPENDENCY.matcher(depString);
+        if (!m.matches())
+            throw new IllegalArgumentException("Could not parse dependency: " + depString);
+
+        if (m.group("exclusions") == null || m.group("exclusions").isEmpty())
+            return Collections.emptyList();
+
+        final List<String> exclusionPatterns = Arrays.asList(m.group("exclusions").split(","));
+        final List<Exclusion> exclusions = new ArrayList<Exclusion>();
+        for (String expat : exclusionPatterns) {
+            String[] coords = expat.trim().split(":");
+            if (coords.length != 2)
+                throw new IllegalArgumentException("Illegal exclusion dependency coordinates: " + depString + " (in exclusion " + expat + ")");
+            Exclusion ex = new Exclusion();
+            ex.setGroupId(coords[0]);
+            ex.setArtifactId(coords[1]);
+            exclusions.add(ex);
+        }
+        return exclusions;
     }
 
     private static void dumpFileSystem(FileSystem fs) {
