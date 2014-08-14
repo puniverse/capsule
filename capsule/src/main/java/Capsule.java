@@ -66,7 +66,7 @@ public class Capsule implements Runnable {
      * We do a lot of data transformations that would have really benefitted from Java 8's lambdas and streams, 
      * but we want Capsule to support Java 7.
      */
-    private static final String VERSION = "0.6.0";
+    private static final String VERSION = "0.7.0";
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
