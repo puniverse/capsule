@@ -42,10 +42,13 @@ public class CapsuleContainer {
             final ProcessBuilder pb = configureCapsuleProcess(CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(cmdLine), args));
 
             final Process p = pb.start();
-
             final String id = createProcessId(CapsuleLauncher.getAppId(capsule), p);
+            
             final ProcessInfo pi = mountProcess(p, id);
             processes.put(id, pi);
+            
+            onProcessLaunch(id, pi);
+            monitorProcess(id, p);
 
             return id;
         } catch (Exception e) {
@@ -67,6 +70,28 @@ public class CapsuleContainer {
      */
     protected ProcessBuilder configureCapsuleProcess(ProcessBuilder pb) throws IOException {
         return pb;
+    }
+
+    protected void onProcessLaunch(String id, ProcessInfo pi) {
+    }
+
+    protected void onProcessDeath(String id, ProcessInfo pi, int exitValue) {
+    }
+
+    private void monitorProcess(final String id, final Process p) {
+        new Thread("process-monitor-" + id) {
+
+            @Override
+            public void run() {
+                try {
+                    int exit = p.waitFor();
+                    onProcessDeath(id, getProcessInfo(id), exit);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+
+        }.start();
     }
 
     protected String createProcessId(String appId, Process p) {
