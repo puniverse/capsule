@@ -129,6 +129,15 @@ public class Jar {
         return this;
     }
 
+    /**
+     * Sets an attribute in a non-main section of the manifest.
+     *
+     * @param section the section's name
+     * @param name    the attribute's name
+     * @param value   the attribute's value
+     * @return {@code this}
+     * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
+     */
     public final Jar setAttribute(String section, String name, String value) {
         verifyNotSealed();
         if (jos != null)
