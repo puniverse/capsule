@@ -2155,7 +2155,7 @@ public class Capsule implements Runnable {
     }
 
     private static void pipe(InputStream in, OutputStream out) {
-        try {
+        try(OutputStream out1 = out) {
             int read;
             byte[] buf = new byte[1024];
             while (-1 != (read = in.read(buf))) {
@@ -2165,13 +2165,6 @@ public class Capsule implements Runnable {
         } catch (IOException e) {
             if (verbose)
                 e.printStackTrace(System.err);
-        } finally {
-            try {
-                out.close();
-            } catch (IOException e2) {
-                if (verbose)
-                    e2.printStackTrace(System.err);
-            }
         }
     }
     //</editor-fold>
