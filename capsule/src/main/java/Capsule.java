@@ -24,7 +24,6 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.DirectoryStream;
@@ -242,12 +241,12 @@ public class Capsule implements Runnable {
             if (manifest == null)
                 throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
             verifyNonModalAttributes(manifest);
-            
+
             this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader(jis) : null;
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
-        
+
         this.mode = emptyToNull(System.getProperty(PROP_MODE));
         if (mode != null && manifest.getAttributes(mode) == null)
             throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
@@ -2155,7 +2154,7 @@ public class Capsule implements Runnable {
     }
 
     private static void pipe(InputStream in, OutputStream out) {
-        try(OutputStream out1 = out) {
+        try (OutputStream out1 = out) {
             int read;
             byte[] buf = new byte[1024];
             while (-1 != (read = in.read(buf))) {
@@ -2277,15 +2276,7 @@ public class Capsule implements Runnable {
     }
 
     private static Object createClassLoader(Path path) throws IOException {
-        try {
-            try {
-                return new URLClassLoader(new URL[]{path.toUri().toURL()});
-            } catch (Exception e) {
-                return new JarClassLoader(path, true);
-            }
-        } catch (NoClassDefFoundError e) {
-            throw new AssertionError(e);
-        }
+        return new JarClassLoader(path, true); // new URLClassLoader(new URL[]{path.toUri().toURL()}); // 
     }
 
     private static Method getMethod(Class clazz, String name, Class<?>... paramTypes) {
