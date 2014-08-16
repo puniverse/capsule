@@ -39,9 +39,11 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     private final PrintStream out;
     private final Map<TransferResource, Long> downloads = new ConcurrentHashMap<TransferResource, Long>();
     private int lastLength;
+    private final boolean verbose;
 
-    public ConsoleTransferListener(PrintStream out) {
+    public ConsoleTransferListener(boolean verbose, PrintStream out) {
         this.out = out;
+        this.verbose = verbose;
     }
 
     @Override
@@ -110,13 +112,18 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     public void transferFailed(TransferEvent event) {
         transferCompleted(event);
 
-        if (!(event.getException() instanceof MetadataNotFoundException))
-            event.getException().printStackTrace(out);
+        if (!(event.getException() instanceof MetadataNotFoundException)) {
+            out.println("Transfer failed: " + event.getException() + (verbose ? "" : " (for stack trace, run with -Dcapsule.log=verbose)"));
+            if (verbose)
+                event.getException().printStackTrace(out);
+        }
     }
 
     @Override
     public void transferCorrupted(TransferEvent event) {
-        event.getException().printStackTrace(out);
+        out.println("Transfer corrupted: " + event.getException() + (verbose ? "" : " (for stack trace, run with -Dcapsule.log=verbose)"));
+        if (verbose)
+            event.getException().printStackTrace(out);
     }
 
     private void transferCompleted(TransferEvent event) {

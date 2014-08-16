@@ -121,7 +121,7 @@ public class DependencyManagerImpl implements DependencyManager {
         s.setLocalRepositoryManager(system.newLocalRepositoryManager(s, localRepo));
 
         final PrintStream out = prefixStream(System.err, "CAPSULE: ");
-        s.setTransferListener(new ConsoleTransferListener(out));
+        s.setTransferListener(new ConsoleTransferListener(verbose, out));
         s.setRepositoryListener(new ConsoleRepositoryListener(verbose, out));
 
         return s;
@@ -221,8 +221,8 @@ public class DependencyManagerImpl implements DependencyManager {
     private static String artifactToCoords(Artifact artifact) {
         if (artifact == null)
             return null;
-        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion() 
-                + (artifact.getClassifier() != null ? (":" + artifact.getClassifier()): "");
+        return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion()
+                + (artifact.getClassifier() != null ? (":" + artifact.getClassifier()) : "");
     }
 
     private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
