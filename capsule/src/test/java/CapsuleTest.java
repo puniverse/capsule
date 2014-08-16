@@ -34,6 +34,7 @@ import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Exclusion;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
+import org.junit.After;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import static org.truth0.Truth.*;
@@ -48,6 +49,11 @@ public class CapsuleTest {
     private final FileSystem fs = Jimfs.newFileSystem();
     private final Path cache = fs.getPath("/cache");
 
+    @After
+    public void tearDown() throws Exception {
+        fs.close();
+    }
+    
     @Test
     public void testParseJavaVersion() {
         int[] ver;
