@@ -148,7 +148,8 @@ public class Capsule implements Runnable {
     private static final String DEPS_CACHE_NAME = "deps";
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
-    private static final String DOT = "\\.";
+    private static final String SEPARATOR_DOT = "\\.";
+    private static final String SEPARATOR_PIPE = "\\|";
     private static final String LOCK_FILE_NAME = ".lock";
     private static final String TIMESTAMP_FILE_NAME = ".extracted";
     private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
@@ -1216,7 +1217,7 @@ public class Capsule implements Runnable {
             return 0;
         final int[] ver = parseJavaVersion(version);
         for (Map.Entry<String, String> entry : m.entrySet()) {
-            if (equals(ver, toInt(shortJavaVersion(entry.getKey()).split(DOT)), 3))
+            if (equals(ver, toInt(shortJavaVersion(entry.getKey()).split(SEPARATOR_DOT)), 3))
                 return Integer.parseInt(entry.getValue());
         }
         return 0;
@@ -1269,7 +1270,7 @@ public class Capsule implements Runnable {
     private List<String> getRepositories() {
         List<String> repos = new ArrayList<String>();
 
-        List<String> attrRepos = split(System.getenv(ENV_CAPSULE_REPOS), ":");
+        List<String> attrRepos = split(System.getenv(ENV_CAPSULE_REPOS), ",");
         if (attrRepos == null)
             attrRepos = getListAttribute(ATTR_REPOSITORIES);
 
@@ -1792,7 +1793,7 @@ public class Capsule implements Runnable {
     // visible for testing
     static String shortJavaVersion(String v) {
         try {
-            final String[] vs = v.split(DOT);
+            final String[] vs = v.split(SEPARATOR_DOT);
             if (vs.length == 1) {
                 if (Integer.parseInt(vs[0]) < 5)
                     throw new RuntimeException("Unrecognized major Java version: " + v);

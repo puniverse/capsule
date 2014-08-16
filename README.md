@@ -252,7 +252,15 @@ Capsule's cache is found, by default, at `~/.capsule/` on Unix/Linux/Mac OS mach
 
 The capsule can specify external dependencies as coordinates in Maven repositories. One way of specifying dependencies, is placing the app's `pom.xml` file in the capsule JAR's root. Another is specifying the dependencies and repositories in the capsule's manifest.
 
-By default, Capsule will look for dependencies on Maven Central. If other repositories are needed (or if you don't want to access Maven Central), the `Repositories` attribute is a space-separated list of Maven repository URLs. The repositories will be searched in the order they are listed. If the `Repositories` attribute is found in the manifest, then Maven Central will not be searched. If you do want it searched in addition to other repositories, you can simply place the word `central` in the repository list rather than listing the full URL.
+By default, Capsule will look for dependencies on Maven Central. If other repositories are needed (or if you don't want to access Maven Central), the `Repositories` attribute is a space-separated list of Maven repository URLs. The repositories will be searched in the order they are listed. If the `Repositories` attribute is found in the manifest, then Maven Central will not be searched.
+
+Instead of specifying explicit URLs, the following well-known repository names can be listed in the `Repositories` attribute:
+
+* central - Maven central, HTTPS
+* central-http - Maven central, HTTP
+* jcenter - jCenter, HTTPS
+* jcenter-http - jCenter, HTTP
+* local - Default local Maven repository (`userdir/.m2/repository`)
 
 The dependencies, (if not read from the POM), are listed in the `Dependencies` attribute, as a space-separated list of Maven coordinates in the Gradle format, i.e. `groupId:artifactId:version`. Exclusions can be given as a comma separated list within parentheses, immediately following the main artifact, of `groupId:artifactId` coordinates, where the artifact can be the wildcard `*`. For example:
 
@@ -260,7 +268,7 @@ The dependencies, (if not read from the POM), are listed in the `Dependencies` a
 
 The dependencies are downloaded the first time the capsule is launched, and placed in the `deps` subdirectory of the Capsule cache, where they are shared among all capsules.
 
-The `CAPSULE_REPOS` environment variable can be set to a colon (`:`) separated list of Maven repository URLS, which will override those specified in the manifest or the POM.
+The `CAPSULE_REPOS` environment variable can be set to a *comma* (`,`) separated list of Maven repository URLS or well-known repository names (see above), which will override those specified in the manifest or the POM.
 
 Capsule can make use of Maven repositories in another way: the `Application` manifest attribute can specify the Maven coordinates of the application's main JAR file, which can in itself be a capsule. The artifact can be given with a version range, for example: `Application: com.acme:foo:[1.0,2.0)` or with no version at all. The newest version matching the range (or the newest version if no range is given), will be downloaded, cached and launched. If the application's main artifact is a capsule, then all configurations will be taken based on those in the artifact capsule.
 
@@ -383,7 +391,7 @@ Capsule defines these system properties in the application's process:
 
 * `CAPSULE_CACHE_NAME`: sets the *name* of the root of Capsule's cache in the default location (`~` on Unix, `%LOCALAPPDATA%` on Windows)
 * `CAPSULE_CACHE_DIR`: sets the full path of the Capsule's cache
-* `CAPSULE_REPOS`: sets the list -- colon (`:`) separated -- of Maven repositories that the capsule will use; overrides those specified in the manifest or the POM.
+* `CAPSULE_REPOS`: sets the list -- comma (`,`) separated -- of Maven repositories that the capsule will use; overrides those specified in the manifest or the POM.
 
 Capsule defines these variables in the application's environment:
 

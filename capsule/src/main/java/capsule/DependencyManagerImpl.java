@@ -14,7 +14,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
@@ -47,7 +49,16 @@ import org.eclipse.aether.version.Version;
  * Uses Aether as the Maven dependency manager.
  */
 public class DependencyManagerImpl implements DependencyManager {
-    private static final String MAVEN_CENTRAL_URL = "https://repo.maven.apache.org/maven2/"; // "http://central.maven.org/maven2/"
+        private static final String PROP_USER_HOME = "user.home";
+    private static final Map<String, String> WELL_KNOWN_REPOS = Collections.unmodifiableMap(new HashMap<String, String>() {
+        {
+            put("central", "https://repo.maven.apache.org/maven2/");
+            put("central-http", "http://repo.maven.apache.org/maven2/");
+            put("jcenter", "https://jcenter.bintray.com/");
+            put("jcenter-http", "http://jcenter.bintray.com/");
+            put("local", "file:" + System.getProperty(PROP_USER_HOME) + "/.m2/repository/");
+        }
+    });
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
     private static final String PROP_LOG = "capsule.log";
@@ -72,14 +83,10 @@ public class DependencyManagerImpl implements DependencyManager {
         this.repos = new ArrayList<RemoteRepository>();
 
         if (repos == null)
-            this.repos.add(newRemoteRepository("central", MAVEN_CENTRAL_URL, policy));
+            this.repos.add(newRemoteRepository("central", WELL_KNOWN_REPOS.get("central"), policy));
         else {
-            for (String repo : repos) {
-                if ("central".equals(repo))
-                    this.repos.add(newRemoteRepository("central", MAVEN_CENTRAL_URL, policy));
-                else
-                    this.repos.add(newRemoteRepository(null, repo, policy));
-            }
+            for (String repo : repos)
+                this.repos.add(newRemoteRepository(repo, WELL_KNOWN_REPOS.containsKey(repo) ? WELL_KNOWN_REPOS.get(repo) : repo, policy));
         }
     }
 
