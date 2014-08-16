@@ -14,9 +14,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
@@ -66,12 +68,28 @@ public class JarClassLoader extends FlexibleClassLoader {
 
     @Override
     protected URL findResource1(String name) {
-        throw new UnsupportedOperationException();
+        try {
+            if (!hasResource(name))
+                return null;
+            else
+                return new URL("jar:" + jarFile.toUri() + "!/" + name);
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     protected Enumeration<URL> findResources1(String name) {
-        throw new UnsupportedOperationException();
+        final URL url = findResource1(name);
+        return (Enumeration<URL>)Collections.enumeration(url != null ? Collections.singleton(url) : Collections.emptySet());
+    }
+
+    private boolean hasResource(String path) {
+        try (InputStream is = findResourceAsStream(path)) {
+            return is != null;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
