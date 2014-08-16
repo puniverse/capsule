@@ -49,7 +49,7 @@ import org.eclipse.aether.version.Version;
  * Uses Aether as the Maven dependency manager.
  */
 public class DependencyManagerImpl implements DependencyManager {
-        private static final String PROP_USER_HOME = "user.home";
+    private static final String PROP_USER_HOME = "user.home";
     private static final Map<String, String> WELL_KNOWN_REPOS = Collections.unmodifiableMap(new HashMap<String, String>() {
         {
             put("central", "https://repo.maven.apache.org/maven2/");
