@@ -47,7 +47,7 @@ import org.eclipse.aether.version.Version;
  * Uses Aether as the Maven dependency manager.
  */
 public class DependencyManagerImpl implements DependencyManager {
-    private static final String MAVEN_CENTRAL_URL = "http://central.maven.org/maven2/";
+    private static final String MAVEN_CENTRAL_URL = "https://repo.maven.apache.org/maven2/"; // "http://central.maven.org/maven2/"
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
     private static final String PROP_LOG = "capsule.log";
