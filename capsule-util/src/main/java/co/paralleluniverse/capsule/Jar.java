@@ -42,7 +42,7 @@ import java.util.jar.Pack200;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import static co.paralleluniverse.capsule.ZipFS.newZipFileSystem;
-import static java.nio.charset.StandardCharsets.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * A JAR file that can be easily modified.

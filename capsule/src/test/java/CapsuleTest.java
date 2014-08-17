@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.FileSystem;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -41,7 +41,6 @@ import static org.truth0.Truth.*;
 import static org.mockito.Mockito.*;
 
 public class CapsuleTest {
-    private static final Charset UTF8 = Charset.forName("UTF-8");
     /*
      * All the tests in this test suite use an in-memory file system, and don't 
      * write to the disk at all.
@@ -124,12 +123,12 @@ public class CapsuleTest {
     public void testSimpleExtract() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("a.class", Jar.toInputStream("", UTF8))
-                .addEntry("b.txt", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/b.class", Jar.toInputStream("", UTF8))
-                .addEntry("META-INF/x.txt", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("a.class", Jar.toInputStream("", UTF_8))
+                .addEntry("b.txt", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.class", Jar.toInputStream("", UTF_8))
+                .addEntry("META-INF/x.txt", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
@@ -171,8 +170,8 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Extract-Capsule", "false")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
@@ -194,8 +193,8 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Extract-Capsule", "false")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("pom.xml", toInputStream(pom));
 
         String[] args = strings("hi", "there");
@@ -213,9 +212,9 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("App-Class-Path", list("lib/a.jar", "lib/b.jar"))
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
@@ -242,11 +241,11 @@ public class CapsuleTest {
                 .setListAttribute("Boot-Class-Path-A", list("lib/a.jar"))
                 .setListAttribute("Boot-Class-Path-P", list("lib/b.jar"))
                 .setListAttribute("Boot-Class-Path", list("lib/c.jar", "lib/d.jar"))
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/c.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/d.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
@@ -269,11 +268,11 @@ public class CapsuleTest {
                 .setListAttribute("Boot-Class-Path-A", list("lib/a.jar"))
                 .setListAttribute("Boot-Class-Path-P", list("lib/b.jar"))
                 .setListAttribute("Boot-Class-Path", list("lib/c.jar", "lib/d.jar"))
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/c.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/d.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list("-Xbootclasspath:/foo/bar");
@@ -297,10 +296,10 @@ public class CapsuleTest {
                 .setListAttribute("Boot-Class-Path-A", list("com.acme:baz:3.4"))
                 .setListAttribute("Boot-Class-Path-P", list("lib/b.jar"))
                 .setListAttribute("Boot-Class-Path", list("lib/c.jar", "com.acme:bar:1.2"))
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/c.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8));
 
         DependencyManager dm = mock(DependencyManager.class);
         Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
@@ -328,11 +327,11 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("Boot-Class-Path-P", list("lib/b.jar"))
                 .setListAttribute("Boot-Class-Path", list("lib/c.jar", "com.acme:bar:1.2"))
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/c.jar", Jar.toInputStream("", UTF8))
-                .addEntry("bar-1.2.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("bar-1.2.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
@@ -353,7 +352,7 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("Dependencies", deps)
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
         DependencyManager dm = mock(DependencyManager.class);
 
@@ -379,7 +378,7 @@ public class CapsuleTest {
 
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("pom.xml", toInputStream(pom));
 
         DependencyManager dm = mock(DependencyManager.class);
@@ -398,8 +397,8 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("Boot-Class-Path", list("lib/c.jar", "com.acme:bar:1.2"))
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("bar-1.2.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("bar-1.2.jar", Jar.toInputStream("", UTF_8));
 
         DependencyManager dm = mock(DependencyManager.class);
 
@@ -417,9 +416,9 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("App-Class-Path", list("lib/a.jar", "lib/b.jar"))
                 .setAttribute("Capsule-In-Class-Path", "false")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/b.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
@@ -445,7 +444,7 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
@@ -464,7 +463,7 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list("-Xms15");
@@ -485,7 +484,7 @@ public class CapsuleTest {
                     .setAttribute("Application-Class", "com.acme.Foo")
                     .setAttribute("System-Properties", "bar baz=33 foo=y")
                     .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
-                    .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+                    .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
             String[] args = strings("hi", "there");
             List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
@@ -508,7 +507,7 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .setAttribute("ModeX", "Application-Class", "com.acme.Bar")
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
         Capsule capsule = newCapsule(jar, null);
     }
@@ -519,9 +518,9 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Unix-Script", "scr.sh")
                 .setAttribute("Windows-Script", "scr.bat")
-                .addEntry("scr.sh", Jar.toInputStream("", UTF8))
-                .addEntry("scr.bat", Jar.toInputStream("", UTF8))
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8));
+                .addEntry("scr.sh", Jar.toInputStream("", UTF_8))
+                .addEntry("scr.bat", Jar.toInputStream("", UTF_8))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
@@ -543,7 +542,7 @@ public class CapsuleTest {
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10")
                 .setReallyExecutable(true)
-                .addEntry("a.class", Jar.toInputStream("", UTF8));
+                .addEntry("a.class", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
@@ -592,12 +591,12 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("App-Class-Path", list("lib/a.jar"))
                 .addClass(Capsule.class)
-                .addEntry("foo.jar", Jar.toInputStream("", UTF8))
-                .addEntry("a.class", Jar.toInputStream("", UTF8))
-                .addEntry("b.txt", Jar.toInputStream("", UTF8))
-                .addEntry("lib/a.jar", Jar.toInputStream("", UTF8))
-                .addEntry("lib/b.class", Jar.toInputStream("", UTF8))
-                .addEntry("META-INF/x.txt", Jar.toInputStream("", UTF8));
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("a.class", Jar.toInputStream("", UTF_8))
+                .addEntry("b.txt", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.class", Jar.toInputStream("", UTF_8))
+                .addEntry("META-INF/x.txt", Jar.toInputStream("", UTF_8));
 
         Path fooPath = cache.resolve("deps").resolve("com.acme").resolve("foo").resolve("foo-1.0.jar");
         Files.createDirectories(fooPath.getParent());
