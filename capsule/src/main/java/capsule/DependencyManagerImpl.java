@@ -10,6 +10,7 @@ package capsule;
 
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -57,8 +58,10 @@ public class DependencyManagerImpl implements DependencyManager {
             put("central-http", "http://repo.maven.apache.org/maven2/");
             put("jcenter", "https://jcenter.bintray.com/");
             put("jcenter-http", "http://jcenter.bintray.com/");
+            put("local", "file:" + DEFAULT_LOCAL_MAVEN);
         }
     });
+    private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty("user.home"), ".m2", "repository");
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
     private static final String PROP_LOG = "capsule.log";
@@ -81,21 +84,14 @@ public class DependencyManagerImpl implements DependencyManager {
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
         this.session = newRepositorySession(system, localRepo);
 
+        if (repos == null)
+            repos = Arrays.asList("central");
+
         final RepositoryPolicy releasePolicy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
         final RepositoryPolicy snapshotPolicy = new RepositoryPolicy(false, null, null);
-
         this.repos = new ArrayList<RemoteRepository>();
-
-        if (repos == null)
-            this.repos.add(newRemoteRepository("central", WELL_KNOWN_REPOS.get("central"), releasePolicy, snapshotPolicy));
-        else {
-            for (String repo : repos) {
-                if ("local".equals(repo))
-                    this.repos.add(newLocalRepository(repo, "file:" + localRepoPath));
-                else
-                    this.repos.add(newRemoteRepository(repo, WELL_KNOWN_REPOS.containsKey(repo) ? WELL_KNOWN_REPOS.get(repo) : repo, releasePolicy, snapshotPolicy));
-            }
-        }
+        for (String repo : repos)
+            this.repos.add(newRemoteRepository(repo, WELL_KNOWN_REPOS.containsKey(repo) ? WELL_KNOWN_REPOS.get(repo) : repo, releasePolicy, snapshotPolicy));
     }
 
     private static RepositorySystem newRepositorySystem() {
@@ -219,13 +215,12 @@ public class DependencyManagerImpl implements DependencyManager {
         return version.startsWith("(") || version.startsWith("[");
     }
 
-    private static RemoteRepository newLocalRepository(String name, String url) {
-        RepositoryPolicy policy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
-        return new RemoteRepository.Builder(name, "default", url).setPolicy(policy).build();
-    }
-
-    private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy releasedPolicy, RepositoryPolicy snapshotPolicy) {
-        return new RemoteRepository.Builder(name, "default", url).setReleasePolicy(releasedPolicy).setSnapshotPolicy(snapshotPolicy).build();
+    private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy releasePolicy, RepositoryPolicy snapshotPolicy) {
+        if (url.startsWith("file:")) {
+            releasePolicy = new RepositoryPolicy(releasePolicy.isEnabled(), releasePolicy.getUpdatePolicy(), RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
+            snapshotPolicy = releasePolicy;
+        }
+        return new RemoteRepository.Builder(name, "default", url).setReleasePolicy(releasePolicy).setSnapshotPolicy(snapshotPolicy).build();
     }
 
     // visible for testing
