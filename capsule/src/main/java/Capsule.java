@@ -204,7 +204,8 @@ public class Capsule implements Runnable {
 
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
-
+    private static final String LOG_PREFIX = "CAPSULE: ";
+    
     private final Path jarFile;      // never null
     private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
@@ -318,8 +319,8 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Main Operations">
     /////////// Main Operations ///////////////////////////////////
     private void printVersion(String[] args) {
-        System.out.println("CAPSULE: Application " + appId(args));
-        System.out.println("CAPSULE: Capsule Version " + VERSION);
+        System.out.println(LOG_PREFIX + "Application " + appId(args));
+        System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
     }
 
     private void printJVMs(String[] args) {
@@ -327,11 +328,11 @@ public class Capsule implements Runnable {
         if (jres == null)
             println("No detected Java installations");
         else {
-            System.out.println("CAPSULE: Detected Java installations:");
+            System.out.println(LOG_PREFIX + "Detected Java installations:");
             for (Map.Entry<String, Path> j : jres.entrySet())
                 System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
         }
-        System.out.println("CAPSULE: selected " + (javaHome != null ? javaHome : (System.getProperty(PROP_JAVA_HOME) + " (current)")));
+        System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (System.getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
     private void printDependencyTree(String[] args) {
@@ -1309,10 +1310,7 @@ public class Capsule implements Runnable {
     }
 
     private Path getLocalRepo() {
-        String local = expandCommandLinePath(System.getProperty(PROP_USE_LOCAL_REPO));
-        if (local == null)
-            local = emptyToNull(System.getenv(ENV_CAPSULE_LOCAL_REPO));
-
+        final String local = expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO));
         Path localRepo = cacheDir.resolve(DEPS_CACHE_NAME);
         if (local != null)
             localRepo = !local.isEmpty() ? Paths.get(local) : DEFAULT_LOCAL_MAVEN;
@@ -2108,22 +2106,29 @@ public class Capsule implements Runnable {
         }
         return false;
     }
+    
+    private static String propertyOrEnv(String propName, String envVar) {
+        String val = System.getProperty(propName);
+        if (val == null)
+            val = emptyToNull(System.getenv(envVar));
+        return val;
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
     private static void println(String str) {
-        System.err.println("CAPSULE: " + str);
+        System.err.println(LOG_PREFIX + str);
     }
 
     private static void verbose(String str) {
         if (verbose)
-            System.err.println("CAPSULE: " + str);
+            System.err.println(LOG_PREFIX + str);
     }
 
     private static void debug(String str) {
         if (debug)
-            System.err.println("CAPSULE: " + str);
+            System.err.println(LOG_PREFIX + str);
     }
     //</editor-fold>
 

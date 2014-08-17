@@ -360,9 +360,9 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Java-Agents`: a list of Java agents used by the application; formatted `agent` or `agent=arg1,arg2...`, where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency
 * `Repositories`: a list of Maven repository URLs
 * `Dependencies`: a list of Maven dependencies given as `groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]`
-* `Native-Dependencies-Linux`: a list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the dowload artifact. The artifacts will be Windows and copied into the application's cache directory.
-* `Native-Dependencies-Win`: a list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the dowload artifact. The artifacts will be downloaded and copied into the application's cache directory.
-* `Native-Dependencies-Mac`: a list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the dowload artifact. The artifacts will be downloaded and copied into the application's cache directory.
+* `Native-Dependencies-Linux`: a list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be Windows and copied into the application's cache directory.
+* `Native-Dependencies-Win`: a list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
+* `Native-Dependencies-Mac`: a list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 
 ### Manifest Variables
 
@@ -383,6 +383,8 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.offline`: if defined (without a value) or set to `true`, Capsule will not attempt to contact online repositories for dependencies
 * `capsule.local`: the path for the local Maven repository; defaults to CAPSULE_CACHE/deps
 * `capsule.resolve`: all external dependencies, if any, will be downloaded (if not cached already), and/or the capsule will be extracted if necessary, but the application will not be launched
+* `capsule.connect.timeout`: The maximum amount of time (in milliseconds) to wait for a successful connection to a remote repository. Non-positive values indicate no timeout.
+* `capsule.request.timeout`: The maximum amount of time (in milliseconds) to wait for remaining data to arrive from a remote repository. Note that this timeout does not restrict the overall duration of a request, it only restricts the duration of inactivity between consecutive data packets. Non-positive values indicate no timeout.
 
 Capsule defines these system properties in the application's process:
 
@@ -394,6 +396,8 @@ Capsule defines these system properties in the application's process:
 * `CAPSULE_CACHE_NAME`: sets the *name* of the root of Capsule's cache in the default location (`~` on Unix, `%LOCALAPPDATA%` on Windows)
 * `CAPSULE_CACHE_DIR`: sets the full path of the Capsule's cache
 * `CAPSULE_REPOS`: sets the list -- comma (`,`) separated -- of Maven repositories that the capsule will use; overrides those specified in the manifest or the POM.
+* `CAPSULE_CONNECT_TIMEOUT`: The maximum amount of time (in milliseconds) to wait for a successful connection to a remote repository. Non-positive values indicate no timeout.
+* `CAPSULE_REQUEST_TIMEOUT`: The maximum amount of time (in milliseconds) to wait for remaining data to arrive from a remote repository. Note that this timeout does not restrict the overall duration of a request, it only restricts the duration of inactivity between consecutive data packets. Non-positive values indicate no timeout.
 
 Capsule defines these variables in the application's environment:
 

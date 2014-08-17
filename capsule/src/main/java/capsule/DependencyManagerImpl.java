@@ -14,7 +14,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import static java.util.Collections.unmodifiableMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +52,7 @@ import org.eclipse.aether.version.Version;
  * Uses Aether as the Maven dependency manager.
  */
 public class DependencyManagerImpl implements DependencyManager {
-    private final Map<String, String> WELL_KNOWN_REPOS = Collections.unmodifiableMap(new HashMap<String, String>() {
+    private final Map<String, String> WELL_KNOWN_REPOS = unmodifiableMap(new HashMap<String, String>() {
         {
             put("central", "https://repo.maven.apache.org/maven2/");
             put("central-http", "http://repo.maven.apache.org/maven2/");
@@ -64,11 +64,14 @@ public class DependencyManagerImpl implements DependencyManager {
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty("user.home"), ".m2", "repository");
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
+    private static final String ENV_CONNECT_TIMEOUT = "CAPSULE_CONNECT_TIMEOUT";
+    private static final String ENV_REQUEST_TIMEOUT = "CAPSULE_REQUEST_TIMEOUT";
     private static final String PROP_LOG = "capsule.log";
     private static final String LATEST_VERSION = "[0,)";
 
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
+    private static final String LOG_PREFIX = "CAPSULE: ";
 
     private final boolean forceRefresh;
     private final boolean offline;
@@ -121,8 +124,8 @@ public class DependencyManagerImpl implements DependencyManager {
     private RepositorySystemSession newRepositorySession(RepositorySystem system, LocalRepository localRepo) {
         final DefaultRepositorySystemSession s = MavenRepositorySystemUtils.newSession();
 
-        s.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, System.getProperty(PROP_CONNECT_TIMEOUT));
-        s.setConfigProperty(ConfigurationProperties.REQUEST_TIMEOUT, System.getProperty(PROP_REQUEST_TIMEOUT));
+        s.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, propertyOrEnv(PROP_CONNECT_TIMEOUT, ENV_CONNECT_TIMEOUT));
+        s.setConfigProperty(ConfigurationProperties.REQUEST_TIMEOUT, propertyOrEnv(PROP_REQUEST_TIMEOUT, ENV_REQUEST_TIMEOUT));
         s.setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, true);
 
         s.setOffline(offline);
@@ -130,7 +133,7 @@ public class DependencyManagerImpl implements DependencyManager {
 
         s.setLocalRepositoryManager(system.newLocalRepositoryManager(s, localRepo));
 
-        final PrintStream out = prefixStream(System.err, "CAPSULE: ");
+        final PrintStream out = prefixStream(System.err, LOG_PREFIX);
         s.setTransferListener(new ConsoleTransferListener(verbose, out));
         s.setRepositoryListener(new ConsoleRepositoryListener(verbose, out));
 
@@ -290,6 +293,20 @@ public class DependencyManagerImpl implements DependencyManager {
         };
     }
 
+    private static String propertyOrEnv(String propName, String envVar) {
+        String val = System.getProperty(propName);
+        if (val == null)
+            val = emptyToNull(System.getenv(envVar));
+        return val;
+    }
+
+    private static String emptyToNull(String s) {
+        if (s == null)
+            return null;
+        s = s.trim();
+        return s.isEmpty() ? null : s;
+    }
+    
     // necessary if we want to forgo Guice/Sisu injection and use DefaultServiceLocator instead
     private static final io.takari.filemanager.FileManager takariFileManager = new io.takari.filemanager.internal.DefaultFileManager();
 
