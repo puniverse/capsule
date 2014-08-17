@@ -37,7 +37,7 @@ subprojects {
     configurations {
         javancss
     }
-    
+
     repositories {
         mavenCentral()
     }
@@ -52,7 +52,7 @@ subprojects {
 
     test {
         systemProperty "java.protocol.handler.pkgs", "co.paralleluniverse.filesystem"
-        
+
         beforeTest { desc ->
             logger.quiet("Running test: " + desc)
         }
@@ -71,16 +71,16 @@ subprojects {
         classpath = sourceSets.main.runtimeClasspath
         if(project.hasProperty('mainClass')){
             main = project.mainClass
-        }    
+        }
         if(project.hasProperty('args')){
             args project.args.split('\\s+')
         }
     }
-    
-    tasks.withType(JavaExec) { 
-        classpath += sourceSets.test.runtimeClasspath   
+
+    tasks.withType(JavaExec) {
+        classpath += sourceSets.test.runtimeClasspath
     }
-    
+
     task sourcesJar(type: Jar, dependsOn: classes) {
         classifier = 'sources'
         from sourceSets.main.allSource
@@ -90,17 +90,17 @@ subprojects {
         classifier = 'javadoc'
         from javadoc.destinationDir
     }
- 
+
     task javancss(dependsOn: 'classes') << {
-//        ext.reportName = "$buildDir/javancss_metrics.txt"
-//        println 'Running javancss quality metrics tool to file://' + reportName
+        //        ext.reportName = "$buildDir/javancss_metrics.txt"
+        //        println 'Running javancss quality metrics tool to file://' + reportName
         ant {
             logging.level = LogLevel.INFO
             taskdef(name:'javancss', classname:'javancss.JavancssAntTask', classpath: configurations.javancss.asPath)
             javancss(
-                srcdir:'src/main/java', 
-                abortOnFail:'true', 
-                generateReport:'true', 
+                srcdir:'src/main/java',
+                abortOnFail:'true',
+                generateReport:'true',
                 packageMetrics:'true',
                 classMetrics:'false',
                 functionMetrics:'false'
@@ -108,9 +108,9 @@ subprojects {
             )
         }
     }
-    
+
     assemble.dependsOn javancss
-    
+
     ///////// Publish Artifacts
     apply plugin: 'maven'
     apply plugin: 'signing'
@@ -184,8 +184,8 @@ project (':capsule') {
         compile 'org.eclipse.aether:aether-connector-basic:1.0.0.v20140518'
         compile 'org.eclipse.aether:aether-transport-file:1.0.0.v20140518'
         compile 'org.eclipse.aether:aether-transport-http:1.0.0.v20140518'
-        compile 'org.apache.maven:maven-aether-provider:3.2.2'
-        compile 'org.apache.maven:maven-model:3.2.2'
+        compile 'org.apache.maven:maven-aether-provider:3.2.3'
+        compile 'org.apache.maven:maven-model:3.2.3'
 
         runtime 'org.slf4j:slf4j-nop:1.7.7'
 
