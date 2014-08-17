@@ -358,7 +358,7 @@ public class Capsule implements Runnable {
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_P));
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_A));
-        resolveAppArtifact(getAppArtifact(args));
+        resolveAppArtifact(getAppArtifact(args), "jar");
         resolveDependencies(getDependencies(), "jar");
         resolveNativeDependencies();
     }
@@ -488,7 +488,7 @@ public class Capsule implements Runnable {
             final String appArtifact = getAppArtifact(args);
             if (appArtifact != null) {
                 try {
-                    final List<Path> jars = resolveAppArtifact(appArtifact);
+                    final List<Path> jars = resolveAppArtifact(appArtifact, "jar");
                     if (jars == null || jars.isEmpty())
                         return null;
                     if (isCapsule(jars.get(0))) {
@@ -817,7 +817,7 @@ public class Capsule implements Runnable {
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             assert dependencyManager != null;
-            classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT))));
+            classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT), "jar")));
         }
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
@@ -1340,11 +1340,11 @@ public class Capsule implements Runnable {
         return dm.getLatestVersion(coords);
     }
 
-    private List<Path> resolveAppArtifact(String coords) {
+    private List<Path> resolveAppArtifact(String coords, String type) {
         if (coords == null)
             return null;
         final DependencyManager dm = (DependencyManager) dependencyManager;
-        return dm.resolveRoot(coords);
+        return dm.resolveRoot(coords, type);
     }
 
     private static Path getDependencyPath(Object dependencyManager, String p) {

@@ -14,7 +14,6 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class DependencyManagerTest {
-
     @Test
     public void testParseDependency() {
         Dependency dep;
@@ -68,7 +67,7 @@ public class DependencyManagerTest {
         assertEquals("log4j", exc(dep, 0).getArtifactId());
         assertEquals("javax.jms", exc(dep, 1).getGroupId());
         assertEquals("jms-api", exc(dep, 1).getArtifactId());
-        
+
         dep = dep("com.acme:foo(org.apache:log4j,javax.jms:jms-api)");
         assertEquals("com.acme", dep.getArtifact().getGroupId());
         assertEquals("foo", dep.getArtifact().getArtifactId());
@@ -85,6 +84,39 @@ public class DependencyManagerTest {
         assertEquals("foo", dep.getArtifact().getArtifactId());
         assertEquals("[0,)", dep.getArtifact().getVersion());
         assertEquals("jdk8", dep.getArtifact().getClassifier());
+        assertEquals(2, dep.getExclusions().size());
+        assertEquals("org.apache", exc(dep, 0).getGroupId());
+        assertEquals("log4j", exc(dep, 0).getArtifactId());
+        assertEquals("javax.jms", exc(dep, 1).getGroupId());
+        assertEquals("jms-api", exc(dep, 1).getArtifactId());
+
+        dep = dep("com.acme:foo:[1.2,1.3):jdk8(org.apache:log4j,javax.jms:jms-api)");
+        assertEquals("com.acme", dep.getArtifact().getGroupId());
+        assertEquals("foo", dep.getArtifact().getArtifactId());
+        assertEquals("[1.2,1.3)", dep.getArtifact().getVersion());
+        assertEquals("jdk8", dep.getArtifact().getClassifier());
+        assertEquals(2, dep.getExclusions().size());
+        assertEquals("org.apache", exc(dep, 0).getGroupId());
+        assertEquals("log4j", exc(dep, 0).getArtifactId());
+        assertEquals("javax.jms", exc(dep, 1).getGroupId());
+        assertEquals("jms-api", exc(dep, 1).getArtifactId());
+
+        dep = dep("com.acme:foo:(1,2)(org.apache:log4j,javax.jms:jms-api)");
+        assertEquals("com.acme", dep.getArtifact().getGroupId());
+        assertEquals("foo", dep.getArtifact().getArtifactId());
+        assertEquals("(1,2)", dep.getArtifact().getVersion());
+        assertEquals("", dep.getArtifact().getClassifier());
+        assertEquals(2, dep.getExclusions().size());
+        assertEquals("org.apache", exc(dep, 0).getGroupId());
+        assertEquals("log4j", exc(dep, 0).getArtifactId());
+        assertEquals("javax.jms", exc(dep, 1).getGroupId());
+        assertEquals("jms-api", exc(dep, 1).getArtifactId());
+
+        dep = dep("com.acme:foo(org.apache:log4j,javax.jms:jms-api)");
+        assertEquals("com.acme", dep.getArtifact().getGroupId());
+        assertEquals("foo", dep.getArtifact().getArtifactId());
+        assertEquals("[0,)", dep.getArtifact().getVersion());
+        assertEquals("", dep.getArtifact().getClassifier());
         assertEquals(2, dep.getExclusions().size());
         assertEquals("org.apache", exc(dep, 0).getGroupId());
         assertEquals("log4j", exc(dep, 0).getArtifactId());

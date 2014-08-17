@@ -49,19 +49,18 @@ import org.eclipse.aether.version.Version;
  * Uses Aether as the Maven dependency manager.
  */
 public class DependencyManagerImpl implements DependencyManager {
-    private static final String PROP_USER_HOME = "user.home";
-    private static final Map<String, String> WELL_KNOWN_REPOS = Collections.unmodifiableMap(new HashMap<String, String>() {
+    private final Map<String, String> WELL_KNOWN_REPOS = Collections.unmodifiableMap(new HashMap<String, String>() {
         {
             put("central", "https://repo.maven.apache.org/maven2/");
             put("central-http", "http://repo.maven.apache.org/maven2/");
             put("jcenter", "https://jcenter.bintray.com/");
             put("jcenter-http", "http://jcenter.bintray.com/");
-            put("local", "file:" + System.getProperty(PROP_USER_HOME) + "/.m2/repository/");
         }
     });
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
     private static final String PROP_LOG = "capsule.log";
+    private static final String LATEST_VERSION = "[0,)";
 
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
@@ -77,16 +76,23 @@ public class DependencyManagerImpl implements DependencyManager {
         this.forceRefresh = forceRefresh;
         this.offline = offline;
 
-        this.session = newRepositorySession(system, localRepoPath);
+        final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
+        this.session = newRepositorySession(system, localRepo);
 
-        final RepositoryPolicy policy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
+        final RepositoryPolicy releasePolicy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
+        final RepositoryPolicy snapshotPolicy = new RepositoryPolicy(false, null, null);
+
         this.repos = new ArrayList<RemoteRepository>();
 
         if (repos == null)
-            this.repos.add(newRemoteRepository("central", WELL_KNOWN_REPOS.get("central"), policy));
+            this.repos.add(newRemoteRepository("central", WELL_KNOWN_REPOS.get("central"), releasePolicy, snapshotPolicy));
         else {
-            for (String repo : repos)
-                this.repos.add(newRemoteRepository(repo, WELL_KNOWN_REPOS.containsKey(repo) ? WELL_KNOWN_REPOS.get(repo) : repo, policy));
+            for (String repo : repos) {
+                if ("local".equals(repo))
+                    this.repos.add(newLocalRepository(repo, "file:" + localRepoPath));
+                else
+                    this.repos.add(newRemoteRepository(repo, WELL_KNOWN_REPOS.containsKey(repo) ? WELL_KNOWN_REPOS.get(repo) : repo, releasePolicy, snapshotPolicy));
+            }
         }
     }
 
@@ -114,9 +120,8 @@ public class DependencyManagerImpl implements DependencyManager {
         return locator.getService(RepositorySystem.class);
     }
 
-    private RepositorySystemSession newRepositorySession(RepositorySystem system, Path localRepoPath) {
+    private RepositorySystemSession newRepositorySession(RepositorySystem system, LocalRepository localRepo) {
         final DefaultRepositorySystemSession s = MavenRepositorySystemUtils.newSession();
-        final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
 
         s.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, System.getProperty(PROP_CONNECT_TIMEOUT));
         s.setConfigProperty(ConfigurationProperties.REQUEST_TIMEOUT, System.getProperty(PROP_REQUEST_TIMEOUT));
@@ -164,8 +169,8 @@ public class DependencyManagerImpl implements DependencyManager {
     }
 
     @Override
-    public List<Path> resolveRoot(String coords) {
-        return resolve(collect().setRoot(toDependency(getLatestVersion0(coords))));
+    public List<Path> resolveRoot(String coords, String type) {
+        return resolve(collect().setRoot(toDependency(coords, type)));
     }
 
     private List<Path> resolve(CollectRequest collectRequest) {
@@ -205,8 +210,13 @@ public class DependencyManagerImpl implements DependencyManager {
         }
     }
 
-    private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy policy) {
+    private static RemoteRepository newLocalRepository(String name, String url) {
+        RepositoryPolicy policy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
         return new RemoteRepository.Builder(name, "default", url).setPolicy(policy).build();
+    }
+
+    private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy releasedPolicy, RepositoryPolicy snapshotPolicy) {
+        return new RemoteRepository.Builder(name, "default", url).setReleasePolicy(releasedPolicy).setSnapshotPolicy(snapshotPolicy).build();
     }
 
     // visible for testing
@@ -229,10 +239,10 @@ public class DependencyManagerImpl implements DependencyManager {
         if (artifact == null)
             return null;
         return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getVersion()
-                + (artifact.getClassifier() != null ? (":" + artifact.getClassifier()) : "");
+                + ((artifact.getClassifier() != null && !artifact.getClassifier().isEmpty()) ? (":" + artifact.getClassifier()) : "");
     }
 
-    private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
+    private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(]+):(?<artifactId>[^:\\(]+)(:(?<version>\\(?[^:\\(]*))?(:(?<classifier>[^:\\(]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
 
     static Artifact coordsToArtifact(final String depString, String type) {
         final Matcher m = PAT_DEPENDENCY.matcher(depString);
@@ -243,7 +253,7 @@ public class DependencyManagerImpl implements DependencyManager {
         final String artifactId = m.group("artifactId");
         String version = m.group("version");
         if (version == null || version.isEmpty())
-            version = "[0,)";
+            version = LATEST_VERSION;
         final String classifier = m.group("classifier");
         return new DefaultArtifact(groupId, artifactId, classifier, type, version);
     }
