@@ -42,6 +42,7 @@ import java.util.jar.Pack200;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import static co.paralleluniverse.capsule.ZipFS.newZipFileSystem;
+import static java.nio.charset.StandardCharsets.*;
 
 /**
  * A JAR file that can be easily modified.
@@ -49,7 +50,6 @@ import static co.paralleluniverse.capsule.ZipFS.newZipFileSystem;
  */
 public class Jar {
     private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
-    private static final Charset UTF8 = Charset.forName("UTF-8");
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
     private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
     private final Manifest manifest;
@@ -532,11 +532,13 @@ public class Jar {
 
     private void writePrefix(OutputStream os) throws IOException {
         if (jarPrefixStr != null) {
-            final Writer out = new OutputStreamWriter(os, UTF8);
+            final Writer out = new OutputStreamWriter(os, UTF_8);
             out.write(jarPrefixStr);
             out.flush();
-        } else if (jarPrefixFile != null) {
+        } else if (jarPrefixFile != null)
             Files.copy(jarPrefixFile, os);
+        if (jarPrefixStr != null || jarPrefixFile != null) {
+            os.write('\n');
             os.flush();
         }
     }

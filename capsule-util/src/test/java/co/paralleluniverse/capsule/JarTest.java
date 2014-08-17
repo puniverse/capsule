@@ -18,9 +18,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.Reader;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
+import static java.nio.charset.StandardCharsets.*;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,27 +37,24 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import org.junit.Before;
 
 /**
  *
  * @author pron
  */
 public class JarTest {
-    private static final Charset UTF8 = Charset.forName("UTF-8");
-
     @Test
     public void testCreateJar() throws Exception {
         ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
                 .setAttribute("Bar", "5678")
-                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
-        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
-        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF_8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF_8));
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
         assertEquals("5678", man2.getMainAttributes().getValue("Bar"));
@@ -79,8 +76,8 @@ public class JarTest {
                             put("y", "2");
                         }
                     })
-                    .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                    .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                    .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                    .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                     .write(jarPath);
 
             // update
@@ -90,14 +87,14 @@ public class JarTest {
                     .setAttribute("Bar", "8765")
                     .setListAttribute("List", addLast(addFirst(jar.getListAttribute("List"), "0"), "c"))
                     .setMapAttribute("Map", put(put(jar.getMapAttribute("Map", null), "z", "3"), "x", "0"))
-                    .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF8))
+                    .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF_8))
                     .write(new ByteArrayOutputStream());
 
             // test
             // printEntries(toInput(res));
-            assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
-            assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
-            assertEquals("And I am baz!\n", getEntryAsString(toInput(res), Paths.get("dir", "baz.txt"), UTF8));
+            assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF_8));
+            assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF_8));
+            assertEquals("And I am baz!\n", getEntryAsString(toInput(res), Paths.get("dir", "baz.txt"), UTF_8));
             Manifest man2 = toInput(res).getManifest();
             assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
             assertEquals("8765", man2.getMainAttributes().getValue("Bar"));
@@ -121,22 +118,22 @@ public class JarTest {
         ByteArrayOutputStream baos = new Jar()
                 .setAttribute("Foo", "1234")
                 .setAttribute("Bar", "5678")
-                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                 .write(new ByteArrayOutputStream());
 
         // update
         ByteArrayOutputStream res = new Jar(toInput(baos))
                 .setAttribute("Baz", "hi!")
                 .setAttribute("Bar", "8765")
-                .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF8))
+                .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF_8))
                 .write(new ByteArrayOutputStream());
 
         // test
         // printEntries(toInput(res));
-        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
-        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
-        assertEquals("And I am baz!\n", getEntryAsString(toInput(res), Paths.get("dir", "baz.txt"), UTF8));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF_8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF_8));
+        assertEquals("And I am baz!\n", getEntryAsString(toInput(res), Paths.get("dir", "baz.txt"), UTF_8));
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
         assertEquals("8765", man2.getMainAttributes().getValue("Bar"));
@@ -200,8 +197,8 @@ public class JarTest {
         FileSystem fs = Jimfs.newFileSystem();
         Path myZip = fs.getPath("zip1");
 
-        new Jar().addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+        new Jar().addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                 .write(myZip);
 
         ByteArrayOutputStream res = new Jar()
@@ -210,8 +207,8 @@ public class JarTest {
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
-        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
-        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF_8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF_8));
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
     }
@@ -221,8 +218,8 @@ public class JarTest {
         FileSystem fs = Jimfs.newFileSystem();
         Path myZip = fs.getPath("zip1");
 
-        new Jar().addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+        new Jar().addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                 .write(myZip);
 
         ByteArrayOutputStream res = new Jar()
@@ -231,8 +228,8 @@ public class JarTest {
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
-        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "foo.txt"), UTF8));
-        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "dir", "bar.txt"), UTF8));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "foo.txt"), UTF_8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "dir", "bar.txt"), UTF_8));
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
     }
@@ -240,8 +237,8 @@ public class JarTest {
     @Test
     public void testAddZip3() throws Exception {
         ByteArrayOutputStream myZip = new Jar()
-                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                 .write(new ByteArrayOutputStream());
 
         ByteArrayOutputStream res = new Jar()
@@ -250,8 +247,8 @@ public class JarTest {
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
-        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF8));
-        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF8));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF_8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF_8));
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
     }
@@ -259,8 +256,8 @@ public class JarTest {
     @Test
     public void testAddZip4() throws Exception {
         ByteArrayOutputStream myZip = new Jar()
-                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                 .write(new ByteArrayOutputStream());
 
         ByteArrayOutputStream res = new Jar()
@@ -269,8 +266,8 @@ public class JarTest {
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
-        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "foo.txt"), UTF8));
-        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "dir", "bar.txt"), UTF8));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "foo.txt"), UTF_8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("d1", "d2", "dir", "bar.txt"), UTF_8));
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
     }
@@ -304,14 +301,55 @@ public class JarTest {
                 .setAttribute("Foo", "1234")
                 .setAttribute("Bar", "5678")
                 .setReallyExecutable(true)
-                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF8))
-                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF8))
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                 .write(jarPath);
 
         // printEntries(toInput(res));
-        BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(jarPath), UTF8), 10); // Files.newBufferedReader(jarPath, UTF8);
+        BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(jarPath), UTF_8), 10); // Files.newBufferedReader(jarPath, UTF_8);
         String firstLine = reader.readLine();
         assertEquals("#!/bin/sh", firstLine);
+    }
+
+    @Test
+    public void testStringPrefix() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path jarPath = fs.getPath("test.jar");
+
+        new Jar()
+                .setAttribute("Foo", "1234")
+                .setAttribute("Bar", "5678")
+                .setJarPrefix("I'm the prefix!")
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
+                .write(jarPath);
+
+        // printEntries(toInput(res));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(jarPath), UTF_8), 10); // Files.newBufferedReader(jarPath, UTF_8);
+        String firstLine = reader.readLine();
+        assertEquals("I'm the prefix!", firstLine);
+    }
+
+    @Test
+    public void testFilePrefix() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path jarPath = fs.getPath("test.jar");
+
+        Path prefixPath = fs.getPath("prefix.dat");
+        Files.copy(toInputStream("I'm the prefix!", UTF_8), prefixPath);
+        
+        new Jar()
+                .setAttribute("Foo", "1234")
+                .setAttribute("Bar", "5678")
+                .setJarPrefix(prefixPath)
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
+                .write(jarPath);
+
+        // printEntries(toInput(res));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(jarPath), UTF_8), 10); // Files.newBufferedReader(jarPath, UTF_8);
+        String firstLine = reader.readLine();
+        assertEquals("I'm the prefix!", firstLine);
     }
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
@@ -374,6 +412,9 @@ public class JarTest {
         }
     }
 
+    private static InputStream toInputStream(String s, Charset charset) {
+        return new ByteArrayInputStream(s.getBytes(charset));
+    }
     private static Manifest getManifest(Path jar, boolean useZipfs) throws IOException {
         if (useZipfs) {
             try (FileSystem zipfs = ZipFS.newZipFileSystem(jar)) {
