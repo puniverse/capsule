@@ -34,8 +34,6 @@ public class DependencyManagerDriver {
         System.out.println("Latest: " + latestVersion);
         List<Path> ps = dm.resolveDependency(coords, "jar");
         System.out.println("Resolved: " + ps);
-        ps = dm.resolveRoot(coords, "jar");
-        System.out.println("Resolved root: " + ps);
         dm.printDependencyTree(Collections.singletonList(coords), "jar", System.out);
         System.out.println();
         System.out.println();

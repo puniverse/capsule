@@ -162,17 +162,12 @@ public class DependencyManagerImpl implements DependencyManager {
 
     @Override
     public List<Path> resolveDependencies(List<String> coords, String type) {
-        return resolve(new CollectRequest().setRepositories(repos).setDependencies(toDependencies(coords, type)));
+        return resolve(collect().setDependencies(toDependencies(coords, type)));
     }
 
     @Override
     public List<Path> resolveDependency(String coords, String type) {
-        return resolveDependencies(Collections.singletonList(coords), type);
-    }
-
-    @Override
-    public List<Path> resolveRoot(String coords, String type) {
-        return resolve(collect().setRoot(toDependency(coords, type)));
+        return resolve(collect().setRoot(toDependency(coords, type))); // resolveDependencies(Collections.singletonList(coords), type);
     }
 
     private List<Path> resolve(CollectRequest collectRequest) {

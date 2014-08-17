@@ -17,8 +17,6 @@ public interface DependencyManager {
 
     List<Path> resolveDependency(String coords, String type);
 
-    List<Path> resolveRoot(String coords, String type);
-
     String getLatestVersion(String coords, String type);
 
     void printDependencyTree(List<String> coords, String type, PrintStream out);

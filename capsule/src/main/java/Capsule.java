@@ -1344,7 +1344,7 @@ public class Capsule implements Runnable {
         if (coords == null)
             return null;
         final DependencyManager dm = (DependencyManager) dependencyManager;
-        return dm.resolveRoot(coords, type);
+        return dm.resolveDependency(coords, type);
     }
 
     private static Path getDependencyPath(Object dependencyManager, String p) {
