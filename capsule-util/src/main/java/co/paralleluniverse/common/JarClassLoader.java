@@ -81,7 +81,7 @@ public class JarClassLoader extends FlexibleClassLoader {
     @Override
     protected Enumeration<URL> findResources1(String name) {
         final URL url = findResource1(name);
-        return (Enumeration<URL>)Collections.enumeration(url != null ? Collections.singleton(url) : Collections.emptySet());
+        return (Enumeration<URL>) Collections.enumeration(url != null ? Collections.singleton(url) : Collections.emptySet());
     }
 
     private boolean hasResource(String path) {
@@ -184,8 +184,11 @@ public class JarClassLoader extends FlexibleClassLoader {
                 state++;
                 if (state == ZIP_HEADER.length)
                     break;
-            } else
+            } else {
                 state = 0;
+                if (b == ZIP_HEADER[state]) // consecutive '\n'
+                    state++;
+            }
         }
         is.reset();
         return is;

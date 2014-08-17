@@ -1603,8 +1603,11 @@ public class Capsule implements Runnable {
                 state++;
                 if (state == ZIP_HEADER.length)
                     break;
-            } else
+            } else {
                 state = 0;
+                if (b == ZIP_HEADER[state]) // consecutive '\n'
+                    state++;
+            }
         }
         is.reset();
         return is;

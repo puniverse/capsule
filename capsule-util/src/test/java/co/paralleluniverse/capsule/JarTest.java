@@ -20,7 +20,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
-import static java.nio.charset.StandardCharsets.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
