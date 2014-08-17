@@ -57,7 +57,8 @@ public class Jar {
     private final JarInputStream jis;
     private JarOutputStream jos;
     private Pack200.Packer packer;
-    private boolean reallyExecutable;
+    private String jarPrefixStr;
+    private Path jarPrefixFile;
     private boolean sealed;
 
     /**
@@ -479,10 +480,39 @@ public class Jar {
      * @return {@code this}
      */
     public Jar setReallyExecutable(boolean value) {
+        setJarPrefix(value ? "#!/bin/sh\n\nexec java -jar $0 \"$@\"\n" : null);
+        return this;
+    }
+
+    /**
+     * Sets a string that will be prepended to the JAR file's data.
+     *
+     * @param value the prefix, or {@code null} for none.
+     * @return {@code this}
+     */
+    public Jar setJarPrefix(String value) {
         verifyNotSealed();
         if (jos != null)
             throw new IllegalStateException("Really executable cannot be set after entries are added.");
-        this.reallyExecutable = value;
+        if (value != null && jarPrefixFile != null)
+            throw new IllegalStateException("A prefix has already been set (" + jarPrefixFile + ")");
+        this.jarPrefixStr = value;
+        return this;
+    }
+
+    /**
+     * Sets a file whose contents will be prepended to the JAR file's data.
+     *
+     * @param file the prefix file, or {@code null} for none.
+     * @return {@code this}
+     */
+    public Jar setJarPrefix(Path file) {
+        verifyNotSealed();
+        if (jos != null)
+            throw new IllegalStateException("Really executable cannot be set after entries are added.");
+        if (file != null && jarPrefixStr != null)
+            throw new IllegalStateException("A prefix has already been set (" + jarPrefixStr + ")");
+        this.jarPrefixFile = file;
         return this;
     }
 
@@ -490,11 +520,7 @@ public class Jar {
         verifyNotSealed();
         if (jos != null)
             return;
-        if (reallyExecutable) {
-            final Writer out = new OutputStreamWriter(baos, UTF8);
-            out.write("#!/bin/sh\n\nexec java -jar $0 \"$@\"\n");
-            out.flush();
-        }
+        writePrefix(baos);
         if (getAttribute(ATTR_MANIFEST_VERSION) == null)
             setAttribute(ATTR_MANIFEST_VERSION, "1.0");
         jos = new JarOutputStream(baos, manifest);
@@ -502,6 +528,17 @@ public class Jar {
             addEntries((Path) null, jar);
         else if (jis != null)
             addEntries(null, jis);
+    }
+
+    private void writePrefix(OutputStream os) throws IOException {
+        if (jarPrefixStr != null) {
+            final Writer out = new OutputStreamWriter(os, UTF8);
+            out.write(jarPrefixStr);
+            out.flush();
+        } else if (jarPrefixFile != null) {
+            Files.copy(jarPrefixFile, os);
+            os.flush();
+        }
     }
 
     /**
