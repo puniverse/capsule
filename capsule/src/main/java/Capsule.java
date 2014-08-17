@@ -689,10 +689,7 @@ public class Capsule implements Runnable {
                 for (Path f : ds) {
                     if (lockFile.equals(f))
                         continue;
-                    if (Files.isDirectory(f))
-                        delete(f);
-                    else
-                        Files.delete(f);
+                    delete(f);
                 }
             }
         } catch (IOException e) {
@@ -1658,17 +1655,15 @@ public class Capsule implements Runnable {
     }
 
     // visible for testing
-    static void delete(Path dir) throws IOException {
+    static void delete(Path file) throws IOException {
         // not using FileWalker so as not to create another class
-        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
-            for (Path f : ds) {
-                if (Files.isDirectory(f))
+        if (Files.isDirectory(file)) {
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(file)) {
+                for (Path f : ds)
                     delete(f);
-                else
-                    Files.delete(f);
             }
         }
-        Files.delete(dir);
+        Files.delete(file);
     }
 
     private static void ensureExecutable(Path file) {
