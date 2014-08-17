@@ -91,7 +91,10 @@ public class Capsule implements Runnable {
     private static final String PROP_JAVA_SECURITY_POLICY = "java.security.policy";
     private static final String PROP_JAVA_SECURITY_MANAGER = "java.security.manager";
 
+    private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
+    private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
     private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
+    private static final String ENV_CAPSULE_LOCAL_REPO = "CAPSULE_LOCAL_REPO";
 
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
@@ -135,9 +138,6 @@ public class Capsule implements Runnable {
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
     private static final String VAR_JAVA_HOME = "JAVA_HOME";
-
-    private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
-    private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
 
     private static final String PROP_CAPSULE_JAR = "capsule.jar";
     private static final String PROP_CAPSULE_DIR = "capsule.dir";
@@ -1291,14 +1291,9 @@ public class Capsule implements Runnable {
 
     private Object createDependencyManager(List<String> repositories) {
         try {
-            final Path depsCache = cacheDir.resolve(DEPS_CACHE_NAME);
-
             final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
 
-            final String local = expandCommandLinePath(System.getProperty(PROP_USE_LOCAL_REPO));
-            Path localRepo = depsCache;
-            if (local != null)
-                localRepo = !local.isEmpty() ? Paths.get(local) : DEFAULT_LOCAL_MAVEN;
+            final Path localRepo = getLocalRepo();
             debug("Local repo: " + localRepo);
 
             final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
@@ -1311,6 +1306,17 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Jar " + jarFile
                     + " specifies dependencies, while the necessary dependency management classes are not found in the jar");
         }
+    }
+
+    private Path getLocalRepo() {
+        String local = expandCommandLinePath(System.getProperty(PROP_USE_LOCAL_REPO));
+        if (local == null)
+            local = emptyToNull(System.getenv(ENV_CAPSULE_LOCAL_REPO));
+
+        Path localRepo = cacheDir.resolve(DEPS_CACHE_NAME);
+        if (local != null)
+            localRepo = !local.isEmpty() ? Paths.get(local) : DEFAULT_LOCAL_MAVEN;
+        return localRepo;
     }
 
     private void printDependencyTree(String root, String type) {
