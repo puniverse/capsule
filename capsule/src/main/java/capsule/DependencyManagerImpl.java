@@ -54,8 +54,8 @@ import org.eclipse.aether.version.Version;
 public class DependencyManagerImpl implements DependencyManager {
     private final Map<String, String> WELL_KNOWN_REPOS = unmodifiableMap(new HashMap<String, String>() {
         {
-            put("central", "https://repo.maven.apache.org/maven2/");
-            put("central-http", "http://repo.maven.apache.org/maven2/");
+            put("central", "https://repo1.maven.org/maven2/");
+            put("central-http", "http://repo1.maven.org/maven2/");
             put("jcenter", "https://jcenter.bintray.com/");
             put("jcenter-http", "http://jcenter.bintray.com/");
             put("local", "file:" + DEFAULT_LOCAL_MAVEN);
