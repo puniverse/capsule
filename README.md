@@ -256,11 +256,11 @@ By default, Capsule will look for dependencies on Maven Central. If other reposi
 
 Instead of specifying explicit URLs, the following well-known repository names can be listed in the `Repositories` attribute:
 
-* central - Maven central, HTTPS
-* central-http - Maven central, HTTP
-* jcenter - jCenter, HTTPS
-* jcenter-http - jCenter, HTTP
-* local - Default local Maven repository (`userdir/.m2/repository`)
+* `central` - Maven central, HTTPS
+* `central-http` - Maven central, HTTP
+* `jcenter` - jCenter, HTTPS
+* `jcenter-http` - jCenter, HTTP
+* `local` - Default local Maven repository (`userdir/.m2/repository`). You should only use local repositories in tests.
 
 The dependencies, (if not read from the POM), are listed in the `Dependencies` attribute, as a space-separated list of Maven coordinates in the Gradle format, i.e. `groupId:artifactId:version`. Exclusions can be given as a comma separated list within parentheses, immediately following the main artifact, of `groupId:artifactId` coordinates, where the artifact can be the wildcard `*`. For example:
 
