@@ -8,19 +8,20 @@
  */
 package capsule;
 
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.List;
 
 public interface DependencyManager {
-    void printDependencyTree(List<String> coords, String type);
-
-    void printDependencyTree(String coords);
-
     List<Path> resolveDependencies(List<String> coords, String type);
 
     List<Path> resolveDependency(String coords, String type);
 
     List<Path> resolveRoot(String coords, String type);
-    
-    String getLatestVersion(String coords);
+
+    String getLatestVersion(String coords, String type);
+
+    void printDependencyTree(List<String> coords, String type, PrintStream out);
+
+    void printDependencyTree(String coords, String type, PrintStream out);
 }

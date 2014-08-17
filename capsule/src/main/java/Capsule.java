@@ -342,7 +342,7 @@ public class Capsule implements Runnable {
             final String appArtifact = isEmptyCapsule() ? getCommandLineArtifact(args) : getAttribute(ATTR_APP_ARTIFACT);
             if (appArtifact == null)
                 throw new IllegalStateException("capsule " + jarFile + " has nothing to run");
-            printDependencyTree(appArtifact);
+            printDependencyTree(appArtifact, "jar");
         } else
             printDependencyTree(getDependencies(), "jar");
 
@@ -1310,16 +1310,16 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void printDependencyTree(String root) {
+    private void printDependencyTree(String root, String type) {
         final DependencyManager dm = (DependencyManager) dependencyManager;
-        dm.printDependencyTree(root);
+        dm.printDependencyTree(root, type, System.out);
     }
 
     private void printDependencyTree(List<String> dependencies, String type) {
         if (dependencies == null)
             return;
         final DependencyManager dm = (DependencyManager) dependencyManager;
-        dm.printDependencyTree(dependencies, type);
+        dm.printDependencyTree(dependencies, type, System.out);
     }
 
     private List<Path> resolveDependencies(List<String> dependencies, String type) {
@@ -1330,14 +1330,14 @@ public class Capsule implements Runnable {
     }
 
     private String getAppArtifactSpecificVersion(String appArtifact) {
-        return hasSpecificVersion(appArtifact) ? appArtifact : getAppArtifactLatestVersion(appArtifact);
+        return getArtifactLatestVersion(appArtifact, "jar");
     }
 
-    private String getAppArtifactLatestVersion(String coords) {
+    private String getArtifactLatestVersion(String coords, String type) {
         if (coords == null)
             return null;
         final DependencyManager dm = (DependencyManager) dependencyManager;
-        return dm.getLatestVersion(coords);
+        return dm.getLatestVersion(coords, type);
     }
 
     private List<Path> resolveAppArtifact(String coords, String type) {
@@ -1410,13 +1410,6 @@ public class Capsule implements Runnable {
     /////////// Dependency Utils ///////////////////////////////////
     private static boolean isDependency(String lib) {
         return lib.contains(":");
-    }
-
-    private static boolean hasSpecificVersion(String dep) {
-        String[] coords = dep.split(":");
-        if (coords.length < 3)
-            return false;
-        return Character.isDigit(coords[2].charAt(0));
     }
 
     private String dependencyToLocalJar(boolean withGroupId, String p) {

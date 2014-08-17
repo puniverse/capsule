@@ -10,6 +10,7 @@ package capsule;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -20,19 +21,23 @@ public class DependencyManagerDriver {
 
     public static void main(String[] args) {
         final DependencyManager dm = new DependencyManagerImpl(DEFAULT_LOCAL_MAVEN, null, true, false);
-        final String coords = "co.paralleluniverse:quasar-core:(0.3.0,0.5.0-SNAPSHOT)";
 
-        resolve(dm, coords);
+        resolve(dm, "co.paralleluniverse:quasar-core:LATEST");
+        resolve(dm, "co.paralleluniverse:quasar-core:(0.3.0,0.5.0-SNAPSHOT)");
+        resolve(dm, "co.paralleluniverse:quasar-core:0.5.0");
     }
 
     static void resolve(DependencyManager dm, String coords) {
         System.out.println("==================");
         System.out.println("Coords: " + coords);
-        String latestVersion = dm.getLatestVersion(coords);
+        String latestVersion = dm.getLatestVersion(coords, "jar");
         System.out.println("Latest: " + latestVersion);
         List<Path> ps = dm.resolveDependency(coords, "jar");
         System.out.println("Resolved: " + ps);
         ps = dm.resolveRoot(coords, "jar");
         System.out.println("Resolved root: " + ps);
+        dm.printDependencyTree(Collections.singletonList(coords), "jar", System.out);
+        System.out.println();
+        System.out.println();
     }
 }

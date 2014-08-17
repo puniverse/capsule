@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
+import org.eclipse.aether.RepositoryException;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.artifact.Artifact;
@@ -39,8 +40,9 @@ import org.eclipse.aether.resolution.ArtifactResult;
 import org.eclipse.aether.resolution.DependencyRequest;
 import org.eclipse.aether.resolution.DependencyResolutionException;
 import org.eclipse.aether.resolution.VersionRangeRequest;
-import org.eclipse.aether.resolution.VersionRangeResolutionException;
 import org.eclipse.aether.resolution.VersionRangeResult;
+import org.eclipse.aether.resolution.VersionRequest;
+import org.eclipse.aether.resolution.VersionResult;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
 import org.eclipse.aether.version.Version;
@@ -140,19 +142,19 @@ public class DependencyManagerImpl implements DependencyManager {
     }
 
     @Override
-    public void printDependencyTree(List<String> coords, String type) {
-        printDependencyTree(collect().setDependencies(toDependencies(coords, type)));
+    public void printDependencyTree(List<String> coords, String type, PrintStream out) {
+        printDependencyTree(collect().setDependencies(toDependencies(coords, type)), out);
     }
 
     @Override
-    public void printDependencyTree(String coords) {
-        printDependencyTree(collect().setRoot(toDependency(getLatestVersion0(coords))));
+    public void printDependencyTree(String coords, String type, PrintStream out) {
+        printDependencyTree(collect().setRoot(toDependency(coords, type)), out);
     }
 
-    private void printDependencyTree(CollectRequest collectRequest) {
+    private void printDependencyTree(CollectRequest collectRequest, PrintStream out) {
         try {
             CollectResult collectResult = system.collectDependencies(session, collectRequest);
-            collectResult.getRoot().accept(new ConsoleDependencyGraphDumper(System.out));
+            collectResult.getRoot().accept(new ConsoleDependencyGraphDumper(out));
         } catch (DependencyCollectionException e) {
             throw new RuntimeException(e);
         }
@@ -192,22 +194,34 @@ public class DependencyManagerImpl implements DependencyManager {
     }
 
     @Override
-    public String getLatestVersion(String coords) {
-        return artifactToCoords(getLatestVersion0(coords));
+    public String getLatestVersion(String coords, String type) {
+        return artifactToCoords(getLatestVersion0(coords, type));
     }
 
-    private Artifact getLatestVersion0(String coords) {
+    private Artifact getLatestVersion0(String coords, String type) {
         try {
-            final Artifact artifact = coordsToArtifact(coords, "jar");
-            final VersionRangeRequest versionRangeRequest = new VersionRangeRequest().setRepositories(repos).setArtifact(artifact);
-            final VersionRangeResult versionRangeResult = system.resolveVersionRange(session, versionRangeRequest);
-            final Version highestVersion = versionRangeResult.getHighestVersion();
-            if (highestVersion == null)
+            final Artifact artifact = coordsToArtifact(coords, type);
+            final String version;
+            if (isVersionRange(artifact.getVersion())) {
+                final VersionRangeRequest request = new VersionRangeRequest().setRepositories(repos).setArtifact(artifact);
+                final VersionRangeResult result = system.resolveVersionRange(session, request);
+                final Version highestVersion = result.getHighestVersion();
+                version = highestVersion != null ? highestVersion.toString() : null;
+            } else {
+                final VersionRequest request = new VersionRequest().setRepositories(repos).setArtifact(artifact);
+                final VersionResult result = system.resolveVersion(session, request);
+                version = result.getVersion();
+            }
+            if (version == null)
                 throw new RuntimeException("Could not find any version of artifact " + coords + " (looking for: " + artifact + ")");
-            return artifact.setVersion(highestVersion.toString());
-        } catch (VersionRangeResolutionException e) {
+            return artifact.setVersion(version);
+        } catch (RepositoryException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static boolean isVersionRange(String version) {
+        return version.startsWith("(") || version.startsWith("[");
     }
 
     private static RemoteRepository newLocalRepository(String name, String url) {

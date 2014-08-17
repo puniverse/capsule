@@ -605,7 +605,7 @@ public class CapsuleTest {
 
         DependencyManager dm = mock(DependencyManager.class);
         when(dm.resolveRoot("com.acme:foo", "jar")).thenReturn(list(fooPath));
-        when(dm.getLatestVersion("com.acme:foo")).thenReturn("com.acme.foo:1.0");
+        when(dm.getLatestVersion("com.acme:foo", "jar")).thenReturn("com.acme.foo:1.0");
 
         String[] args = strings("com.acme:foo", "hi", "there");
         List<String> cmdLine = list();
