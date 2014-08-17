@@ -155,6 +155,8 @@ public class Capsule implements Runnable {
     private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
+    private static final Path WINDOWS_PROGRAM_FILES_1 = Paths.get("C:", "Program Files");
+    private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
     private static final Object DEFAULT = new Object();
     //</editor-fold>
@@ -205,7 +207,7 @@ public class Capsule implements Runnable {
     private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final String LOG_PREFIX = "CAPSULE: ";
-    
+
     private final Path jarFile;      // never null
     private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
@@ -1683,11 +1685,28 @@ public class Capsule implements Runnable {
         Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
         while (dir != null) {
             Map<String, Path> homes = getJavaHomes(dir, jdk);
-            if (homes != null)
+            if (homes != null) {
+                if (isWindows())
+                    homes = windowsJavaHomesHeuristics(dir, jdk, homes);
                 return homes;
+            }
             dir = dir.getParent();
         }
         return null;
+    }
+
+    private Map<String, Path> windowsJavaHomesHeuristics(Path dir, boolean jdk, Map<String, Path> homes) {
+        Path dir2 = null;
+        if (dir.startsWith(WINDOWS_PROGRAM_FILES_1))
+            dir2 = WINDOWS_PROGRAM_FILES_2.resolve(WINDOWS_PROGRAM_FILES_1.relativize(dir));
+        else if (dir.startsWith(WINDOWS_PROGRAM_FILES_2))
+            dir2 = WINDOWS_PROGRAM_FILES_1.resolve(WINDOWS_PROGRAM_FILES_2.relativize(dir));
+        if (dir2 != null) {
+            Map<String, Path> allHomes = new HashMap<>(homes);
+            allHomes.putAll(getJavaHomes(dir2, jdk));
+            return allHomes;
+        } else
+            return homes;
     }
 
     private Map<String, Path> getJavaHomes(Path dir, boolean jdk) {
@@ -1699,7 +1718,7 @@ public class Capsule implements Runnable {
                 String dirName = f.getFileName().toString();
                 String ver = isJavaDir(dirName);
                 if (ver != null && (!jdk || isJDK(dirName))) {
-                    final Path home = searchJavaHomeInDir(f);
+                    final Path home = searchJavaHomeInDir(f).toAbsolutePath();
                     if (home != null) {
                         if (parseJavaVersion(ver)[3] == 0)
                             ver = getActualJavaVersion(home.toString());
@@ -2102,7 +2121,7 @@ public class Capsule implements Runnable {
         }
         return false;
     }
-    
+
     private static String propertyOrEnv(String propName, String envVar) {
         String val = System.getProperty(propName);
         if (val == null)
