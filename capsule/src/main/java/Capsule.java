@@ -295,12 +295,8 @@ public class Capsule implements Runnable {
         }
     }
 
-    private String getJarPath() {
-        return jarFile.toAbsolutePath().getParent().toString();
-    }
-
     private String toJarUrl(String relPath) {
-        return "jar:file:" + getJarPath() + "!/" + relPath;
+        return "jar:file:" + jarFile.toAbsolutePath() + "!/" + relPath;
     }
 
     private JarInputStream openJarInputStream() throws IOException {
@@ -458,7 +454,7 @@ public class Capsule implements Runnable {
         }
         if (appCache != null)
             env.put(VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-        env.put(VAR_CAPSULE_JAR, getJarPath());
+        env.put(VAR_CAPSULE_JAR, jarFile.toString());
     }
     //</editor-fold>
 
@@ -938,7 +934,7 @@ public class Capsule implements Runnable {
         // Capsule properties
         if (appCache != null)
             systemProperties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-        systemProperties.put(PROP_CAPSULE_JAR, getJarPath());
+        systemProperties.put(PROP_CAPSULE_JAR, jarFile.toString());
         systemProperties.put(PROP_CAPSULE_APP, appId);
 
         return systemProperties;
@@ -1921,7 +1917,7 @@ public class Capsule implements Runnable {
                     + ATTR_EXTRACT + " attribute is set to false");
 
         str = expandCommandLinePath(str);
-        str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, getJarPath());
+        str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, jarFile.toString());
         str = str.replaceAll("\\$" + VAR_JAVA_HOME, javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME));
         str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;

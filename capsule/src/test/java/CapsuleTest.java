@@ -141,8 +141,9 @@ public class CapsuleTest {
 
         assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
         assertEquals(appCache.toString(), getProperty(pb, "capsule.dir"));
-//        assertTrue(pb.command().contains("-Dcapsule.app=com.acme.Foo"));
-//        assertTrue(pb.command().contains("-Dcapsule.dir=" + appCache));
+        assertEquals(getPath("capsule.jar").toString(), getProperty(pb, "capsule.jar"));
+        assertEquals(appCache.toString(), getEnv(pb, "CAPSULE_DIR"));
+        assertEquals(getPath("capsule.jar").toString(), getEnv(pb, "CAPSULE_JAR"));
 
         assertEquals(list("com.acme.Foo", "hi", "there"), getMainAndArgs(pb));
 
@@ -705,6 +706,10 @@ public class CapsuleTest {
 
     private String getProperty(ProcessBuilder pb, String prop) {
         return getOption(pb, "-D" + prop, '=');
+    }
+
+    private String getEnv(ProcessBuilder pb, String envVar) {
+        return pb.environment().get(envVar);
     }
 
     private String getOption(ProcessBuilder pb, String opt) {
