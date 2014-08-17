@@ -684,8 +684,17 @@ public class Capsule implements Runnable {
     private void resetAppCache() {
         try {
             debug("Creating cache for " + jarFile + " in " + appCache.toAbsolutePath());
-            delete(appCache);
-            Files.createDirectory(appCache);
+            final Path lockFile = appCache.resolve(LOCK_FILE_NAME);
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(appCache)) {
+                for (Path f : ds) {
+                    if (lockFile.equals(f))
+                        continue;
+                    if (Files.isDirectory(f))
+                        delete(f);
+                    else
+                        Files.delete(f);
+                }
+            }
         } catch (IOException e) {
             throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
