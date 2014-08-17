@@ -455,6 +455,9 @@ public class Capsule implements Runnable {
                     env.put(var, value != null ? value : "");
             }
         }
+        if (appCache != null)
+            env.put(VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+        env.put(VAR_CAPSULE_JAR, getJarPath());
     }
     //</editor-fold>
 
