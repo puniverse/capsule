@@ -372,17 +372,17 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 
 ### System Properties
 
-* `capsule.mode`: if set, the capsule will be launched in the specified mode (see *Capsule Configuration and Modes*)
 * `capsule.version`: if set, the capsule will print the application ID, its Capsule version and quit without launching the app
 * `capsule.tree`: if set, the capsule will print the app's dependency tree, and then quit without launching the app
 * `capsule.jvms`: if set, the capsule will print the JVM installations it can locate with their versions, and then quit without launching the app
+* `capsule.resolve`: all external dependencies, if any, will be downloaded (if not cached already), and/or the capsule will be extracted if necessary, but the application will not be launched
+* `capsule.mode`: if set, the capsule will be launched in the specified mode (see *Capsule Configuration and Modes*)
 * `capsule.log`: if set to `verbose`/`debug`, Capsule will print what it's doing
 * `capsule.reset`: if set, forces re-extraction of the capsule, where applies, and/or re-downloading of SNAPSHOT dependencies
 * `capsule.app.id`: sets the value of the application ID (see user guide)
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
 * `capsule.offline`: if defined (without a value) or set to `true`, Capsule will not attempt to contact online repositories for dependencies
 * `capsule.local`: the path for the local Maven repository; defaults to CAPSULE_CACHE/deps
-* `capsule.resolve`: all external dependencies, if any, will be downloaded (if not cached already), and/or the capsule will be extracted if necessary, but the application will not be launched
 * `capsule.connect.timeout`: The maximum amount of time (in milliseconds) to wait for a successful connection to a remote repository. Non-positive values indicate no timeout.
 * `capsule.request.timeout`: The maximum amount of time (in milliseconds) to wait for remaining data to arrive from a remote repository. Note that this timeout does not restrict the overall duration of a request, it only restricts the duration of inactivity between consecutive data packets. Non-positive values indicate no timeout.
 
