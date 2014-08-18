@@ -52,7 +52,7 @@ public class CapsuleTest {
     public void tearDown() throws Exception {
         fs.close();
     }
-    
+
     @Test
     public void testParseJavaVersion() {
         int[] ver;
@@ -101,22 +101,22 @@ public class CapsuleTest {
 
     @Test
     public void testDelete() throws Exception {
-        Files.createDirectories(fs.getPath("a", "b", "c"));
-        Files.createDirectories(fs.getPath("a", "b1"));
-        Files.createDirectories(fs.getPath("a", "b", "c1"));
-        Files.createFile(fs.getPath("a", "x"));
-        Files.createFile(fs.getPath("a", "b", "x"));
-        Files.createFile(fs.getPath("a", "b1", "x"));
-        Files.createFile(fs.getPath("a", "b", "c", "x"));
-        Files.createFile(fs.getPath("a", "b", "c1", "x"));
+        Files.createDirectories(path("a", "b", "c"));
+        Files.createDirectories(path("a", "b1"));
+        Files.createDirectories(path("a", "b", "c1"));
+        Files.createFile(path("a", "x"));
+        Files.createFile(path("a", "b", "x"));
+        Files.createFile(path("a", "b1", "x"));
+        Files.createFile(path("a", "b", "c", "x"));
+        Files.createFile(path("a", "b", "c1", "x"));
 
-        assertTrue(Files.exists(fs.getPath("a")));
-        assertTrue(Files.isDirectory(fs.getPath("a")));
+        assertTrue(Files.exists(path("a")));
+        assertTrue(Files.isDirectory(path("a")));
 
-        //Files.delete(fs.getPath("a"));
-        Capsule.delete(fs.getPath("a"));
+        //Files.delete(path("a"));
+        Capsule.delete(path("a"));
 
-        assertTrue(!Files.exists(fs.getPath("a")));
+        assertTrue(!Files.exists(path("a")));
     }
 
     @Test
@@ -140,10 +140,10 @@ public class CapsuleTest {
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
-        assertEquals(appCache.toString(), getProperty(pb, "capsule.dir"));
-        assertEquals(getPath("capsule.jar").toString(), getProperty(pb, "capsule.jar"));
-        assertEquals(appCache.toString(), getEnv(pb, "CAPSULE_DIR"));
-        assertEquals(getPath("capsule.jar").toString(), getEnv(pb, "CAPSULE_JAR"));
+        assertEquals(appCache, path(getProperty(pb, "capsule.dir")));
+        assertEquals(path("capsule.jar"), path(getProperty(pb, "capsule.jar")));
+        assertEquals(appCache, path(getEnv(pb, "CAPSULE_DIR")));
+        assertEquals(path("capsule.jar"), path(getEnv(pb, "CAPSULE_JAR")));
 
         assertEquals(list("com.acme.Foo", "hi", "there"), getMainAndArgs(pb));
 
@@ -160,7 +160,7 @@ public class CapsuleTest {
         assertTrue(!Files.isDirectory(appCache.resolve("META-INF")));
         assertTrue(!Files.isRegularFile(appCache.resolve("META-INF").resolve("x.txt")));
 
-        ASSERT.that(getClassPath(pb)).has().item(getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(path("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache);
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         ASSERT.that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
@@ -228,11 +228,114 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCache.resolve("lib")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib").resolve("a.jar")));
 
-        ASSERT.that(getClassPath(pb)).has().item(getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(path("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache);
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("b.jar"));
+    }
+
+    @Test
+    public void testNatives1() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Library-Path-A", list("lib/a.so"))
+                .setListAttribute("Library-Path-P", list("lib/b.so"))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.so", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.so", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
+
+        String[] args = strings("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+        int len = paths(getProperty(pb, "java.library.path")).size();
+        ASSERT.that(paths(getProperty(pb, "java.library.path")).get(0)).isEqualTo(appCache.resolve("lib").resolve("b.so"));
+        ASSERT.that(paths(getProperty(pb, "java.library.path")).get(len - 2)).isEqualTo(appCache.resolve("lib").resolve("a.so"));
+        ASSERT.that(paths(getProperty(pb, "java.library.path")).get(len - 1)).isEqualTo(appCache);
+    }
+
+    @Test
+    public void testNatives2() throws Exception {
+        final String orig = System.getProperty("java.library.path");
+        try {
+            Jar jar = newCapsuleJar()
+                    .setAttribute("Application-Class", "com.acme.Foo")
+                    .setListAttribute("Library-Path-A", list("lib/a.so"))
+                    .setListAttribute("Library-Path-P", list("lib/b.so"))
+                    .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                    .addEntry("lib/a.so", Jar.toInputStream("", UTF_8))
+                    .addEntry("lib/b.so", Jar.toInputStream("", UTF_8))
+                    .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
+                    .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
+
+            String[] args = strings("hi", "there");
+            System.setProperty("java.library.path", "/foo/bar");
+            List<String> cmdLine = list();
+
+            Capsule capsule = newCapsule(jar, null);
+            ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+            Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+            ASSERT.that(paths(getProperty(pb, "java.library.path"))).isEqualTo(list(
+                    appCache.resolve("lib").resolve("b.so"),
+                    path("/foo", "bar"),
+                    appCache.resolve("lib").resolve("a.so"),
+                    appCache));
+        } finally {
+            System.setProperty("java.library.path", orig);
+        }
+    }
+
+    @Test
+    public void testNativesWithDeps() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Native-Dependencies-Linux", list("com.acme:baz-linux:3.4,libbaz.so"))
+                .setListAttribute("Native-Dependencies-Windows", list("com.acme:baz-win:3.4,libbaz.dll"))
+                .setListAttribute("Native-Dependencies-Mac", list("com.acme:baz-macos:3.4,libbaz.dylib"))
+                .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/a.so", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/b.so", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
+
+        DependencyManager dm = mock(DependencyManager.class);
+        Files.createDirectories(cache.resolve("deps").resolve("com.acme").resolve("baz"));
+        Path bazLinuxPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-linux-3.4.so");
+        Files.createFile(bazLinuxPath);
+        when(dm.resolveDependencies(list("com.acme:baz-linux:3.4"), "so")).thenReturn(list(bazLinuxPath));
+        Path bazWindowsPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-win-3.4.dll");
+        Files.createFile(bazWindowsPath);
+        when(dm.resolveDependencies(list("com.acme:baz-win:3.4"), "dll")).thenReturn(list(bazWindowsPath));
+        Path bazMacPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-macos-3.4.dylib");
+        Files.createFile(bazMacPath);
+        when(dm.resolveDependencies(list("com.acme:baz-macos:3.4"), "dylib")).thenReturn(list(bazMacPath));
+
+        String[] args = strings("hi", "there");
+        System.setProperty("java.library.path", "/foo/bar");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, dm);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+        ASSERT.that(paths(getProperty(pb, "java.library.path"))).has().item(appCache);
+
+        if (Capsule.isUnix())
+            assertTrue(Files.isRegularFile(appCache.resolve("libbaz.so")));
+        else if (Capsule.isWindows())
+            assertTrue(Files.isRegularFile(appCache.resolve("libbaz.dll")));
+        else if (Capsule.isMac())
+            assertTrue(Files.isRegularFile(appCache.resolve("libbaz.dylib")));
     }
 
     @Test
@@ -305,7 +408,7 @@ public class CapsuleTest {
         DependencyManager dm = mock(DependencyManager.class);
         Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
         when(dm.resolveDependency("com.acme:bar:1.2", "jar")).thenReturn(list(barPath));
-        Path bazPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("bar-3.4.jar");
+        Path bazPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-3.4.jar");
         when(dm.resolveDependency("com.acme:baz:3.4", "jar")).thenReturn(list(bazPath));
 
         String[] args = strings("hi", "there");
@@ -432,7 +535,7 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCache.resolve("lib")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib").resolve("a.jar")));
 
-        ASSERT.that(getClassPath(pb)).has().noneOf(getPath("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().noneOf(path("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().allOf(
                 appCache,
                 appCache.resolve("foo.jar"),
@@ -548,7 +651,7 @@ public class CapsuleTest {
         String[] args = strings("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
 
-        final Path capsuleJar = getPath("capsule.jar");
+        final Path capsuleJar = path("capsule.jar");
         jar.write(capsuleJar);
         Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
 
@@ -567,7 +670,7 @@ public class CapsuleTest {
         String[] args = strings("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
 
-        final Path capsuleJar = getPath("capsule.jar");
+        final Path capsuleJar = path("capsule.jar");
         jar.write(capsuleJar);
         Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
 
@@ -649,7 +752,7 @@ public class CapsuleTest {
     // may be called once per test (always writes jar into /capsule.jar)
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
         try {
-            final Path capsuleJar = getPath("capsule.jar");
+            final Path capsuleJar = path("capsule.jar");
             jar.write(capsuleJar);
             Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, Path.class, Object.class);
             ctor.setAccessible(true);
@@ -667,7 +770,7 @@ public class CapsuleTest {
                 .setAttribute("Main-Class", "Capsule");
     }
 
-    private Path getPath(String first, String... more) {
+    private Path path(String first, String... more) {
         return fs.getPath(first, more);
     }
 
@@ -690,7 +793,7 @@ public class CapsuleTest {
     private List<Path> paths(String cp) {
         final List<Path> res = new ArrayList<>();
         for (String p : cp.split(":"))
-            res.add(getPath(p));
+            res.add(path(p));
         return res;
     }
 

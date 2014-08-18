@@ -123,6 +123,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_SECURITY_POLICY_A = "Security-Policy-A";
     private static final String ATTR_JAVA_AGENTS = "Java-Agents";
     private static final String ATTR_REPOSITORIES = "Repositories";
+    private static final String ATTR_ALLOW_SNAPSHOTS = "Allow-Snapshots";
     private static final String ATTR_DEPENDENCIES = "Dependencies";
     private static final String ATTR_NATIVE_DEPENDENCIES_LINUX = "Native-Dependencies-Linux";
     private static final String ATTR_NATIVE_DEPENDENCIES_WIN = "Native-Dependencies-Win";
@@ -958,28 +959,25 @@ public class Capsule implements Runnable {
     //<editor-fold desc="Native Dependencies">
     /////////// Native Dependencies ///////////////////////////////////
     private List<Path> buildNativeLibraryPath() {
-        final List<Path> libraryPath = new ArrayList<Path>();
+        final List<Path> libraryPath = new ArrayList<Path>(toPath(Arrays.asList(System.getProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR))));
+        
         resolveNativeDependencies();
-        if (appCache != null)
-            libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
-        libraryPath.addAll(toPath(Arrays.asList(System.getProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR))));
         if (appCache != null) {
+            libraryPath.addAll(0, nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
             libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
             libraryPath.add(appCache);
-        }
+        } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
+            throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
+                    + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
         return libraryPath;
     }
 
     private void resolveNativeDependencies() {
-        if (!hasAttribute(ATTR_LIBRARY_PATH_P) && !hasAttribute(ATTR_LIBRARY_PATH_A))
-            return;
-        if (appCache == null)
-            throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
-                    + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
-
         final List<String> depsAndRename = getNativeDependenciesAndRename();
         if (depsAndRename == null || depsAndRename.isEmpty())
             return;
+        if (appCache == null)
+            throw new IllegalStateException("Cannot have native dependencies when the " + ATTR_EXTRACT + " attribute is set to false");
         final List<String> deps = new ArrayList<String>(depsAndRename.size());
         final List<String> renames = new ArrayList<String>(depsAndRename.size());
         for (String depAndRename : depsAndRename) {
@@ -990,7 +988,7 @@ public class Capsule implements Runnable {
         verbose("Resolving native libs " + deps);
         final List<Path> resolved = resolveDependencies(deps, getNativeLibExtension());
         if (resolved.size() != deps.size())
-            throw new RuntimeException("One of the native artifacts " + deps + " reolved to more than a single file");
+            throw new RuntimeException("One of the native artifacts " + deps + " reolved to more than a single file or to none");
 
         assert appCache != null;
         if (!cacheUpToDate) {
@@ -1003,7 +1001,7 @@ public class Capsule implements Runnable {
                     Files.copy(lib, appCache.resolve(rename != null ? rename : lib.getFileName().toString()));
                 }
             } catch (IOException e) {
-                throw new RuntimeException("Exception while copying native libs");
+                throw new RuntimeException("Exception while copying native libs", e);
             }
         }
     }
