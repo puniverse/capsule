@@ -49,7 +49,7 @@ Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.g
 Maven:
 
   * https://github.com/christokios/capsule-maven-plugin
-  * https://github.com/pguedes/capsule-maven-plugin (supports full capsules only)
+  * https://github.com/pguedes/capsule-maven-plugin (limited functionality)
 
 ### What's Missing/TODO (contributions happily accepted!)
 
