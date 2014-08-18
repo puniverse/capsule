@@ -136,6 +136,7 @@ public class Capsule implements Runnable {
     )));
 
     // outgoing
+    private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
     private static final String VAR_JAVA_HOME = "JAVA_HOME";
@@ -390,7 +391,7 @@ public class Capsule implements Runnable {
         final ProcessBuilder pb = buildProcess(cmdLine, args);
         if (appCache != null && !cacheUpToDate)
             markCache();
-        verbose("Launching app " + appId(args));
+        verbose("Launching app " + appId);
         return pb;
     }
 
@@ -437,7 +438,7 @@ public class Capsule implements Runnable {
      *
      * @param env the current environment
      */
-    private void buildEnvironmentVariables(Map<String, String> env) {
+    protected void buildEnvironmentVariables(Map<String, String> env) {
         final List<String> jarEnv = getListAttribute(ATTR_ENV);
         if (jarEnv != null) {
             for (String e : jarEnv) {
@@ -460,6 +461,8 @@ public class Capsule implements Runnable {
         if (appCache != null)
             env.put(VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
         env.put(VAR_CAPSULE_JAR, jarFile.toString());
+        assert appId != null;
+        env.put(VAR_CAPSULE_APP, appId);
     }
     //</editor-fold>
 
@@ -776,7 +779,10 @@ public class Capsule implements Runnable {
         command.add(getJavaProcessName());
 
         command.addAll(buildJVMArgs(cmdLine));
-        command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
+
+        Map<String, String> systemProperties = buildSystemProperties(cmdLine);
+
+        command.addAll(compileSystemProperties(systemProperties));
 
         addOption(command, "-Xbootclasspath:", compileClassPath(buildBootClassPath(cmdLine)));
         addOption(command, "-Xbootclasspath/p:", compileClassPath(buildBootClassPathP()));
@@ -941,6 +947,7 @@ public class Capsule implements Runnable {
         if (appCache != null)
             systemProperties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
         systemProperties.put(PROP_CAPSULE_JAR, jarFile.toString());
+        assert appId != null;
         systemProperties.put(PROP_CAPSULE_APP, appId);
 
         return systemProperties;
@@ -960,7 +967,7 @@ public class Capsule implements Runnable {
     /////////// Native Dependencies ///////////////////////////////////
     private List<Path> buildNativeLibraryPath() {
         final List<Path> libraryPath = new ArrayList<Path>(toPath(Arrays.asList(System.getProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR))));
-        
+
         resolveNativeDependencies();
         if (appCache != null) {
             libraryPath.addAll(0, nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
@@ -1307,7 +1314,7 @@ public class Capsule implements Runnable {
 
             final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));
             debug("Allow snapshots: " + offline);
-            
+
             final DependencyManager dm = new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, offline, allowSnapshots);
 
             return dm;
@@ -1944,6 +1951,8 @@ public class Capsule implements Runnable {
                     + ATTR_EXTRACT + " attribute is set to false");
 
         str = expandCommandLinePath(str);
+        assert appId != null;
+        str = str.replaceAll("\\$" + VAR_CAPSULE_APP, appId);
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, jarFile.toString());
         str = str.replaceAll("\\$" + VAR_JAVA_HOME, javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME));
         str = str.replace('/', FILE_SEPARATOR.charAt(0));

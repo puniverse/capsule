@@ -140,6 +140,7 @@ public class CapsuleTest {
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
+        assertEquals("com.acme.Foo", getEnv(pb, "CAPSULE_APP"));
         assertEquals(appCache, path(getProperty(pb, "capsule.dir")));
         assertEquals(path("capsule.jar"), path(getProperty(pb, "capsule.jar")));
         assertEquals(appCache, path(getEnv(pb, "CAPSULE_DIR")));

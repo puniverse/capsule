@@ -366,6 +366,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 
 Capsule defines these system properties in the application's process:
 
+* `capsule.app`: the app ID
 * `capsule.jar`: the full path to the capsule's JAR
 * `capsule.dir`: if the JAR has been extracted, the full path of the application cache.
 
@@ -379,8 +380,11 @@ Capsule defines these system properties in the application's process:
 
 Capsule defines these variables in the application's environment:
 
+* `CAPSULE_APP`: the app ID
 * `CAPSULE_JAR`: the full path to the capsule's JAR
 * `CAPSULE_DIR`: if the JAR has been extracted, the full path of the application cache.
+
+These values can also be accessed with `$VARNAME` in any capsule manifest attributes.
 
 ## "Really Executable" Capsules
 
