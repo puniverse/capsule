@@ -300,16 +300,16 @@ project (':capsule') {
         exclude 'com/google/common/collect/Z*'
 
         relocation {
-            pattern = 'org'
-            shadedPattern = 'capsule.org'
+            pattern = 'org.'
+            shadedPattern = 'capsule.org.'
         }
         relocation {
-            pattern = 'io'
-            shadedPattern = 'capsule.io'
+            pattern = 'io.'
+            shadedPattern = 'capsule.io.'
         }
         relocation {
-            pattern = 'com'
-            shadedPattern = 'capsule.com'
+            pattern = 'com.'
+            shadedPattern = 'capsule.com.'
         }
     }
 

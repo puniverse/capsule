@@ -853,7 +853,7 @@ public class Capsule implements Runnable {
      */
     protected List<String> getDependencies() {
         List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
-        if (deps == null && pom != null)
+        if ((deps == null || deps.isEmpty()) && pom != null)
             deps = getPomDependencies();
 
         return (deps != null && !deps.isEmpty()) ? Collections.unmodifiableList(deps) : null;
