@@ -354,12 +354,14 @@ public class Capsule implements Runnable {
 
     private void resolve(String[] args) throws IOException, InterruptedException {
         ensureExtractedIfNecessary();
+        resolveAppArtifact(getAppArtifact(args), "jar");
+        resolveDependencies(getDependencies(), "jar");
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_P));
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_A));
-        resolveAppArtifact(getAppArtifact(args), "jar");
-        resolveDependencies(getDependencies(), "jar");
+
         resolveNativeDependencies();
+        println("Capsule resolved");
     }
 
     private Process launch(String[] args) throws IOException, InterruptedException {
@@ -921,13 +923,8 @@ public class Capsule implements Runnable {
             systemProperties.put(pv.getKey(), expand(pv.getValue()));
 
         // library path
-        if (appCache != null) {
-            final List<Path> libraryPath = buildNativeLibraryPath();
-            libraryPath.add(appCache);
-            systemProperties.put(PROP_JAVA_LIBRARY_PATH, compileClassPath(libraryPath));
-        } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
-            throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
-                    + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
+        final List<Path> libraryPath = buildNativeLibraryPath();
+        systemProperties.put(PROP_JAVA_LIBRARY_PATH, compileClassPath(libraryPath));
 
         if (hasAttribute(ATTR_SECURITY_POLICY) || hasAttribute(ATTR_SECURITY_POLICY_A)) {
             systemProperties.put(PROP_JAVA_SECURITY_MANAGER, "");
@@ -963,16 +960,22 @@ public class Capsule implements Runnable {
     private List<Path> buildNativeLibraryPath() {
         final List<Path> libraryPath = new ArrayList<Path>();
         resolveNativeDependencies();
-        libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
+        if (appCache != null)
+            libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
         libraryPath.addAll(toPath(Arrays.asList(System.getProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR))));
-        libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
-        libraryPath.add(appCache);
+        if (appCache != null) {
+            libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
+            libraryPath.add(appCache);
+        }
         return libraryPath;
     }
 
     private void resolveNativeDependencies() {
+        if (!hasAttribute(ATTR_LIBRARY_PATH_P) && !hasAttribute(ATTR_LIBRARY_PATH_A))
+            return;
         if (appCache == null)
-            throw new IllegalStateException("Cannot set " + ATTR_EXTRACT + " to false if there are native dependencies.");
+            throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
+                    + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
 
         final List<String> depsAndRename = getNativeDependenciesAndRename();
         if (depsAndRename == null || depsAndRename.isEmpty())
