@@ -6,8 +6,9 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package co.paralleluniverse.capsule;
+package co.paralleluniverse.capsule.container;
 
+import co.paralleluniverse.capsule.CapsuleLauncher;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
