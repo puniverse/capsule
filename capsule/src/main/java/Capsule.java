@@ -1943,7 +1943,12 @@ public class Capsule implements Runnable {
         return res;
     }
 
-    private String expand(String str) {
+    /**
+     * Expands occurrences of {@code $VARNAME} in attribute values.
+     * @param str the original string
+     * @return the expanded string
+     */
+    protected String expand(String str) {
         if (appCache != null)
             str = str.replaceAll("\\$" + VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
         else if (str.contains("$" + VAR_CAPSULE_DIR))

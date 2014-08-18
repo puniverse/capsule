@@ -120,6 +120,44 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testExpandVars1() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo");
+
+        Capsule capsule = newCapsule(jar, null);
+
+        String cj = path("capsule.jar").toString();
+        String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
+        String cid = capsule.appId(null);
+
+        ASSERT.that(capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR")).isEqualTo(cj + "abc" + cj + "def" + cj);
+        ASSERT.that(capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP")).isEqualTo(cid + "abc" + cid + "def" + cid);
+        ASSERT.that(capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_DIR" + "def" + "$CAPSULE_DIR")).isEqualTo(cd + "abc" + cd + "def" + cd);
+        ASSERT.that(capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_JAR")).isEqualTo(cd + "abc" + cid + "def" + cj);
+    }
+
+    @Test
+    public void testExpandVars2() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false");
+
+        Capsule capsule = newCapsule(jar, null);
+
+        String cj = path("capsule.jar").toString();
+        String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
+        String cid = capsule.appId(null);
+
+        ASSERT.that(capsule.expand("$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR")).isEqualTo(cj + "xxx" + cj + "xxx" + cj);
+        ASSERT.that(capsule.expand("$CAPSULE_APP" + "xxx" + "$CAPSULE_APP" + "xxx" + "$CAPSULE_APP")).isEqualTo(cid + "xxx" + cid + "xxx" + cid);
+        try {
+            capsule.expand("$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR");
+            fail();
+        } catch (IllegalStateException e) {
+        }
+    }
+
+    @Test
     public void testSimpleExtract() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
