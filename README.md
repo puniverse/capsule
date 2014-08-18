@@ -12,6 +12,12 @@ When you include Capsule into your JAR file and set Capsule as the JAR's main cl
 
 Capsule doesn't contain a JVM distribution, the application user would need to have a JRE installed. Java 9 is expected to have a mechanism for packaging stripped-down versions of the JVM.
 
+### Overhead
+
+A "fat" capsule (one with all dependencies embedded in the capsule JAR), adds about 100ms to the startup time. A "thin" capsule (one with external dependencies, downloaded at first launch), adds about 500ms to the launch time, once the dependencies have been downloaded and cached during the first launch.
+
+In terms of JAR size, fat capsules add negligible overhead, while thin capsules add 2MB (for the code responsible to downloading and resolving the external dependencies) -- but they don't require the dependencies to be embedded in the JAR, so there's overall savings in deliverable size.
+
 ### Alternatives to Capsule
 
 There are a few alternatives to packaging your application in a single JAR. [Maven's Shade plugin](http://maven.apache.org/plugins/maven-shade-plugin/)/[Gradle's Shadow plugin](https://github.com/johnrengelman/shadow) rename dependency classes and might interfere with the application in subtle ways; they also don't support native libraries. [One-Jar](http://one-jar.sourceforge.net/) does support native libraries, but uses class-loader hacks that may interfere with the application in even subtler ways. And none of these support JVM arguments.
@@ -270,6 +276,8 @@ The dependencies are downloaded the first time the capsule is launched, and plac
 
 The `CAPSULE_REPOS` environment variable can be set to a *comma* (`,`) separated list of Maven repository URLS or well-known repository names (see above), which will override those specified in the manifest or the POM.
 
+By default, SNAPSHOT dependencies are not allowed, unless the `Allow-Snapshots` is set to `true`.
+
 Capsule can make use of Maven repositories in another way: the `Application` manifest attribute can specify the Maven coordinates of the application's main JAR file, which can in itself be a capsule.
 
 Maven [version ranges](http://maven.apache.org/enforcer/enforcer-rules/versionRanges.html) (as well as `LATEST` and `RELEASE`) are supported. For example: `Application: com.acme:foo:[1.0,2.0)`. The newest version matching the range (or the newest version if no range is given), will be downloaded, cached and launched. Not specifying a version at all will resolve to the latest release. If the application's main artifact is a capsule, then all configurations will be taken based on those in the artifact capsule.
@@ -360,6 +368,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Java-Agents`: a list of Java agents used by the application; formatted `agent` or `agent=arg1,arg2...`, where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency
 * `Repositories`: a list of Maven repository URLs
 * `Dependencies`: a list of Maven dependencies given as `groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]`
+* `Allow-Snapshots`: If `true`, allows for SNAPSHOT dependencies (default: `false`)
 * `Native-Dependencies-Linux`: a list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be Windows and copied into the application's cache directory.
 * `Native-Dependencies-Win`: a list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Native-Dependencies-Mac`: a list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.

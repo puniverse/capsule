@@ -1307,7 +1307,10 @@ public class Capsule implements Runnable {
             final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
             debug("Offline: " + offline);
 
-            final DependencyManager dm = new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, offline);
+            final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));
+            debug("Allow snapshots: " + offline);
+            
+            final DependencyManager dm = new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, offline, allowSnapshots);
 
             return dm;
         } catch (NoClassDefFoundError e) {

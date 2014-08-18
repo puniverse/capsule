@@ -79,7 +79,7 @@ public class DependencyManagerImpl implements DependencyManager {
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
 
-    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline) {
+    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline, boolean allowSnapshots) {
         this.system = newRepositorySystem();
         this.forceRefresh = forceRefresh;
         this.offline = offline;
@@ -91,10 +91,12 @@ public class DependencyManagerImpl implements DependencyManager {
             repos = Arrays.asList("central");
 
         final RepositoryPolicy releasePolicy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
-        final RepositoryPolicy snapshotPolicy = new RepositoryPolicy(false, null, null);
+        final RepositoryPolicy snapshotPolicy = allowSnapshots ? releasePolicy : new RepositoryPolicy(false, null, null);
         this.repos = new ArrayList<RemoteRepository>();
         for (String repo : repos)
             this.repos.add(newRemoteRepository(repo, WELL_KNOWN_REPOS.containsKey(repo) ? WELL_KNOWN_REPOS.get(repo) : repo, releasePolicy, snapshotPolicy));
+        
+        verbose("Dependency manager initialized with repositories: " + this.repos);
     }
 
     private static RepositorySystem newRepositorySystem() {
@@ -306,7 +308,21 @@ public class DependencyManagerImpl implements DependencyManager {
         s = s.trim();
         return s.isEmpty() ? null : s;
     }
-    
+
+    private static void println(String str) {
+        System.err.println(LOG_PREFIX + str);
+    }
+
+    private static void verbose(String str) {
+        if (verbose)
+            System.err.println(LOG_PREFIX + str);
+    }
+
+    private static void debug(String str) {
+        if (debug)
+            System.err.println(LOG_PREFIX + str);
+    }
+
     // necessary if we want to forgo Guice/Sisu injection and use DefaultServiceLocator instead
     private static final io.takari.filemanager.FileManager takariFileManager = new io.takari.filemanager.internal.DefaultFileManager();
 
