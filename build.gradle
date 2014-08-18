@@ -372,5 +372,5 @@ project (':capsule-util') {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '1.11'
+    gradleVersion = '2.0'
 }
