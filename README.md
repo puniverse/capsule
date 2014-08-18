@@ -422,6 +422,6 @@ capsule.doLast { task -> reallyExecutable(task) }
 
         http://www.eclipse.org/legal/epl-v10.html
 
-As Capsule does not link in any way with any of the code bundled in the JAR file, and simply treats it as raw data, Capsule is no different from a self-extracting ZIP file (especially as manually unzipping the JAR's contents is extremely easy). Capsule's own license, therefore, does not interfere with the licensing of the bundled software.
+As Capsule does not link in any way with any of the code bundled in the JAR file, and simply treats it as raw data, Capsule is no different from a self-extracting ZIP file (especially as manually unzipping and examining the JAR's contents is extremely easy). Capsule's own license, therefore, does not interfere with the licensing of the bundled software.
 
 In particular, even though Capsule's license is incompatible with the GPL/LGPL, it is permitted to distribute GPL programs packaged as capsules, as Capsule is simply a packaging medium and an activation script, and does not restrict access to the packaged GPL code. Capsule does not add any capability to, nor removes any from the bundled application. It therefore falls under the definition of an "aggregate" in the GPL's terminology.
