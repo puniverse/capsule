@@ -57,40 +57,9 @@ Maven:
 
 ## Usage Examples
 
-Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The examples are snippets of [Gradle](http://www.gradle.org/) build files, but the same could be achieved with [Ant](http://ant.apache.org/) or [Maven](http://maven.apache.org/).
+Before we delve into the specifics of defining a Capsule distribution, let us look at a few different ways of packaging a capsule. The configurations described below can be built using any JVM build tool. The complete usage example, with both Gradle and Maven build files, is found in the [capsule-demo](https://github.com/puniverse/capsule-demo) project.
 
-**A complete usage example, for both Gradle and Maven**, is found in the [capsule-demo](https://github.com/puniverse/capsule-demo) project, which contains both a `build.gradle` file that creates a few kinds of capsules, as well as Maven POM and assemblies that create both a full capsule (with embedded dependencies) and a capsule with external dependencies (that are resolved at launch).
-
-We'll assume that the application's `gradle.build` file applies the [`java`](http://www.gradle.org/docs/current/userguide/java_plugin.html) and [`application`](http://www.gradle.org/docs/current/userguide/application_plugin.html) plugins, and that the build file declare the `capsule` configuration and contains the dependency `capsule 'co.paralleluniverse:capsule:VERSION'`.
-
-The first example creates what may be called a *full* capsule:
-
-``` groovy
-task fullCapsule(type: Jar, dependsOn: jar) {
-    archiveName = "foo.jar"
-
-    from jar // embed our application jar
-    from { configurations.runtime } // embed dependencies
-
-    from(configurations.capsule.collect { zipTree(it) }) { include 'Capsule.class' } // we just need the single Capsule class
-
-    manifest {
-        attributes(
-            'Main-Class'        : 'Capsule',
-            'Application-Class' : mainClassName,
-            'Min-Java-Version'  : '1.8.0',
-            'JVM-Args'          : run.jvmArgs.join(' '),
-            'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
-            'Java-Agents'       : configurations.quasar.iterator().next().getName()
-        )
-    }
-}
-```
-
-We embed the application JAR and all the dependency JARs into the capsule JAR (without extracting them). We also include the `Capsule` class in the JAR.
-Then, in the JAR's manifest, we declare `Capsule` as the main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Min-Java-Version` attribute specifies the JVM version that will be used to run the application. If this version is newer than the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use (a maximum version can also be specified with the `Java-Version` attribute). We then copy the JVM arguments and system properties from build file's `run` task into the manifest, and finally we declare a Java agent used by [Quasar](https://github.com/puniverse/quasar).
-
-The resulting JAR has the following structure:
+The first example creates what may be called a *fat* capsule. The capsule JAR has the following structure:
 
     foo.jar
     |__ Capsule.class
@@ -100,36 +69,24 @@ The resulting JAR has the following structure:
     \__ MANIFEST
         \__ MANIFEST.MF
 
+With the manifest (`MANIFEST.MF`) being:
+
+    Manifest-Version: 1.0
+    Main-Class: Capsule
+    Application-Class: foo.Main
+    Min-Java-Version: 1.8.0
+    JVM-Args: -server
+    System-Properties: foo.bar.option=15 my.logging=verbose
+    Java-Agents: dep2.jar
+
+We embed the application JAR (`app.jar`) as well as all dependency JARs into the capsule JAR (without extracting them). We also include the `Capsule` class in the JAR.
+Then, in the JAR's manifest, we declare `Capsule` as the main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Min-Java-Version` attribute specifies the JVM version that will be used to run the application. If this version is newer than the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use (a maximum version can also be specified with the `Java-Version` attribute). We then also specify JVM arguments, system properties and even a Java agent.
 
 When we run the capsule with `java -jar foo.jar`, its contents will be extracted into a cache directory (whose location can be customized).
 
 This kind of capsule has the advantage of being completely self-contained, and it does not require online access to run. The downside is that it can be rather large, as all dependencies are stuffed into the JAR.
 
-The second kind of capsule does not embed the app's dependencies in the JAR, but downloads them when first run:
-
-``` groovy
-task capsule(type: Jar, dependsOn: classes) {
-    archiveName = "foo.jar"
-    from sourceSets.main.output // this way we don't need to extract
-
-    from { configurations.capsule.collect { zipTree(it) } } // we need all of Capsule's classes
-
-    manifest {
-        attributes(
-            'Main-Class'        : 'Capsule',
-            'Application-Class' : mainClassName,
-            'Extract-Capsule'   : 'false', // don't extract capsule to the filesystem
-            'Min-Java-Version'  : '1.8.0',
-            'JVM-Args'          : run.jvmArgs.join(' '),
-            'System-Properties' : run.systemProperties.collect { k,v -> "$k=$v" }.join(' '),
-            'Java-Agents'       : getDependencies(configurations.quasar).iterator().next(),
-            'Dependencies'      : getDependencies(configurations.runtime).join(' ')
-        )
-    }
-}
-```
-
-The resulting JAR has the following structure:
+The second kind of capsule -- a *thin* capsule -- does not embed the app's dependencies in the JAR, but downloads them when first run. The capsule JAR looks like this:
 
     foo.jar
     |__ Capsule.class
@@ -141,8 +98,20 @@ The resulting JAR has the following structure:
     \__ MANIFEST/
         \__ MANIFEST.MF
 
+With the manifest being:
 
-This capsule doesn't embed the dependencies in the JAR, so our application's classes can be simply placed in it unwrapped. Instead, the `Dependencies` attribute declares the application's dependencies (the `getDependencies` function translates Gradle dependencies to Capsule dependencies. Its definition can be found [here](https://github.com/puniverse/capsule-demo/blob/master/build.gradle#L77) and it may be copied verbatim to any build file). The first time we run `java -jar foo.jar`, the dependencies will be downloaded (by default from Maven Central, but other Maven repositories may be declared in the manifest). The dependencies are placed in a cache directory shared by all capsules, so common ones like SLF4J or Guava will only be downloaded once. Also, because the app's classes are placed directly in the JAR, and the dependencies are loaded to a shared cache, the capsule does not need to be extracted to the filesystem at all, hence the manifest says `Extract-Capsule : false`.
+    Manifest-Version: 1.0
+    Main-Class: Capsule
+    Application-Class: foo.Main
+    Min-Java-Version: 1.8.0
+    Extract-Capsule : false
+    JVM-Args: -server
+    System-Properties: foo.bar.option=15 my.logging=verbose
+    Dependencies: com.acme:dep1:1.2 com.acme:dep2:3.4
+    Java-Agents: com.acme:dep2:3.4
+
+
+This capsule doesn't embed the dependencies in the JAR, so our application's classes can be simply placed in it unwrapped. Instead, the `Dependencies` attribute declares the application's dependencies. The first time we run `java -jar foo.jar`, the dependencies will be downloaded (by default from Maven Central, but other Maven repositories may be declared in the manifest). The dependencies are placed in a cache directory shared by all capsules, so common ones like SLF4J or Guava will only be downloaded once. Also, because the app's classes are placed directly in the JAR, and the dependencies are loaded to a shared cache, the capsule does not need to be extracted to the filesystem at all, hence the manifest says `Extract-Capsule : false`.
 
 Instead of specifying the dependencies and (optionally) the repositories directly in the manifest, if the capsule contains a `pom.xml` file in the JAR root, it will be used to find the dependencies.
 
