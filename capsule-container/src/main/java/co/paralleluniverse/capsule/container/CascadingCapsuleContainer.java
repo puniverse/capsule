@@ -40,10 +40,9 @@ public class CascadingCapsuleContainer extends MBeanCapsuleContainer {
         String mountId = null;
         JMXServiceURL connectorAddress = null;
         try {
-            System.err.println("Connecting to " + id);
+            Thread.sleep(1000);
             connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
-            mountId = cascade != null ? cascade.mount(connectorAddress, null, ObjectName.WILDCARD, id + "") : null;
-            System.err.println("Connected to " + id);
+            mountId = cascade != null ? cascade.mount(connectorAddress, null, ObjectName.WILDCARD, "capsule/" + id) : null;
         } catch (Exception e) {
             e.printStackTrace();
         }

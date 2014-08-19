@@ -45,6 +45,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     private final AtomicInteger counter = new AtomicInteger();
     private final Path cacheDir;
     private final StandardEmitterMBean mbean;
+    private volatile Map<String, Path> javaHomes;
 
     @SuppressWarnings("OverridableMethodCallInConstructor")
     public CapsuleContainer(Path cacheDir) {
@@ -79,7 +80,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
         try {
             final StandardEmitterMBean _mbean = new StandardEmitterMBean(this, (Class) mbeanInterface, createEmitter());
             final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-            final ObjectName mxbeanName = new ObjectName(name);
+            final ObjectName mxbeanName = ObjectName.getInstance(name);
             mbs.registerMBean(_mbean, mxbeanName);
             return _mbean;
         } catch (InstanceAlreadyExistsException ex) {
@@ -94,7 +95,10 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     public String launchCapsule(Path capsulePath, List<String> jvmArgs, List<String> args) throws IOException {
-        return launchCapsule(CapsuleLauncher.newCapsule(capsulePath, cacheDir), jvmArgs, args);
+        final Object capsule = CapsuleLauncher.newCapsule(capsulePath, cacheDir, javaHomes);
+        if (javaHomes == null) // benign race
+            javaHomes = CapsuleLauncher.getJavaHomes(capsule);
+        return launchCapsule(capsule, jvmArgs, args);
     }
 
     private String launchCapsule(Object capsule, List<String> jvmArgs, List<String> args) throws IOException {
@@ -114,8 +118,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
             final ProcessInfo pi = mountProcess(p, id, capsuleId, jvmArgs, args);
             processes.put(id, pi);
 
-            final Notification n = new CapsuleProcessLaunched(this, notificationSequence.incrementAndGet(), id, "args: " + args + " jvmArgs: " + jvmArgs);
-            System.out.println("nonononon: " + n);
+            final Notification n = new CapsuleProcessLaunched(mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id, "args: " + args + " jvmArgs: " + jvmArgs);
             mbean.sendNotification(n);
             onProcessLaunch(id, pi);
             monitorProcess(id, p);
@@ -143,8 +146,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     protected void processDied(String id, Process p, int exitValue) {
-        final Notification n = new CapsuleProcessKilled(this, notificationSequence.incrementAndGet(), id, exitValue);
-        System.out.println("nonononon: " + n);
+        final Notification n = new CapsuleProcessKilled(mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id, exitValue);
         mbean.sendNotification(n);
         onProcessDeath(id, getProcessInfo(id), exitValue);
     }

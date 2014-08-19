@@ -8,9 +8,6 @@
  */
 package co.paralleluniverse.capsule.container;
 
-import com.sun.tools.attach.AttachNotSupportedException;
-import com.sun.tools.attach.VirtualMachine;
-import com.sun.tools.attach.VirtualMachineDescriptor;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,10 +20,6 @@ import java.util.Arrays;
  */
 public class Driver {
     private static final Path CAPSULES = Paths.get("/Users/pron/Projects/capsule-demo/foo");
-    
-    private static final String PROP_LOCAL_CONNECTOR_ADDRESS = "com.sun.management.jmxremote.localConnectorAddress";
-    private static final String PROP_JAVA_HOME = "java.home";
-    private static final Path MANAGEMENT_AGENT = Paths.get("lib", "management-agent.jar");
     
     public static void main(String[] args) throws Exception {
         System.setProperty("capsule.log", "verbose");
@@ -58,33 +51,6 @@ public class Driver {
                 } catch (Throwable e) {
                     System.err.println("XXX " + f);
                     throw e;
-                }
-            }
-        }
-
-        for (VirtualMachineDescriptor vmd : VirtualMachine.list()) {
-            VirtualMachine vm = null;
-            try {
-                vm = VirtualMachine.attach(vmd.id());
-                String connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
-                boolean attached = false;
-                if (connectorAddr == null) {
-                    final String agent = Paths.get(vm.getSystemProperties().getProperty(PROP_JAVA_HOME)).resolve(MANAGEMENT_AGENT).toString();
-                    vm.loadAgent(agent);
-                    connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
-                    attached = true;
-                }
-                System.out.println(vmd.displayName() + " :: " + vmd.id() + " || " + attached + " ** " + connectorAddr + " ----->>>> " + vm.getAgentProperties());
-            } catch (AttachNotSupportedException e) {
-                throw new UnsupportedOperationException(e);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            } finally {
-                try {
-                    if (vm != null)
-                        vm.detach();
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
             }
         }

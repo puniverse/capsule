@@ -210,6 +210,7 @@ public class Capsule implements Runnable {
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final String LOG_PREFIX = "CAPSULE: ";
 
+    private static Map<String, Path> JAVA_HOMES; // an optimization trick
     private final Path jarFile;      // never null
     private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
@@ -324,7 +325,7 @@ public class Capsule implements Runnable {
     }
 
     private void printJVMs(String[] args) {
-        final Map<String, Path> jres = getJavaHomes(false);
+        final Map<String, Path> jres = getJavaHomes();
         if (jres == null)
             println("No detected Java installations");
         else {
@@ -1185,7 +1186,9 @@ public class Capsule implements Runnable {
     }
 
     private Path findJavaHome(boolean jdk) {
-        final Map<String, Path> homes = getJavaHomes(jdk);
+        Map<String, Path> homes = getJavaHomes();
+        if (jdk)
+            homes = getJDKs(homes);
         if (homes == null)
             return null;
         Path best = null;
@@ -1696,13 +1699,31 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="JRE Installations">
     /////////// JRE Installations ///////////////////////////////////
-    private Map<String, Path> getJavaHomes(boolean jdk) {
+    private static Map<String, Path> getJDKs(Map<String, Path> homes) {
+        Map<String, Path> jdks = new HashMap<>();
+        for (Map.Entry<String, Path> entry : homes.entrySet()) {
+            Path home = entry.getValue();
+            if (isJDK(home))
+                jdks.put(entry.getKey(), entry.getValue());
+        }
+        return jdks.isEmpty() ? null : jdks;
+    }
+
+    private static boolean isJDK(Path javaHome) {
+        final String name = javaHome.toString().toLowerCase();
+        return name.contains("jdk") && !name.contains("jre");
+    }
+
+    private static Map<String, Path> getJavaHomes() {
+        if (JAVA_HOMES != null)
+            return JAVA_HOMES;
         Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
         while (dir != null) {
-            Map<String, Path> homes = getJavaHomes(dir, jdk);
+            Map<String, Path> homes = getJavaHomes(dir);
             if (homes != null) {
                 if (isWindows())
-                    homes = windowsJavaHomesHeuristics(dir, jdk, homes);
+                    homes = windowsJavaHomesHeuristics(dir, homes);
+                JAVA_HOMES = homes;
                 return homes;
             }
             dir = dir.getParent();
@@ -1710,7 +1731,7 @@ public class Capsule implements Runnable {
         return null;
     }
 
-    private Map<String, Path> windowsJavaHomesHeuristics(Path dir, boolean jdk, Map<String, Path> homes) {
+    private static Map<String, Path> windowsJavaHomesHeuristics(Path dir, Map<String, Path> homes) {
         Path dir2 = null;
         if (dir.startsWith(WINDOWS_PROGRAM_FILES_1))
             dir2 = WINDOWS_PROGRAM_FILES_2.resolve(WINDOWS_PROGRAM_FILES_1.relativize(dir));
@@ -1718,13 +1739,13 @@ public class Capsule implements Runnable {
             dir2 = WINDOWS_PROGRAM_FILES_1.resolve(WINDOWS_PROGRAM_FILES_2.relativize(dir));
         if (dir2 != null) {
             Map<String, Path> allHomes = new HashMap<>(homes);
-            allHomes.putAll(getJavaHomes(dir2, jdk));
+            allHomes.putAll(getJavaHomes(dir2));
             return allHomes;
         } else
             return homes;
     }
 
-    private Map<String, Path> getJavaHomes(Path dir, boolean jdk) {
+    private static Map<String, Path> getJavaHomes(Path dir) {
         if (!Files.isDirectory(dir))
             return null;
         Map<String, Path> dirs = new HashMap<String, Path>();
@@ -1732,7 +1753,7 @@ public class Capsule implements Runnable {
             if (Files.isDirectory(f)) {
                 String dirName = f.getFileName().toString();
                 String ver = isJavaDir(dirName);
-                if (ver != null && (!jdk || isJDK(dirName))) {
+                if (ver != null) {
                     final Path home = searchJavaHomeInDir(f).toAbsolutePath();
                     if (home != null) {
                         if (parseJavaVersion(ver)[3] == 0)
@@ -1758,11 +1779,7 @@ public class Capsule implements Runnable {
             return null;
     }
 
-    private static boolean isJDK(String filename) {
-        return filename.toLowerCase().contains("jdk");
-    }
-
-    private Path searchJavaHomeInDir(Path dir) {
+    private static Path searchJavaHomeInDir(Path dir) {
         if (!Files.isDirectory(dir))
             return null;
         for (Path f : listDir(dir)) {
@@ -1775,7 +1792,7 @@ public class Capsule implements Runnable {
         return null;
     }
 
-    private boolean isJavaHome(Path dir) {
+    private static boolean isJavaHome(Path dir) {
         if (Files.isDirectory(dir)) {
             for (Path f : listDir(dir)) {
                 if (Files.isDirectory(f) && f.getFileName().toString().equals("bin")) {
@@ -1796,10 +1813,7 @@ public class Capsule implements Runnable {
     private static String getJavaProcessName(String javaHome) {
         return javaHome + FILE_SEPARATOR + "bin" + FILE_SEPARATOR + "java" + (isWindows() ? ".exe" : "");
     }
-    //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Version Strings">
-    /////////// Version Strings ///////////////////////////////////
     private static final Pattern PAT_JAVA_VERSION_LINE = Pattern.compile(".*?\"(.+?)\"");
 
     private static String getActualJavaVersion(String javaHome) {
@@ -1822,7 +1836,10 @@ public class Capsule implements Runnable {
             throw new RuntimeException(e);
         }
     }
+    //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Version Strings">
+    /////////// Version Strings ///////////////////////////////////
     // visible for testing
     static String shortJavaVersion(String v) {
         try {
@@ -1945,6 +1962,7 @@ public class Capsule implements Runnable {
 
     /**
      * Expands occurrences of {@code $VARNAME} in attribute values.
+     *
      * @param str the original string
      * @return the expanded string
      */

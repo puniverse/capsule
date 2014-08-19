@@ -35,6 +35,7 @@ public class MBeanCapsuleContainer extends CapsuleContainer {
     protected CapsuleContainer.ProcessInfo mountProcess(Process p, String id, String capsuleId, List<String> jvmArgs, List<String> args) throws IOException, InstanceAlreadyExistsException {
         JMXServiceURL connectorAddress = null;
         try {
+            Thread.sleep(1000);
             connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
         } catch (Exception e) {
             e.printStackTrace();

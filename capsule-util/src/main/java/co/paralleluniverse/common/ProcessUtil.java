@@ -67,8 +67,8 @@ public final class ProcessUtil {
                     vm.loadAgent(agent);
                     connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
                 }
-                final JMXServiceURL url = connectorAddr != null ? new JMXServiceURL(connectorAddr) : null;
                 vm.detach();
+                final JMXServiceURL url = connectorAddr != null ? new JMXServiceURL(connectorAddr) : null;
                 return url;
             } catch (AttachNotSupportedException e) {
                 throw new UnsupportedOperationException(e);

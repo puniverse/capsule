@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -44,6 +45,10 @@ public final class CapsuleLauncher {
      *         {@link #prepareForLaunch(Object, List, List) prepareForLaunch}.
      */
     public static Object newCapsule(Path jarFile, Path cacheDir) {
+        return newCapsule(jarFile, cacheDir, null);
+    }
+
+    public static Object newCapsule(Path jarFile, Path cacheDir, Map<String, Path> javaHomes) {
         try {
             final Manifest mf;
             try (final JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
@@ -54,6 +59,9 @@ public final class CapsuleLauncher {
             final Class clazz = loadCapsuleClass(mf, cl);
             if (clazz == null)
                 throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
+
+            if (javaHomes != null)
+                setJavaHomes(clazz, javaHomes);
 
             final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
             ctor.setAccessible(true);
@@ -123,6 +131,20 @@ public final class CapsuleLauncher {
         return (String) get(capsule, version);
     }
 
+    public static Map<String, Path> getJavaHomes(Object capsule) {
+        final Field homes = getField(capsule.getClass(), "JAVA_HOMES");
+        if (homes == null)
+            return null;
+        return (Map<String, Path>) get(capsule, homes);
+    }
+
+    private static void setJavaHomes(Class<?> capsuleClass, Map<String, Path> javaHomes) {
+        final Field homes = getField(capsuleClass, "JAVA_HOMES");
+        if (homes == null)
+            return;
+        set(null, homes, javaHomes);
+    }
+
     private static Method getCapsuleMethod(Object capsule, String name, Class<?>... paramTypes) {
         final Method m = getMethod(capsule.getClass(), name, paramTypes);
         if (m == null)
@@ -175,6 +197,14 @@ public final class CapsuleLauncher {
     private static Object get(Object obj, Field field) {
         try {
             return field.get(obj);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError();
+        }
+    }
+
+    private static void set(Object obj, Field field, Object value) {
+        try {
+            field.set(obj, value);
         } catch (IllegalAccessException e) {
             throw new AssertionError();
         }

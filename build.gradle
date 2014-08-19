@@ -381,7 +381,7 @@ project (':capsule-container') {
     dependencies {
         compile project(':capsule-util')
         compile 'com.betfair.net.java.opendmk:core:1.0-b02'
-        testCompile files("${System.getProperty('java.home')}/../lib/tools.jar")
+        // testCompile files("${System.getProperty('java.home')}/../lib/tools.jar")
     }
 }
 
