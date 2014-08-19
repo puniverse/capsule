@@ -51,7 +51,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class Jar {
     private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
-    private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    private OutputStream os;
     private final Manifest manifest;
     private final Path jar;
     private final JarInputStream jis;
@@ -516,14 +516,33 @@ public class Jar {
         return this;
     }
 
+    /**
+     * Sets an {@link OutputStream} to which the JAR will be written.
+     * If used, this method must be called before any entries have been added or the JAR written. Calling this method prevents this
+     * object from using an internal buffer to store the JAR, and therefore, none of the other {@code write} methods can be called.
+     *
+     * @param os the target OutputStream of this JAR.
+     * @return {@code this}
+     */
+    public Jar setOutputStream(OutputStream os) {
+        if (os == null)
+            throw new NullPointerException("The OutputStream is null");
+        if (jos != null)
+            throw new IllegalStateException("Entries have already been added, the JAR has been written or setOutputStream has already been called.");
+        this.os = os;
+        return this;
+    }
+
     private void beginWriting() throws IOException {
         verifyNotSealed();
         if (jos != null)
             return;
-        writePrefix(baos);
+        if (os == null)
+            this.os = new ByteArrayOutputStream();
+        writePrefix(os);
         if (getAttribute(ATTR_MANIFEST_VERSION) == null)
             setAttribute(ATTR_MANIFEST_VERSION, "1.0");
-        jos = new JarOutputStream(baos, manifest);
+        jos = new JarOutputStream(os, manifest);
         if (jar != null)
             addEntries((Path) null, jar);
         else if (jis != null)
@@ -543,16 +562,26 @@ public class Jar {
         }
     }
 
-    /**
-     * Writes this JAR to an output stream, and closes the stream.
-     */
-    public <T extends OutputStream> T write(T os) throws IOException {
+    public Jar close() throws IOException {
+        if (sealed)
+            return this;
         beginWriting();
         // writeManifest(); - some JDK Jar classes (like JarInputStream) assume that the manifest must be the first entry
         jos.close();
         this.sealed = true;
+        return this;
+    }
 
-        final byte[] content = baos.toByteArray();
+    /**
+     * Writes this JAR to an output stream, and closes the stream.
+     */
+    public <T extends OutputStream> T write(T os) throws IOException {
+        close();
+
+        if (!(this.os instanceof ByteArrayOutputStream))
+            throw new IllegalStateException("Cannot write to another target if setOutputStream has been called");
+        final byte[] content = ((ByteArrayOutputStream) this.os).toByteArray();
+
         if (packer != null)
             packer.pack(new JarInputStream(new ByteArrayInputStream(content)), os);
         else

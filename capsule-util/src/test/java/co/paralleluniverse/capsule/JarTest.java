@@ -9,6 +9,7 @@
 package co.paralleluniverse.capsule;
 
 import co.paralleluniverse.common.JarClassLoader;
+import co.paralleluniverse.common.ZipFS;
 import com.google.common.jimfs.Jimfs;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -121,6 +122,36 @@ public class JarTest {
                 .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
                 .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
                 .write(new ByteArrayOutputStream());
+
+        // update
+        ByteArrayOutputStream res = new Jar(toInput(baos))
+                .setAttribute("Baz", "hi!")
+                .setAttribute("Bar", "8765")
+                .addEntry(Paths.get("dir", "baz.txt"), Jar.toInputStream("And I am baz!\n", UTF_8))
+                .write(new ByteArrayOutputStream());
+
+        // test
+        // printEntries(toInput(res));
+        assertEquals("I am foo!\n", getEntryAsString(toInput(res), Paths.get("foo.txt"), UTF_8));
+        assertEquals("I am bar!\n", getEntryAsString(toInput(res), Paths.get("dir", "bar.txt"), UTF_8));
+        assertEquals("And I am baz!\n", getEntryAsString(toInput(res), Paths.get("dir", "baz.txt"), UTF_8));
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+        assertEquals("8765", man2.getMainAttributes().getValue("Bar"));
+        assertEquals("hi!", man2.getMainAttributes().getValue("Baz"));
+    }
+
+    @Test
+    public void testUpdateJar3() throws Exception {
+        // create
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        new Jar()
+                .setOutputStream(baos)
+                .setAttribute("Foo", "1234")
+                .setAttribute("Bar", "5678")
+                .addEntry(Paths.get("foo.txt"), Jar.toInputStream("I am foo!\n", UTF_8))
+                .addEntry(Paths.get("dir", "bar.txt"), Jar.toInputStream("I am bar!\n", UTF_8))
+                .close();
 
         // update
         ByteArrayOutputStream res = new Jar(toInput(baos))
@@ -282,7 +313,6 @@ public class JarTest {
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
-
         final Path pp = Paths.get(clazz.getPackage().getName().replace('.', '/'));
 
         assertTrue(getEntry(toInput(res), pp.resolve(clazz.getSimpleName() + ".class")) != null);
@@ -337,7 +367,7 @@ public class JarTest {
 
         Path prefixPath = fs.getPath("prefix.dat");
         Files.copy(toInputStream("I'm the prefix!", UTF_8), prefixPath);
-        
+
         new Jar()
                 .setAttribute("Foo", "1234")
                 .setAttribute("Bar", "5678")
@@ -415,6 +445,7 @@ public class JarTest {
     private static InputStream toInputStream(String s, Charset charset) {
         return new ByteArrayInputStream(s.getBytes(charset));
     }
+
     private static Manifest getManifest(Path jar, boolean useZipfs) throws IOException {
         if (useZipfs) {
             try (FileSystem zipfs = ZipFS.newZipFileSystem(jar)) {
