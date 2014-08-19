@@ -84,16 +84,16 @@ public class CapsuleContainer implements CapsuleContainerMBean {
         }
     }
 
-    public String launchCapsule(Path capsulePath, List<String> cmdLine, List<String> args) throws IOException {
-        return launchCapsule(CapsuleLauncher.newCapsule(capsulePath, cacheDir), cmdLine, args);
+    public String launchCapsule(Path capsulePath, List<String> jvmArgs, List<String> args) throws IOException {
+        return launchCapsule(CapsuleLauncher.newCapsule(capsulePath, cacheDir), jvmArgs, args);
     }
 
-    private String launchCapsule(Object capsule, List<String> cmdLine, List<String> args) throws IOException {
-        if (cmdLine == null)
-            cmdLine = Collections.emptyList();
+    private String launchCapsule(Object capsule, List<String> jvmArgs, List<String> args) throws IOException {
+        if (jvmArgs == null)
+            jvmArgs = Collections.emptyList();
 
         try {
-            ProcessBuilder pb = CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(cmdLine), args.toArray(new String[args.size()]));
+            ProcessBuilder pb = CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(jvmArgs), args);
             pb = configureCapsuleProcess(pb);
 
             final Process p = pb.start();

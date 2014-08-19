@@ -15,6 +15,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.jar.JarInputStream;
@@ -29,6 +30,9 @@ public final class CapsuleLauncher {
     private static final String CAPSULE_CLASS_NAME = "Capsule";
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
+    private static final String PROP_USER_HOME = "user.home";
+    private static final String PROP_OS_NAME = "os.name";
+    private static final String CACHE_DEFAULT_NAME = "capsule";
 
     /**
      * Creates a new capsule
@@ -87,13 +91,13 @@ public final class CapsuleLauncher {
      * Creates a {@link ProcessBuilder} ready to use for launching the capsule.
      *
      * @param capsule the capsule object returned from {@link #newCapsule(Path, Path) newCapsule}.
-     * @param cmdLine JVM arguments to use for launching the capsule
+     * @param jvmArgs JVM arguments to use for launching the capsule
      * @param args    command line arguments to pass to the capsule.
      * @return a {@link ProcessBuilder} for launching the capsule process
      */
-    public static ProcessBuilder prepareForLaunch(Object capsule, List<String> cmdLine, String[] args) {
+    public static ProcessBuilder prepareForLaunch(Object capsule, List<String> jvmArgs, List<String> args) {
         final Method launch = getCapsuleMethod(capsule, "prepareForLaunch", List.class, String[].class);
-        return (ProcessBuilder) invoke(capsule, launch, cmdLine, args);
+        return (ProcessBuilder) invoke(capsule, launch, jvmArgs, (String[]) args.toArray(new String[args.size()]));
     }
 
     /**
@@ -139,13 +143,55 @@ public final class CapsuleLauncher {
         }
     }
 
-    public static List<String> enableJMX(List<String> cmdLine) {
+    /**
+     * Adds an option to the JVM arguments to enable JMX connection
+     *
+     * @param jvmArgs the JVM args
+     * @return a new list of JVM args
+     */
+    public static List<String> enableJMX(List<String> jvmArgs) {
         final String arg = "-D" + OPT_JMX_REMOTE;
-        if (cmdLine.contains(arg))
-            return cmdLine;
-        final List<String> cmdLine2 = new ArrayList<>(cmdLine);
+        if (jvmArgs.contains(arg))
+            return jvmArgs;
+        final List<String> cmdLine2 = new ArrayList<>(jvmArgs);
         cmdLine2.add(arg);
         return cmdLine2;
+    }
+
+    /**
+     * Returns the path of the default capsule cache directory
+     */
+    public static Path getDefaultCacheDir() {
+        final Path cache;
+        cache = getCacheHome().resolve((isWindows() ? "" : ".") + CACHE_DEFAULT_NAME);
+        return cache;
+    }
+
+    private static Path getCacheHome() {
+        final Path userHome = Paths.get(System.getProperty(PROP_USER_HOME));
+        if (!isWindows())
+            return userHome;
+
+        Path localData;
+        final String localAppData = System.getenv("LOCALAPPDATA");
+        if (localAppData != null) {
+            localData = Paths.get(localAppData);
+            if (!Files.isDirectory(localData))
+                throw new RuntimeException("%LOCALAPPDATA% set to nonexistent directory " + localData);
+        } else {
+            localData = userHome.resolve(Paths.get("AppData", "Local"));
+            if (!Files.isDirectory(localData))
+                localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
+            if (!Files.isDirectory(localData))
+                throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
+                        + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
+                        + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
+        }
+        return localData;
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
 
     private CapsuleLauncher() {
