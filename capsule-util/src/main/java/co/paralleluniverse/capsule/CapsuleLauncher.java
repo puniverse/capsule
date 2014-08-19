@@ -40,7 +40,7 @@ public final class CapsuleLauncher {
      * @param jarFile  the capsule JAR
      * @param cacheDir the directory to use as cache
      * @return a capsule object which can then be passed to {@link #getAppId(Object) getAppId} and
-     *         {@link #prepareForLaunch(Object, List, String[]) prepareForLaunch}.
+     *         {@link #prepareForLaunch(Object, List, List) prepareForLaunch}.
      */
     public static Object newCapsule(Path jarFile, Path cacheDir) {
         try {
