@@ -1,5 +1,5 @@
-// To declare projects as part of a multi-project build use the 'include' method
 include 'capsule'
 include 'capsule-util'
+include 'capsule-container'
 
 rootProject.name = 'capsule'

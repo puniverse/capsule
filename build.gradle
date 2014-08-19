@@ -16,7 +16,7 @@ subprojects {
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group               = "co.paralleluniverse"
-    version             = "0.8.0-SNAPSHOT"
+    version             = "0.7.1-SNAPSHOT"
     status              = "integration"
     description         = "Simple Java deployment"
     ext.url             = "https://github.com/puniverse/capsule"
@@ -35,6 +35,7 @@ subprojects {
     }
 
     configurations {
+        provided
         javancss
     }
 
@@ -50,6 +51,12 @@ subprojects {
         javancss 'org.codehaus.javancss:javancss:33.54'
     }
 
+    sourceSets {
+        main.compileClasspath = main.compileClasspath + configurations.provided
+        test.compileClasspath = test.compileClasspath + configurations.provided
+        test.runtimeClasspath = test.runtimeClasspath + configurations.provided
+    }
+    
     test {
         systemProperty "java.protocol.handler.pkgs", "co.paralleluniverse.filesystem"
 
@@ -366,7 +373,13 @@ project (':capsule') {
 
 project (':capsule-util') {
     dependencies {
-        compile files("${System.getProperty('java.home')}/../lib/tools.jar")
+        provided files("${System.getProperty('java.home')}/../lib/tools.jar")
+    }
+}
+
+project (':capsule-container') {
+    dependencies {
+        compile project(':capsule-util')
         compile 'com.betfair.net.java.opendmk:core:1.0-b02'
     }
 }

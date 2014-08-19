@@ -6,7 +6,7 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package co.paralleluniverse.capsule;
+package co.paralleluniverse.common;
 
 import com.sun.nio.zipfs.ZipFileSystem;
 import com.sun.nio.zipfs.ZipFileSystemProvider;
@@ -22,7 +22,7 @@ import java.util.Map;
 /**
  * Bypasses the check in ZipFileSystemProvider.newFileSystem that verifies that the given path is in the default FileSystem
  */
-final class ZipFS {
+public final class ZipFS {
     private static final ZipFileSystemProvider ZIP_FILE_SYSTEM_PROVIDER = getZipFileSystemProvider();
     private static final Constructor<ZipFileSystem> ZIP_FILE_SYSTEM_CONSTRUCTOR;
 

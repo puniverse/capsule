@@ -41,7 +41,7 @@ import java.util.jar.Manifest;
 import java.util.jar.Pack200;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import static co.paralleluniverse.capsule.ZipFS.newZipFileSystem;
+import static co.paralleluniverse.common.ZipFS.newZipFileSystem;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**

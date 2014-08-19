@@ -9,9 +9,12 @@ import java.net.URLStreamHandler;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-final class PathURLStreamHandler extends URLStreamHandler {
-    static final URLStreamHandler INSTANCE = new PathURLStreamHandler();
+public class PathURLStreamHandler extends URLStreamHandler {
+    public static final URLStreamHandler INSTANCE = new PathURLStreamHandler();
 
+    protected PathURLStreamHandler() {
+    }
+    
     @Override
     protected URLConnection openConnection(URL url) throws IOException {
         try {
