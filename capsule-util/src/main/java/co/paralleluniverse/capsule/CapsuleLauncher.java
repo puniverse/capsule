@@ -21,6 +21,7 @@ import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
+ * Provides methods for loading, inspecting, and launching capsules.
  *
  * @author pron
  */
@@ -29,6 +30,14 @@ public final class CapsuleLauncher {
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
 
+    /**
+     * Creates a new capsule
+     *
+     * @param jarFile  the capsule JAR
+     * @param cacheDir the directory to use as cache
+     * @return a capsule object which can then be passed to {@link #getAppId(Object) getAppId} and
+     *         {@link #prepareForLaunch(Object, List, String[]) prepareForLaunch}.
+     */
     public static Object newCapsule(Path jarFile, Path cacheDir) {
         try {
             final Manifest mf;
@@ -74,11 +83,25 @@ public final class CapsuleLauncher {
         return isCapsuleClass(clazz.getSuperclass());
     }
 
+    /**
+     * Creates a {@link ProcessBuilder} ready to use for launching the capsule.
+     *
+     * @param capsule the capsule object returned from {@link #newCapsule(Path, Path) newCapsule}.
+     * @param cmdLine JVM arguments to use for launching the capsule
+     * @param args    command line arguments to pass to the capsule.
+     * @return a {@link ProcessBuilder} for launching the capsule process
+     */
     public static ProcessBuilder prepareForLaunch(Object capsule, List<String> cmdLine, String[] args) {
         final Method launch = getCapsuleMethod(capsule, "prepareForLaunch", List.class, String[].class);
         return (ProcessBuilder) invoke(capsule, launch, cmdLine, args);
     }
 
+    /**
+     * Returns a capsule's ID.
+     *
+     * @param capsule the capsule object returned from {@link #newCapsule(Path, Path) newCapsule}.
+     * @return the capsule's ID.
+     */
     public static String getAppId(Object capsule) {
         final Method appId = getCapsuleMethod(capsule, "appId", String[].class);
         return (String) invoke(capsule, appId, (Object) null);
