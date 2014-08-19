@@ -11,6 +11,7 @@ package co.paralleluniverse.capsule.container;
 import co.paralleluniverse.common.ProcessUtil;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnectorFactory;
@@ -31,9 +32,14 @@ public class MBeanCapsuleContainer extends CapsuleContainer {
     }
 
     @Override
-    protected CapsuleContainer.ProcessInfo mountProcess(Process p, String id) throws IOException, InstanceAlreadyExistsException {
-        final JMXServiceURL connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
-        return new ProcessInfo(p, connectorAddress);
+    protected CapsuleContainer.ProcessInfo mountProcess(Process p, String id, String capsuleId, List<String> jvmArgs, List<String> args) throws IOException, InstanceAlreadyExistsException {
+        JMXServiceURL connectorAddress = null;
+        try {
+            connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return new ProcessInfo(p, capsuleId, jvmArgs, args, connectorAddress);
     }
 
     @Override
@@ -50,8 +56,8 @@ public class MBeanCapsuleContainer extends CapsuleContainer {
         final JMXServiceURL connectorAddress;
         private MBeanServerConnection jmx;
 
-        public ProcessInfo(Process process, JMXServiceURL connectorAddress) {
-            super(process);
+        public ProcessInfo(Process process, String capsuleId, List<String> jvmArgs, List<String> args, JMXServiceURL connectorAddress) {
+            super(process, capsuleId, jvmArgs, args);
             this.connectorAddress = connectorAddress;
         }
 

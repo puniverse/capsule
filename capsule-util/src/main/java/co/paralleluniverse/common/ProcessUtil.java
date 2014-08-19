@@ -59,26 +59,28 @@ public final class ProcessUtil {
     private static JMXServiceURL getLocalConnectorAddress(String id, boolean startAgent) {
         VirtualMachine vm = null;
         try {
-            vm = VirtualMachine.attach(id);
-            String connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
-            if (connectorAddr == null && startAgent) {
-                final String agent = Paths.get(vm.getSystemProperties().getProperty(PROP_JAVA_HOME)).resolve(MANAGEMENT_AGENT).toString();
-                vm.loadAgent(agent);
-                connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
+            try {
+                vm = VirtualMachine.attach(id);
+                String connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
+                if (connectorAddr == null && startAgent) {
+                    final String agent = Paths.get(vm.getSystemProperties().getProperty(PROP_JAVA_HOME)).resolve(MANAGEMENT_AGENT).toString();
+                    vm.loadAgent(agent);
+                    connectorAddr = vm.getAgentProperties().getProperty(PROP_LOCAL_CONNECTOR_ADDRESS);
+                }
+                final JMXServiceURL url = connectorAddr != null ? new JMXServiceURL(connectorAddr) : null;
+                vm.detach();
+                return url;
+            } catch (AttachNotSupportedException e) {
+                throw new UnsupportedOperationException(e);
             }
-            final JMXServiceURL url = connectorAddr != null ? new JMXServiceURL(connectorAddr) : null;
-            vm.detach();
-            return url;
-        } catch (AttachNotSupportedException e) {
-            throw new UnsupportedOperationException(e);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             try {
                 if (vm != null)
                     vm.detach();
             } catch (IOException ex) {
                 e.addSuppressed(ex);
             }
-            throw e instanceof RuntimeException ? (RuntimeException)e : new RuntimeException(e);
+            throw e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
         }
     }
 

@@ -15,7 +15,7 @@ import java.util.Set;
  *
  * @author pron
  */
-public interface CapsuleContainerMBean {
+public interface CapsuleContainerMXBean {
     Set<String> getProcesses();
     void killProcess(String id);
 }

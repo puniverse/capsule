@@ -12,8 +12,10 @@ import co.paralleluniverse.capsule.CapsuleLauncher;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,7 @@ import javax.management.MBeanRegistrationException;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.NotCompliantMBeanException;
+import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 import javax.management.StandardEmitterMBean;
@@ -36,22 +39,28 @@ import javax.management.StandardEmitterMBean;
  *
  * @author pron
  */
-public class CapsuleContainer implements CapsuleContainerMBean {
+public class CapsuleContainer implements CapsuleContainerMXBean {
     private final AtomicLong notificationSequence = new AtomicLong();
     private final ConcurrentMap<String, ProcessInfo> processes = new ConcurrentHashMap<String, ProcessInfo>();
     private final AtomicInteger counter = new AtomicInteger();
     private final Path cacheDir;
-    private final NotificationBroadcasterSupport emitter;
+    private final StandardEmitterMBean mbean;
 
     @SuppressWarnings("OverridableMethodCallInConstructor")
     public CapsuleContainer(Path cacheDir) {
         this.cacheDir = cacheDir;
-        this.emitter = createEmitter();
-        registerMBean("co.paralleluniverse:type=CapsuleContainer", getMBeanInterface());
+        this.mbean = registerMBean("co.paralleluniverse:type=CapsuleContainer", getMBeanInterface());
+        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+
+            @Override
+            public void run() {
+                killAll();
+            }
+        }));
     }
 
     protected Class<?> getMBeanInterface() {
-        return CapsuleContainerMBean.class;
+        return CapsuleContainerMXBean.class;
     }
 
     protected NotificationBroadcasterSupport createEmitter() {
@@ -66,13 +75,13 @@ public class CapsuleContainer implements CapsuleContainerMBean {
         return new NotificationBroadcasterSupport(launch, death);
     }
 
-    private void registerMBean(String name, Class<?> mbeanInterface) {
+    private StandardEmitterMBean registerMBean(String name, Class<?> mbeanInterface) {
         try {
-            final Object mbean = new StandardEmitterMBean(this, (Class) mbeanInterface, emitter);
-
+            final StandardEmitterMBean _mbean = new StandardEmitterMBean(this, (Class) mbeanInterface, createEmitter());
             final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
             final ObjectName mxbeanName = new ObjectName(name);
-            mbs.registerMBean(mbean, mxbeanName);
+            mbs.registerMBean(_mbean, mxbeanName);
+            return _mbean;
         } catch (InstanceAlreadyExistsException ex) {
             throw new RuntimeException(ex);
         } catch (MBeanRegistrationException ex) {
@@ -91,18 +100,23 @@ public class CapsuleContainer implements CapsuleContainerMBean {
     private String launchCapsule(Object capsule, List<String> jvmArgs, List<String> args) throws IOException {
         if (jvmArgs == null)
             jvmArgs = Collections.emptyList();
+        if (args == null)
+            args = Collections.emptyList();
 
         try {
+            final String capsuleId = CapsuleLauncher.getAppId(capsule);
             ProcessBuilder pb = CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(jvmArgs), args);
             pb = configureCapsuleProcess(pb);
 
             final Process p = pb.start();
-            final String id = createProcessId(CapsuleLauncher.getAppId(capsule), p);
+            final String id = createProcessId(capsuleId, p);
 
-            final ProcessInfo pi = mountProcess(p, id);
+            final ProcessInfo pi = mountProcess(p, id, capsuleId, jvmArgs, args);
             processes.put(id, pi);
 
-            emitter.sendNotification(new CapsuleProcessLaunched(this, notificationSequence.incrementAndGet(), id));
+            final Notification n = new CapsuleProcessLaunched(this, notificationSequence.incrementAndGet(), id, "args: " + args + " jvmArgs: " + jvmArgs);
+            System.out.println("nonononon: " + n);
+            mbean.sendNotification(n);
             onProcessLaunch(id, pi);
             monitorProcess(id, p);
 
@@ -114,8 +128,8 @@ public class CapsuleContainer implements CapsuleContainerMBean {
         }
     }
 
-    protected ProcessInfo mountProcess(Process p, String id) throws IOException, InstanceAlreadyExistsException {
-        return new ProcessInfo(p);
+    protected ProcessInfo mountProcess(Process p, String id, String capsuleId, List<String> jvmArgs, List<String> args) throws IOException, InstanceAlreadyExistsException {
+        return new ProcessInfo(p, capsuleId, jvmArgs, args);
     }
 
     /**
@@ -129,7 +143,9 @@ public class CapsuleContainer implements CapsuleContainerMBean {
     }
 
     protected void processDied(String id, Process p, int exitValue) {
-        emitter.sendNotification(new CapsuleProcessKilled(this, notificationSequence.incrementAndGet(), id, exitValue));
+        final Notification n = new CapsuleProcessKilled(this, notificationSequence.incrementAndGet(), id, exitValue);
+        System.out.println("nonononon: " + n);
+        mbean.sendNotification(n);
         onProcessDeath(id, getProcessInfo(id), exitValue);
     }
 
@@ -157,13 +173,13 @@ public class CapsuleContainer implements CapsuleContainerMBean {
         return appId + "-" + counter.incrementAndGet();
     }
 
-    public final Map<String, Process> getProcessInfo() {
-        final Map<String, Process> m = new HashMap<>();
-        for (Iterator<Map.Entry<String, Process>> it = m.entrySet().iterator(); it.hasNext();) {
-            final Map.Entry<String, Process> e = it.next();
-            final Process p = e.getValue();
-            if (isAlive(p))
-                m.put(e.getKey(), p);
+    public final Map<String, ProcessInfo> getProcessInfo() {
+        final Map<String, ProcessInfo> m = new HashMap<>();
+        for (Iterator<Map.Entry<String, ProcessInfo>> it = processes.entrySet().iterator(); it.hasNext();) {
+            final Map.Entry<String, ProcessInfo> e = it.next();
+            final ProcessInfo pi = e.getValue();
+            if (isAlive(pi.process))
+                m.put(e.getKey(), pi);
             else
                 it.remove();
         }
@@ -187,13 +203,22 @@ public class CapsuleContainer implements CapsuleContainerMBean {
         return pi != null ? pi.process : null;
     }
 
-    @Override
-    public Set<String> getProcesses() {
-        return processes.keySet();
+    private void killAll() {
+        for (ProcessInfo pi : getProcessInfo().values())
+            pi.process.destroy();
     }
 
     @Override
-    public void killProcess(String id) {
+    public final Set<String> getProcesses() {
+        Set<String> ps = new HashSet<>();
+        for (Map.Entry<String, ProcessInfo> entry : getProcessInfo().entrySet()) {
+            ps.add(entry.getKey() + " " + entry.getValue());
+        }
+        return ps;
+    }
+
+    @Override
+    public final void killProcess(String id) {
         ProcessInfo pi = getProcessInfo(id);
         if (pi != null) {
             pi.process.destroy();
@@ -211,9 +236,20 @@ public class CapsuleContainer implements CapsuleContainerMBean {
 
     protected static class ProcessInfo {
         final Process process;
+        final String capsuleId;
+        final List<String> jvmArgs;
+        final List<String> args;
 
-        public ProcessInfo(Process process) {
+        public ProcessInfo(Process process, String capsuleId, List<String> jvmArgs, List<String> args) {
             this.process = process;
+            this.capsuleId = capsuleId;
+            this.jvmArgs = Collections.unmodifiableList(new ArrayList<String>(jvmArgs));
+            this.args = Collections.unmodifiableList(new ArrayList<String>(args));;
+        }
+
+        @Override
+        public String toString() {
+            return "(" + "capsule: " + capsuleId + " args: " + args + " jvmArgs:" + jvmArgs + ')';
         }
     }
 }

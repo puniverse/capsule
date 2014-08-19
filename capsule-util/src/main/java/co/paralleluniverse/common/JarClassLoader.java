@@ -126,9 +126,12 @@ public class JarClassLoader extends FlexibleClassLoader {
                         buf = bas.toByteArray();
                     } else {
                         buf = new byte[(int) size];
-                        int n = 0;
-                        while (n != -1)
-                            n = jis.read(buf, n, buf.length - n);
+                        int n = 0, r;
+                        for (;;) {
+                            if (n == size || (r = jis.read(buf, n, buf.length - n)) == -1)
+                                break;
+                            n += r;
+                        }
                     }
                     return buf;
                 }

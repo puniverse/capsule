@@ -8,21 +8,20 @@
  */
 package co.paralleluniverse.capsule.container;
 
-import javax.management.Notification;
-
 /**
  *
  * @author pron
  */
-public class CapsuleProcessLaunched extends Notification {
+public class CapsuleProcessLaunched extends CapsuleProcessNotification {
     public static final String CAPSULE_PROCESS_LAUNCHED = "capsule.launch";
+
 
     public CapsuleProcessLaunched(Object source, long sequenceNumber, String processId) {
         super(CAPSULE_PROCESS_LAUNCHED, source, sequenceNumber, processId);
     }
 
     public CapsuleProcessLaunched(Object source, long sequenceNumber, String processId, String message) {
-        super(CAPSULE_PROCESS_LAUNCHED, source, sequenceNumber, processId + ": " + message);
+        super(CAPSULE_PROCESS_LAUNCHED, source, sequenceNumber, processId, message);
     }
 
     public CapsuleProcessLaunched(Object source, long sequenceNumber, long timeStamp, String processId) {
@@ -30,6 +29,6 @@ public class CapsuleProcessLaunched extends Notification {
     }
 
     public CapsuleProcessLaunched(Object source, long sequenceNumber, long timeStamp, String processId, String message) {
-        super(CAPSULE_PROCESS_LAUNCHED, source, sequenceNumber, timeStamp, processId + ": " + message);
+        super(CAPSULE_PROCESS_LAUNCHED, source, sequenceNumber, timeStamp, processId, message);
     }
 }

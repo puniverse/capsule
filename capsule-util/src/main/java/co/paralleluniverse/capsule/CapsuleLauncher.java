@@ -11,6 +11,7 @@ package co.paralleluniverse.capsule;
 import co.paralleluniverse.common.JarClassLoader;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -111,11 +112,29 @@ public final class CapsuleLauncher {
         return (String) invoke(capsule, appId, (Object) null);
     }
 
+    /**
+     * Returns a capsule's version.
+     *
+     * @param capsule the capsule object returned from {@link #newCapsule(Path, Path) newCapsule}.
+     * @return the capsule's version.
+     */
+    public static String getVersion(Object capsule) {
+        final Field version = getCapsuleField(capsule, "VERSION");
+        return (String) get(capsule, version);
+    }
+
     private static Method getCapsuleMethod(Object capsule, String name, Class<?>... paramTypes) {
         final Method m = getMethod(capsule.getClass(), name, paramTypes);
         if (m == null)
             throw new RuntimeException("Could not call " + name + " on " + capsule + ". It does not appear to be a valid capsule.");
         return m;
+    }
+
+    private static Field getCapsuleField(Object capsule, String name) {
+        final Field f = getField(capsule.getClass(), name);
+        if (f == null)
+            throw new RuntimeException("Could not find " + name + " on " + capsule + ". It does not appear to be a valid capsule.");
+        return f;
     }
 
     private static Method getMethod(Class clazz, String name, Class<?>... paramTypes) {
@@ -125,6 +144,16 @@ public final class CapsuleLauncher {
             return method;
         } catch (NoSuchMethodException e) {
             return clazz.getSuperclass() != null ? getMethod(clazz.getSuperclass(), name, paramTypes) : null;
+        }
+    }
+
+    private static Field getField(Class clazz, String name) {
+        try {
+            final Field field = clazz.getDeclaredField(name);
+            field.setAccessible(true);
+            return field;
+        } catch (NoSuchFieldException e) {
+            return clazz.getSuperclass() != null ? getField(clazz.getSuperclass(), name) : null;
         }
     }
 
@@ -140,6 +169,14 @@ public final class CapsuleLauncher {
             if (t instanceof Error)
                 throw (Error) t;
             throw new RuntimeException(t);
+        }
+    }
+
+    private static Object get(Object obj, Field field) {
+        try {
+            return field.get(obj);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError();
         }
     }
 

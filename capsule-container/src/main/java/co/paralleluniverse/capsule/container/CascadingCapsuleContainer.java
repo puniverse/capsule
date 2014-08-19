@@ -13,6 +13,7 @@ import com.sun.jdmk.remote.cascading.CascadingService;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
+import java.util.List;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -35,10 +36,18 @@ public class CascadingCapsuleContainer extends MBeanCapsuleContainer {
     }
 
     @Override
-    protected CapsuleContainer.ProcessInfo mountProcess(Process p, String id) throws IOException, InstanceAlreadyExistsException {
-        final JMXServiceURL connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
-        final String mountId = cascade != null ? cascade.mount(connectorAddress, null, ObjectName.WILDCARD, id) : null;
-        return new ProcessInfo(p, connectorAddress, mountId);
+    protected CapsuleContainer.ProcessInfo mountProcess(Process p, String id, String capsuleId, List<String> jvmArgs, List<String> args) throws IOException, InstanceAlreadyExistsException {
+        String mountId = null;
+        JMXServiceURL connectorAddress = null;
+        try {
+            System.err.println("Connecting to " + id);
+            connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
+            mountId = cascade != null ? cascade.mount(connectorAddress, null, ObjectName.WILDCARD, id + "") : null;
+            System.err.println("Connected to " + id);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return new ProcessInfo(p, capsuleId, jvmArgs, args, connectorAddress, mountId);
     }
 
     @Override
@@ -49,8 +58,8 @@ public class CascadingCapsuleContainer extends MBeanCapsuleContainer {
     protected static class ProcessInfo extends MBeanCapsuleContainer.ProcessInfo {
         final String mountPoint;
 
-        public ProcessInfo(Process process, JMXServiceURL connectorAddress, String mountPoint) {
-            super(process, connectorAddress);
+        public ProcessInfo(Process process, String capsuleId, List<String> jvmArgs, List<String> args, JMXServiceURL connectorAddress, String mountPoint) {
+            super(process, capsuleId, jvmArgs, args, connectorAddress);
             this.mountPoint = mountPoint;
         }
     }

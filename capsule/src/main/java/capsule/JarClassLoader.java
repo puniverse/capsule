@@ -81,7 +81,7 @@ public class JarClassLoader extends FlexibleClassLoader {
     @Override
     protected Enumeration<URL> findResources1(String name) {
         final URL url = findResource1(name);
-        return (Enumeration<URL>)Collections.enumeration(url != null ? Collections.singleton(url) : Collections.emptySet());
+        return (Enumeration<URL>) Collections.enumeration(url != null ? Collections.singleton(url) : Collections.emptySet());
     }
 
     private boolean hasResource(String path) {
@@ -126,9 +126,12 @@ public class JarClassLoader extends FlexibleClassLoader {
                         buf = bas.toByteArray();
                     } else {
                         buf = new byte[(int) size];
-                        int n = 0;
-                        while (n != -1)
-                            n = jis.read(buf, n, buf.length - n);
+                        int n = 0, r;
+                        for (;;) {
+                            if (n == size || (r = jis.read(buf, n, buf.length - n)) == -1)
+                                break;
+                            n += r;
+                        }
                     }
                     return buf;
                 }

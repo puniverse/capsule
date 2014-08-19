@@ -373,7 +373,7 @@ project (':capsule') {
 
 project (':capsule-util') {
     dependencies {
-        provided files("${System.getProperty('java.home')}/../lib/tools.jar")
+        compile files("${System.getProperty('java.home')}/../lib/tools.jar")
     }
 }
 
@@ -381,6 +381,7 @@ project (':capsule-container') {
     dependencies {
         compile project(':capsule-util')
         compile 'com.betfair.net.java.opendmk:core:1.0-b02'
+        testCompile files("${System.getProperty('java.home')}/../lib/tools.jar")
     }
 }
 
