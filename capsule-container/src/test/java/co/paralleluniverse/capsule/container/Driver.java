@@ -14,43 +14,31 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 
-/**
- *
- * @author pron
- */
+
 public class Driver {
-    private static final Path CAPSULES = Paths.get("/Users/pron/Projects/capsule-demo/foo");
-    
+    private static final Path CAPSULES = Paths.get("XXXXXXXXX"); // the name of a library containing capsules
+
     public static void main(String[] args) throws Exception {
         System.setProperty("capsule.log", "verbose");
         Path cache = CAPSULES.resolve("cache");
         CapsuleContainer container = new CascadingCapsuleContainer(cache) {
-
             @Override
             protected void onProcessDeath(String id, CapsuleContainer.ProcessInfo pi, int exitValue) {
-                super.onProcessDeath(id, pi, exitValue);
                 System.out.println("DEATH: " + id);
             }
 
             @Override
             protected void onProcessLaunch(String id, CapsuleContainer.ProcessInfo pi) {
-                super.onProcessLaunch(id, pi);
+                System.out.println("LAUNCH: " + id);
             }
         };
 
         int i = 0;
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(CAPSULES)) {
             for (Path f : ds) {
-                try {
-                    if (!Files.isDirectory(f) && f.getFileName().toString().endsWith(".jar")) {
-                        i++;
-                        System.out.println("Launching " + f);
-                        final String id = container.launchCapsule(f, null, Arrays.asList("hi", Integer.toString(i)));
-                        System.out.println("Launched " + id);
-                    }
-                } catch (Throwable e) {
-                    System.err.println("XXX " + f);
-                    throw e;
+                if (!Files.isDirectory(f) && f.getFileName().toString().endsWith(".jar")) {
+                    System.out.println("Launching " + f);
+                    String id = container.launchCapsule(f, null, Arrays.asList("hi", Integer.toString(++i)));
                 }
             }
         }
