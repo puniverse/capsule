@@ -40,6 +40,8 @@ import javax.management.StandardEmitterMBean;
  * @author pron
  */
 public class CapsuleContainer implements CapsuleContainerMXBean {
+    public static final String CAPSULE_PROCESS_LAUNCHED = "capsule.launch";
+    public static final String CAPSULE_PROCESS_KILLED = "capsule.death";
     private final AtomicLong notificationSequence = new AtomicLong();
     private final ConcurrentMap<String, ProcessInfo> processes = new ConcurrentHashMap<String, ProcessInfo>();
     private final AtomicInteger counter = new AtomicInteger();
@@ -66,12 +68,12 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
 
     protected NotificationBroadcasterSupport createEmitter() {
         final MBeanNotificationInfo launch = new MBeanNotificationInfo(
-                new String[]{CapsuleProcessLaunched.CAPSULE_PROCESS_LAUNCHED},
-                CapsuleProcessLaunched.class.getName(),
+                new String[]{CAPSULE_PROCESS_LAUNCHED},
+                Notification.class.getName(),
                 "Notification about a capsule process having launched.");
         final MBeanNotificationInfo death = new MBeanNotificationInfo(
-                new String[]{CapsuleProcessKilled.CAPSULE_PROCESS_KILLED},
-                CapsuleProcessKilled.class.getName(),
+                new String[]{CAPSULE_PROCESS_KILLED},
+                Notification.class.getName(),
                 "Notification about a capsule process having launched.");
         return new NotificationBroadcasterSupport(launch, death);
     }
@@ -156,11 +158,11 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     private Notification processLaunchedNotification(String id, List<String> jvmArgs, List<String> args) {
-        return new CapsuleProcessLaunched(mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id, "args: " + args + " jvmArgs: " + jvmArgs);
+        return new Notification(CAPSULE_PROCESS_LAUNCHED, mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id + " args: " + args + " jvmArgs: " + jvmArgs);
     }
 
     private Notification processDiedNotification(String id, int exitValue) {
-        return new CapsuleProcessKilled(mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id, exitValue);
+        return new Notification(CAPSULE_PROCESS_KILLED, mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id + "exitValue: " + exitValue);
     }
 
     private void monitorProcess(final String id, final Process p) {
