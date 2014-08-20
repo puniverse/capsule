@@ -118,8 +118,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
             final ProcessInfo pi = mountProcess(p, id, capsuleId, jvmArgs, args);
             processes.put(id, pi);
 
-            final Notification n = new CapsuleProcessLaunched(mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id, "args: " + args + " jvmArgs: " + jvmArgs);
-            mbean.sendNotification(n);
+            mbean.sendNotification(processLaunchedNotification(id, jvmArgs, args));
             onProcessLaunch(id, pi);
             monitorProcess(id, p);
 
@@ -146,8 +145,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     protected void processDied(String id, Process p, int exitValue) {
-        final Notification n = new CapsuleProcessKilled(mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id, exitValue);
-        mbean.sendNotification(n);
+        mbean.sendNotification(processDiedNotification(id, exitValue));
         onProcessDeath(id, getProcessInfo(id), exitValue);
     }
 
@@ -155,6 +153,14 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     protected void onProcessDeath(String id, ProcessInfo pi, int exitValue) {
+    }
+
+    private Notification processLaunchedNotification(String id, List<String> jvmArgs, List<String> args) {
+        return new CapsuleProcessLaunched(mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id, "args: " + args + " jvmArgs: " + jvmArgs);
+    }
+
+    private Notification processDiedNotification(String id, int exitValue) {
+        return new CapsuleProcessKilled(mbean, notificationSequence.incrementAndGet(), System.currentTimeMillis(), id, exitValue);
     }
 
     private void monitorProcess(final String id, final Process p) {
