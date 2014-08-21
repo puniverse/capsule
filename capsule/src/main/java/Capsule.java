@@ -69,17 +69,17 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
-    private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_VERSION = "capsule.version";
-    private static final String PROP_LOG = "capsule.log";
     private static final String PROP_TREE = "capsule.tree";
+    private static final String PROP_RESOLVE = "capsule.resolve";
+    private static final String PROP_RESET = "capsule.reset";
+    private static final String PROP_LOG = "capsule.log";
     private static final String PROP_APP_ID = "capsule.app.id";
     private static final String PROP_PRINT_JRES = "capsule.jvms";
     private static final String PROP_CAPSULE_JAVA_HOME = "capsule.java.home";
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
     private static final String PROP_OFFLINE = "capsule.offline";
-    private static final String PROP_RESOLVE = "capsule.resolve";
 
     private static final String PROP_JAVA_VERSION = "java.version";
     private static final String PROP_JAVA_HOME = "java.home";
@@ -210,7 +210,7 @@ public class Capsule implements Runnable {
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final String LOG_PREFIX = "CAPSULE: ";
 
-    private static Map<String, Path> JAVA_HOMES; // an optimization trick
+    private static Map<String, Path> JAVA_HOMES; // an optimization trick (allows capsule containers to inject a value here)
     private final Path jarFile;      // never null
     private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
