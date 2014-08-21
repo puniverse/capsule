@@ -49,7 +49,7 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     @Override
     public void transferInitiated(TransferEvent event) {
         final String message = event.getRequestType() == TransferEvent.RequestType.PUT ? "Uploading" : "Downloading";
-        out.println(message + ": " + event.getResource().getRepositoryUrl() + event.getResource().getResourceName());
+        verbose(message + ": " + event.getResource().getRepositoryUrl() + event.getResource().getResourceName());
     }
 
     @Override
@@ -88,7 +88,9 @@ public class ConsoleTransferListener extends AbstractTransferListener {
     @Override
     public void transferSucceeded(TransferEvent event) {
         transferCompleted(event);
-
+        if (!verbose)
+            return;
+        
         final TransferResource resource = event.getResource();
         final long contentLength = event.getTransferredBytes();
         if (contentLength >= 0) {
@@ -104,7 +106,7 @@ public class ConsoleTransferListener extends AbstractTransferListener {
                 throughput = " at " + format.format(kbPerSec) + " KB/sec";
             }
 
-            out.println(type + ": " + resource.getRepositoryUrl() + resource.getResourceName() + " (" + len + throughput + ")");
+            println(type + ": " + resource.getRepositoryUrl() + resource.getResourceName() + " (" + len + throughput + ")");
         }
     }
 
@@ -113,7 +115,7 @@ public class ConsoleTransferListener extends AbstractTransferListener {
         transferCompleted(event);
 
         if (!(event.getException() instanceof MetadataNotFoundException)) {
-            out.println("Transfer failed: " + event.getException() + (verbose ? "" : " (for stack trace, run with -Dcapsule.log=verbose)"));
+            println("Transfer failed: " + event.getException() + (verbose ? "" : " (for stack trace, run with -Dcapsule.log=verbose)"));
             if (verbose)
                 event.getException().printStackTrace(out);
         }
@@ -121,7 +123,7 @@ public class ConsoleTransferListener extends AbstractTransferListener {
 
     @Override
     public void transferCorrupted(TransferEvent event) {
-        out.println("Transfer corrupted: " + event.getException() + (verbose ? "" : " (for stack trace, run with -Dcapsule.log=verbose)"));
+        println("Transfer corrupted: " + event.getException() + (verbose ? "" : " (for stack trace, run with -Dcapsule.log=verbose)"));
         if (verbose)
             event.getException().printStackTrace(out);
     }
@@ -146,5 +148,14 @@ public class ConsoleTransferListener extends AbstractTransferListener {
             buffer.append(block, 0, n);
             spaces -= n;
         }
+    }
+
+    private void println(String str) {
+        out.println(str);
+    }
+
+    private void verbose(String str) {
+        if (verbose)
+            println(str);
     }
 }
