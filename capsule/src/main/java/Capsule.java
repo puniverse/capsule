@@ -255,7 +255,7 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
 
-        this.mode = emptyToNull(System.getProperty(PROP_MODE));
+        this.mode = getMode();
         if (mode != null && manifest.getAttributes(mode) == null)
             throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
 
@@ -273,6 +273,10 @@ public class Capsule implements Runnable {
 
     protected Manifest configureManifest(Manifest manifest) throws IOException {
         return manifest;
+    }
+    
+    protected String getMode() {
+        return emptyToNull(System.getProperty(PROP_MODE));
     }
     //</editor-fold>
 
