@@ -368,7 +368,7 @@ public class Capsule implements Runnable {
         println("Capsule resolved");
     }
 
-    private Process launch(String[] args) throws IOException, InterruptedException {
+    protected Process launch(String[] args) throws IOException, InterruptedException {
         final List<String> cmdLine = ManagementFactory.getRuntimeMXBean().getInputArguments();
         ProcessBuilder pb = launchCapsuleArtifact(cmdLine, args);
         if (pb == null)
