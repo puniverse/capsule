@@ -175,9 +175,8 @@ public class CapsuleTest {
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
-        
         assertEquals(Arrays.asList(args), getAppArgs(pb));
-        
+
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
@@ -223,7 +222,7 @@ public class CapsuleTest {
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assertEquals(Arrays.asList(args), getAppArgs(pb));
-        
+
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
         assertTrue(!Files.isDirectory(appCache));
     }
@@ -608,9 +607,10 @@ public class CapsuleTest {
 
     @Test
     public void testJVMArgs() throws Exception {
+        System.setProperty("capsule.jvm.args", "-Xfoo500 -Xbar:120");
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
-                .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .setAttribute("JVM-Args", "-Xmx100 -Xms10 -Xfoo400")
                 .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
         String[] args = strings("hi", "there");
@@ -622,6 +622,8 @@ public class CapsuleTest {
         assertTrue(getJvmArgs(pb).contains("-Xmx100"));
         assertTrue(getJvmArgs(pb).contains("-Xms15"));
         assertTrue(!getJvmArgs(pb).contains("-Xms10"));
+        assertTrue(getJvmArgs(pb).contains("-Xfoo500"));
+        assertTrue(getJvmArgs(pb).contains("-Xbar:120"));
     }
 
     @Test

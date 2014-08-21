@@ -80,6 +80,7 @@ public class Capsule implements Runnable {
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
     private static final String PROP_OFFLINE = "capsule.offline";
+    private static final String PROP_JVM_ARGS = "capsule.jvm.args";
 
     private static final String PROP_JAVA_VERSION = "java.version";
     private static final String PROP_JAVA_HOME = "java.home";
@@ -1059,6 +1060,9 @@ public class Capsule implements Runnable {
         final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
 
         for (String option : buildJVMArgs())
+            addJvmArg(option, jvmArgs);
+
+        for (String option : nullToEmpty(split(System.getProperty(PROP_JVM_ARGS), " ")))
             addJvmArg(option, jvmArgs);
 
         // command line overrides everything
