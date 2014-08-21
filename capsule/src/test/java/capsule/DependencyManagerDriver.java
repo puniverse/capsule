@@ -20,7 +20,7 @@ public class DependencyManagerDriver {
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty("user.home"), ".m2", "repository");
 
     public static void main(String[] args) {
-        final DependencyManager dm = new DependencyManagerImpl(DEFAULT_LOCAL_MAVEN, null, true, false, false);
+        final DependencyManager dm = new DependencyManagerImpl(DEFAULT_LOCAL_MAVEN, null, true, false, false, 3);
 
         resolve(dm, "co.paralleluniverse:quasar-core:LATEST");
         resolve(dm, "co.paralleluniverse:quasar-core:(0.3.0,0.5.0-SNAPSHOT)");
