@@ -141,6 +141,7 @@ public class Capsule implements Runnable {
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
     private static final String VAR_CAPSULE_JAR = "CAPSULE_JAR";
+    private static final String VAR_CLASSPATH = "CLASSPATH";
     private static final String VAR_JAVA_HOME = "JAVA_HOME";
 
     private static final String PROP_CAPSULE_JAR = "capsule.jar";
@@ -2187,7 +2188,7 @@ public class Capsule implements Runnable {
         String level = System.getProperty(PROP_LOG_LEVEL);
         if (level == null)
             level = getAttribute(ATTR_LOG_LEVEL);
-        if (level == null)
+        if (level == null || level.isEmpty())
             level = "QUIET";
         int lvl = getLogLevel(level);
         if (lvl < 0)

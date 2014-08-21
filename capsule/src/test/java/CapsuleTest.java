@@ -228,6 +228,45 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testLogLevel() throws Exception {
+        try {
+            Jar jar = newCapsuleJar()
+                    .setAttribute("Application-Class", "com.acme.Foo")
+                    .setAttribute("Capsule-Log-Level", "verbose");
+
+            Capsule capsule = newCapsule(jar, null);
+            assertTrue(capsule.isLogging(2));
+            assertTrue(!capsule.isLogging(3));
+
+            System.setProperty("capsule.log", "none");
+            capsule = newCapsule(jar, null);
+            assertTrue(capsule.isLogging(0));
+            assertTrue(!capsule.isLogging(1));
+
+            System.setProperty("capsule.log", "quiet");
+            capsule = newCapsule(jar, null);
+            assertTrue(capsule.isLogging(1));
+            assertTrue(!capsule.isLogging(2));
+
+            System.setProperty("capsule.log", "");
+            capsule = newCapsule(jar, null);
+            assertTrue(capsule.isLogging(1));
+            assertTrue(!capsule.isLogging(2));
+
+            System.setProperty("capsule.log", "verbose");
+            capsule = newCapsule(jar, null);
+            assertTrue(capsule.isLogging(2));
+            assertTrue(!capsule.isLogging(3));
+            
+            System.setProperty("capsule.log", "debug");
+            capsule = newCapsule(jar, null);
+            assertTrue(capsule.isLogging(3));
+        } finally {
+            System.setProperty("capsule.log", "");
+        }
+    }
+
+    @Test
     public void whenNoNameAndPomTakeIdFromPom() throws Exception {
         Model pom = newPom();
         pom.setGroupId("com.acme");
