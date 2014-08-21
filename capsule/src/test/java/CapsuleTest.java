@@ -175,6 +175,9 @@ public class CapsuleTest {
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
+        
+        assertEquals(Arrays.asList(args), getAppArgs(pb));
+        
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
@@ -219,6 +222,8 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
+        assertEquals(Arrays.asList(args), getAppArgs(pb));
+        
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
         assertTrue(!Files.isDirectory(appCache));
     }
@@ -614,9 +619,9 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        assertTrue(pb.command().contains("-Xmx100"));
-        assertTrue(pb.command().contains("-Xms15"));
-        assertTrue(!pb.command().contains("-Xms10"));
+        assertTrue(getJvmArgs(pb).contains("-Xmx100"));
+        assertTrue(getJvmArgs(pb).contains("-Xms15"));
+        assertTrue(!getJvmArgs(pb).contains("-Xms10"));
     }
 
     @Test
@@ -720,10 +725,10 @@ public class CapsuleTest {
         assertEquals("", getProperty(pb, "zzz"));
         assertEquals("44", getProperty(pb, "baz"));
 
-        assertTrue(pb.command().contains("-Xmx3000"));
-        assertTrue(!pb.command().contains("-Xmx100"));
-        assertTrue(pb.command().contains("-Xms15"));
-        assertTrue(!pb.command().contains("-Xms10"));
+        assertTrue(getJvmArgs(pb).contains("-Xmx3000"));
+        assertTrue(!getJvmArgs(pb).contains("-Xmx100"));
+        assertTrue(getJvmArgs(pb).contains("-Xms15"));
+        assertTrue(!getJvmArgs(pb).contains("-Xms10"));
     }
 
     @Test
@@ -859,14 +864,36 @@ public class CapsuleTest {
     }
 
     private String getOption(ProcessBuilder pb, String opt, char separator) {
-        final List<String> cmd = pb.command();
-        for (String a : cmd) {
+        final List<String> jvmargs = getJvmArgs(pb);
+        for (String a : jvmargs) {
             if (a.startsWith(opt)) {
                 String res = getAfter(a, separator);
                 return res != null ? res : "";
             }
         }
         return null;
+    }
+
+    private List<String> getJvmArgs(ProcessBuilder pb) {
+        final List<String> jvmArgs = new ArrayList<>();
+        boolean classpath = false;
+        for (String x : pb.command().subList(1, pb.command().size())) {
+            if (x.equals("-jar") || (!x.startsWith("-") && !classpath))
+                break;
+            if (x.equals("-classpath") || x.equals("-cp"))
+                classpath = true;
+            else
+                classpath = false;
+            jvmArgs.add(x);
+        }
+        return jvmArgs;
+    }
+
+    private List<String> getAppArgs(ProcessBuilder pb) {
+        List<String> jvmArgs = getJvmArgs(pb);
+        final List<String> cmd = pb.command();
+        final int start = jvmArgs.size() + 1;
+        return cmd.subList(start + (cmd.get(start).equals("-jar") ? 2 : 1), cmd.size());
     }
 
     private static String getBefore(String s, char separator) {
