@@ -211,7 +211,7 @@ public class Capsule implements Runnable {
     private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final String LOG_PREFIX = "CAPSULE: ";
 
-    private static Map<String, Path> JAVA_HOMES; // an optimization trick (allows capsule containers to inject a value here)
+    private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
     private final Path jarFile;      // never null
     private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
@@ -387,7 +387,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
-    // directly used by CapsuleLauncher as well as by the tests
+    // directly used by CapsuleLauncher
     final ProcessBuilder prepareForLaunch(List<String> cmdLine, String[] args) {
         ensureExtractedIfNecessary();
         final ProcessBuilder pb = buildProcess(cmdLine, args);
