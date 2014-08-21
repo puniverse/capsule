@@ -73,7 +73,7 @@ public class Capsule implements Runnable {
     private static final String PROP_TREE = "capsule.tree";
     private static final String PROP_RESOLVE = "capsule.resolve";
     private static final String PROP_RESET = "capsule.reset";
-    private static final String PROP_LOG = "capsule.log";
+    private static final String PROP_LOG_LEVEL = "capsule.log";
     private static final String PROP_APP_ID = "capsule.app.id";
     private static final String PROP_PRINT_JRES = "capsule.jvms";
     private static final String PROP_CAPSULE_JAVA_HOME = "capsule.java.home";
@@ -131,6 +131,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
     private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
+    private static final String ATTR_LOG_LEVEL = "Capsule-Log-Level";
 
     private static final Set<String> NON_MODAL_ATTRS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             new String[]{ATTR_APP_NAME, ATTR_APP_VERSION}
@@ -162,6 +163,10 @@ public class Capsule implements Runnable {
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
     private static final Object DEFAULT = new Object();
+    private static final int LOG_NONE = 0;
+    private static final int LOG_QUIET = 1;
+    private static final int LOG_VERBOSE = 2;
+    private static final int LOG_DEBUG = 3;
     //</editor-fold>
 
     //<editor-fold desc="Main">
@@ -197,18 +202,16 @@ public class Capsule implements Runnable {
                 System.exit(p.waitFor());
         } catch (Throwable t) {
             System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
-            if (verbose) {
+            if (getLogLevel(System.getProperty(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
                 System.err.println();
                 t.printStackTrace(System.err);
             } else
-                System.err.println(" (for stack trace, run with -D" + PROP_LOG + "=verbose)");
+                System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
             System.exit(1);
         }
     }
     //</editor-fold>
 
-    private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
-    private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
     private static final String LOG_PREFIX = "CAPSULE: ";
 
     private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
@@ -223,6 +226,7 @@ public class Capsule implements Runnable {
     private final String mode;
     private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final Object dependencyManager; // non-null iff needsDependencyManager is true
+    private final int logLevel;
     private Process child;
 
     //<editor-fold defaultstate="collapsed" desc="Constructors">
@@ -259,6 +263,7 @@ public class Capsule implements Runnable {
         if (mode != null && manifest.getAttributes(mode) == null)
             throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
 
+        this.logLevel = getLogLevel();
         this.cacheDir = initCacheDir(cacheDir);
 
         this.javaHome = getJavaHome();
@@ -274,7 +279,7 @@ public class Capsule implements Runnable {
     protected Manifest configureManifest(Manifest manifest) throws IOException {
         return manifest;
     }
-    
+
     protected String getMode() {
         return emptyToNull(System.getProperty(PROP_MODE));
     }
@@ -369,7 +374,7 @@ public class Capsule implements Runnable {
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_A));
 
         resolveNativeDependencies();
-        println("Capsule resolved");
+        log(LOG_QUIET, "Capsule resolved");
     }
 
     protected Process launch(String[] args) throws IOException, InterruptedException {
@@ -397,7 +402,7 @@ public class Capsule implements Runnable {
         final ProcessBuilder pb = buildProcess(cmdLine, args);
         if (appCache != null && !cacheUpToDate)
             markCache();
-        verbose("Launching app " + appId);
+        log(LOG_VERBOSE, "Launching app " + appId);
         return pb;
     }
 
@@ -408,7 +413,7 @@ public class Capsule implements Runnable {
                 if (shouldExtract())
                     extractCapsule();
             } else
-                verbose("App cache " + appCache + " is up to date.");
+                log(LOG_VERBOSE, "App cache " + appCache + " is up to date.");
         }
     }
 
@@ -422,7 +427,7 @@ public class Capsule implements Runnable {
 
         buildEnvironmentVariables(pb.environment());
 
-        verbose(join(command, " "));
+        log(LOG_VERBOSE, join(command, " "));
 
         return pb;
     }
@@ -506,7 +511,7 @@ public class Capsule implements Runnable {
                     if (jars == null || jars.isEmpty())
                         return null;
                     if (isCapsule(jars.get(0))) {
-                        verbose("Running capsule " + jars.get(0));
+                        log(LOG_VERBOSE, "Running capsule " + jars.get(0));
                         return launchCapsule(jars.get(0), cacheDir,
                                 cmdLine, isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
                     } else if (isEmptyCapsule())
@@ -695,7 +700,7 @@ public class Capsule implements Runnable {
 
     private void resetAppCache() {
         try {
-            debug("Creating cache for " + jarFile + " in " + appCache.toAbsolutePath());
+            log(LOG_DEBUG, "Creating cache for " + jarFile + " in " + appCache.toAbsolutePath());
             final Path lockFile = appCache.resolve(LOCK_FILE_NAME);
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(appCache)) {
                 for (Path f : ds) {
@@ -741,7 +746,7 @@ public class Capsule implements Runnable {
 
     private void extractCapsule() {
         try {
-            verbose("Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
+            log(LOG_VERBOSE, "Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
             extractJar(openJarInputStream(), appCache);
         } catch (IOException e) {
             throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
@@ -759,14 +764,14 @@ public class Capsule implements Runnable {
 
     private void lockAppCache() throws IOException {
         final Path lockFile = appCache.resolve(LOCK_FILE_NAME);
-        verbose("Locking " + lockFile);
+        log(LOG_VERBOSE, "Locking " + lockFile);
         final FileChannel c = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         this.appCacheLock = c.lock();
     }
 
     private void unlockAppCache() throws IOException {
         if (appCacheLock != null) {
-            verbose("Unocking " + appCache.resolve(LOCK_FILE_NAME));
+            log(LOG_VERBOSE, "Unocking " + appCache.resolve(LOCK_FILE_NAME));
             appCacheLock.release();
             appCacheLock.acquiredBy().close();
             appCacheLock = null;
@@ -998,14 +1003,14 @@ public class Capsule implements Runnable {
             deps.add(dna[0]);
             renames.add(dna.length > 1 ? dna[1] : null);
         }
-        verbose("Resolving native libs " + deps);
+        log(LOG_VERBOSE, "Resolving native libs " + deps);
         final List<Path> resolved = resolveDependencies(deps, getNativeLibExtension());
         if (resolved.size() != deps.size())
             throw new RuntimeException("One of the native artifacts " + deps + " reolved to more than a single file or to none");
 
         assert appCache != null;
         if (!cacheUpToDate) {
-            if (debug)
+            if (isLogging(LOG_DEBUG))
                 System.err.println("Copying native libs to " + appCache);
             try {
                 for (int i = 0; i < deps.size(); i++) {
@@ -1203,11 +1208,11 @@ public class Capsule implements Runnable {
         String bestVersion = null;
         for (Map.Entry<String, Path> e : homes.entrySet()) {
             final String v = e.getKey();
-            debug("Trying JVM: " + e.getValue() + " (version " + e.getKey() + ")");
+            log(LOG_DEBUG, "Trying JVM: " + e.getValue() + " (version " + e.getKey() + ")");
             if (isMatchingJavaVersion(v)) {
-                debug("JVM " + e.getValue() + " (version " + e.getKey() + ") matches");
+                log(LOG_DEBUG, "JVM " + e.getValue() + " (version " + e.getKey() + ") matches");
                 if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
-                    debug("JVM " + e.getValue() + " (version " + e.getKey() + ") is best so far");
+                    log(LOG_DEBUG, "JVM " + e.getValue() + " (version " + e.getKey() + ") is best so far");
                     bestVersion = v;
                     best = e.getValue();
                 }
@@ -1219,21 +1224,21 @@ public class Capsule implements Runnable {
     private boolean isMatchingJavaVersion(String javaVersion) {
         try {
             if (hasAttribute(ATTR_MIN_JAVA_VERSION) && compareVersions(javaVersion, getAttribute(ATTR_MIN_JAVA_VERSION)) < 0) {
-                debug("Java version " + javaVersion + " fails to match due to " + ATTR_MIN_JAVA_VERSION + ": " + getAttribute(ATTR_MIN_JAVA_VERSION));
+                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_MIN_JAVA_VERSION + ": " + getAttribute(ATTR_MIN_JAVA_VERSION));
                 return false;
             }
             if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(javaVersion, shortJavaVersion(getAttribute(ATTR_JAVA_VERSION)), 3) > 0) {
-                debug("Java version " + javaVersion + " fails to match due to " + ATTR_JAVA_VERSION + ": " + getAttribute(ATTR_JAVA_VERSION));
+                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_JAVA_VERSION + ": " + getAttribute(ATTR_JAVA_VERSION));
                 return false;
             }
             if (getMinUpdateFor(javaVersion) > parseJavaVersion(javaVersion)[3]) {
-                debug("Java version " + javaVersion + " fails to match due to " + ATTR_MIN_UPDATE_VERSION + ": " + getAttribute(ATTR_MIN_UPDATE_VERSION) + " (" + getMinUpdateFor(javaVersion) + ")");
+                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_MIN_UPDATE_VERSION + ": " + getAttribute(ATTR_MIN_UPDATE_VERSION) + " (" + getMinUpdateFor(javaVersion) + ")");
                 return false;
             }
-            debug("Java version " + javaVersion + " matches");
+            log(LOG_DEBUG, "Java version " + javaVersion + " matches");
             return true;
         } catch (IllegalArgumentException ex) {
-            verbose("Error parsing Java version " + javaVersion);
+            log(LOG_VERBOSE, "Error parsing Java version " + javaVersion);
             return false;
         }
     }
@@ -1252,7 +1257,7 @@ public class Capsule implements Runnable {
 
     private String getJavaProcessName() {
         final String javaHome1 = javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME);
-        verbose("Using JVM: " + javaHome1 + (javaHome == null ? " (current)" : ""));
+        log(LOG_VERBOSE, "Using JVM: " + javaHome1 + (javaHome == null ? " (current)" : ""));
         return getJavaProcessName(javaHome1);
     }
     //</editor-fold>
@@ -1318,17 +1323,15 @@ public class Capsule implements Runnable {
             final boolean reset = Boolean.parseBoolean(System.getProperty(PROP_RESET, "false"));
 
             final Path localRepo = getLocalRepo();
-            debug("Local repo: " + localRepo);
+            log(LOG_DEBUG, "Local repo: " + localRepo);
 
             final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
-            debug("Offline: " + offline);
+            log(LOG_DEBUG, "Offline: " + offline);
 
             final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));
-            debug("Allow snapshots: " + offline);
+            log(LOG_DEBUG, "Allow snapshots: " + offline);
 
-            final DependencyManager dm = new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, offline, allowSnapshots);
-
-            return dm;
+            return new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, offline, allowSnapshots, logLevel);
         } catch (NoClassDefFoundError e) {
             throw new RuntimeException("Jar " + jarFile
                     + " specifies dependencies, while the necessary dependency management classes are not found in the jar");
@@ -2180,17 +2183,43 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
-    private static void println(String str) {
-        System.err.println(LOG_PREFIX + str);
+    protected int getLogLevel() {
+        String level = System.getProperty(PROP_LOG_LEVEL);
+        if (level == null)
+            level = getAttribute(ATTR_LOG_LEVEL);
+        if (level == null)
+            level = "QUIET";
+        int lvl = getLogLevel(level);
+        if (lvl < 0)
+            throw new IllegalArgumentException("Unrecognized log level: " + level);
+        return lvl;
     }
 
-    private static void verbose(String str) {
-        if (verbose)
-            System.err.println(LOG_PREFIX + str);
+    private static int getLogLevel(String level) {
+        switch (level.toUpperCase()) {
+            case "NONE":
+                return LOG_NONE;
+            case "QUIET":
+                return LOG_QUIET;
+            case "VERBOSE":
+                return LOG_VERBOSE;
+            case "DEBUG":
+                return LOG_DEBUG;
+            default:
+                return -1;
+        }
     }
 
-    private static void debug(String str) {
-        if (debug)
+    protected final boolean isLogging(int level) {
+        return level <= logLevel;
+    }
+
+    private void println(String str) {
+        log(LOG_QUIET, str);
+    }
+
+    private void log(int level, String str) {
+        if (isLogging(level))
             System.err.println(LOG_PREFIX + str);
     }
     //</editor-fold>
@@ -2227,7 +2256,7 @@ public class Capsule implements Runnable {
             child.destroy();
     }
 
-    private static void pipe(InputStream in, OutputStream out) {
+    private void pipe(InputStream in, OutputStream out) {
         try (OutputStream out1 = out) {
             int read;
             byte[] buf = new byte[1024];
@@ -2236,7 +2265,7 @@ public class Capsule implements Runnable {
                 out.flush();
             }
         } catch (IOException e) {
-            if (verbose)
+            if (isLogging(LOG_VERBOSE))
                 e.printStackTrace(System.err);
         }
     }

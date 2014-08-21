@@ -69,8 +69,10 @@ public class DependencyManagerImpl implements DependencyManager {
     private static final String PROP_LOG = "capsule.log";
     private static final String LATEST_VERSION = "[0,)";
 
-    private static final boolean debug = "debug".equals(System.getProperty(PROP_LOG, "quiet"));
-    private static final boolean verbose = debug || "verbose".equals(System.getProperty(PROP_LOG, "quiet"));
+    private static final int LOG_NONE = 0;
+    private static final int LOG_QUIET = 1;
+    private static final int LOG_VERBOSE = 2;
+    private static final int LOG_DEBUG = 3;
     private static final String LOG_PREFIX = "CAPSULE: ";
 
     private final boolean forceRefresh;
@@ -78,11 +80,13 @@ public class DependencyManagerImpl implements DependencyManager {
     private final RepositorySystem system;
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
+    private final int logLevel;
 
-    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline, boolean allowSnapshots) {
+    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline, boolean allowSnapshots, int logLevel) {
         this.system = newRepositorySystem();
         this.forceRefresh = forceRefresh;
         this.offline = offline;
+        this.logLevel = logLevel;
 
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
         this.session = newRepositorySession(system, localRepo);
@@ -95,8 +99,8 @@ public class DependencyManagerImpl implements DependencyManager {
         this.repos = new ArrayList<RemoteRepository>();
         for (String repo : repos)
             this.repos.add(newRemoteRepository(repo, WELL_KNOWN_REPOS.containsKey(repo) ? WELL_KNOWN_REPOS.get(repo) : repo, releasePolicy, snapshotPolicy));
-        
-        verbose("Dependency manager initialized with repositories: " + this.repos);
+
+        log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
     }
 
     private static RepositorySystem newRepositorySystem() {
@@ -135,9 +139,11 @@ public class DependencyManagerImpl implements DependencyManager {
 
         s.setLocalRepositoryManager(system.newLocalRepositoryManager(s, localRepo));
 
-        final PrintStream out = prefixStream(System.err, LOG_PREFIX);
-        s.setTransferListener(new ConsoleTransferListener(verbose, out));
-        s.setRepositoryListener(new ConsoleRepositoryListener(verbose, out));
+        if (logLevel > LOG_NONE) {
+            final PrintStream out = prefixStream(System.err, LOG_PREFIX);
+            s.setTransferListener(new ConsoleTransferListener(isLogging(LOG_VERBOSE), out));
+            s.setRepositoryListener(new ConsoleRepositoryListener(isLogging(LOG_VERBOSE), out));
+        }
 
         return s;
     }
@@ -309,17 +315,16 @@ public class DependencyManagerImpl implements DependencyManager {
         return s.isEmpty() ? null : s;
     }
 
-    private static void println(String str) {
-        System.err.println(LOG_PREFIX + str);
+    protected final boolean isLogging(int level) {
+        return level <= logLevel;
     }
 
-    private static void verbose(String str) {
-        if (verbose)
-            System.err.println(LOG_PREFIX + str);
+    private void println(String str) {
+        log(LOG_QUIET, str);
     }
 
-    private static void debug(String str) {
-        if (debug)
+    private void log(int level, String str) {
+        if (isLogging(level))
             System.err.println(LOG_PREFIX + str);
     }
 
