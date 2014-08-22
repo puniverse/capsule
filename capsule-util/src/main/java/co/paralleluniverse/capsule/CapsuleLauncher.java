@@ -131,11 +131,19 @@ public final class CapsuleLauncher {
         return (String) get(capsule, version);
     }
 
-    public static Map<String, Path> getJavaHomes(Object capsule) {
-        final Field homes = getField(capsule.getClass(), "JAVA_HOMES");
-        if (homes == null)
-            return null;
-        return (Map<String, Path>) get(capsule, homes);
+    /**
+     * Returns all known Java installations
+     * @return a map from the version strings to their respective paths of the Java installations.
+     */
+    public static Map<String, Path> getJavaHomes() {
+        try {
+            final Class<?> clazz = CapsuleLauncher.class.getClassLoader().loadClass(CAPSULE_CLASS_NAME);
+            final Method m = clazz.getDeclaredMethod("getJavaHomes");
+            m.setAccessible(true);
+            return (Map<String, Path>) m.invoke(null);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static void setJavaHomes(Class<?> capsuleClass, Map<String, Path> javaHomes) {

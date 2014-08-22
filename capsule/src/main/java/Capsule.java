@@ -1741,7 +1741,7 @@ public class Capsule implements Runnable {
         return name.contains("jdk") && !name.contains("jre");
     }
 
-    private static Map<String, Path> getJavaHomes() {
+    static Map<String, Path> getJavaHomes() {
         if (JAVA_HOMES != null)
             return JAVA_HOMES;
         Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();

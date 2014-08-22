@@ -373,6 +373,7 @@ project (':capsule') {
 
 project (':capsule-util') {
     dependencies {
+        runtime project(':capsule')
         compile files("${System.getProperty('java.home')}/../lib/tools.jar")
     }
 }

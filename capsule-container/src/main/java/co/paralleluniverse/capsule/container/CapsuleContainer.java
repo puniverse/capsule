@@ -47,12 +47,13 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     private final AtomicInteger counter = new AtomicInteger();
     private final Path cacheDir;
     private final StandardEmitterMBean mbean;
-    private volatile Map<String, Path> javaHomes;
+    private final Map<String, Path> javaHomes;
 
     @SuppressWarnings("OverridableMethodCallInConstructor")
     public CapsuleContainer(Path cacheDir) {
         this.cacheDir = cacheDir;
         this.mbean = registerMBean("co.paralleluniverse:type=CapsuleContainer", getMBeanInterface());
+        this.javaHomes = CapsuleLauncher.getJavaHomes();
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
 
             @Override
@@ -98,8 +99,6 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
 
     public String launchCapsule(Path capsulePath, List<String> jvmArgs, List<String> args) throws IOException {
         final Object capsule = CapsuleLauncher.newCapsule(capsulePath, cacheDir, javaHomes);
-        if (javaHomes == null) // benign race
-            javaHomes = CapsuleLauncher.getJavaHomes(capsule);
         return launchCapsule(capsule, jvmArgs, args);
     }
 
