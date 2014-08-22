@@ -272,11 +272,11 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
 
-        this.mode = determineMode();
+        this.mode = chooseMode();
         if (mode != null && manifest.getAttributes(mode) == null)
             throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
 
-        this.logLevel = determineLogLevel();
+        this.logLevel = chooseLogLevel();
         this.cacheDir = initCacheDir(cacheDir);
 
         if (dependencyManager != DEFAULT)
@@ -301,9 +301,9 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Called to determines this capsule's mode.
+     * Chooses this capsule's mode.
      */
-    protected String determineMode() {
+    protected String chooseMode() {
         return emptyToNull(System.getProperty(PROP_MODE));
     }
     //</editor-fold>
@@ -1273,7 +1273,7 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Determines which Java installation to use for running the app.
+     * Chooses which Java installation to use for running the app.
      *
      * @return the path of the Java installation to use for launching the app, or {@code null} if the current JVM is to be used.
      */
@@ -2314,9 +2314,9 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
     /**
-     * Returns the capsules log level
+     * Chooses and returns the capsules log level.
      */
-    protected int determineLogLevel() {
+    protected int chooseLogLevel() {
         String level = System.getProperty(PROP_LOG_LEVEL);
         if (level == null)
             level = getAttribute(ATTR_LOG_LEVEL);
