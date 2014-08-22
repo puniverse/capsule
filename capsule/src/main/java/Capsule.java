@@ -219,7 +219,6 @@ public class Capsule implements Runnable {
     private final Path jarFile;      // never null
     private final Path cacheDir;     // never null
     private final Manifest manifest; // never null
-    private final String javaHome;   // never null
     private final String appId;      // null iff isEmptyCapsule()
     private final Path appCache;     // non-null iff capsule is extracted
     private final boolean cacheUpToDate;
@@ -267,7 +266,6 @@ public class Capsule implements Runnable {
         this.logLevel = getLogLevel();
         this.cacheDir = initCacheDir(cacheDir);
 
-        this.javaHome = getJavaHome();
         if (dependencyManager != DEFAULT)
             this.dependencyManager = dependencyManager;
         else
@@ -344,6 +342,7 @@ public class Capsule implements Runnable {
             for (Map.Entry<String, Path> j : jres.entrySet())
                 System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
         }
+        final String javaHome = getJavaHome0();
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (System.getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
@@ -492,10 +491,11 @@ public class Capsule implements Runnable {
         if (appCache == null)
             throw new IllegalStateException("Cannot run the startup script " + script + " when the "
                     + ATTR_EXTRACT + " attribute is set to false");
-        
+
+        setJavaHomeEnv(pb);
+
         final List<Path> classPath = buildClassPath();
         resolveNativeDependencies();
-        
         pb.environment().put(VAR_CLASSPATH, compileClassPath(classPath));
 
         final Path scriptPath = appCache.resolve(sanitize(script)).toAbsolutePath();
@@ -788,12 +788,11 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Build Java Process">
     /////////// Build Java Process ///////////////////////////////////
     private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
-        if (javaHome != null)
-            pb.environment().put("JAVA_HOME", javaHome);
+        final String javaHome = setJavaHomeEnv(pb);
 
         final List<String> command = pb.command();
 
-        command.add(getJavaProcessName());
+        command.add(getJavaProcessName(javaHome));
 
         command.addAll(buildJVMArgs(cmdLine));
 
@@ -814,6 +813,13 @@ public class Capsule implements Runnable {
 
         command.add(getMainClass(classPath));
         return true;
+    }
+
+    private String setJavaHomeEnv(ProcessBuilder pb) {
+        final String javaHome = getJavaHome();
+        log(LOG_VERBOSE, "Using JVM: " + javaHome);
+        pb.environment().put(VAR_JAVA_HOME, javaHome);
+        return javaHome;
     }
 
     private static List<String> compileSystemProperties(Map<String, String> ps) {
@@ -1186,7 +1192,17 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Get Java Home">
     /////////// Get Java Home ///////////////////////////////////
+    private String javaHome_; // cached value
+
     private String getJavaHome() {
+        if (javaHome_ == null) {
+            final String jhome = getJavaHome0();
+            this.javaHome_ = jhome != null ? jhome : System.getProperty(PROP_JAVA_HOME);
+        }
+        return javaHome_;
+    }
+
+    private String getJavaHome0() {
         String jhome = System.getProperty(PROP_CAPSULE_JAVA_HOME);
         if (jhome == null && !isMatchingJavaVersion(System.getProperty(PROP_JAVA_VERSION))) {
             final boolean jdk = hasAttribute(ATTR_JDK_REQUIRED) && Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
@@ -1259,12 +1275,6 @@ public class Capsule implements Runnable {
                 return Integer.parseInt(entry.getValue());
         }
         return 0;
-    }
-
-    private String getJavaProcessName() {
-        final String javaHome1 = javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME);
-        log(LOG_VERBOSE, "Using JVM: " + javaHome1 + (javaHome == null ? " (current)" : ""));
-        return getJavaProcessName(javaHome1);
     }
     //</editor-fold>
 
@@ -1994,7 +2004,7 @@ public class Capsule implements Runnable {
         assert appId != null;
         str = str.replaceAll("\\$" + VAR_CAPSULE_APP, appId);
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, jarFile.toString());
-        str = str.replaceAll("\\$" + VAR_JAVA_HOME, javaHome != null ? javaHome : System.getProperty(PROP_JAVA_HOME));
+        str = str.replaceAll("\\$" + VAR_JAVA_HOME, getJavaHome());
         str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;
     }
