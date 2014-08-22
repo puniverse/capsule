@@ -257,7 +257,7 @@ public class CapsuleTest {
             capsule = newCapsule(jar, null);
             assertTrue(capsule.isLogging(2));
             assertTrue(!capsule.isLogging(3));
-            
+
             System.setProperty("capsule.log", "debug");
             capsule = newCapsule(jar, null);
             assertTrue(capsule.isLogging(3));
@@ -705,22 +705,30 @@ public class CapsuleTest {
     public void testScript() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Dependencies", "com.acme:bar:1.2")
                 .setAttribute("Unix-Script", "scr.sh")
                 .setAttribute("Windows-Script", "scr.bat")
                 .addEntry("scr.sh", Jar.toInputStream("", UTF_8))
                 .addEntry("scr.bat", Jar.toInputStream("", UTF_8))
                 .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
+        DependencyManager dm = mock(DependencyManager.class);
+        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
+        when(dm.resolveDependencies(list("com.acme:bar:1.2"), "jar")).thenReturn(list(barPath));
+
         String[] args = strings("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar, dm);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
-
         assertEquals(list(appCache.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"),
                 pb.command());
+
+        String PS = PATH_SEPARATOR;
+        
+        assertEquals(getEnv(pb, "CLASSPATH"), path("capsule.jar") + PS + appCache + PS + appCache.resolve("foo.jar") + PS + barPath);
     }
 
     @Test
@@ -1036,5 +1044,7 @@ public class CapsuleTest {
             throw new RuntimeException(e);
         }
     }
+
+    private static final String PATH_SEPARATOR = System.getProperty("path.separator");
     //</editor-fold>
 }

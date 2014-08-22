@@ -492,6 +492,11 @@ public class Capsule implements Runnable {
         if (appCache == null)
             throw new IllegalStateException("Cannot run the startup script " + script + " when the "
                     + ATTR_EXTRACT + " attribute is set to false");
+        
+        final List<Path> classPath = buildClassPath();
+        resolveNativeDependencies();
+        
+        pb.environment().put(VAR_CLASSPATH, compileClassPath(classPath));
 
         final Path scriptPath = appCache.resolve(sanitize(script)).toAbsolutePath();
         ensureExecutable(scriptPath);
