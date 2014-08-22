@@ -98,6 +98,10 @@ subprojects {
         from javadoc.destinationDir
     }
 
+//    tasks.withType(JavaCompile) {
+//        options.compilerArgs << "-Xlint:unchecked"
+//    }
+        
     task javancss(dependsOn: 'classes') << {
         //        ext.reportName = "$buildDir/javancss_metrics.txt"
         //        println 'Running javancss quality metrics tool to file://' + reportName

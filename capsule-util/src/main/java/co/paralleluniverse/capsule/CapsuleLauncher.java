@@ -56,7 +56,7 @@ public final class CapsuleLauncher {
             }
 
             final ClassLoader cl = new JarClassLoader(jarFile, true);
-            final Class clazz = loadCapsuleClass(mf, cl);
+            final Class<?> clazz = loadCapsuleClass(mf, cl);
             if (clazz == null)
                 throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
 
@@ -133,8 +133,10 @@ public final class CapsuleLauncher {
 
     /**
      * Returns all known Java installations
+     *
      * @return a map from the version strings to their respective paths of the Java installations.
      */
+    @SuppressWarnings("unchecked")
     public static Map<String, Path> getJavaHomes() {
         try {
             final Class<?> clazz = CapsuleLauncher.class.getClassLoader().loadClass(CAPSULE_CLASS_NAME);
@@ -167,7 +169,7 @@ public final class CapsuleLauncher {
         return f;
     }
 
-    private static Method getMethod(Class clazz, String name, Class<?>... paramTypes) {
+    private static Method getMethod(Class<?> clazz, String name, Class<?>... paramTypes) {
         try {
             final Method method = clazz.getDeclaredMethod(name, paramTypes);
             method.setAccessible(true);
@@ -177,7 +179,7 @@ public final class CapsuleLauncher {
         }
     }
 
-    private static Field getField(Class clazz, String name) {
+    private static Field getField(Class<?> clazz, String name) {
         try {
             final Field field = clazz.getDeclaredField(name);
             field.setAccessible(true);

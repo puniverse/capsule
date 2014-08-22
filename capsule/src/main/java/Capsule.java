@@ -2398,7 +2398,7 @@ public class Capsule implements Runnable {
         return new JarClassLoader(path, true); // new URLClassLoader(new URL[]{path.toUri().toURL()}); // 
     }
 
-    private static Method getMethod(Class clazz, String name, Class<?>... paramTypes) {
+    private static Method getMethod(Class<?> clazz, String name, Class<?>... paramTypes) {
         try {
             final Method method = clazz.getDeclaredMethod(name, paramTypes);
             method.setAccessible(true);

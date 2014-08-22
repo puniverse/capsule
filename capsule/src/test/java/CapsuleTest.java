@@ -868,7 +868,6 @@ public class CapsuleTest {
     }
 
     private Model newPom() {
-        Model a;
         return new Model();
     }
 
@@ -975,6 +974,7 @@ public class CapsuleTest {
         return cmd.subList(i, cmd.size());
     }
 
+    @SafeVarargs
     private static <T> List<T> list(T... xs) {
         return Arrays.asList(xs);
     }

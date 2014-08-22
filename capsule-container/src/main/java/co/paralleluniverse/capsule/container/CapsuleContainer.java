@@ -79,6 +79,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
         return new NotificationBroadcasterSupport(launch, death);
     }
 
+    @SuppressWarnings("unchecked")
     private StandardEmitterMBean registerMBean(String name, Class<?> mbeanInterface) {
         try {
             final StandardEmitterMBean _mbean = new StandardEmitterMBean(this, (Class) mbeanInterface, createEmitter());
@@ -253,7 +254,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
             this.process = process;
             this.capsuleId = capsuleId;
             this.jvmArgs = Collections.unmodifiableList(new ArrayList<String>(jvmArgs));
-            this.args = Collections.unmodifiableList(new ArrayList<String>(args));;
+            this.args = Collections.unmodifiableList(new ArrayList<String>(args));
         }
 
         @Override

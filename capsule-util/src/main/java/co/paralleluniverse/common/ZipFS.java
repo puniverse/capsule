@@ -28,7 +28,7 @@ public final class ZipFS {
 
     static {
         try {
-            Constructor c = ZipFileSystem.class.getDeclaredConstructor(ZipFileSystemProvider.class, Path.class, Map.class);
+            Constructor<ZipFileSystem> c = ZipFileSystem.class.getDeclaredConstructor(ZipFileSystemProvider.class, Path.class, Map.class);
             c.setAccessible(true);
             ZIP_FILE_SYSTEM_CONSTRUCTOR = c;
         } catch (NoSuchMethodException e) {

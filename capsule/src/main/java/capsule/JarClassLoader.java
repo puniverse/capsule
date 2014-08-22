@@ -79,6 +79,7 @@ public class JarClassLoader extends FlexibleClassLoader {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected Enumeration<URL> findResources1(String name) {
         final URL url = findResource1(name);
         return (Enumeration<URL>) Collections.enumeration(url != null ? Collections.singleton(url) : Collections.emptySet());
