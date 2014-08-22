@@ -342,7 +342,7 @@ public class Capsule implements Runnable {
             for (Map.Entry<String, Path> j : jres.entrySet())
                 System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
         }
-        final String javaHome = getJavaHome0();
+        final Path javaHome = getJavaHome();
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (System.getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
@@ -402,7 +402,7 @@ public class Capsule implements Runnable {
         final ProcessBuilder pb = buildProcess(cmdLine, args);
         if (appCache != null && !cacheUpToDate)
             markCache();
-        log(LOG_VERBOSE, "Launching app " + appId);
+        log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
         return pb;
     }
 
@@ -788,11 +788,11 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Build Java Process">
     /////////// Build Java Process ///////////////////////////////////
     private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
-        final String javaHome = setJavaHomeEnv(pb);
+        final Path javaHome = setJavaHomeEnv(pb);
 
         final List<String> command = pb.command();
 
-        command.add(getJavaProcessName(javaHome));
+        command.add(getJavaProcessImage(javaHome).toString());
 
         command.addAll(buildJVMArgs(cmdLine));
 
@@ -815,10 +815,10 @@ public class Capsule implements Runnable {
         return true;
     }
 
-    private String setJavaHomeEnv(ProcessBuilder pb) {
-        final String javaHome = getJavaHome();
+    private Path setJavaHomeEnv(ProcessBuilder pb) {
+        final Path javaHome = getJavaHome1();
         log(LOG_VERBOSE, "Using JVM: " + javaHome);
-        pb.environment().put(VAR_JAVA_HOME, javaHome);
+        pb.environment().put(VAR_JAVA_HOME, javaHome.toString());
         return javaHome;
     }
 
@@ -1192,22 +1192,27 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Get Java Home">
     /////////// Get Java Home ///////////////////////////////////
-    private String javaHome_; // cached value
+    private Path javaHome_; // cached value
 
-    private String getJavaHome() {
+    private Path getJavaHome1() {
         if (javaHome_ == null) {
-            final String jhome = getJavaHome0();
-            this.javaHome_ = jhome != null ? jhome : System.getProperty(PROP_JAVA_HOME);
+            final Path jhome = getJavaHome();
+            this.javaHome_ = jhome != null ? jhome : Paths.get(System.getProperty(PROP_JAVA_HOME));
         }
         return javaHome_;
     }
 
-    private String getJavaHome0() {
-        String jhome = System.getProperty(PROP_CAPSULE_JAVA_HOME);
+    /**
+     * Determines which Java installation to use for running the app.
+     *
+     * @return the path of the Java installation to use for launching the app, or {@code null} if the current JVM is to be used.
+     */
+    protected Path getJavaHome() {
+        Path jhome = System.getProperty(PROP_CAPSULE_JAVA_HOME) != null ? Paths.get(System.getProperty(PROP_CAPSULE_JAVA_HOME)) : null;
         if (jhome == null && !isMatchingJavaVersion(System.getProperty(PROP_JAVA_VERSION))) {
             final boolean jdk = hasAttribute(ATTR_JDK_REQUIRED) && Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
-            final Path javaHomePath = findJavaHome(jdk);
-            if (javaHomePath == null) {
+            jhome = findJavaHome(jdk);
+            if (jhome == null) {
                 throw new RuntimeException("Could not find Java installation for requested version "
                         + '[' + "Min. Java version: " + getAttribute(ATTR_MIN_JAVA_VERSION)
                         + " JavaVersion: " + getAttribute(ATTR_JAVA_VERSION)
@@ -1215,9 +1220,8 @@ public class Capsule implements Runnable {
                         + " (JDK required: " + jdk + ")"
                         + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
             }
-            jhome = javaHomePath.toAbsolutePath().toString();
         }
-        return jhome;
+        return jhome != null ? jhome.toAbsolutePath() : jhome;
     }
 
     private Path findJavaHome(boolean jdk) {
@@ -1741,7 +1745,7 @@ public class Capsule implements Runnable {
         return name.contains("jdk") && !name.contains("jre");
     }
 
-    static Map<String, Path> getJavaHomes() {
+    protected static Map<String, Path> getJavaHomes() {
         if (JAVA_HOMES != null)
             return JAVA_HOMES;
         Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
@@ -1784,7 +1788,7 @@ public class Capsule implements Runnable {
                     final Path home = searchJavaHomeInDir(f).toAbsolutePath();
                     if (home != null) {
                         if (parseJavaVersion(ver)[3] == 0)
-                            ver = getActualJavaVersion(home.toString());
+                            ver = getActualJavaVersion(home);
                         dirs.put(ver, home);
                     }
                 }
@@ -1837,17 +1841,17 @@ public class Capsule implements Runnable {
         return false;
     }
 
-    private static String getJavaProcessName(String javaHome) {
-        return javaHome + FILE_SEPARATOR + "bin" + FILE_SEPARATOR + "java" + (isWindows() ? ".exe" : "");
+    private static Path getJavaProcessImage(Path javaHome) {
+        return javaHome.resolve("bin").resolve("java" + (isWindows() ? ".exe" : ""));
     }
 
     private static final Pattern PAT_JAVA_VERSION_LINE = Pattern.compile(".*?\"(.+?)\"");
 
-    private static String getActualJavaVersion(String javaHome) {
+    private static String getActualJavaVersion(Path javaHome) {
         try {
-            final ProcessBuilder pb = new ProcessBuilder(getJavaProcessName(javaHome), "-version");
+            final ProcessBuilder pb = new ProcessBuilder(getJavaProcessImage(javaHome).toString(), "-version");
             if (javaHome != null)
-                pb.environment().put("JAVA_HOME", javaHome);
+                pb.environment().put("JAVA_HOME", javaHome.toString());
             final Process p = pb.start();
             final String version;
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
@@ -2004,7 +2008,7 @@ public class Capsule implements Runnable {
         assert appId != null;
         str = str.replaceAll("\\$" + VAR_CAPSULE_APP, appId);
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, jarFile.toString());
-        str = str.replaceAll("\\$" + VAR_JAVA_HOME, getJavaHome());
+        str = str.replaceAll("\\$" + VAR_JAVA_HOME, getJavaHome1().toString());
         str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;
     }
