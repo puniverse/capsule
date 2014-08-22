@@ -20,7 +20,7 @@ In terms of JAR size, fat capsules add negligible overhead, while thin capsules 
 
 ### Alternatives to Capsule
 
-There are a few alternatives to packaging your application in a single JAR. [Maven's Shade plugin](http://maven.apache.org/plugins/maven-shade-plugin/)/[Gradle's Shadow plugin](https://github.com/johnrengelman/shadow) rename dependency classes and might interfere with the application in subtle ways; they also don't support native libraries. [One-Jar](http://one-jar.sourceforge.net/) does support native libraries, but uses class-loader hacks that may interfere with the application in even subtler ways. And none of these support JVM arguments.
+There are a few alternatives to packaging your application in a single JAR. [Maven's Shade plugin](http://maven.apache.org/plugins/maven-shade-plugin/)/[Gradle's Shadow plugin](https://github.com/johnrengelman/shadow) rename dependency classes and might interfere with the application in subtle ways; they also don't support native libraries. [One-Jar](http://one-jar.sourceforge.net/) does support native libraries, but uses class-loader hacks that may interfere with the application in even subtler ways. And none of these support JVM arguments. Shade/Shadow, however, are suitable for distributing libraries, while Capsule only works for applications.
 
 The only distribution mechanism supporting JVM arguments and Java version selection is platform-dependent startup scripts. Even if your build tool can generate those for you, they would always require some form of installation by the user.
 
