@@ -57,12 +57,9 @@ import java.util.zip.ZipInputStream;
 /**
  * An application capsule.
  *
- * All non-final protected methods may be overriden by custom capsules. Non-final methods whose names begin with "get" are not simple getters,
- * but actually compute the value they return. Most of them are called only once by the capsule, and their return value saved in a final field
- * or a local variable. These methods may be overriden by a custom capsule, but the custom capsule will generally never call them.<br/>
- * For example, {@link #getMode()} is not a getter for the capsule's mode, but called (exactly once) to determine the mode. To read the mode
- * a custom capsule would simply read the {@link #mode} field.
+ * This API is to be used by custom capsules to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
  * <p/>
+ * All non-final protected methods may be overridden by custom capsules. These methods will generally be called once, but they must be idempotent.
  * Final methods implement various utility or accessors, which may be freely used by custom capsules.
  *
  * @author pron
@@ -177,6 +174,7 @@ public class Capsule implements Runnable {
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
     private static final Object DEFAULT = new Object();
+    
     protected static final int LOG_NONE = 0;
     protected static final int LOG_QUIET = 1;
     protected static final int LOG_VERBOSE = 2;
@@ -193,7 +191,7 @@ public class Capsule implements Runnable {
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args) {
         try {
-            final Capsule capsule = newCapsule(getJarFile(), getCacheDir());
+            final Capsule capsule = newCapsule(findMyJarFile(), getCacheDir());
 
             if (anyPropertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (anyPropertyDefined(PROP_VERSION))
@@ -230,23 +228,12 @@ public class Capsule implements Runnable {
 
     private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
     private final Path cacheDir;     // never null
-    /**
-     * This capsule's JAR file.
-     */
-    protected final Path jarFile;      // never null
+    private final Path jarFile;      // never null
     private final Manifest manifest;   // never null
-    /**
-     * This capsule's app ID.
-     */
-    protected final String appId;      // null iff isEmptyCapsule()
-    /**
-     * This capsule's current mode.
-     */
-    protected final String mode;
-    /**
-     * This capsule's cache directory, or {@code null} if capsule has been configured not to extract.
-     */
-    protected final Path appCache;     // non-null iff capsule is extracted
+    private final String appId;        // null iff isEmptyCapsule()
+
+    private final String mode;
+    private final Path appCache;     // non-null iff capsule is extracted
     private final boolean cacheUpToDate;
     private FileLock appCacheLock;
 
@@ -285,18 +272,18 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
 
-        this.mode = getMode();
+        this.mode = determineMode();
         if (mode != null && manifest.getAttributes(mode) == null)
             throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
 
-        this.logLevel = getLogLevel();
+        this.logLevel = determineLogLevel();
         this.cacheDir = initCacheDir(cacheDir);
 
         if (dependencyManager != DEFAULT)
             this.dependencyManager = dependencyManager;
         else
             this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
-        this.appId = getAppId();
+        this.appId = buildAppId();
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
@@ -316,21 +303,45 @@ public class Capsule implements Runnable {
     /**
      * Called to determines this capsule's mode.
      */
-    protected String getMode() {
+    protected String determineMode() {
         return emptyToNull(System.getProperty(PROP_MODE));
     }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Properties">
     /////////// Properties ///////////////////////////////////
-    private boolean isEmptyCapsule() {
+    /**
+     * Tests if this is an empty capsule.
+     */
+    protected final boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
+    }
+
+    /**
+     * This capsule's current mode.
+     */
+    protected final String getMode() {
+        return mode;
+    }
+
+    /**
+     * This capsule's cache directory, or {@code null} if capsule has been configured not to extract.
+     */
+    protected final Path getAppCache() {
+        return appCache;
+    }
+
+    /**
+     * This capsule's JAR file.
+     */
+    protected final Path getJarFile() {
+        return jarFile;
     }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
     /////////// Capsule JAR ///////////////////////////////////
-    private static Path getJarFile() {
+    private static Path findMyJarFile() {
         final URL url = Capsule.class.getClassLoader().getResource(Capsule.class.getName().replace('.', '/') + ".class");
         if (!"jar".equals(url.getProtocol()))
             throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
@@ -366,7 +377,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Main Operations">
     /////////// Main Operations ///////////////////////////////////
     private void printVersion(String[] args) {
-        System.out.println(LOG_PREFIX + "Application " + appId(args));
+        System.out.println(LOG_PREFIX + "Application " + getAppId(args));
         System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
     }
 
@@ -379,12 +390,12 @@ public class Capsule implements Runnable {
             for (Map.Entry<String, Path> j : jres.entrySet())
                 System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
         }
-        final Path javaHome = getJavaHome();
+        final Path javaHome = chooseJavaHome();
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (System.getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
     private void printDependencyTree(String[] args) {
-        System.out.println("Dependencies for " + appId(args));
+        System.out.println("Dependencies for " + getAppId(args));
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
         else if (hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule()) {
@@ -414,6 +425,13 @@ public class Capsule implements Runnable {
         log(LOG_QUIET, "Capsule resolved");
     }
 
+    /**
+     * Creates the {@link Process} this capsule will launch.
+     * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
+     *
+     * @param args the application's command-line arguments (does not include JVM args)
+     * @return the process this capsule will launch
+     */
     protected Process launch(String[] args) throws IOException, InterruptedException {
         final List<String> cmdLine = ManagementFactory.getRuntimeMXBean().getInputArguments();
         ProcessBuilder pb = launchCapsuleArtifact(cmdLine, args);
@@ -587,7 +605,7 @@ public class Capsule implements Runnable {
     /**
      * Computes and returns application's ID
      */
-    protected String getAppId() {
+    protected String buildAppId() {
         if (isEmptyCapsule())
             return null;
         String appName = System.getProperty(PROP_APP_ID);
@@ -622,7 +640,14 @@ public class Capsule implements Runnable {
         return appName + (version != null ? "_" + version : "");
     }
 
-    final String appId(String[] args) {
+    /**
+     * Returns the app's ID.
+     * The arguments are required in case this is an empty capsule, in which case the ID is determined by the artifact supplied at the command line.
+     *
+     * @param args the command line arguments; may be {@code null}.
+     * @return the app ID
+     */
+    protected final String getAppId(String[] args) {
         if (appId != null)
             return appId;
         assert isEmptyCapsule();
@@ -856,7 +881,7 @@ public class Capsule implements Runnable {
     }
 
     private Path setJavaHomeEnv(ProcessBuilder pb) {
-        final Path javaHome = getJavaHome1();
+        final Path javaHome = getJavaHome();
         log(LOG_VERBOSE, "Using JVM: " + javaHome);
         pb.environment().put(VAR_JAVA_HOME, javaHome.toString());
         return javaHome;
@@ -1043,7 +1068,7 @@ public class Capsule implements Runnable {
     }
 
     private void resolveNativeDependencies() {
-        final List<String> depsAndRename = getNativeDependenciesAndRename();
+        final List<String> depsAndRename = getNativeDependencies();
         if (depsAndRename == null || depsAndRename.isEmpty())
             return;
         if (appCache == null)
@@ -1077,10 +1102,12 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Returns a list of dependencies, each in the format {@code groupId:artifactId:version[:classifier][,renameTo]}
-     * (classifier and renameTo are optional)
+     * Constructs this capsule's native dependency list.
+     *
+     * @return a list of native dependencies, each in the format {@code groupId:artifactId:version[:classifier][,renameTo]}
+     *         (classifier and renameTo are optional).
      */
-    protected List<String> getNativeDependenciesAndRename() {
+    protected List<String> getNativeDependencies() {
         if (isWindows())
             return getListAttribute(ATTR_NATIVE_DEPENDENCIES_WIN);
         if (isMac())
@@ -1090,11 +1117,11 @@ public class Capsule implements Runnable {
         return null;
     }
 
-    private List<String> getNativeDependencies() {
-        return stripNativeDependencies(getNativeDependenciesAndRename());
+    private List<String> getStrippedNativeDependencies() {
+        return stripNativeDependencies(getNativeDependencies());
     }
 
-    protected final List<String> stripNativeDependencies(List<String> nativeDepsAndRename) {
+    private List<String> stripNativeDependencies(List<String> nativeDepsAndRename) {
         if (nativeDepsAndRename == null)
             return null;
         final List<String> deps = new ArrayList<String>(nativeDepsAndRename.size());
@@ -1106,7 +1133,7 @@ public class Capsule implements Runnable {
     }
 
     private boolean hasRenamedNativeDependencies() {
-        final List<String> depsAndRename = getNativeDependenciesAndRename();
+        final List<String> depsAndRename = getNativeDependencies();
         if (depsAndRename == null)
             return false;
         for (String depAndRename : depsAndRename) {
@@ -1234,9 +1261,12 @@ public class Capsule implements Runnable {
     /////////// Get Java Home ///////////////////////////////////
     private Path javaHome_; // cached value
 
-    private Path getJavaHome1() {
+    /**
+     * The path to the Java installation this capsule's app will use.
+     */
+    protected final Path getJavaHome() {
         if (javaHome_ == null) {
-            final Path jhome = getJavaHome();
+            final Path jhome = chooseJavaHome();
             this.javaHome_ = jhome != null ? jhome : Paths.get(System.getProperty(PROP_JAVA_HOME));
         }
         return javaHome_;
@@ -1247,7 +1277,7 @@ public class Capsule implements Runnable {
      *
      * @return the path of the Java installation to use for launching the app, or {@code null} if the current JVM is to be used.
      */
-    protected Path getJavaHome() {
+    protected Path chooseJavaHome() {
         Path jhome = System.getProperty(PROP_CAPSULE_JAVA_HOME) != null ? Paths.get(System.getProperty(PROP_CAPSULE_JAVA_HOME)) : null;
         if (jhome == null && !isMatchingJavaVersion(System.getProperty(PROP_JAVA_VERSION))) {
             final boolean jdk = hasAttribute(ATTR_JDK_REQUIRED) && Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
@@ -1356,7 +1386,7 @@ public class Capsule implements Runnable {
         return hasAttribute(ATTR_APP_ARTIFACT)
                 || isEmptyCapsule()
                 || getDependencies() != null
-                || getNativeDependencies() != null;
+                || getStrippedNativeDependencies() != null;
     }
 
     private List<String> getRepositories() {
@@ -1821,6 +1851,10 @@ public class Capsule implements Runnable {
         return name.contains("jdk") && !name.contains("jre");
     }
 
+    /**
+     * Returns all found Java installations.
+     * @return a map from installations' versions to their respective paths
+     */
     protected static Map<String, Path> getJavaHomes() {
         if (JAVA_HOMES != null)
             return JAVA_HOMES;
@@ -2084,7 +2118,7 @@ public class Capsule implements Runnable {
         assert appId != null;
         str = str.replaceAll("\\$" + VAR_CAPSULE_APP, appId);
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, jarFile.toString());
-        str = str.replaceAll("\\$" + VAR_JAVA_HOME, getJavaHome1().toString());
+        str = str.replaceAll("\\$" + VAR_JAVA_HOME, getJavaHome().toString());
         str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;
     }
@@ -2282,7 +2316,7 @@ public class Capsule implements Runnable {
     /**
      * Returns the capsules log level
      */
-    protected int getLogLevel() {
+    protected int determineLogLevel() {
         String level = System.getProperty(PROP_LOG_LEVEL);
         if (level == null)
             level = getAttribute(ATTR_LOG_LEVEL);

@@ -61,8 +61,8 @@ public class MyCapsule extends Capsule {
     }
 
     @Override
-    protected List<String> getNativeDependenciesAndRename() {
-        return super.getNativeDependenciesAndRename();
+    protected List<String> getNativeDependencies() {
+        return super.getNativeDependencies();
     }
 
     @Override
@@ -79,8 +79,8 @@ public class MyCapsule extends Capsule {
     }
 
     @Override
-    protected String getAppId() {
-        return super.getAppId();
+    protected String buildAppId() {
+        return super.buildAppId();
     }
 
     @Override

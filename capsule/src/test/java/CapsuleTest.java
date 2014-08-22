@@ -128,7 +128,7 @@ public class CapsuleTest {
 
         String cj = path("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
-        String cid = capsule.appId(null);
+        String cid = capsule.getAppId(null);
 
         ASSERT.that(capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR")).isEqualTo(cj + "abc" + cj + "def" + cj);
         ASSERT.that(capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP")).isEqualTo(cid + "abc" + cid + "def" + cid);
@@ -146,7 +146,7 @@ public class CapsuleTest {
 
         String cj = path("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
-        String cid = capsule.appId(null);
+        String cid = capsule.getAppId(null);
 
         ASSERT.that(capsule.expand("$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR")).isEqualTo(cj + "xxx" + cj + "xxx" + cj);
         ASSERT.that(capsule.expand("$CAPSULE_APP" + "xxx" + "$CAPSULE_APP" + "xxx" + "$CAPSULE_APP")).isEqualTo(cid + "xxx" + cid + "xxx" + cid);
@@ -286,7 +286,7 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        String appId = capsule.appId(null);
+        String appId = capsule.getAppId(null);
         assertEquals("com.acme_foo_1.0", appId);
     }
 
@@ -812,7 +812,7 @@ public class CapsuleTest {
         // dumpFileSystem(fs);
         assertTrue(pb != null);
 
-        String appId = capsule.appId(args);
+        String appId = capsule.getAppId(args);
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
