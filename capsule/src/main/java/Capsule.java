@@ -54,6 +54,19 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+/**
+ * An application capsule.
+ *
+ * All non-final protected methods may be overriden by custom capsules. Non-final methods whose names begin with "get" are not simple getters,
+ * but actually compute the value they return. Most of them are called only once by the capsule, and their return value saved in a final field
+ * or a local variable. These methods may be overriden by a custom capsule, but the custom capsule will generally never call them.<br/>
+ * For example, {@link #getMode()} is not a getter for the capsule's mode, but called (exactly once) to determine the mode. To read the mode
+ * a custom capsule would simply read the {@link #mode} field.
+ * <p/>
+ * Final methods implement various utility or accessors, which may be freely used by custom capsules.
+ *
+ * @author pron
+ */
 public class Capsule implements Runnable {
     /*
      * This class contains several strange hacks to avoid creating more classes,  
@@ -164,16 +177,16 @@ public class Capsule implements Runnable {
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
     private static final Object DEFAULT = new Object();
-    private static final int LOG_NONE = 0;
-    private static final int LOG_QUIET = 1;
-    private static final int LOG_VERBOSE = 2;
-    private static final int LOG_DEBUG = 3;
+    protected static final int LOG_NONE = 0;
+    protected static final int LOG_QUIET = 1;
+    protected static final int LOG_VERBOSE = 2;
+    protected static final int LOG_DEBUG = 3;
     //</editor-fold>
 
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
     /**
-     * Launches the application
+     * Launches the capsule
      *
      * @param args the program's command-line arguments
      */
@@ -216,14 +229,27 @@ public class Capsule implements Runnable {
     private static final String LOG_PREFIX = "CAPSULE: ";
 
     private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
-    private final Path jarFile;      // never null
     private final Path cacheDir;     // never null
-    private final Manifest manifest; // never null
-    private final String appId;      // null iff isEmptyCapsule()
-    private final Path appCache;     // non-null iff capsule is extracted
+    /**
+     * This capsule's JAR file.
+     */
+    protected final Path jarFile;      // never null
+    private final Manifest manifest;   // never null
+    /**
+     * This capsule's app ID.
+     */
+    protected final String appId;      // null iff isEmptyCapsule()
+    /**
+     * This capsule's current mode.
+     */
+    protected final String mode;
+    /**
+     * This capsule's cache directory, or {@code null} if capsule has been configured not to extract.
+     */
+    protected final Path appCache;     // non-null iff capsule is extracted
     private final boolean cacheUpToDate;
     private FileLock appCacheLock;
-    private final String mode;
+
     private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final Object dependencyManager; // non-null iff needsDependencyManager is true
     private final int logLevel;
@@ -275,10 +301,21 @@ public class Capsule implements Runnable {
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
     }
 
+    /**
+     * Called to (possibly) programmatically modify the capsule's manifest (in memory).
+     * The method may modify the manifest passed to it, or may return a completely new manifest object.
+     * The default implementation simply returns its argument without modification.
+     *
+     * @param manifest the manifest
+     * @return the manifest (or, possibly, a different manifest object).
+     */
     protected Manifest configureManifest(Manifest manifest) throws IOException {
         return manifest;
     }
 
+    /**
+     * Called to determines this capsule's mode.
+     */
     protected String getMode() {
         return emptyToNull(System.getProperty(PROP_MODE));
     }
@@ -547,6 +584,9 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="App ID">
     /////////// App ID ///////////////////////////////////
+    /**
+     * Computes and returns application's ID
+     */
     protected String getAppId() {
         if (isEmptyCapsule())
             return null;
@@ -1435,6 +1475,11 @@ public class Capsule implements Runnable {
         return false;
     }
 
+    /**
+     * Returns the value of the given manifest attribute with consideration to the capsule's mode.
+     *
+     * @param attr the attribute
+     */
     protected final String getAttribute(String attr) {
         String value = null;
         if (mode != null && !NON_MODAL_ATTRS.contains(attr))
@@ -1444,6 +1489,11 @@ public class Capsule implements Runnable {
         return value;
     }
 
+    /**
+     * Tests whether the given attribute is found in the manifest.
+     *
+     * @param attr the attribute
+     */
     protected final boolean hasAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
         if (mode != null && !NON_MODAL_ATTRS.contains(attr)) {
@@ -1453,10 +1503,22 @@ public class Capsule implements Runnable {
         return manifest.getMainAttributes().containsKey(new Attributes.Name(attr));
     }
 
+    /**
+     * Returns the value of the given attribute (with consideration to the capsule's mode) as a list.
+     * The items comprising attribute's value must be whitespace-separated.
+     *
+     * @param attr the attribute
+     */
     protected final List<String> getListAttribute(String attr) {
         return split(getAttribute(attr), "\\s+");
     }
 
+    /**
+     * Returns the value of the given attribute (with consideration to the capsule's mode) as a map.
+     * The key-value pairs comprising attribute's value must be whitespace-separated, with each pair written as <i>key</i>=<i>value</i>.
+     *
+     * @param attr the attribute
+     */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
         return mapSplit(getAttribute(attr), '=', "\\s+", defaultValue);
     }
@@ -1590,14 +1652,23 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="OS">
     /////////// OS ///////////////////////////////////
+    /**
+     * Tests whether the current OS is Windows.
+     */
     protected static final boolean isWindows() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
 
+    /**
+     * Tests whether the current OS is MacOS.
+     */
     protected static final boolean isMac() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("mac");
     }
 
+    /**
+     * Tests whether the current OS is UNIX/Linux.
+     */
     protected static final boolean isUnix() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux")
                 || System.getProperty(PROP_OS_NAME).toLowerCase().contains("solaris")
@@ -1672,6 +1743,11 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="File Utils">
     /////////// File Utils ///////////////////////////////////
+    /**
+     * Returns the contents of a directory
+     *
+     * @param dir the directory
+     */
     protected static final List<Path> listDir(Path dir) {
         final List<Path> list = new ArrayList<>();
         try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
@@ -2203,6 +2279,9 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
+    /**
+     * Returns the capsules log level
+     */
     protected int getLogLevel() {
         String level = System.getProperty(PROP_LOG_LEVEL);
         if (level == null)
@@ -2230,6 +2309,11 @@ public class Capsule implements Runnable {
         }
     }
 
+    /**
+     * Tests id the given log level is currently being logged
+     *
+     * @param level
+     */
     protected final boolean isLogging(int level) {
         return level <= logLevel;
     }
@@ -2256,6 +2340,9 @@ public class Capsule implements Runnable {
         new Thread(this, "pipe-in").start();
     }
 
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
     @Override
     public final void run() {
         if (isInheritIoBug()) {
@@ -2293,6 +2380,9 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Object Methods">
     /////////// Object Methods ///////////////////////////////////
+    /**
+     * Throws a {@link CloneNotSupportedException}
+     */
     @Override
     protected final Object clone() throws CloneNotSupportedException {
         return super.clone();

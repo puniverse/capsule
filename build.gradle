@@ -88,6 +88,10 @@ subprojects {
         classpath += sourceSets.test.runtimeClasspath
     }
 
+    configure (javadoc) {
+        options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
+    }
+    
     task sourcesJar(type: Jar, dependsOn: classes) {
         classifier = 'sources'
         from sourceSets.main.allSource
@@ -98,9 +102,9 @@ subprojects {
         from javadoc.destinationDir
     }
 
-//    tasks.withType(JavaCompile) {
-//        options.compilerArgs << "-Xlint:unchecked"
-//    }
+    //    tasks.withType(JavaCompile) {
+    //        options.compilerArgs << "-Xlint:unchecked"
+    //    }
         
     task javancss(dependsOn: 'classes') << {
         //        ext.reportName = "$buildDir/javancss_metrics.txt"
@@ -342,8 +346,8 @@ project (':capsule') {
     //}
 
 
-    configure (javadoc) {
-        options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
+    javadoc {
+        options.noDeprecated = true
         excludes = [ "capsule/**" ]
     }
 
@@ -379,6 +383,13 @@ project (':capsule-util') {
     dependencies {
         runtime project(':capsule')
         compile files("${System.getProperty('java.home')}/../lib/tools.jar")
+    }
+    
+    configure (javadoc) {
+        excludes = [ \
+        "co/paralleluniverse/common/**",
+        "co/paralleluniverse/filesystem/**"
+        ]
     }
 }
 
