@@ -18,8 +18,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -153,6 +155,16 @@ public final class CapsuleLauncher {
         if (homes == null)
             return;
         set(null, homes, javaHomes);
+    }
+
+    /**
+     * Returns the given capsule's supported modes.
+     * @param capsule
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<String> getModes(Object capsule) {
+        final Method getModes = getMethod(capsule.getClass(), "getModes");
+        return (Set<String>)(getModes != null ? invoke(capsule, getModes) : Collections.emptySet());
     }
 
     private static Method getCapsuleMethod(Object capsule, String name, Class<?>... paramTypes) {
