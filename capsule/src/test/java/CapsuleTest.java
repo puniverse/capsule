@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -232,6 +233,7 @@ public class CapsuleTest {
         try {
             Jar jar = newCapsuleJar()
                     .setAttribute("Application-Class", "com.acme.Foo")
+                    .setAttribute("Extract-Capsule", "false")
                     .setAttribute("Capsule-Log-Level", "verbose");
 
             Capsule capsule = newCapsule(jar, null);
@@ -673,6 +675,7 @@ public class CapsuleTest {
                     .setAttribute("Application-Class", "com.acme.Foo")
                     .setAttribute("System-Properties", "bar baz=33 foo=y")
                     .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
+                    .setAttribute("ModeX", "Description", "This is a secret mode")
                     .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
             String[] args = strings("hi", "there");
@@ -685,6 +688,9 @@ public class CapsuleTest {
             assertEquals("", getProperty(pb, "bar"));
             assertEquals("", getProperty(pb, "zzz"));
             assertEquals("55", getProperty(pb, "baz"));
+            
+            assertEquals(new HashSet<String>(list("ModeX")), capsule.getModes());
+            assertEquals("This is a secret mode", capsule.getModeDescription("ModeX"));
         } finally {
             System.setProperty("capsule.mode", "");
         }
