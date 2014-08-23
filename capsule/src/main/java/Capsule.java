@@ -58,8 +58,10 @@ import java.util.zip.ZipInputStream;
  * An application capsule.
  *
  * This API is to be used by custom capsules to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
- * <p/>
+ * <p>
  * All non-final protected methods may be overridden by custom capsules. These methods will generally be called once, but they must be idempotent.
+ * Overridden methods need not be thread-safe, and are guaranteed to be called by a single thread at a time.
+ * <p>
  * Final methods implement various utility or accessors, which may be freely used by custom capsules.
  *
  * @author pron
@@ -82,6 +84,7 @@ public class Capsule implements Runnable {
     private static final String PROP_VERSION = "capsule.version";
     private static final String PROP_TREE = "capsule.tree";
     private static final String PROP_RESOLVE = "capsule.resolve";
+    private static final String PROP_MODES = "capsule.צםגקד";
     private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_LOG_LEVEL = "capsule.log";
     private static final String PROP_APP_ID = "capsule.app.id";
@@ -109,6 +112,7 @@ public class Capsule implements Runnable {
 
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
+    private static final String ATTR_MODE_DESC = "Description";
     private static final String ATTR_APP_CLASS = "Application-Class";
     private static final String ATTR_APP_ARTIFACT = "Application";
     private static final String ATTR_UNIX_SCRIPT = "Unix-Script";
@@ -174,7 +178,7 @@ public class Capsule implements Runnable {
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
     private static final Object DEFAULT = new Object();
-    
+
     protected static final int LOG_NONE = 0;
     protected static final int LOG_QUIET = 1;
     protected static final int LOG_VERBOSE = 2;
@@ -196,6 +200,9 @@ public class Capsule implements Runnable {
             if (anyPropertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (anyPropertyDefined(PROP_VERSION))
                     capsule.printVersion(args);
+
+                if (anyPropertyDefined(PROP_MODES))
+                    capsule.printModes(args);
 
                 if (anyPropertyDefined(PROP_PRINT_JRES))
                     capsule.printJVMs(args);
@@ -379,6 +386,20 @@ public class Capsule implements Runnable {
     private void printVersion(String[] args) {
         System.out.println(LOG_PREFIX + "Application " + getAppId(args));
         System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
+    }
+
+    private void printModes(String[] args) {
+        System.out.println(LOG_PREFIX + "Application " + getAppId(args));
+        System.out.println("Available modes:");
+        final Set<String> modes = getModes();
+        if (modes.isEmpty())
+            System.out.println("Default mode only");
+        else {
+            for (String mode : modes) {
+                final String desc = getModeDescription(mode);
+                System.out.println("* " + mode + (desc != null ? ": " + desc : ""));
+            }
+        }
     }
 
     private void printJVMs(String[] args) {
@@ -1552,6 +1573,23 @@ public class Capsule implements Runnable {
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
         return mapSplit(getAttribute(attr), '=', "\\s+", defaultValue);
     }
+
+    /**
+     * Returns the names of all modes defined in this capsule's manifest.
+     */
+    protected final Set<String> getModes() {
+        return Collections.unmodifiableSet(manifest.getEntries().keySet());
+    }
+
+    /**
+     * Returns the description of the given mode.
+     *
+     * @param mode
+     * @return the description of the given mode, or {@code null} if no description is found.
+     */
+    protected final String getModeDescription(String mode) {
+        return manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Dependency Utils">
@@ -1853,6 +1891,7 @@ public class Capsule implements Runnable {
 
     /**
      * Returns all found Java installations.
+     *
      * @return a map from installations' versions to their respective paths
      */
     protected static Map<String, Path> getJavaHomes() {
