@@ -395,9 +395,9 @@ public class Capsule implements Runnable {
         if (modes.isEmpty())
             System.out.println("Default mode only");
         else {
-            for (String mode : modes) {
-                final String desc = getModeDescription(mode);
-                System.out.println("* " + mode + (desc != null ? ": " + desc : ""));
+            for (String m : modes) {
+                final String desc = getModeDescription(m);
+                System.out.println("* " + m + (desc != null ? ": " + desc : ""));
             }
         }
     }
