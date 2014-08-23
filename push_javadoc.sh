@@ -18,6 +18,6 @@ git add -A \
 
 ERROR=$?
 
+git push origin gh-pages || exit $?
 git checkout master || exit $?
 [ $ERROR -eq 0 ] || exit $ERROR
-git push origin gh-pages || exit $?
