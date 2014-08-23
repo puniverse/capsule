@@ -6,7 +6,7 @@ Capsule is a dead-easy deployment package for standalone JVM applications. Capsu
 
 ### How Capsule Works
 
-When you include Capsule into your JAR file and set Capsule as the JAR's main class, Capsule reads various configuration values (like JVM arguments, environment variables, Maven dependencies and more) from the JAR's manifest. It then downloads all required Maven dependencies, if any, and optionally extracts the JAR's contents into a cache directory. Finally, it spawns another process to run your application as configured.
+When you include the Capsule class in your JAR file and set it to serve as the JAR's main class, Capsule reads various configuration values (like JVM arguments, environment variables, Maven dependencies and more) from the JAR's manifest. It then downloads all required Maven dependencies, if any, and optionally extracts the JAR's contents into a cache directory. It then picks a JVM installation based on the version requirements in the manifest, and finally, it spawns another JVM process to run your application as configured.
 
 ### What Capsule Doesn't Do
 
