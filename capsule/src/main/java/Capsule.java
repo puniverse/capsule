@@ -192,8 +192,6 @@ public class Capsule implements Runnable {
     /////////// Main ///////////////////////////////////
     /**
      * Launches the capsule
-     *
-     * @param args the program's command-line arguments
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args0) {
