@@ -454,7 +454,7 @@ public class Capsule implements Runnable {
             pb = prepareForLaunch(cmdLine, args);
 
         Runtime.getRuntime().addShutdownHook(new Thread(this));
-        
+
         if (!isInheritIoBug())
             pb.inheritIO();
         this.child = pb.start();
@@ -475,6 +475,20 @@ public class Capsule implements Runnable {
             markCache();
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
         return pb;
+    }
+
+    private void chooseMode1() {
+        this.mode = chooseMode();
+        if (mode != null && manifest.getAttributes(mode) == null)
+            throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
+    }
+
+    /**
+     * Chooses this capsule's mode.
+     * The mode is chosen during the preparations for launch (not at construction time).
+     */
+    protected String chooseMode() {
+        return emptyToNull(System.getProperty(PROP_MODE));
     }
 
     private void ensureExtractedIfNecessary() {
