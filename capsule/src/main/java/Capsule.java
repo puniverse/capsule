@@ -87,7 +87,7 @@ public class Capsule implements Runnable {
     private static final String PROP_VERSION = "capsule.version";
     private static final String PROP_TREE = "capsule.tree";
     private static final String PROP_RESOLVE = "capsule.resolve";
-    private static final String PROP_MODES = "capsule.צםגקד";
+    private static final String PROP_MODES = "capsule.modes";
     private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_LOG_LEVEL = "capsule.log";
     private static final String PROP_APP_ID = "capsule.app.id";
@@ -182,6 +182,8 @@ public class Capsule implements Runnable {
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
     private static final Object DEFAULT = new Object();
 
+    // logging
+    private static final String LOG_PREFIX = "CAPSULE: ";
     protected static final int LOG_NONE = 0;
     protected static final int LOG_QUIET = 1;
     protected static final int LOG_VERBOSE = 2;
@@ -233,13 +235,12 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    private static final String LOG_PREFIX = "CAPSULE: ";
-
     private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
+
     private final Path cacheDir;     // never null
     private final Path jarFile;      // never null
-    private final Manifest manifest;   // never null
-    private final String appId;        // null iff isEmptyCapsule()
+    private final Manifest manifest; // never null
+    private final String appId;      // null iff isEmptyCapsule()
 
     private String mode;
 
@@ -951,7 +952,7 @@ public class Capsule implements Runnable {
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             if (isDependency(getAttribute(ATTR_APP_ARTIFACT)))
                 classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT), "jar")));
-            else 
+            else
                 classPath.add(getPath(getAttribute(ATTR_APP_ARTIFACT)));
         }
 
