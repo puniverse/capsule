@@ -21,11 +21,6 @@ public class MyCapsule extends Capsule {
     public MyCapsule(Path jarFile, Path cacheDir) {
         super(jarFile, cacheDir);
     }
-
-    @Override
-    protected Manifest configureManifest(Manifest manifest) throws IOException {
-        return super.configureManifest(manifest);
-    }
     
     @Override
     protected List<Path> buildBootClassPathA() {
