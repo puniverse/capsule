@@ -59,7 +59,10 @@ import java.util.zip.ZipInputStream;
  *
  * This API is to be used by custom capsules to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
  * <p>
- * All non-final protected methods may be overridden by custom capsules. These methods will generally be called once, but they must be idempotent.
+ * All non-final protected methods may be overridden by custom capsules. These methods will usually be called once, but they must be idempotent,
+ * i.e. if called numerous times they must always return the same value, and produce the same effect as if called once. The only exception to this
+ * rule is the {@link #launch(String[]) launch} method.
+ * <br>
  * Overridden methods need not be thread-safe, and are guaranteed to be called by a single thread at a time.
  * <p>
  * Final methods implement various utility or accessors, which may be freely used by custom capsules.
