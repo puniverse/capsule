@@ -19,7 +19,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
@@ -54,8 +53,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import sun.misc.Signal;
-import sun.misc.SignalHandler;
 
 /**
  * An application capsule.
@@ -69,7 +66,7 @@ import sun.misc.SignalHandler;
  *
  * @author pron
  */
-public class Capsule implements Runnable, SignalHandler {
+public class Capsule implements Runnable {
     /*
      * This class contains several strange hacks to avoid creating more classes,  
      * as we'd like this file to compile to a single .class file.
@@ -463,7 +460,6 @@ public class Capsule implements Runnable, SignalHandler {
             pb = prepareForLaunch(cmdLine, args);
 
         Runtime.getRuntime().addShutdownHook(new Thread(this));
-        registerSignals();
         
         if (!isInheritIoBug())
             pb.inheritIO();
@@ -2455,64 +2451,6 @@ public class Capsule implements Runnable, SignalHandler {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="POSIX Signal Handling">
-    /////////// POSIX Signal Handling ///////////////////////////////////
-    private void registerSignals() {
-        if (!isWindows()) {
-            for (String sig : new String[]{"HUP", /*"INT", "TSTP", "CONT"*/})
-                Signal.handle(new Signal(sig), this);
-        }
-    }
-
-    @Override
-    public void handle(Signal signal) {
-        kill(child, signal);
-
-//        switch (signal.getName()) {
-//            case "TSTP":
-//                Signal.handle(signal, SignalHandler.SIG_DFL);
-//                raise(signal);
-//                break;
-//            case "CONT":
-//                Signal.handle(new Signal("TSTP"), this);
-//                break;
-//            case "TERM":
-//            case "INT":
-//            case "QUIT":
-//                System.exit(0);
-//        }
-    }
-
-//    private static void raise(Signal s) {
-//        try {
-//            final Method raise0 = Signal.class.getDeclaredMethod("raise0", int.class);
-//            raise0.setAccessible(true);
-//            raise0.invoke(null, s.getNumber());
-//        } catch (Exception e) {
-//            throw new AssertionError(e);
-//        }
-//    }
-
-    private static void kill(Process p, Signal s) {
-        try {
-            if (!isWindows())
-                Runtime.getRuntime().exec("kill -" + s.getNumber() + " " + getPid(p));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static int getPid(Process p) {
-        try {
-            Field pidField = p.getClass().getDeclaredField("pid");
-            pidField.setAccessible(true);
-            return pidField.getInt(p);
-        } catch (Exception e) {
-            throw new RuntimeException("Could not access child's pid");
-        }
-    }
-    //</editor-fold>
-    
     //<editor-fold defaultstate="collapsed" desc="Object Methods">
     /////////// Object Methods ///////////////////////////////////
     /**
