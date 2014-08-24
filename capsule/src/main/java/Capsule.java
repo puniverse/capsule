@@ -242,7 +242,8 @@ public class Capsule implements Runnable {
     private final Manifest manifest;   // never null
     private final String appId;        // null iff isEmptyCapsule()
 
-    private final String mode;
+    private String mode;
+
     private final Path appCache;     // non-null iff capsule is extracted
     private final boolean cacheUpToDate;
     private FileLock appCacheLock;
@@ -282,10 +283,6 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
 
-        this.mode = chooseMode();
-        if (mode != null && manifest.getAttributes(mode) == null)
-            throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
-
         this.logLevel = chooseLogLevel();
         this.cacheDir = initCacheDir(cacheDir);
 
@@ -308,13 +305,6 @@ public class Capsule implements Runnable {
      */
     protected Manifest configureManifest(Manifest manifest) throws IOException {
         return manifest;
-    }
-
-    /**
-     * Chooses this capsule's mode.
-     */
-    protected String chooseMode() {
-        return emptyToNull(System.getProperty(PROP_MODE));
     }
     //</editor-fold>
 
