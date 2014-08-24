@@ -56,12 +56,12 @@ import java.util.zip.ZipInputStream;
 
 /**
  * An application capsule.
- *
+ * <p>
  * This API is to be used by custom capsules to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
  * <p>
  * All non-final protected methods may be overridden by custom capsules. These methods will usually be called once, but they must be idempotent,
  * i.e. if called numerous times they must always return the same value, and produce the same effect as if called once. The only exception to this
- * rule is the {@link #launch(String[]) launch} method.
+ * rule is the {@link #launch(List) launch} method.
  * <br>
  * Overridden methods need not be thread-safe, and are guaranteed to be called by a single thread at a time.
  * <p>
@@ -276,7 +276,7 @@ public class Capsule implements Runnable {
             this.manifest = jis.getManifest();
             if (manifest == null)
                 throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
-            verifyNonModalAttributes(manifest);
+            verifyNonModalAttributes();
 
             this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader(jis) : null;
         } catch (IOException e) {
@@ -435,10 +435,10 @@ public class Capsule implements Runnable {
      * @return the process this capsule will launch
      */
     protected Process launch(List<String> args) throws IOException, InterruptedException {
-        final List<String> cmdLine = ManagementFactory.getRuntimeMXBean().getInputArguments();
-        ProcessBuilder pb = launchCapsuleArtifact(cmdLine, args);
+        final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
+        ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
         if (pb == null)
-            pb = prepareForLaunch(cmdLine, args);
+            pb = prepareForLaunch(jvmArgs, args);
 
         Runtime.getRuntime().addShutdownHook(new Thread(this));
 
@@ -454,10 +454,10 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
     // directly used by CapsuleLauncher
-    final ProcessBuilder prepareForLaunch(List<String> cmdLine, List<String> args) {
+    final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
         chooseMode1();
         ensureExtractedIfNecessary();
-        final ProcessBuilder pb = buildProcess(cmdLine, args);
+        final ProcessBuilder pb = buildProcess(jvmArgs, args);
         if (appCache != null && !cacheUpToDate)
             markCache();
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
@@ -466,7 +466,7 @@ public class Capsule implements Runnable {
 
     private void chooseMode1() {
         this.mode = chooseMode();
-        if (mode != null && manifest.getAttributes(mode) == null)
+        if (mode != null && !hasMode(mode))
             throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
     }
 
@@ -489,10 +489,10 @@ public class Capsule implements Runnable {
         }
     }
 
-    private ProcessBuilder buildProcess(List<String> cmdLine, List<String> args) {
+    private ProcessBuilder buildProcess(List<String> jvmArgs, List<String> args) {
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
-            buildJavaProcess(pb, cmdLine);
+            buildJavaProcess(pb, jvmArgs);
 
         final List<String> command = pb.command();
         command.addAll(buildArgs(args));
@@ -1506,7 +1506,11 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Attributes">
     /////////// Attributes ///////////////////////////////////
-    private static void verifyNonModalAttributes(Manifest manifest) {
+    /*
+     * The methods in this section are the only ones accessing the manifest. Therefore other means of
+     * setting attributes can be added by changing these methods alone.
+     */
+    private void verifyNonModalAttributes() {
         for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
             for (String attr : NON_MODAL_ATTRS) {
                 if (entry.getValue().containsKey(new Attributes.Name(attr)))
@@ -1522,6 +1526,27 @@ public class Capsule implements Runnable {
                 return true;
         }
         return false;
+    }
+
+    private boolean hasMode(String mode) {
+        return manifest.getAttributes(mode) != null;
+    }
+
+    /**
+     * Returns the names of all modes defined in this capsule's manifest.
+     */
+    protected final Set<String> getModes() {
+        return Collections.unmodifiableSet(manifest.getEntries().keySet());
+    }
+
+    /**
+     * Returns the description of the given mode.
+     *
+     * @param mode
+     * @return the description of the given mode, or {@code null} if no description is found.
+     */
+    protected final String getModeDescription(String mode) {
+        return manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
     }
 
     /**
@@ -1570,23 +1595,6 @@ public class Capsule implements Runnable {
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
         return mapSplit(getAttribute(attr), '=', "\\s+", defaultValue);
-    }
-
-    /**
-     * Returns the names of all modes defined in this capsule's manifest.
-     */
-    protected final Set<String> getModes() {
-        return Collections.unmodifiableSet(manifest.getEntries().keySet());
-    }
-
-    /**
-     * Returns the description of the given mode.
-     *
-     * @param mode
-     * @return the description of the given mode, or {@code null} if no description is found.
-     */
-    protected final String getModeDescription(String mode) {
-        return manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
     }
     //</editor-fold>
 
