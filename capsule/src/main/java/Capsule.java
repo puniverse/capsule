@@ -273,7 +273,7 @@ public class Capsule implements Runnable {
         this.jarFile = jarFile;
 
         try (JarInputStream jis = openJarInputStream()) {
-            this.manifest = configureManifest(jis.getManifest());
+            this.manifest = jis.getManifest();
             if (manifest == null)
                 throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
             verifyNonModalAttributes(manifest);
@@ -293,18 +293,6 @@ public class Capsule implements Runnable {
         this.appId = buildAppId();
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isUpToDate() : false;
-    }
-
-    /**
-     * Called to (possibly) programmatically modify the capsule's manifest (in memory).
-     * The method may modify the manifest passed to it, or may return a completely new manifest object.
-     * The default implementation simply returns its argument without modification.
-     *
-     * @param manifest the manifest
-     * @return the manifest (or, possibly, a different manifest object).
-     */
-    protected Manifest configureManifest(Manifest manifest) throws IOException {
-        return manifest;
     }
     //</editor-fold>
 
