@@ -929,8 +929,8 @@ public class CapsuleTest {
     }
 
     private List<String> getJvmArgs(ProcessBuilder pb) {
-        final List<String> jvmArgs = new ArrayList<>();
         boolean classpath = false;
+        int i = 0;
         for (String x : pb.command().subList(1, pb.command().size())) {
             if (x.equals("-jar") || (!x.startsWith("-") && !classpath))
                 break;
@@ -938,9 +938,25 @@ public class CapsuleTest {
                 classpath = true;
             else
                 classpath = false;
-            jvmArgs.add(x);
+            i++;
         }
-        return jvmArgs;
+        return pb.command().subList(1, i + 1);
+    }
+
+    private String getMainJar(ProcessBuilder pb) {
+        final List<String> cmd = pb.command();
+        final int start = getJvmArgs(pb).size() + 1;
+        if (cmd.get(start).equals("-jar"))
+            return cmd.get(start + 1);
+        return null;
+    }
+
+    private String getMainClass(ProcessBuilder pb) {
+        final List<String> cmd = pb.command();
+        final int start = getJvmArgs(pb).size() + 1;
+        if (cmd.get(start).equals("-jar"))
+            return null;
+        return cmd.get(start);
     }
 
     private List<String> getAppArgs(ProcessBuilder pb) {
@@ -948,20 +964,6 @@ public class CapsuleTest {
         final List<String> cmd = pb.command();
         final int start = jvmArgs.size() + 1;
         return cmd.subList(start + (cmd.get(start).equals("-jar") ? 2 : 1), cmd.size());
-    }
-
-    private static String getBefore(String s, char separator) {
-        final int i = s.indexOf(separator);
-        if (i < 0)
-            return s;
-        return s.substring(0, i);
-    }
-
-    private static String getAfter(String s, char separator) {
-        final int i = s.indexOf(separator);
-        if (i < 0)
-            return null;
-        return s.substring(i + 1);
     }
 
     private static List<String> getMainAndArgs(ProcessBuilder pb) {
@@ -978,6 +980,20 @@ public class CapsuleTest {
             prevClassPath = c.equals("-classpath");
         }
         return cmd.subList(i, cmd.size());
+    }
+
+    private static String getBefore(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return s;
+        return s.substring(0, i);
+    }
+
+    private static String getAfter(String s, char separator) {
+        final int i = s.indexOf(separator);
+        if (i < 0)
+            return null;
+        return s.substring(i + 1);
     }
 
     @SafeVarargs
