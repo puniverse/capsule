@@ -107,8 +107,8 @@ public final class CapsuleLauncher {
      * @return a {@link ProcessBuilder} for launching the capsule process
      */
     public static ProcessBuilder prepareForLaunch(Object capsule, List<String> jvmArgs, List<String> args) {
-        final Method launch = getCapsuleMethod(capsule, "prepareForLaunch", List.class, String[].class);
-        return (ProcessBuilder) invoke(capsule, launch, jvmArgs, (String[]) args.toArray(new String[args.size()]));
+        final Method launch = getCapsuleMethod(capsule, "prepareForLaunch", List.class, List.class);
+        return (ProcessBuilder) invoke(capsule, launch, jvmArgs, args);
     }
 
     /**
@@ -118,7 +118,7 @@ public final class CapsuleLauncher {
      * @return the capsule's ID.
      */
     public static String getAppId(Object capsule) {
-        final Method appId = getCapsuleMethod(capsule, "appId", String[].class);
+        final Method appId = getCapsuleMethod(capsule, "appId", List.class);
         return (String) invoke(capsule, appId, (Object) null);
     }
 

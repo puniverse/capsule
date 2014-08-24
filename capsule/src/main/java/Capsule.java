@@ -196,7 +196,8 @@ public class Capsule implements Runnable {
      * @param args the program's command-line arguments
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
-    public static final void main(String[] args) {
+    public static final void main(String[] args0) {
+        final List<String> args = Arrays.asList(args0);
         try {
             final Capsule capsule = newCapsule(findMyJarFile(), getCacheDir());
 
@@ -376,12 +377,12 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Main Operations">
     /////////// Main Operations ///////////////////////////////////
-    private void printVersion(String[] args) {
+    private void printVersion(List<String> args) {
         System.out.println(LOG_PREFIX + "Application " + getAppId(args));
         System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
     }
 
-    private void printModes(String[] args) {
+    private void printModes(List<String> args) {
         System.out.println(LOG_PREFIX + "Application " + getAppId(args));
         System.out.println("Available modes:");
         final Set<String> modes = getModes();
@@ -395,7 +396,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void printJVMs(String[] args) {
+    private void printJVMs(List<String> args) {
         final Map<String, Path> jres = getJavaHomes();
         if (jres == null)
             println("No detected Java installations");
@@ -408,7 +409,7 @@ public class Capsule implements Runnable {
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (System.getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
-    private void printDependencyTree(String[] args) {
+    private void printDependencyTree(List<String> args) {
         System.out.println("Dependencies for " + getAppId(args));
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
@@ -427,7 +428,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void resolve(String[] args) throws IOException, InterruptedException {
+    private void resolve(List<String> args) throws IOException, InterruptedException {
         ensureExtractedIfNecessary();
         resolveAppArtifact(getAppArtifact(args), "jar");
         resolveDependencies(getDependencies(), "jar");
@@ -446,7 +447,7 @@ public class Capsule implements Runnable {
      * @param args the application's command-line arguments (does not include JVM args)
      * @return the process this capsule will launch
      */
-    protected Process launch(String[] args) throws IOException, InterruptedException {
+    protected Process launch(List<String> args) throws IOException, InterruptedException {
         final List<String> cmdLine = ManagementFactory.getRuntimeMXBean().getInputArguments();
         ProcessBuilder pb = launchCapsuleArtifact(cmdLine, args);
         if (pb == null)
@@ -466,7 +467,8 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
     // directly used by CapsuleLauncher
-    final ProcessBuilder prepareForLaunch(List<String> cmdLine, String[] args) {
+    final ProcessBuilder prepareForLaunch(List<String> cmdLine, List<String> args) {
+        chooseMode1();
         ensureExtractedIfNecessary();
         final ProcessBuilder pb = buildProcess(cmdLine, args);
         if (appCache != null && !cacheUpToDate)
@@ -486,7 +488,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private ProcessBuilder buildProcess(List<String> cmdLine, String[] args) {
+    private ProcessBuilder buildProcess(List<String> cmdLine, List<String> args) {
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
             buildJavaProcess(pb, cmdLine);
@@ -506,10 +508,10 @@ public class Capsule implements Runnable {
      *
      * @param args The command line arguments passed to the capsule at launch
      */
-    protected List<String> buildArgs(String[] args) {
+    protected List<String> buildArgs(List<String> args) {
         final List<String> args0 = new ArrayList<String>();
         args0.addAll(nullToEmpty(expand(getListAttribute(ATTR_ARGS))));
-        args0.addAll(Arrays.asList(args));
+        args0.addAll(args);
         return args0;
     }
 
@@ -577,7 +579,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Capsule Artifact">
     /////////// Capsule Artifact ///////////////////////////////////
     // visible for testing
-    final ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, String[] args) {
+    final ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, List<String> args) {
         if (getScript() == null) {
             final String appArtifact = getAppArtifact(args);
             if (appArtifact != null) {
@@ -588,7 +590,7 @@ public class Capsule implements Runnable {
                     if (isCapsule(jars.get(0))) {
                         log(LOG_VERBOSE, "Running capsule " + jars.get(0));
                         return launchCapsule(jars.get(0), cacheDir,
-                                cmdLine, isEmptyCapsule() ? Arrays.copyOfRange(args, 1, args.length) : buildArgs(args).toArray(new String[0]));
+                                cmdLine, isEmptyCapsule() ? args.subList(1, args.size()) : buildArgs(args));
                     } else if (isEmptyCapsule())
                         throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
                 } catch (RuntimeException e) {
@@ -661,7 +663,7 @@ public class Capsule implements Runnable {
      * @param args the command line arguments; may be {@code null}.
      * @return the app ID
      */
-    protected final String getAppId(String[] args) {
+    protected final String getAppId(List<String> args) {
         if (appId != null)
             return appId;
         assert isEmptyCapsule();
@@ -1250,7 +1252,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private String getAppArtifact(String[] args) {
+    private String getAppArtifact(List<String> args) {
         String appArtifact = null;
         if (isEmptyCapsule()) {
             if (args == null)
@@ -1264,9 +1266,9 @@ public class Capsule implements Runnable {
         return appArtifact;
     }
 
-    private String getCommandLineArtifact(String[] args) {
-        if (args.length > 0)
-            return args[0];
+    private String getCommandLineArtifact(List<String> args) {
+        if (!args.isEmpty())
+            return args.get(0);
         return null;
     }
     //</editor-fold>
@@ -2521,11 +2523,11 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static ProcessBuilder launchCapsule(Path path, Path cacheDir, List<String> cmdLine, String[] args) {
+    private static ProcessBuilder launchCapsule(Path path, Path cacheDir, List<String> cmdLine, List<String> args) {
         try {
             final ClassLoader cl = (ClassLoader) createClassLoader(path);
             final Object capsule = newCapsule(path, cacheDir, cl);
-            final Method launch = getMethod(capsule.getClass(), "prepareForLaunch", List.class, String[].class);
+            final Method launch = getMethod(capsule.getClass(), "prepareForLaunch", List.class, List.class);
             if (launch != null)
                 return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
             throw new RuntimeException(path + " does not appear to be a valid capsule.");

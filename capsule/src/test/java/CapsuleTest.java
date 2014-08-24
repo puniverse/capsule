@@ -169,14 +169,14 @@ public class CapsuleTest {
                 .addEntry("lib/b.class", Jar.toInputStream("", UTF_8))
                 .addEntry("META-INF/x.txt", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
-        assertEquals(Arrays.asList(args), getAppArgs(pb));
+        assertEquals(args, getAppArgs(pb));
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
@@ -216,13 +216,13 @@ public class CapsuleTest {
                 .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        assertEquals(Arrays.asList(args), getAppArgs(pb));
+        assertEquals(args, getAppArgs(pb));
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
         assertTrue(!Files.isDirectory(appCache));
@@ -282,7 +282,7 @@ public class CapsuleTest {
                 .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("pom.xml", toInputStream(pom));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
@@ -301,7 +301,7 @@ public class CapsuleTest {
                 .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
@@ -331,7 +331,7 @@ public class CapsuleTest {
                 .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
@@ -359,8 +359,8 @@ public class CapsuleTest {
                     .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
                     .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
 
-            String[] args = strings("hi", "there");
             System.setProperty("java.library.path", "/foo/bar");
+            List<String> args = list("hi", "there");
             List<String> cmdLine = list();
 
             Capsule capsule = newCapsule(jar, null);
@@ -403,8 +403,8 @@ public class CapsuleTest {
         Files.createFile(bazMacPath);
         when(dm.resolveDependencies(list("com.acme:baz-macos:3.4"), "dylib")).thenReturn(list(bazMacPath));
 
-        String[] args = strings("hi", "there");
         System.setProperty("java.library.path", "/foo/bar");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);
@@ -435,7 +435,7 @@ public class CapsuleTest {
                 .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
@@ -462,7 +462,7 @@ public class CapsuleTest {
                 .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/d.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Xbootclasspath:/foo/bar");
 
         Capsule capsule = newCapsule(jar, null);
@@ -495,7 +495,7 @@ public class CapsuleTest {
         Path bazPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-3.4.jar");
         when(dm.resolveDependency("com.acme:baz:3.4", "jar")).thenReturn(list(bazPath));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);
@@ -521,7 +521,7 @@ public class CapsuleTest {
                 .addEntry("lib/c.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("bar-1.2.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
@@ -544,7 +544,7 @@ public class CapsuleTest {
 
         DependencyManager dm = mock(DependencyManager.class);
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);
@@ -571,7 +571,7 @@ public class CapsuleTest {
 
         DependencyManager dm = mock(DependencyManager.class);
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);
@@ -590,7 +590,7 @@ public class CapsuleTest {
 
         DependencyManager dm = mock(DependencyManager.class);
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);
@@ -608,7 +608,7 @@ public class CapsuleTest {
                 .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
@@ -634,7 +634,7 @@ public class CapsuleTest {
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
 
         Capsule capsule = newCapsule(jar, null);
@@ -654,7 +654,7 @@ public class CapsuleTest {
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10 -Xfoo400")
                 .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Xms15");
 
         Capsule capsule = newCapsule(jar, null);
@@ -678,7 +678,7 @@ public class CapsuleTest {
                     .setAttribute("ModeX", "Description", "This is a secret mode")
                     .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
-            String[] args = strings("hi", "there");
+            List<String> args = list("hi", "there");
             List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
 
             Capsule capsule = newCapsule(jar, null);
@@ -688,7 +688,7 @@ public class CapsuleTest {
             assertEquals("", getProperty(pb, "bar"));
             assertEquals("", getProperty(pb, "zzz"));
             assertEquals("55", getProperty(pb, "baz"));
-            
+
             assertEquals(new HashSet<String>(list("ModeX")), capsule.getModes());
             assertEquals("This is a secret mode", capsule.getModeDescription("ModeX"));
         } finally {
@@ -722,7 +722,7 @@ public class CapsuleTest {
         Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
         when(dm.resolveDependencies(list("com.acme:bar:1.2"), "jar")).thenReturn(list(barPath));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);
@@ -733,7 +733,7 @@ public class CapsuleTest {
                 pb.command());
 
         String PS = PATH_SEPARATOR;
-        
+
         assertEquals(getEnv(pb, "CLASSPATH"), path("capsule.jar") + PS + appCache + PS + appCache.resolve("foo.jar") + PS + barPath);
     }
 
@@ -747,7 +747,7 @@ public class CapsuleTest {
                 .setReallyExecutable(true)
                 .addEntry("a.class", Jar.toInputStream("", UTF_8));
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
 
         final Path capsuleJar = path("capsule.jar");
@@ -766,7 +766,7 @@ public class CapsuleTest {
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10")
                 .addClass(MyCapsule.class);
 
-        String[] args = strings("hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
 
         final Path capsuleJar = path("capsule.jar");
@@ -809,7 +809,7 @@ public class CapsuleTest {
         when(dm.resolveDependency("com.acme:foo", "jar")).thenReturn(list(fooPath));
         when(dm.getLatestVersion("com.acme:foo", "jar")).thenReturn("com.acme.foo:1.0");
 
-        String[] args = strings("com.acme:foo", "hi", "there");
+        List<String> args = list("com.acme:foo", "hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);

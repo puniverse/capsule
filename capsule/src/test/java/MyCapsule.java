@@ -84,7 +84,7 @@ public class MyCapsule extends Capsule {
     }
 
     @Override
-    protected List<String> buildArgs(String[] args) {
+    protected List<String> buildArgs(List<String> args) {
         return super.buildArgs(args);
     }
 }
