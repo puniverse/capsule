@@ -261,10 +261,9 @@ project (':capsule') {
         injars jar
         outjars "$buildDir/libs/${project.name}-${version}-shrunk.jar"
         libraryjars "${System.getProperty('java.home')}/lib/rt.jar"
-        keep 'class Capsule { public protected *; }'
+        keep 'class Capsule { public protected private *; }'
         dontoptimize
         dontobfuscate
-        dontpreverify
         dontwarn
         //whyareyoukeeping 'class capsule.org.codehaus.plexus.**'
         doLast {
