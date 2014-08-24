@@ -704,7 +704,61 @@ public class CapsuleTest {
                 .setAttribute("ModeX", "Application-Class", "com.acme.Bar")
                 .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
 
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+
         Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+    }
+
+    @Test
+    public void testApplicationArtifact() throws Exception {
+        Jar bar = new Jar()
+                .setAttribute("Main-Class", "com.acme.Bar")
+                .addEntry("com/acme/Bar.class", Jar.toInputStream("", UTF_8));
+
+        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
+        Files.createDirectories(barPath.getParent());
+        bar.write(barPath);
+
+        DependencyManager dm = mock(DependencyManager.class);
+        when(dm.resolveDependency("com.acme:bar:1.2", "jar")).thenReturn(list(barPath));
+        when(dm.getLatestVersion("com.acme:bar:1.2", "jar")).thenReturn("com.acme:bar:1.2");
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application", "com.acme:bar:1.2");
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, dm);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        ASSERT.that(getClassPath(pb)).has().item(barPath);
+        assertEquals("com.acme.Bar", getMainClass(pb));
+    }
+
+    @Test
+    public void testEmbeddedArtifact() throws Exception {
+        Jar bar = new Jar()
+                .setAttribute("Main-Class", "com.acme.Bar")
+                .addEntry("com/acme/Bar.class", Jar.toInputStream("", UTF_8));
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application", "libs/bar.jar")
+                .setAttribute("Application-Name", "AcmeFoo")
+                .setAttribute("Application-Version", "1.0")
+                .addEntry("libs/bar.jar", bar.toByteArray());
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCache = cache.resolve("apps").resolve("AcmeFoo_1.0");
+        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("libs").resolve("bar.jar"));
+        assertEquals("com.acme.Bar", getMainClass(pb));
     }
 
     @Test

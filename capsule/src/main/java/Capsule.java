@@ -644,7 +644,7 @@ public class Capsule implements Runnable {
 
         if (appName == null) {
             final String appArtifact = getAttribute(ATTR_APP_ARTIFACT);
-            if (appArtifact != null) {
+            if (appArtifact != null && isDependency(appArtifact)) {
                 if (hasModalAttribute(ATTR_APP_ARTIFACT))
                     throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_ARTIFACT + " is defined in a modal section of the manifest. "
                             + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
@@ -774,7 +774,7 @@ public class Capsule implements Runnable {
             return false;
         if (hasRenamedNativeDependencies())
             return true;
-        if (hasAttribute(ATTR_APP_ARTIFACT))
+        if (hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
             return false;
         return shouldExtract();
     }
@@ -951,8 +951,10 @@ public class Capsule implements Runnable {
         }
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
-            assert dependencyManager != null;
-            classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT), "jar")));
+            if (isDependency(getAttribute(ATTR_APP_ARTIFACT)))
+                classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT), "jar")));
+            else 
+                classPath.add(getPath(getAttribute(ATTR_APP_ARTIFACT)));
         }
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
@@ -1624,6 +1626,8 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Paths">
     /////////// Paths ///////////////////////////////////
     private Path getPath(String p) {
+        if (p == null)
+            return null;
         if (isDependency(p) && dependencyManager != null)
             return getDependencyPath(dependencyManager, p);
 
