@@ -36,6 +36,7 @@ import javax.management.ObjectName;
 import javax.management.StandardEmitterMBean;
 
 /**
+ * Launches, monitors and manages capsules.
  *
  * @author pron
  */
@@ -49,6 +50,11 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     private final StandardEmitterMBean mbean;
     private final Map<String, Path> javaHomes;
 
+    /**
+     * Constructs a new capsule container
+     *
+     * @param cacheDir the path of the directory to hold capsules' caches
+     */
     @SuppressWarnings("OverridableMethodCallInConstructor")
     public CapsuleContainer(Path cacheDir) {
         this.cacheDir = cacheDir;
@@ -98,6 +104,14 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
         }
     }
 
+    /**
+     * Launch and monitor a capsule.
+     *
+     * @param capsulePath the capsule file
+     * @param jvmArgs     the JVM arguments for the capsule
+     * @param args        the arguments of the capsule's application
+     * @return a unique process ID
+     */
     public String launchCapsule(Path capsulePath, List<String> jvmArgs, List<String> args) throws IOException {
         final Object capsule = CapsuleLauncher.newCapsule(capsulePath, cacheDir, javaHomes);
         return launchCapsule(capsule, jvmArgs, args);
@@ -137,7 +151,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     /**
-     * May be overriden to pipe app IO streams.
+     * May be overridden to pipe app IO streams.
      *
      * @param pb The capsule's {@link ProcessBuilder}.
      * @return {@code pb}
@@ -146,14 +160,27 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
         return pb;
     }
 
-    protected void processDied(String id, Process p, int exitValue) {
+    void processDied(String id, Process p, int exitValue) {
         mbean.sendNotification(processDiedNotification(id, exitValue));
         onProcessDeath(id, getProcessInfo(id), exitValue);
     }
 
+    /**
+     * Called a a process has been launched.
+     *
+     * @param id the process ID
+     * @param pi the {@link ProcessInfo} object for the process
+     */
     protected void onProcessLaunch(String id, ProcessInfo pi) {
     }
 
+    /**
+     * Called a a process has died.
+     *
+     * @param id        the process ID
+     * @param pi        the {@link ProcessInfo} object for the process
+     * @param exitValue the process's exit value
+     */
     protected void onProcessDeath(String id, ProcessInfo pi, int exitValue) {
     }
 
@@ -179,11 +206,23 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
         }.start();
     }
 
+    /**
+     * Generates a unique id for a process
+     *
+     * @param appId the capsule's app ID
+     * @param p     the process
+     * @return a unique process ID
+     */
     protected String createProcessId(String appId, Process p) {
         return appId + "-" + counter.incrementAndGet();
     }
 
-    public final Map<String, ProcessInfo> getProcessInfo() {
+    /**
+     * Returns information about all managed processes.
+     *
+     * @return a map from process IDs to their respective {@link ProcessInfo} objects.
+     */
+    protected final Map<String, ProcessInfo> getProcessInfo() {
         final Map<String, ProcessInfo> m = new HashMap<>();
         for (Iterator<Map.Entry<String, ProcessInfo>> it = processes.entrySet().iterator(); it.hasNext();) {
             final Map.Entry<String, ProcessInfo> e = it.next();
@@ -196,6 +235,12 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
         return Collections.unmodifiableMap(m);
     }
 
+    /**
+     * Returns information about a process
+     *
+     * @param id the process ID
+     * @return the process's {@link ProcessInfo} object/
+     */
     protected ProcessInfo getProcessInfo(String id) {
         final ProcessInfo pi = processes.get(id);
         if (pi == null)
@@ -208,6 +253,11 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
         }
     }
 
+    /**
+     *
+     * @param id the process ID (as returned from {@link #launchCapsule(Object, List, List) launchCapsule}.
+     * @return the process
+     */
     public final Process getProcess(String id) {
         final ProcessInfo pi = getProcessInfo(id);
         return pi != null ? pi.process : null;
@@ -218,6 +268,9 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
             pi.process.destroy();
     }
 
+    /**
+     * Returns the IDs of all currently running managed processes.
+     */
     @Override
     public final Set<String> getProcesses() {
         Set<String> ps = new HashSet<>();
@@ -227,6 +280,11 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
         return ps;
     }
 
+    /**
+     * Kills a managed process
+     *
+     * @param id the process's ID
+     */
     @Override
     public final void killProcess(String id) {
         ProcessInfo pi = getProcessInfo(id);

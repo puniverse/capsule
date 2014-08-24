@@ -22,7 +22,7 @@ import javax.management.remote.JMXServiceURL;
  * @author pron
  */
 public class MBeanCapsuleContainer extends CapsuleContainer {
-    public MBeanCapsuleContainer(Path cacheDir) {
+    protected MBeanCapsuleContainer(Path cacheDir) {
         super(cacheDir);
     }
 

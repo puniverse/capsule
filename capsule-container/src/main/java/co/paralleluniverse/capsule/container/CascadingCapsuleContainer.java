@@ -20,17 +20,29 @@ import javax.management.ObjectName;
 import javax.management.remote.JMXServiceURL;
 
 /**
+ * A capsule container that reflects all managed capsules' MBeans
  *
  * @author pron
  */
 public class CascadingCapsuleContainer extends MBeanCapsuleContainer {
     private final CascadingService cascade;
 
+    /**
+     * Constructs a new capsule container
+     *
+     * @param cacheDir    the path of the directory to hold capsules' caches
+     * @param mbeanServer the {@link MBeanServer} to use for reflecting the capsule's MBean servers.
+     */
     public CascadingCapsuleContainer(Path cacheDir, MBeanServer mbeanServer) {
         super(cacheDir);
         this.cascade = mbeanServer != null ? new CascadingService(mbeanServer) : null;
     }
 
+    /**
+     * Constructs a new capsule container. Same as {@code CascadingCapsuleContainer(cacheDir, ManagementFactory.getPlatformMBeanServer())}.
+     *
+     * @param cacheDir the path of the directory to hold capsules' caches
+     */
     public CascadingCapsuleContainer(Path cacheDir) {
         this(cacheDir, ManagementFactory.getPlatformMBeanServer());
     }
