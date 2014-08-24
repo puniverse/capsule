@@ -208,14 +208,14 @@ public class Capsule implements Runnable {
                 if (anyPropertyDefined(PROP_MODES))
                     capsule.printModes(args);
 
-                if (anyPropertyDefined(PROP_PRINT_JRES))
-                    capsule.printJVMs(args);
-
                 if (anyPropertyDefined(PROP_TREE))
                     capsule.printDependencyTree(args);
 
                 if (anyPropertyDefined(PROP_RESOLVE))
                     capsule.resolve(args);
+
+                if (anyPropertyDefined(PROP_PRINT_JRES))
+                    capsule.printJVMs(args);
 
                 return;
             }
