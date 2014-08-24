@@ -1,9 +1,11 @@
 buildscript {
     repositories {
+        mavenCentral()
         jcenter()
     }
     dependencies {
         classpath 'com.github.jengelman.gradle.plugins:shadow:0.8'
+        classpath 'net.sf.proguard:proguard-gradle:5.0'
     }
 }
 
@@ -236,84 +238,6 @@ project (':capsule') {
         exclude 'io/takari/aether/localrepo/**'
         exclude 'javax/inject/**'
 
-        exclude 'com/google/common/annotations/**'
-        exclude 'com/google/common/cache/**'
-        exclude 'com/google/common/escape/**'
-        exclude 'com/google/common/eventbus/**'
-        exclude 'com/google/common/hash/**'
-        exclude 'com/google/common/html/**'
-        exclude 'com/google/common/io/**'
-        exclude 'com/google/common/math/**'
-        exclude 'com/google/common/net/**'
-        exclude 'com/google/common/primitives/**'
-        exclude 'com/google/common/reflect/**'
-        exclude 'com/google/common/util/**'
-        exclude 'com/google/common/xml/**'
-        exclude 'com/google/thirdparty/**'
-
-        exclude 'com/google/common/base/internal/**'
-        exclude 'com/google/common/base/A*'
-        exclude 'com/google/common/base/B*'
-        exclude 'com/google/common/base/C*'
-        exclude 'com/google/common/base/D*'
-        exclude 'com/google/common/base/E*'
-        //exclude 'com/google/common/base/F*'
-        exclude 'com/google/common/base/Final*'
-        exclude 'com/google/common/base/Functions*'
-        exclude 'com/google/common/base/Functional*'
-        exclude 'com/google/common/base/G*'
-        exclude 'com/google/common/base/H*'
-        exclude 'com/google/common/base/I*'
-        exclude 'com/google/common/base/J*'
-        exclude 'com/google/common/base/K*'
-        exclude 'com/google/common/base/L*'
-        exclude 'com/google/common/base/M*'
-        exclude 'com/google/common/base/N*'
-        exclude 'com/google/common/base/O*'
-        //exclude 'com/google/common/base/P*'
-        exclude 'com/google/common/base/Pair*'
-        exclude 'com/google/common/base/Predicates*'
-        exclude 'com/google/common/base/Present*'
-        exclude 'com/google/common/base/Q*'
-        exclude 'com/google/common/base/R*'
-        exclude 'com/google/common/base/S*'
-        exclude 'com/google/common/base/T*'
-        exclude 'com/google/common/base/U*'
-        exclude 'com/google/common/base/V*'
-        exclude 'com/google/common/base/W*'
-        exclude 'com/google/common/base/X*'
-        exclude 'com/google/common/base/Y*'
-        exclude 'com/google/common/base/Z*'
-        exclude 'com/google/common/collect/A*'
-        exclude 'com/google/common/collect/B*'
-        exclude 'com/google/common/collect/C*'
-        exclude 'com/google/common/collect/D*'
-        exclude 'com/google/common/collect/E*'
-        exclude 'com/google/common/collect/F*'
-        exclude 'com/google/common/collect/G*'
-        exclude 'com/google/common/collect/H*'
-        //exclude 'com/google/common/collect/I*'
-        exclude 'com/google/common/collect/Immut*'
-        exclude 'com/google/common/collect/Intern*'
-        exclude 'com/google/common/collect/Iterator*'
-        exclude 'com/google/common/collect/J*'
-        exclude 'com/google/common/collect/K*'
-        exclude 'com/google/common/collect/L*'
-        exclude 'com/google/common/collect/M*'
-        exclude 'com/google/common/collect/N*'
-        exclude 'com/google/common/collect/O*'
-        exclude 'com/google/common/collect/P*'
-        exclude 'com/google/common/collect/Q*'
-        exclude 'com/google/common/collect/R*'
-        exclude 'com/google/common/collect/S*'
-        exclude 'com/google/common/collect/T*'
-        exclude 'com/google/common/collect/U*'
-        exclude 'com/google/common/collect/V*'
-        exclude 'com/google/common/collect/W*'
-        exclude 'com/google/common/collect/X*'
-        exclude 'com/google/common/collect/Y*'
-        exclude 'com/google/common/collect/Z*'
-
         relocation {
             pattern = 'org.'
             shadedPattern = 'capsule.org.'
@@ -332,8 +256,25 @@ project (':capsule') {
         logger.info("$buildDir/libs/${project.name}-${project.version}-shadow.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
         file("$buildDir/libs/${project.name}-${version}-shadow.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
     }
+    
+    task proguard(type: proguard.gradle.ProGuardTask, dependsOn:[shadowJar]) {
+        injars jar
+        outjars "$buildDir/libs/${project.name}-${version}-shrunk.jar"
+        libraryjars "${System.getProperty('java.home')}/lib/rt.jar"
+        keep 'class Capsule { public protected *; }'
+        dontoptimize
+        dontobfuscate
+        dontpreverify
+        dontwarn
+        //whyareyoukeeping 'class capsule.org.codehaus.plexus.**'
+        doLast {
+            logger.info("$buildDir/libs/${project.name}-${project.version}-shrunk.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
+            file("$buildDir/libs/${project.name}-${version}-shrunk.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
+        }
+    }
+    
 
-    build.dependsOn shadowJar
+    build.dependsOn shadowJar, proguard
 
     //jar {
     //    from { configurations.runtime.collect { zipTree(it) } }
@@ -351,7 +292,7 @@ project (':capsule') {
         excludes = [ "capsule/**" ]
     }
 
-    install.dependsOn shadowJar
+    install.dependsOn shadowJar, proguard
     uploadArchives.dependsOn shadowJar
 
     // remove dependencies from pom
