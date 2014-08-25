@@ -875,12 +875,8 @@ public class Capsule implements Runnable {
         final List<String> command = pb.command();
 
         command.add(getJavaProcessImage(javaHome).toString());
-
         command.addAll(buildJVMArgs(cmdLine));
-
-        Map<String, String> systemProperties = buildSystemProperties(cmdLine);
-
-        command.addAll(compileSystemProperties(systemProperties));
+        command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
         addOption(command, "-Xbootclasspath:", compileClassPath(buildBootClassPath(cmdLine)));
         addOption(command, "-Xbootclasspath/p:", compileClassPath(buildBootClassPathP()));
