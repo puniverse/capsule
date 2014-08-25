@@ -243,7 +243,7 @@ The dependencies, (if not read from the POM), are listed in the `Dependencies` a
 
 The dependencies are downloaded the first time the capsule is launched, and placed in the `deps` subdirectory of the Capsule cache, where they are shared among all capsules.
 
-The `CAPSULE_REPOS` environment variable can be set to a *comma* (`,`) separated list of Maven repository URLS or well-known repository names (see above), which will override those specified in the manifest or the POM.
+The `CAPSULE_REPOS` environment variable can be set to a *comma* (`,`) separated list of Maven repository URLS or well-known repository names (see above), which will be prepended to those specified in the manifest or the POM.
 
 By default, SNAPSHOT dependencies are not allowed, unless the `Allow-Snapshots` is set to `true`.
 

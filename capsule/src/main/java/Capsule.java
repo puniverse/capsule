@@ -1433,14 +1433,16 @@ public class Capsule implements Runnable {
     }
 
     private List<String> getRepositories() {
-        List<String> repos = new ArrayList<String>();
+        final List<String> repos = new ArrayList<String>();
 
-        List<String> attrRepos = split(System.getenv(ENV_CAPSULE_REPOS), ",");
-        if (attrRepos == null)
-            attrRepos = getListAttribute(ATTR_REPOSITORIES);
+        final List<String> envRepos = split(System.getenv(ENV_CAPSULE_REPOS), ",");
+        final List<String> attrRepos = getListAttribute(ATTR_REPOSITORIES);
 
+        if (envRepos != null)
+            repos.addAll(envRepos);
         if (attrRepos != null)
             repos.addAll(attrRepos);
+
         if (pom != null) {
             for (String repo : nullToEmpty(getPomRepositories())) {
                 if (!repos.contains(repo))
