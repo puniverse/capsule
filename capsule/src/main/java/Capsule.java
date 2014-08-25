@@ -88,6 +88,7 @@ public class Capsule implements Runnable {
     private static final String PROP_TREE = "capsule.tree";
     private static final String PROP_RESOLVE = "capsule.resolve";
     private static final String PROP_MODES = "capsule.modes";
+    private static final String PROP_TRAMPOLINE = "capsule.trampoline";
     private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_LOG_LEVEL = "capsule.log";
     private static final String PROP_APP_ID = "capsule.app.id";
@@ -227,7 +228,10 @@ public class Capsule implements Runnable {
                 return;
             }
 
-            final Process p = CAPSULE.launch(args);
+            if (propertyDefined(PROP_TRAMPOLINE))
+                capsule.trampoline(args); // never returns
+
+            final Process p = capsule.launch(args);
             if (p != null)
                 System.exit(p.waitFor());
         } catch (Throwable t) {
@@ -434,6 +438,18 @@ public class Capsule implements Runnable {
         log(LOG_QUIET, "Capsule resolved");
     }
 
+    private void trampoline(List<String> args) {
+        if (hasAttribute(ATTR_ENV)) {
+            println("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
+            System.exit(1);
+        }
+
+        final ProcessBuilder pb = prelaunch(args);
+        pb.command().remove("-D" + PROP_TRAMPOLINE);
+        System.out.println(join(pb.command(), " "));
+        System.exit(0);
+    }
+
     /**
      * Creates the {@link Process} this capsule will launch.
      * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
@@ -442,10 +458,7 @@ public class Capsule implements Runnable {
      * @return the process this capsule will launch
      */
     protected Process launch(List<String> args) throws IOException, InterruptedException {
-        final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
-        ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
-        if (pb == null)
-            pb = prepareForLaunch(jvmArgs, args);
+        final ProcessBuilder pb = prelaunch(args);
 
         Runtime.getRuntime().addShutdownHook(new Thread(this));
 
@@ -460,6 +473,14 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
+    private ProcessBuilder prelaunch(List<String> args) {
+        final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
+        ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
+        if (pb == null)
+            pb = prepareForLaunch(jvmArgs, args);
+        return pb;
+    }
+
     // directly used by CapsuleLauncher
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
         chooseMode1();
@@ -590,7 +611,7 @@ public class Capsule implements Runnable {
     final ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, List<String> args) {
         if (getScript() == null) {
             final String appArtifact = getAppArtifact(args);
-            if (appArtifact != null) {
+            if (appArtifact != null && isDependency(appArtifact)) {
                 try {
                     final List<Path> jars = resolveAppArtifact(appArtifact, "jar");
                     if (jars == null || jars.isEmpty())
