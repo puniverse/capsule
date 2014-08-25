@@ -555,7 +555,7 @@ public class CapsuleTest {
 
     @Test
     public void testPomDependencies1() throws Exception {
-        List<String> deps = list("com.acme:bar:1.2", "com.acme:baz:3.4:jdk8");
+        List<String> deps = list("com.acme:bar:1.2", "com.acme:baz:3.4:jdk8(org.asd:qqq,com.gogo:bad)");
 
         Model pom = newPom();
         pom.setGroupId("com.acme");
