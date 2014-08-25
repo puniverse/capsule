@@ -192,35 +192,36 @@ public class Capsule implements Runnable {
 
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
+    private static boolean INSTANTIATE = true; // set by CapsuleLauncher
+    protected static final Capsule CAPSULE = INSTANTIATE ? newCapsule(findMyJarFile(), getCacheDir()) : null;
+    
     /**
      * Launches the capsule
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args0) {
-        final List<String> args = Arrays.asList(args0);
         try {
-            final Capsule capsule = newCapsule(findMyJarFile(), getCacheDir());
-
+            final List<String> args = Arrays.asList(args0);
             if (anyPropertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (anyPropertyDefined(PROP_VERSION))
-                    capsule.printVersion(args);
+                    CAPSULE.printVersion(args);
 
                 if (anyPropertyDefined(PROP_MODES))
-                    capsule.printModes(args);
+                    CAPSULE.printModes(args);
 
                 if (anyPropertyDefined(PROP_TREE))
-                    capsule.printDependencyTree(args);
+                    CAPSULE.printDependencyTree(args);
 
                 if (anyPropertyDefined(PROP_RESOLVE))
-                    capsule.resolve(args);
+                    CAPSULE.resolve(args);
 
                 if (anyPropertyDefined(PROP_PRINT_JRES))
-                    capsule.printJVMs(args);
+                    CAPSULE.printJVMs(args);
 
                 return;
             }
 
-            final Process p = capsule.launch(args);
+            final Process p = CAPSULE.launch(args);
             if (p != null)
                 System.exit(p.waitFor());
         } catch (Throwable t) {

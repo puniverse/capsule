@@ -141,13 +141,26 @@ public final class CapsuleLauncher {
     @SuppressWarnings("unchecked")
     public static Map<String, Path> getJavaHomes() {
         try {
-            final Class<?> clazz = CapsuleLauncher.class.getClassLoader().loadClass(CAPSULE_CLASS_NAME);
+            final Class<?> clazz = dontInstantiate(CapsuleLauncher.class.getClassLoader().loadClass(CAPSULE_CLASS_NAME));
+
             final Method m = clazz.getDeclaredMethod("getJavaHomes");
             m.setAccessible(true);
             return (Map<String, Path>) m.invoke(null);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
+    }
+
+    private static Class<?> dontInstantiate(Class<?> capsuleClass) {
+        try {
+            final Field f = capsuleClass.getField("INSTANTIATE");
+            f.setAccessible(true);
+            f.set(null, false);
+        } catch (NoSuchFieldException e) {
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
+        }
+        return capsuleClass;
     }
 
     private static void setJavaHomes(Class<?> capsuleClass, Map<String, Path> javaHomes) {
@@ -159,12 +172,13 @@ public final class CapsuleLauncher {
 
     /**
      * Returns the given capsule's supported modes.
+     *
      * @param capsule
      */
     @SuppressWarnings("unchecked")
     public static Set<String> getModes(Object capsule) {
         final Method getModes = getMethod(capsule.getClass(), "getModes");
-        return (Set<String>)(getModes != null ? invoke(capsule, getModes) : Collections.emptySet());
+        return (Set<String>) (getModes != null ? invoke(capsule, getModes) : Collections.emptySet());
     }
 
     private static Method getCapsuleMethod(Object capsule, String name, Class<?>... paramTypes) {
