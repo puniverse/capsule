@@ -77,7 +77,7 @@ public class Capsule implements Runnable {
      * Also, the code is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      *
-     * We do a lot of data transformations that would have really benefitted from Java 8's lambdas and streams, 
+     * We do a lot of data transformations that would have really benefited from Java 8's lambdas and streams,
      * but we want Capsule to support Java 7.
      */
     private static final String VERSION = "0.8.0";
@@ -1409,14 +1409,17 @@ public class Capsule implements Runnable {
     }
 
     private List<String> getRepositories() {
-        List<String> repos = new ArrayList<String>();
+        final List<String> repos = new ArrayList<String>();
 
-        List<String> attrRepos = split(System.getenv(ENV_CAPSULE_REPOS), ",");
-        if (attrRepos == null)
-            attrRepos = getListAttribute(ATTR_REPOSITORIES);
+        // add all repos found in env & manifest
+        final List<String> envRepos = split(System.getenv(ENV_CAPSULE_REPOS), ",");
+        final List<String> attrRepos = getListAttribute(ATTR_REPOSITORIES);
 
+	    if (envRepos != null)
+            repos.addAll(envRepos);
         if (attrRepos != null)
             repos.addAll(attrRepos);
+
         if (pom != null) {
             for (String repo : nullToEmpty(getPomRepositories())) {
                 if (!repos.contains(repo))
@@ -2564,9 +2567,7 @@ public class Capsule implements Runnable {
     private static boolean isCapsuleClass(Class<?> clazz) {
         if (clazz == null)
             return false;
-        if (Capsule.class.getName().equals(clazz.getName()))
-            return true;
-        return isCapsuleClass(clazz.getSuperclass());
+        return Capsule.class.getName().equals(clazz.getName()) || isCapsuleClass(clazz.getSuperclass());
     }
 
     private static Object createClassLoader(Path path) throws IOException {

@@ -12,6 +12,9 @@ import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.List;
 
+/**
+ * Generic utility to resolve dependencies etc.
+ */
 public interface DependencyManager {
     List<Path> resolveDependencies(List<String> coords, String type);
 
