@@ -77,7 +77,7 @@ public class Capsule implements Runnable {
      * Also, the code is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      *
-     * We do a lot of data transformations that would have really benefitted from Java 8's lambdas and streams, 
+     * We do a lot of data transformations that would have really benefited from Java 8's lambdas and streams, 
      * but we want Capsule to support Java 7.
      */
     private static final String VERSION = "0.8.0";

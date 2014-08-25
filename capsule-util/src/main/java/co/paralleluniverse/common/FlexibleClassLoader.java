@@ -76,7 +76,7 @@ public abstract class FlexibleClassLoader extends ClassLoader {
         Enumeration[] tmp = new Enumeration[2];
         tmp[childFirst ? 1 : 0] = super.getResources(name);
         tmp[childFirst ? 0 : 1] = findResources1(name);
-        return new sun.misc.CompoundEnumeration<>(tmp);
+        return new sun.misc.CompoundEnumeration<URL>(tmp);
     }
 
     @Override
