@@ -192,31 +192,37 @@ public class Capsule implements Runnable {
 
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
-    private static boolean INSTANTIATE = true; // set by CapsuleLauncher
-    protected static final Capsule CAPSULE = INSTANTIATE ? newCapsule(findMyJarFile(), getCacheDir()) : null;
-    
+    private static Capsule CAPSULE;
+
+    protected static Capsule myCapsule() {
+        if (CAPSULE == null)
+            CAPSULE = newCapsule(findMyJarFile(), getCacheDir());
+        return CAPSULE;
+    }
+
     /**
      * Launches the capsule
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args0) {
         try {
+            Capsule capsule = myCapsule();
             final List<String> args = Arrays.asList(args0);
-            if (anyPropertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
-                if (anyPropertyDefined(PROP_VERSION))
-                    CAPSULE.printVersion(args);
+            if (propertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
+                if (propertyDefined(PROP_VERSION))
+                    capsule.printVersion(args);
 
-                if (anyPropertyDefined(PROP_MODES))
-                    CAPSULE.printModes(args);
+                if (propertyDefined(PROP_MODES))
+                    capsule.printModes(args);
 
-                if (anyPropertyDefined(PROP_TREE))
-                    CAPSULE.printDependencyTree(args);
+                if (propertyDefined(PROP_TREE))
+                    capsule.printDependencyTree(args);
 
-                if (anyPropertyDefined(PROP_RESOLVE))
-                    CAPSULE.resolve(args);
+                if (propertyDefined(PROP_RESOLVE))
+                    capsule.resolve(args);
 
-                if (anyPropertyDefined(PROP_PRINT_JRES))
-                    CAPSULE.printJVMs(args);
+                if (propertyDefined(PROP_PRINT_JRES))
+                    capsule.printJVMs(args);
 
                 return;
             }
@@ -2339,7 +2345,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Misc Utils">
     /////////// Misc Utils ///////////////////////////////////
-    private static boolean anyPropertyDefined(String... props) {
+    private static boolean propertyDefined(String... props) {
         for (String prop : props) {
             if (System.getProperty(prop) != null)
                 return true;
