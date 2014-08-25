@@ -2588,9 +2588,7 @@ public class Capsule implements Runnable {
     private static boolean isCapsuleClass(Class<?> clazz) {
         if (clazz == null)
             return false;
-        if (Capsule.class.getName().equals(clazz.getName()))
-            return true;
-        return isCapsuleClass(clazz.getSuperclass());
+        return Capsule.class.getName().equals(clazz.getName()) || isCapsuleClass(clazz.getSuperclass());
     }
 
     private static Object createClassLoader(Path path) throws IOException {
