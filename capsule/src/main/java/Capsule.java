@@ -1435,7 +1435,7 @@ public class Capsule implements Runnable {
     private List<String> getRepositories() {
         final List<String> repos = new ArrayList<String>();
 
-        final List<String> envRepos = split(System.getenv(ENV_CAPSULE_REPOS), ",");
+        final List<String> envRepos = split(System.getenv(ENV_CAPSULE_REPOS), "[,\\s]\\s*");
         final List<String> attrRepos = getListAttribute(ATTR_REPOSITORIES);
 
         if (envRepos != null)
@@ -2201,7 +2201,10 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="String Utils">
     /////////// String Utils ///////////////////////////////////
-    private static List<String> split(String str, String separator) {
+    /**
+     * Splits a string into a list using a regex separator
+     */
+    protected final static List<String> split(String str, String separator) {
         if (str == null)
             return null;
         String[] es = str.split(separator);
@@ -2214,7 +2217,16 @@ public class Capsule implements Runnable {
         return list;
     }
 
-    private static Map<String, String> mapSplit(String map, char kvSeparator, String separator, String defaultValue) {
+    /**
+     * Splits a string into a map
+     *
+     * @param map          the string
+     * @param kvSeparator  the character separating each key from its corresponding value
+     * @param separator    a regex separator between key-value pairs
+     * @param defaultValue A default value to use for keys without a value, or {@code null} if such an event should throw an exception
+     * @return the map
+     */
+    protected final static Map<String, String> mapSplit(String map, char kvSeparator, String separator, String defaultValue) {
         if (map == null)
             return null;
         Map<String, String> m = new HashMap<>();
@@ -2232,7 +2244,10 @@ public class Capsule implements Runnable {
         return m;
     }
 
-    private static String join(Collection<?> coll, String separator) {
+    /**
+     * Joins a collections into a string, separating elements with the given separator string.
+     */
+    protected final static String join(Collection<?> coll, String separator) {
         if (coll == null)
             return null;
         if (coll.isEmpty())

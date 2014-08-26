@@ -900,9 +900,15 @@ public class CapsuleTest {
                 appCache.resolve("lib").resolve("a.jar"));
     }
 
+    @Test
+    public void splitTest() throws Exception {
+        assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.split("ab,cd  ef g, hij kl  ", "[,\\s]\\s*"));
+    }
+
     //<editor-fold defaultstate="collapsed" desc="Utilities">
     /////////// Utilities ///////////////////////////////////
     // may be called once per test (always writes jar into /capsule.jar)
+
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
         try {
             final Path capsuleJar = path("capsule.jar");

@@ -374,7 +374,7 @@ Capsule defines these system properties in the application's process:
 
 * `CAPSULE_CACHE_NAME`: sets the *name* of the root of Capsule's cache in the default location (`~` on Unix, `%LOCALAPPDATA%` on Windows)
 * `CAPSULE_CACHE_DIR`: sets the full path of the Capsule's cache
-* `CAPSULE_REPOS`: sets the list -- comma (`,`) separated -- of Maven repositories that the capsule will use; overrides those specified in the manifest or the POM.
+* `CAPSULE_REPOS`: sets the list -- comma (`,`) or whitespace separated -- of Maven repositories that the capsule will use; overrides those specified in the manifest or the POM.
 * `CAPSULE_CONNECT_TIMEOUT`: The maximum amount of time (in milliseconds) to wait for a successful connection to a remote repository. Non-positive values indicate no timeout.
 * `CAPSULE_REQUEST_TIMEOUT`: The maximum amount of time (in milliseconds) to wait for remaining data to arrive from a remote repository. Note that this timeout does not restrict the overall duration of a request, it only restricts the duration of inactivity between consecutive data packets. Non-positive values indicate no timeout.
 
