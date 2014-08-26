@@ -43,8 +43,10 @@ import static org.mockito.Mockito.*;
 
 public class CapsuleTest {
     /*
-     * All the tests in this test suite use an in-memory file system, and don't 
-     * write to the disk at all.
+     * As a general rule, we prefer system tests, and only create unit tests for particular methods that,
+     * while tested for integration, whose arguments don't get enough coverage in the system tests (like parsing methods and the like).
+     *
+     * All the tests in this test suite use an in-memory file system, and don't write to the disk at all.
      */
     private final FileSystem fs = Jimfs.newFileSystem();
     private final Path cache = fs.getPath("/cache");
@@ -54,110 +56,8 @@ public class CapsuleTest {
         fs.close();
     }
 
-    @Test
-    public void testParseJavaVersion() {
-        int[] ver;
-
-        ver = Capsule.parseJavaVersion("1.8.0");
-        assertArrayEquals(ver, ints(1, 8, 0, 0, 0));
-        assertEquals("1.8.0", Capsule.toJavaVersionString(ver));
-
-        ver = Capsule.parseJavaVersion("1.8.0_30");
-        assertArrayEquals(ver, ints(1, 8, 0, 30, 0));
-        assertEquals("1.8.0_30", Capsule.toJavaVersionString(ver));
-
-        ver = Capsule.parseJavaVersion("1.8.0-rc");
-        assertArrayEquals(ver, ints(1, 8, 0, 0, -1));
-        assertEquals("1.8.0-rc", Capsule.toJavaVersionString(ver));
-
-        ver = Capsule.parseJavaVersion("1.8.0_30-ea");
-        assertArrayEquals(ver, ints(1, 8, 0, 30, -3));
-        assertEquals("1.8.0_30-ea", Capsule.toJavaVersionString(ver));
-    }
-
-    @Test
-    public void testCompareVersions() {
-        assertTrue(Capsule.compareVersions("1.8.0_30-ea", "1.8.0_30") < 0);
-        assertTrue(Capsule.compareVersions("1.8.0_30-ea", "1.8.0_20") > 0);
-        assertTrue(Capsule.compareVersions("1.8.0-ea", "1.8.0_20") < 0);
-        assertTrue(Capsule.compareVersions("1.8.0-ea", "1.8.0") < 0);
-        assertTrue(Capsule.compareVersions("1.8.0-ea", "1.7.0") > 0);
-    }
-
-    @Test
-    public void testShortJavaVersion() {
-        assertEquals("1.8.0", Capsule.shortJavaVersion("8"));
-        assertEquals("1.8.0", Capsule.shortJavaVersion("1.8"));
-        assertEquals("1.8.0", Capsule.shortJavaVersion("1.8.0"));
-    }
-
-    @Test
-    public void isJavaDir() {
-        assertEquals("1.7.0", Capsule.isJavaDir("jre7"));
-        assertEquals("1.7.0_45", Capsule.isJavaDir("jdk1.7.0_45"));
-        assertEquals("1.7.0_51", Capsule.isJavaDir("jdk1.7.0_51.jdk"));
-        assertEquals("1.7.0", Capsule.isJavaDir("1.7.0.jdk"));
-        assertEquals("1.8.0", Capsule.isJavaDir("jdk1.8.0.jdk"));
-    }
-
-    @Test
-    public void testDelete() throws Exception {
-        Files.createDirectories(path("a", "b", "c"));
-        Files.createDirectories(path("a", "b1"));
-        Files.createDirectories(path("a", "b", "c1"));
-        Files.createFile(path("a", "x"));
-        Files.createFile(path("a", "b", "x"));
-        Files.createFile(path("a", "b1", "x"));
-        Files.createFile(path("a", "b", "c", "x"));
-        Files.createFile(path("a", "b", "c1", "x"));
-
-        assertTrue(Files.exists(path("a")));
-        assertTrue(Files.isDirectory(path("a")));
-
-        //Files.delete(path("a"));
-        Capsule.delete(path("a"));
-
-        assertTrue(!Files.exists(path("a")));
-    }
-
-    @Test
-    public void testExpandVars1() throws Exception {
-        Jar jar = newCapsuleJar()
-                .setAttribute("Application-Class", "com.acme.Foo");
-
-        Capsule capsule = newCapsule(jar, null);
-
-        String cj = path("capsule.jar").toString();
-        String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
-        String cid = capsule.getAppId(null);
-
-        ASSERT.that(capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR")).isEqualTo(cj + "abc" + cj + "def" + cj);
-        ASSERT.that(capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP")).isEqualTo(cid + "abc" + cid + "def" + cid);
-        ASSERT.that(capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_DIR" + "def" + "$CAPSULE_DIR")).isEqualTo(cd + "abc" + cd + "def" + cd);
-        ASSERT.that(capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_JAR")).isEqualTo(cd + "abc" + cid + "def" + cj);
-    }
-
-    @Test
-    public void testExpandVars2() throws Exception {
-        Jar jar = newCapsuleJar()
-                .setAttribute("Application-Class", "com.acme.Foo")
-                .setAttribute("Extract-Capsule", "false");
-
-        Capsule capsule = newCapsule(jar, null);
-
-        String cj = path("capsule.jar").toString();
-        String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
-        String cid = capsule.getAppId(null);
-
-        ASSERT.that(capsule.expand("$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR")).isEqualTo(cj + "xxx" + cj + "xxx" + cj);
-        ASSERT.that(capsule.expand("$CAPSULE_APP" + "xxx" + "$CAPSULE_APP" + "xxx" + "$CAPSULE_APP")).isEqualTo(cid + "xxx" + cid + "xxx" + cid);
-        try {
-            capsule.expand("$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR");
-            fail();
-        } catch (IllegalStateException e) {
-        }
-    }
-
+    //<editor-fold desc="System Tests">
+    /////////// System Tests ///////////////////////////////////
     @Test
     public void testSimpleExtract() throws Exception {
         Jar jar = newCapsuleJar()
@@ -899,16 +799,123 @@ public class CapsuleTest {
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"));
     }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Unit Tests">
+    /////////// Unit Tests ///////////////////////////////////
+    @Test
+    public void testParseJavaVersion() {
+        int[] ver;
+
+        ver = Capsule.parseJavaVersion("1.8.0");
+        assertArrayEquals(ver, ints(1, 8, 0, 0, 0));
+        assertEquals("1.8.0", Capsule.toJavaVersionString(ver));
+
+        ver = Capsule.parseJavaVersion("1.8.0_30");
+        assertArrayEquals(ver, ints(1, 8, 0, 30, 0));
+        assertEquals("1.8.0_30", Capsule.toJavaVersionString(ver));
+
+        ver = Capsule.parseJavaVersion("1.8.0-rc");
+        assertArrayEquals(ver, ints(1, 8, 0, 0, -1));
+        assertEquals("1.8.0-rc", Capsule.toJavaVersionString(ver));
+
+        ver = Capsule.parseJavaVersion("1.8.0_30-ea");
+        assertArrayEquals(ver, ints(1, 8, 0, 30, -3));
+        assertEquals("1.8.0_30-ea", Capsule.toJavaVersionString(ver));
+    }
+
+    @Test
+    public void testCompareVersions() {
+        assertTrue(Capsule.compareVersions("1.8.0_30-ea", "1.8.0_30") < 0);
+        assertTrue(Capsule.compareVersions("1.8.0_30-ea", "1.8.0_20") > 0);
+        assertTrue(Capsule.compareVersions("1.8.0-ea", "1.8.0_20") < 0);
+        assertTrue(Capsule.compareVersions("1.8.0-ea", "1.8.0") < 0);
+        assertTrue(Capsule.compareVersions("1.8.0-ea", "1.7.0") > 0);
+    }
+
+    @Test
+    public void testShortJavaVersion() {
+        assertEquals("1.8.0", Capsule.shortJavaVersion("8"));
+        assertEquals("1.8.0", Capsule.shortJavaVersion("1.8"));
+        assertEquals("1.8.0", Capsule.shortJavaVersion("1.8.0"));
+    }
+
+    @Test
+    public void isJavaDir() {
+        assertEquals("1.7.0", Capsule.isJavaDir("jre7"));
+        assertEquals("1.7.0_45", Capsule.isJavaDir("jdk1.7.0_45"));
+        assertEquals("1.7.0_51", Capsule.isJavaDir("jdk1.7.0_51.jdk"));
+        assertEquals("1.7.0", Capsule.isJavaDir("1.7.0.jdk"));
+        assertEquals("1.8.0", Capsule.isJavaDir("jdk1.8.0.jdk"));
+    }
+
+    @Test
+    public void testDelete() throws Exception {
+        Files.createDirectories(path("a", "b", "c"));
+        Files.createDirectories(path("a", "b1"));
+        Files.createDirectories(path("a", "b", "c1"));
+        Files.createFile(path("a", "x"));
+        Files.createFile(path("a", "b", "x"));
+        Files.createFile(path("a", "b1", "x"));
+        Files.createFile(path("a", "b", "c", "x"));
+        Files.createFile(path("a", "b", "c1", "x"));
+
+        assertTrue(Files.exists(path("a")));
+        assertTrue(Files.isDirectory(path("a")));
+
+        //Files.delete(path("a"));
+        Capsule.delete(path("a"));
+
+        assertTrue(!Files.exists(path("a")));
+    }
+
+    @Test
+    public void testExpandVars1() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo");
+
+        Capsule capsule = newCapsule(jar, null);
+
+        String cj = path("capsule.jar").toString();
+        String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
+        String cid = capsule.getAppId(null);
+
+        ASSERT.that(capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR")).isEqualTo(cj + "abc" + cj + "def" + cj);
+        ASSERT.that(capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP")).isEqualTo(cid + "abc" + cid + "def" + cid);
+        ASSERT.that(capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_DIR" + "def" + "$CAPSULE_DIR")).isEqualTo(cd + "abc" + cd + "def" + cd);
+        ASSERT.that(capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_JAR")).isEqualTo(cd + "abc" + cid + "def" + cj);
+    }
+
+    @Test
+    public void testExpandVars2() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false");
+
+        Capsule capsule = newCapsule(jar, null);
+
+        String cj = path("capsule.jar").toString();
+        String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
+        String cid = capsule.getAppId(null);
+
+        ASSERT.that(capsule.expand("$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR")).isEqualTo(cj + "xxx" + cj + "xxx" + cj);
+        ASSERT.that(capsule.expand("$CAPSULE_APP" + "xxx" + "$CAPSULE_APP" + "xxx" + "$CAPSULE_APP")).isEqualTo(cid + "xxx" + cid + "xxx" + cid);
+        try {
+            capsule.expand("$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR");
+            fail();
+        } catch (IllegalStateException e) {
+        }
+    }
 
     @Test
     public void splitTest() throws Exception {
         assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.split("ab,cd  ef g, hij kl  ", "[,\\s]\\s*"));
     }
+    //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
     /////////// Utilities ///////////////////////////////////
     // may be called once per test (always writes jar into /capsule.jar)
-
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
         try {
             final Path capsuleJar = path("capsule.jar");
