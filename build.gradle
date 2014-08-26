@@ -263,7 +263,6 @@ project (':capsule') {
         outjars "$buildDir/libs/${project.name}-${version}-shrunk.jar"
         libraryjars "${System.getProperty('java.home')}/lib/rt.jar"
         keep 'class Capsule { public protected private *; }'
-        // keep 'enum **.ModelProblem** {**[] $VALUES;public *;}'
         keepclassmembers 'enum * {**[] $VALUES;public static **[] values();public static ** valueOf(java.lang.String);}'
         dontoptimize
         dontobfuscate
@@ -275,17 +274,6 @@ project (':capsule') {
         }
     }
 
-    //jar {
-    //    from { configurations.runtime.collect { zipTree(it) } }
-    //    exclude 'META-INF/**'
-    //    exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
-    //    exclude 'about.html'
-    //    exclude 'org/apache/http/client/version.properties'
-    //    exclude 'org/apache/http/version.properties'
-    //    exclude 'org/apache/maven/model/pom-4.0.0.xml'
-    //}
-
-
     javadoc {
         options.noDeprecated = true
         excludes = [ "capsule/**" ]
@@ -294,18 +282,6 @@ project (':capsule') {
     build.dependsOn proguard
     install.dependsOn proguard
     uploadArchives.dependsOn proguard
-
-    // remove dependencies from pom
-    //install.repositories.mavenInstaller.pom.whenConfigured {
-    //    it.dependencies.removeAll()
-    //}
-
-    //configure(install.repositories.mavenInstaller) {
-    //    pom.whenConfigured {
-    //        it.dependencies.removeAll()
-    //    }
-    //}
-
 
     install.repositories.mavenInstaller {
         pom.whenConfigured {
