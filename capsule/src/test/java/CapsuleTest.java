@@ -880,10 +880,10 @@ public class CapsuleTest {
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId(null);
 
-        ASSERT.that(capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR")).isEqualTo(cj + "abc" + cj + "def" + cj);
-        ASSERT.that(capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP")).isEqualTo(cid + "abc" + cid + "def" + cid);
-        ASSERT.that(capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_DIR" + "def" + "$CAPSULE_DIR")).isEqualTo(cd + "abc" + cd + "def" + cd);
-        ASSERT.that(capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_JAR")).isEqualTo(cd + "abc" + cid + "def" + cj);
+        assertEquals(cj + "abc" + cj + "def" + cj, capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR"));
+        assertEquals(cid + "abc" + cid + "def" + cid, capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP"));
+        assertEquals(cd + "abc" + cd + "def" + cd, capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_DIR" + "def" + "$CAPSULE_DIR"));
+        assertEquals(cd + "abc" + cid + "def" + cj, capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_JAR"));
     }
 
     @Test
@@ -898,8 +898,8 @@ public class CapsuleTest {
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId(null);
 
-        ASSERT.that(capsule.expand("$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR")).isEqualTo(cj + "xxx" + cj + "xxx" + cj);
-        ASSERT.that(capsule.expand("$CAPSULE_APP" + "xxx" + "$CAPSULE_APP" + "xxx" + "$CAPSULE_APP")).isEqualTo(cid + "xxx" + cid + "xxx" + cid);
+        assertEquals(cj + "xxx" + cj + "xxx" + cj, capsule.expand("$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR"));
+        assertEquals(cid + "xxx" + cid + "xxx" + cid, capsule.expand("$CAPSULE_APP" + "xxx" + "$CAPSULE_APP" + "xxx" + "$CAPSULE_APP"));
         try {
             capsule.expand("$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR");
             fail();
