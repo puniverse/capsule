@@ -10,6 +10,7 @@ package capsule;
 
 import java.io.File;
 import java.io.PrintStream;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -28,11 +29,9 @@ import org.apache.maven.settings.Server;
 import org.apache.maven.settings.Settings;
 import org.apache.maven.settings.building.DefaultSettingsBuilderFactory;
 import org.apache.maven.settings.building.DefaultSettingsBuildingRequest;
-import org.apache.maven.settings.building.SettingsBuilder;
 import org.apache.maven.settings.building.SettingsBuildingException;
 import org.apache.maven.settings.crypto.DefaultSettingsDecrypter;
 import org.apache.maven.settings.crypto.DefaultSettingsDecryptionRequest;
-import org.apache.maven.settings.crypto.SettingsDecrypter;
 import org.apache.maven.settings.crypto.SettingsDecryptionResult;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
@@ -68,6 +67,10 @@ import org.eclipse.aether.util.repository.DefaultAuthenticationSelector;
 import org.eclipse.aether.util.repository.DefaultMirrorSelector;
 import org.eclipse.aether.util.repository.DefaultProxySelector;
 import org.eclipse.aether.version.Version;
+import org.sonatype.plexus.components.cipher.DefaultPlexusCipher;
+import org.sonatype.plexus.components.cipher.PlexusCipher;
+import org.sonatype.plexus.components.cipher.PlexusCipherException;
+import org.sonatype.plexus.components.sec.dispatcher.DefaultSecDispatcher;
 
 /**
  * Uses Aether as the Maven dependency manager.
@@ -90,7 +93,7 @@ public class DependencyManagerImpl implements DependencyManager {
     private static final Path MAVEN_HOME = getMavenHome();
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
 
-    private final Map<String, String> WELL_KNOWN_REPOS = stringMap(
+    private static final Map<String, String> WELL_KNOWN_REPOS = stringMap(
             "central", "https://repo1.maven.org/maven2/",
             "central-http", "http://repo1.maven.org/maven2/",
             "jcenter", "https://jcenter.bintray.com/",
@@ -106,6 +109,7 @@ public class DependencyManagerImpl implements DependencyManager {
 
     private final boolean forceRefresh;
     private final boolean offline;
+    private final boolean allowSnapshots;
     private final RepositorySystem system;
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
@@ -118,6 +122,7 @@ public class DependencyManagerImpl implements DependencyManager {
         this.forceRefresh = forceRefresh;
         this.offline = offline != null ? offline : (settings != null ? settings.isOffline() : false);
         this.logLevel = logLevel;
+        this.allowSnapshots = allowSnapshots;
 
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
         this.session = newRepositorySession(system, localRepo);
@@ -125,11 +130,9 @@ public class DependencyManagerImpl implements DependencyManager {
         if (repos == null)
             repos = Arrays.asList("central");
 
-        final RepositoryPolicy releasePolicy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
-        final RepositoryPolicy snapshotPolicy = allowSnapshots ? releasePolicy : new RepositoryPolicy(false, null, null);
         this.repos = new ArrayList<RemoteRepository>();
         for (String repo : repos)
-            this.repos.add(newRemoteRepository(repo, WELL_KNOWN_REPOS.containsKey(repo) ? WELL_KNOWN_REPOS.get(repo) : repo, releasePolicy, snapshotPolicy));
+            this.repos.add(createRepo(repo, allowSnapshots));
 
         log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
     }
@@ -165,10 +168,8 @@ public class DependencyManagerImpl implements DependencyManager {
         request.setSystemProperties(getSystemProperties());
 
         try {
-            final SettingsBuilder settingsBuilder = new DefaultSettingsBuilderFactory().newInstance();
-            final Settings settings = settingsBuilder.build(request).getEffectiveSettings();
-            final SettingsDecrypter settingsDecrypter = new DefaultSettingsDecrypter();
-            final SettingsDecryptionResult result = settingsDecrypter.decrypt(new DefaultSettingsDecryptionRequest(settings));
+            final Settings settings = new DefaultSettingsBuilderFactory().newInstance().build(request).getEffectiveSettings();
+            final SettingsDecryptionResult result = newDefaultSettingsDecrypter().decrypt(new DefaultSettingsDecryptionRequest(settings));
 
             settings.setServers(result.getServers());
             settings.setProxies(result.getProxies());
@@ -202,14 +203,6 @@ public class DependencyManagerImpl implements DependencyManager {
         }
 
         return s;
-    }
-
-    private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy releasePolicy, RepositoryPolicy snapshotPolicy) {
-        if (url.startsWith("file:")) {
-            releasePolicy = new RepositoryPolicy(releasePolicy.isEnabled(), releasePolicy.getUpdatePolicy(), RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
-            snapshotPolicy = releasePolicy;
-        }
-        return new RemoteRepository.Builder(name, "default", url).setReleasePolicy(releasePolicy).setSnapshotPolicy(snapshotPolicy).build();
     }
 
     @Override
@@ -348,6 +341,31 @@ public class DependencyManagerImpl implements DependencyManager {
         return exclusions;
     }
 
+    private static final Pattern PAT_REPO = Pattern.compile("(?<id>[^(]+)(\\((?<url>[^\\)]+)\\))?");
+
+    // visible for testing
+    static RemoteRepository createRepo(String repo, boolean allowSnapshots) {
+        final Matcher m = PAT_REPO.matcher(repo);
+        if (!m.matches())
+            throw new IllegalArgumentException("Could not parse repository: " + repo);
+
+        String id = m.group("id");
+        String url = m.group("url");
+        if (url == null)
+            url = WELL_KNOWN_REPOS.get(id);
+        if (url == null)
+            url = id;
+
+        RepositoryPolicy releasePolicy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
+        RepositoryPolicy snapshotPolicy = allowSnapshots ? releasePolicy : new RepositoryPolicy(false, null, null);
+
+        if (url.startsWith("file:")) {
+            releasePolicy = new RepositoryPolicy(releasePolicy.isEnabled(), releasePolicy.getUpdatePolicy(), RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
+            snapshotPolicy = releasePolicy;
+        }
+        return new RemoteRepository.Builder(id, "default", url).setReleasePolicy(releasePolicy).setSnapshotPolicy(snapshotPolicy).build();
+    }
+
     private static PrintStream prefixStream(PrintStream out, final String prefix) {
         return new PrintStream(out) {
             @Override
@@ -462,6 +480,36 @@ public class DependencyManagerImpl implements DependencyManager {
         for (int i = 0; i < ss.length / 2; i++)
             m.put(ss[i * 2], ss[i * 2 + 1]);
         return Collections.unmodifiableMap(m);
+    }
+
+    private static DefaultSettingsDecrypter newDefaultSettingsDecrypter() {
+        /*
+         * see:
+         * http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntSettingsDecryptorFactory.java
+         * http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntSecDispatcher.java
+         */
+        DefaultSecDispatcher secDispatcher = new DefaultSecDispatcher() {
+            {
+                _configurationFile = "~/.m2/settings-security.xml";
+                try {
+                    _cipher = new DefaultPlexusCipher();
+                } catch (PlexusCipherException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
+        final DefaultSettingsDecrypter decrypter = new DefaultSettingsDecrypter();
+
+        try {
+            Field field = decrypter.getClass().getDeclaredField("securityDispatcher");
+            field.setAccessible(true);
+            field.set(decrypter, secDispatcher);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+
+        return decrypter;
     }
 
     // necessary if we want to forgo Guice/Sisu injection and use DefaultServiceLocator instead

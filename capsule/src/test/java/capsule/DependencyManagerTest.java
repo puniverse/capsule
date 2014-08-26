@@ -10,10 +10,15 @@ package capsule;
 
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
+import org.eclipse.aether.repository.RemoteRepository;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class DependencyManagerTest {
+    /*
+     * This test suite only contains some very localized unit tests.
+     * The DependencyManagerDriver program should be used to test the entire DependencyManager component.
+     */
     @Test
     public void testParseDependency() {
         Dependency dep;
@@ -124,11 +129,36 @@ public class DependencyManagerTest {
         assertEquals("jms-api", exc(dep, 1).getArtifactId());
     }
 
+    @Test
+    public void testParseRepo() {
+        RemoteRepository repo;
+
+        repo = repo("central");
+        assertEquals("central", repo.getId());
+        assertEquals("https://repo1.maven.org/maven2/", repo.getUrl());
+
+        repo = repo("jcenter");
+        assertEquals("jcenter", repo.getId());
+        assertEquals("https://jcenter.bintray.com/", repo.getUrl());
+
+        repo = repo("http://foo.com");
+        assertEquals("http://foo.com", repo.getId());
+        assertEquals("http://foo.com", repo.getUrl());
+
+        repo = repo("foo(http://foo.com)");
+        assertEquals("foo", repo.getId());
+        assertEquals("http://foo.com", repo.getUrl());
+    }
+
     private static Dependency dep(String desc) {
         return DependencyManagerImpl.toDependency(desc, "jar");
     }
 
     private static Exclusion exc(Dependency dep, int i) {
         return dep.getExclusions().toArray(new Exclusion[0])[i];
+    }
+
+    private static RemoteRepository repo(String desc) {
+        return DependencyManagerImpl.createRepo(desc, true);
     }
 }

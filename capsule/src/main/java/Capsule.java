@@ -1466,7 +1466,7 @@ public class Capsule implements Runnable {
             log(LOG_DEBUG, "Offline: " + offline);
 
             final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));
-            log(LOG_DEBUG, "Allow snapshots: " + offline);
+            log(LOG_DEBUG, "Allow snapshots: " + allowSnapshots);
 
             return new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, offline, allowSnapshots, logLevel);
         } catch (NoClassDefFoundError e) {
