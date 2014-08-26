@@ -30,6 +30,7 @@ subprojects {
     ext.distDir         = "$buildDir/dist"
     ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
+    // User and Password are taken from ~/.gradle/gradle.properties
     if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePassword")) {
         println "sonatype username or password not set"
         ext.sonatypeUsername = ""
@@ -109,8 +110,6 @@ subprojects {
     //    }
         
     task javancss(dependsOn: 'classes') << {
-        //        ext.reportName = "$buildDir/javancss_metrics.txt"
-        //        println 'Running javancss quality metrics tool to file://' + reportName
         ant {
             logging.level = LogLevel.INFO
             taskdef(name:'javancss', classname:'javancss.JavancssAntTask', classpath: configurations.javancss.asPath)
@@ -136,7 +135,6 @@ subprojects {
         archives jar
         archives sourcesJar
         archives javadocJar
-        //    archives distZip
     }
 
     signing {
@@ -147,13 +145,12 @@ subprojects {
     uploadArchives {
         repositories {
             mavenDeployer {
-                beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+                beforeDeployment { deployment -> signing.signPom(deployment) }
 
                 repository(
                     url: (isReleaseVersion ?
                               "https://oss.sonatype.org/service/local/staging/deploy/maven2" :
                               "https://oss.sonatype.org/content/repositories/snapshots")) {
-                    // User and Password are taken from ~/.gradle/gradle.properties
                     authentication(userName: sonatypeUsername, password: sonatypePassword)
                 }
 
@@ -214,17 +211,11 @@ project (':capsule') {
         testCompile project(':capsule-util')
     }
 
-    //tasks.withType(Compile) {
-    //    options.compilerArgs << "-Xlint:unchecked"
-    //}
-
     apply plugin: 'shadow'
 
     jar {
         manifest {
-            attributes(
-    	    'Main-Class'  :   'Capsule',
-            )
+            attributes('Main-Class' : 'Capsule')
         }
     }
 
