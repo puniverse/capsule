@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import static java.util.Collections.unmodifiableMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -170,10 +169,10 @@ public class DependencyManagerImpl implements DependencyManager {
             final Settings settings = settingsBuilder.build(request).getEffectiveSettings();
             final SettingsDecrypter settingsDecrypter = new DefaultSettingsDecrypter();
             final SettingsDecryptionResult result = settingsDecrypter.decrypt(new DefaultSettingsDecryptionRequest(settings));
+
             settings.setServers(result.getServers());
             settings.setProxies(result.getProxies());
 
-            System.out.println("SETTINGS: " + settings);
             return settings;
         } catch (SettingsBuildingException e) {
             throw new RuntimeException(e);
