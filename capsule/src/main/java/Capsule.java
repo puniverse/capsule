@@ -1460,7 +1460,9 @@ public class Capsule implements Runnable {
             final Path localRepo = getLocalRepo();
             log(LOG_DEBUG, "Local repo: " + localRepo);
 
-            final boolean offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
+            Boolean offline = null;
+            if (System.getProperty(PROP_OFFLINE) != null)
+                offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
             log(LOG_DEBUG, "Offline: " + offline);
 
             final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));

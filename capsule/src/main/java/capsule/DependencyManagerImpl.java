@@ -8,19 +8,33 @@
  */
 package capsule;
 
+import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import static java.util.Collections.unmodifiableMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
+import org.apache.maven.settings.Server;
+import org.apache.maven.settings.Settings;
+import org.apache.maven.settings.building.DefaultSettingsBuilderFactory;
+import org.apache.maven.settings.building.DefaultSettingsBuildingRequest;
+import org.apache.maven.settings.building.SettingsBuilder;
+import org.apache.maven.settings.building.SettingsBuildingException;
+import org.apache.maven.settings.crypto.DefaultSettingsDecrypter;
+import org.apache.maven.settings.crypto.DefaultSettingsDecryptionRequest;
+import org.apache.maven.settings.crypto.SettingsDecrypter;
+import org.apache.maven.settings.crypto.SettingsDecryptionResult;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositoryException;
@@ -34,7 +48,10 @@ import org.eclipse.aether.collection.DependencyCollectionException;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.impl.DefaultServiceLocator;
+import org.eclipse.aether.repository.AuthenticationSelector;
 import org.eclipse.aether.repository.LocalRepository;
+import org.eclipse.aether.repository.MirrorSelector;
+import org.eclipse.aether.repository.ProxySelector;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.repository.RepositoryPolicy;
 import org.eclipse.aether.resolution.ArtifactResult;
@@ -46,28 +63,41 @@ import org.eclipse.aether.resolution.VersionRequest;
 import org.eclipse.aether.resolution.VersionResult;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
+import org.eclipse.aether.util.repository.AuthenticationBuilder;
+import org.eclipse.aether.util.repository.ConservativeAuthenticationSelector;
+import org.eclipse.aether.util.repository.DefaultAuthenticationSelector;
+import org.eclipse.aether.util.repository.DefaultMirrorSelector;
+import org.eclipse.aether.util.repository.DefaultProxySelector;
 import org.eclipse.aether.version.Version;
 
 /**
  * Uses Aether as the Maven dependency manager.
  */
 public class DependencyManagerImpl implements DependencyManager {
-    private final Map<String, String> WELL_KNOWN_REPOS = unmodifiableMap(new HashMap<String, String>() {
-        {
-            put("central", "https://repo1.maven.org/maven2/");
-            put("central-http", "http://repo1.maven.org/maven2/");
-            put("jcenter", "https://jcenter.bintray.com/");
-            put("jcenter-http", "http://jcenter.bintray.com/");
-            put("local", "file:" + DEFAULT_LOCAL_MAVEN);
-        }
-    });
-    private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty("user.home"), ".m2", "repository");
+    /*
+     * see http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntRepoSys.java
+     */
+    private static final String PROP_USER_HOME = "user.home";
+    private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
+    private static final String PROP_OS_NAME = "os.name";
+    private static final String ENV_MAVEN_HOME = "M2_HOME";
     private static final String ENV_CONNECT_TIMEOUT = "CAPSULE_CONNECT_TIMEOUT";
     private static final String ENV_REQUEST_TIMEOUT = "CAPSULE_REQUEST_TIMEOUT";
-    private static final String PROP_LOG = "capsule.log";
     private static final String LATEST_VERSION = "[0,)";
+    private static final String SETTINGS_XML = "settings.xml";
+
+    private static final Path MAVEN_HOME = getMavenHome();
+    private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
+
+    private final Map<String, String> WELL_KNOWN_REPOS = stringMap(
+            "central", "https://repo1.maven.org/maven2/",
+            "central-http", "http://repo1.maven.org/maven2/",
+            "jcenter", "https://jcenter.bintray.com/",
+            "jcenter-http", "http://jcenter.bintray.com/",
+            "local", "file:" + DEFAULT_LOCAL_MAVEN.resolve("repository")
+    );
 
     private static final int LOG_NONE = 0;
     private static final int LOG_QUIET = 1;
@@ -81,11 +111,13 @@ public class DependencyManagerImpl implements DependencyManager {
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
     private final int logLevel;
+    private final Settings settings;
 
-    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean offline, boolean allowSnapshots, int logLevel) {
+    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, Boolean offline, boolean allowSnapshots, int logLevel) {
         this.system = newRepositorySystem();
+        this.settings = getSettings();
         this.forceRefresh = forceRefresh;
-        this.offline = offline;
+        this.offline = offline != null ? offline : (settings != null ? settings.isOffline() : false);
         this.logLevel = logLevel;
 
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
@@ -127,6 +159,27 @@ public class DependencyManagerImpl implements DependencyManager {
         return locator.getService(RepositorySystem.class);
     }
 
+    private static Settings getSettings() {
+        final DefaultSettingsBuildingRequest request = new DefaultSettingsBuildingRequest();
+        request.setUserSettingsFile(DEFAULT_LOCAL_MAVEN.resolve(SETTINGS_XML).toFile());
+        request.setGlobalSettingsFile(MAVEN_HOME != null ? MAVEN_HOME.resolve("conf").resolve(SETTINGS_XML).toFile() : null);
+        request.setSystemProperties(getSystemProperties());
+
+        try {
+            final SettingsBuilder settingsBuilder = new DefaultSettingsBuilderFactory().newInstance();
+            final Settings settings = settingsBuilder.build(request).getEffectiveSettings();
+            final SettingsDecrypter settingsDecrypter = new DefaultSettingsDecrypter();
+            final SettingsDecryptionResult result = settingsDecrypter.decrypt(new DefaultSettingsDecryptionRequest(settings));
+            settings.setServers(result.getServers());
+            settings.setProxies(result.getProxies());
+
+            System.out.println("SETTINGS: " + settings);
+            return settings;
+        } catch (SettingsBuildingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private RepositorySystemSession newRepositorySession(RepositorySystem system, LocalRepository localRepo) {
         final DefaultRepositorySystemSession s = MavenRepositorySystemUtils.newSession();
 
@@ -139,6 +192,10 @@ public class DependencyManagerImpl implements DependencyManager {
 
         s.setLocalRepositoryManager(system.newLocalRepositoryManager(s, localRepo));
 
+        s.setProxySelector(getProxySelector());
+        s.setMirrorSelector(getMirrorSelector());
+        s.setAuthenticationSelector(getAuthSelector());
+
         if (logLevel > LOG_NONE) {
             final PrintStream out = prefixStream(System.err, LOG_PREFIX);
             s.setTransferListener(new ConsoleTransferListener(isLogging(LOG_VERBOSE), out));
@@ -146,6 +203,14 @@ public class DependencyManagerImpl implements DependencyManager {
         }
 
         return s;
+    }
+
+    private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy releasePolicy, RepositoryPolicy snapshotPolicy) {
+        if (url.startsWith("file:")) {
+            releasePolicy = new RepositoryPolicy(releasePolicy.isEnabled(), releasePolicy.getUpdatePolicy(), RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
+            snapshotPolicy = releasePolicy;
+        }
+        return new RemoteRepository.Builder(name, "default", url).setReleasePolicy(releasePolicy).setSnapshotPolicy(snapshotPolicy).build();
     }
 
     @Override
@@ -226,14 +291,6 @@ public class DependencyManagerImpl implements DependencyManager {
         return version.startsWith("(") || version.startsWith("[");
     }
 
-    private static RemoteRepository newRemoteRepository(String name, String url, RepositoryPolicy releasePolicy, RepositoryPolicy snapshotPolicy) {
-        if (url.startsWith("file:")) {
-            releasePolicy = new RepositoryPolicy(releasePolicy.isEnabled(), releasePolicy.getUpdatePolicy(), RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
-            snapshotPolicy = releasePolicy;
-        }
-        return new RemoteRepository.Builder(name, "default", url).setReleasePolicy(releasePolicy).setSnapshotPolicy(snapshotPolicy).build();
-    }
-
     // visible for testing
     static Dependency toDependency(String coords, String type) {
         return new Dependency(coordsToArtifact(coords, type), JavaScopes.RUNTIME, false, getExclusions(coords));
@@ -308,11 +365,84 @@ public class DependencyManagerImpl implements DependencyManager {
         return val;
     }
 
+    private static Path getMavenHome() {
+        String mhome = emptyToNull(System.getenv(ENV_MAVEN_HOME));
+        if (mhome == null)
+            mhome = System.getProperty("maven.home");
+        return mhome != null ? Paths.get(mhome) : null;
+    }
+
+    public static File findUserSettings() {
+        return new File(new File(System.getProperty(PROP_USER_HOME), ".m2"), SETTINGS_XML);
+    }
+
+    private ProxySelector getProxySelector() {
+        final DefaultProxySelector selector = new DefaultProxySelector();
+
+        for (org.apache.maven.settings.Proxy proxy : settings.getProxies()) {
+            AuthenticationBuilder auth = new AuthenticationBuilder();
+            auth.addUsername(proxy.getUsername()).addPassword(proxy.getPassword());
+            selector.add(new org.eclipse.aether.repository.Proxy(proxy.getProtocol(), proxy.getHost(),
+                    proxy.getPort(), auth.build()),
+                    proxy.getNonProxyHosts());
+        }
+
+        return selector;
+    }
+
+    private MirrorSelector getMirrorSelector() {
+        final DefaultMirrorSelector selector = new DefaultMirrorSelector();
+
+        for (org.apache.maven.settings.Mirror mirror : settings.getMirrors())
+            selector.add(String.valueOf(mirror.getId()), mirror.getUrl(), mirror.getLayout(), false, mirror.getMirrorOf(), mirror.getMirrorOfLayouts());
+
+        return selector;
+    }
+
+    private AuthenticationSelector getAuthSelector() {
+        final DefaultAuthenticationSelector selector = new DefaultAuthenticationSelector();
+
+        for (Server server : settings.getServers()) {
+            AuthenticationBuilder auth = new AuthenticationBuilder();
+            auth.addUsername(server.getUsername()).addPassword(server.getPassword());
+            auth.addPrivateKey(server.getPrivateKey(), server.getPassphrase());
+            selector.add(server.getId(), auth.build());
+        }
+
+        return new ConservativeAuthenticationSelector(selector);
+    }
+
+    private static Properties getSystemProperties() {
+        Properties props = new Properties();
+        getEnvProperties(props);
+        props.putAll(System.getProperties());
+        return props;
+    }
+
+    private static Properties getEnvProperties(Properties props) {
+        if (props == null)
+            props = new Properties();
+
+        boolean envCaseInsensitive = isWindows();
+        for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
+            String key = entry.getKey();
+            if (envCaseInsensitive)
+                key = key.toUpperCase(Locale.ENGLISH);
+            key = "env." + key;
+            props.put(key, entry.getValue());
+        }
+        return props;
+    }
+
     private static String emptyToNull(String s) {
         if (s == null)
             return null;
         s = s.trim();
         return s.isEmpty() ? null : s;
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
 
     protected final boolean isLogging(int level) {
@@ -326,6 +456,13 @@ public class DependencyManagerImpl implements DependencyManager {
     private void log(int level, String str) {
         if (isLogging(level))
             System.err.println(LOG_PREFIX + str);
+    }
+
+    private static Map<String, String> stringMap(String... ss) {
+        final Map<String, String> m = new HashMap<>();
+        for (int i = 0; i < ss.length / 2; i++)
+            m.put(ss[i * 2], ss[i * 2 + 1]);
+        return Collections.unmodifiableMap(m);
     }
 
     // necessary if we want to forgo Guice/Sisu injection and use DefaultServiceLocator instead

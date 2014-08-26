@@ -203,6 +203,7 @@ project (':capsule') {
         compile 'org.eclipse.aether:aether-transport-http:1.0.0.v20140518'
         compile 'org.apache.maven:maven-aether-provider:3.2.3'
         compile 'org.apache.maven:maven-model:3.2.3'
+        compile 'org.apache.maven:maven-settings-builder:3.2.3'
         runtime 'com.google.guava:guava:17.0' // necessary -- unfortunately -- for maven-aether-provider
 
         runtime 'org.slf4j:slf4j-nop:1.7.7'
