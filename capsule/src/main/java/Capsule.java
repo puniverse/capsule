@@ -1605,12 +1605,13 @@ public class Capsule implements Runnable {
 
     /**
      * Returns the value of the given attribute (with consideration to the capsule's mode) as a list.
-     * The items comprising attribute's value must be whitespace-separated.
+     * The items comprising attribute's value must be comma or whitespace-separated.
      *
      * @param attr the attribute
      */
     protected final List<String> getListAttribute(String attr) {
-        return split(getAttribute(attr), "\\s+");
+        final String val = getAttribute(attr);
+        return val != null && val.contains(",") ? split(val, ",+") : split(val, "\\s+"); // look for comma first, otherwise spaces
     }
 
     /**
