@@ -2382,6 +2382,17 @@ public class Capsule implements Runnable {
             val = emptyToNull(System.getenv(envVar));
         return val;
     }
+//    private static void setLibraryPath(String path) {
+//        try {
+//            System.setProperty("java.library.path", path);
+//
+//            final java.lang.reflect.Field fieldSysPath = ClassLoader.class.getDeclaredField("sys_paths");
+//            fieldSysPath.setAccessible(true);
+//            fieldSysPath.set(null, null);
+//        } catch (ReflectiveOperationException e) {
+//            throw new AssertionError(e);
+//        }
+//    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Logging">
