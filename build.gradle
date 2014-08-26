@@ -42,15 +42,25 @@ subprojects {
         javancss
     }
 
+    configurations.all {
+        resolutionStrategy {
+            failOnVersionConflict()
+        }
+    }
+    
     repositories {
         mavenCentral()
     }
-
+    
     dependencies {
         testCompile 'junit:junit:4.11'
-        testCompile 'org.truth0:truth:0.23'
+        testCompile('org.truth0:truth:0.23') {
+            exclude group: 'junit', module: '*'
+        }
         testCompile 'org.mockito:mockito-all:1.9.5'
-        testCompile 'com.google.jimfs:jimfs:1.0'
+        testCompile('com.google.jimfs:jimfs:1.0') {
+            exclude group: 'com.google.guava', module: 'guava'
+        }
         javancss 'org.codehaus.javancss:javancss:33.54'
     }
 
@@ -194,19 +204,31 @@ project (':capsule') {
     dependencies {
         compile 'org.eclipse.aether:aether-api:1.0.0.v20140518'
         compile 'org.eclipse.aether:aether-util:1.0.0.v20140518'
-        runtime 'org.eclipse.aether:aether-impl:1.0.0.v20140518'
+        compile 'org.eclipse.aether:aether-impl:1.0.0.v20140518'
         compile 'org.eclipse.aether:aether-connector-basic:1.0.0.v20140518'
         compile 'org.eclipse.aether:aether-transport-file:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-transport-http:1.0.0.v20140518'
-        compile 'org.apache.maven:maven-aether-provider:3.2.3'
+        compile('org.eclipse.aether:aether-transport-http:1.0.0.v20140518') {
+            exclude group: 'org.slf4j', module: 'slf4j-api'
+        }
+        compile('org.apache.maven:maven-aether-provider:3.2.3') {
+            exclude group: 'org.eclipse.aether', module: '*'
+        }
         compile 'org.apache.maven:maven-model:3.2.3'
-        compile 'org.apache.maven:maven-settings-builder:3.2.3'
+        compile('org.apache.maven:maven-settings-builder:3.2.3') {
+            exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
+        }
+        compile('org.codehaus.plexus:plexus-container-default:1.5.5') {
+            exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
+            exclude group: 'junit', module: '*'
+        }
         runtime 'com.google.guava:guava:17.0' // necessary -- unfortunately -- for maven-aether-provider
 
         runtime 'org.slf4j:slf4j-nop:1.7.7'
 
         compile 'io.takari.aether:takari-local-repository:0.10.3'
-        compile 'io.takari:takari-filemanager:0.8.1'
+        compile('io.takari:takari-filemanager:0.8.1') {
+            exclude group: 'org.slf4j', module: '*'
+        }
 
         testCompile project(':capsule-util')
     }
