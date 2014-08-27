@@ -55,6 +55,7 @@ subprojects {
     dependencies {
         testCompile 'junit:junit:4.11'
         testCompile('org.truth0:truth:0.23') {
+            exclude group: 'com.google.guava', module: 'guava'
             exclude group: 'junit', module: '*'
         }
         testCompile 'org.mockito:mockito-all:1.9.5'
@@ -219,6 +220,8 @@ project (':capsule') {
         }
         compile('org.codehaus.plexus:plexus-container-default:1.5.5') {
             exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
+            exclude group: 'com.google.collections', module: 'google-collections'
+            exclude group: 'commons-logging', module: '*'
             exclude group: 'junit', module: '*'
         }
         runtime 'com.google.guava:guava:17.0' // necessary -- unfortunately -- for maven-aether-provider
