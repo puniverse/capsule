@@ -8,6 +8,7 @@
  */
 package capsule;
 
+import java.nio.file.Paths;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.repository.RemoteRepository;
@@ -137,9 +138,21 @@ public class DependencyManagerTest {
         assertEquals("central", repo.getId());
         assertEquals("https://repo1.maven.org/maven2/", repo.getUrl());
 
+        repo = repo("central-http");
+        assertEquals("central", repo.getId());
+        assertEquals("http://repo1.maven.org/maven2/", repo.getUrl());
+
         repo = repo("jcenter");
         assertEquals("jcenter", repo.getId());
         assertEquals("https://jcenter.bintray.com/", repo.getUrl());
+
+        repo = repo("jcenter-http");
+        assertEquals("jcenter", repo.getId());
+        assertEquals("http://jcenter.bintray.com/", repo.getUrl());
+
+        repo = repo("local");
+        assertEquals("local", repo.getId());
+        assertEquals("file:" + Paths.get(System.getProperty("user.home"), ".m2", "repository"), repo.getUrl());
 
         repo = repo("http://foo.com");
         assertEquals("http://foo.com", repo.getId());
