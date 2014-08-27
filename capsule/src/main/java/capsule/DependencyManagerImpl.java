@@ -68,7 +68,6 @@ import org.eclipse.aether.util.repository.DefaultMirrorSelector;
 import org.eclipse.aether.util.repository.DefaultProxySelector;
 import org.eclipse.aether.version.Version;
 import org.sonatype.plexus.components.cipher.DefaultPlexusCipher;
-import org.sonatype.plexus.components.cipher.PlexusCipher;
 import org.sonatype.plexus.components.cipher.PlexusCipherException;
 import org.sonatype.plexus.components.sec.dispatcher.DefaultSecDispatcher;
 
@@ -79,14 +78,17 @@ public class DependencyManagerImpl implements DependencyManager {
     /*
      * see http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntRepoSys.java
      */
-    private static final String PROP_USER_HOME = "user.home";
     private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
+    private static final String PROP_MAVEN_HOME = "maven.home";
+    private static final String PROP_USER_HOME = "user.home";
     private static final String PROP_OS_NAME = "os.name";
+
     private static final String ENV_MAVEN_HOME = "M2_HOME";
     private static final String ENV_CONNECT_TIMEOUT = "CAPSULE_CONNECT_TIMEOUT";
     private static final String ENV_REQUEST_TIMEOUT = "CAPSULE_REQUEST_TIMEOUT";
+
     private static final String LATEST_VERSION = "[0,)";
     private static final String SETTINGS_XML = "settings.xml";
 
@@ -94,11 +96,11 @@ public class DependencyManagerImpl implements DependencyManager {
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
 
     private static final Map<String, String> WELL_KNOWN_REPOS = stringMap(
-            "central", "https://repo1.maven.org/maven2/",
-            "central-http", "http://repo1.maven.org/maven2/",
-            "jcenter", "https://jcenter.bintray.com/",
-            "jcenter-http", "http://jcenter.bintray.com/",
-            "local", "file:" + DEFAULT_LOCAL_MAVEN.resolve("repository")
+            "central", "central(https://repo1.maven.org/maven2/)",
+            "central-http", "central(http://repo1.maven.org/maven2/)",
+            "jcenter", "jcenter(https://jcenter.bintray.com/)",
+            "jcenter-http", "jcenter(http://jcenter.bintray.com/)",
+            "local", "local(file:" + DEFAULT_LOCAL_MAVEN.resolve("repository") + ")"
     );
 
     private static final int LOG_NONE = 0;
@@ -351,8 +353,8 @@ public class DependencyManagerImpl implements DependencyManager {
 
         String id = m.group("id");
         String url = m.group("url");
-        if (url == null)
-            url = WELL_KNOWN_REPOS.get(id);
+        if (url == null && WELL_KNOWN_REPOS.containsKey(id))
+            return createRepo(WELL_KNOWN_REPOS.get(id), allowSnapshots);
         if (url == null)
             url = id;
 
@@ -385,7 +387,7 @@ public class DependencyManagerImpl implements DependencyManager {
     private static Path getMavenHome() {
         String mhome = emptyToNull(System.getenv(ENV_MAVEN_HOME));
         if (mhome == null)
-            mhome = System.getProperty("maven.home");
+            mhome = System.getProperty(PROP_MAVEN_HOME);
         return mhome != null ? Paths.get(mhome) : null;
     }
 

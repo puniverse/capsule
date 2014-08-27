@@ -1476,8 +1476,8 @@ public class Capsule implements Runnable {
     }
 
     private Path getLocalRepo() {
-        final String local = expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO));
         Path localRepo = cacheDir.resolve(DEPS_CACHE_NAME);
+        final String local = expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO));
         if (local != null)
             localRepo = !local.isEmpty() ? Paths.get(local) : DEFAULT_LOCAL_MAVEN;
         return localRepo;

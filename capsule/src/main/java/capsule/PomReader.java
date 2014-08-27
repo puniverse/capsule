@@ -50,7 +50,7 @@ public class PomReader {
             return null;
         final List<String> repositories = new ArrayList<String>(repos.size());
         for (Repository repo : repos)
-            repositories.add(repo.getUrl());
+            repositories.add(convert(repo));
         return repositories;
     }
 
@@ -62,7 +62,7 @@ public class PomReader {
         final List<String> dependencies = new ArrayList<String>(deps.size());
         for (Dependency dep : deps) {
             if (includeDependency(dep))
-                dependencies.add(dep2desc(dep));
+                dependencies.add(convert(dep));
         }
         return dependencies;
     }
@@ -80,7 +80,7 @@ public class PomReader {
         }
     }
 
-    private static String dep2desc(Dependency dep) {
+    private static String convert(Dependency dep) {
         return dep2coords(dep) + exclusions2desc(dep);
     }
 
@@ -106,5 +106,11 @@ public class PomReader {
 
     private static String exclusion2coord(Exclusion ex) {
         return ex.getGroupId() + ":" + ex.getArtifactId();
+    }
+
+    private static String convert(Repository repo) {
+        if (repo.getId() != null && !repo.getId().isEmpty())
+            return repo.getId() + "(" + repo.getUrl() + ")";
+        return repo.getUrl();
     }
 }
