@@ -10,7 +10,6 @@ package capsule;
 
 import java.io.File;
 import java.io.PrintStream;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -515,7 +514,7 @@ public class DependencyManagerImpl implements DependencyManager {
         final DefaultSettingsDecrypter decrypter = new DefaultSettingsDecrypter();
 
         try {
-            Field field = decrypter.getClass().getDeclaredField("securityDispatcher");
+            java.lang.reflect.Field field = decrypter.getClass().getDeclaredField("securityDispatcher");
             field.setAccessible(true);
             field.set(decrypter, secDispatcher);
         } catch (ReflectiveOperationException e) {
