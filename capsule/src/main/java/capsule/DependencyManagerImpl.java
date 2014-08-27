@@ -8,7 +8,6 @@
  */
 package capsule;
 
-import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -77,6 +76,8 @@ public class DependencyManagerImpl implements DependencyManager {
     /*
      * see http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntRepoSys.java
      */
+    //<editor-fold desc="Constants">
+    /////////// Constants ///////////////////////////////////
     private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
@@ -107,6 +108,7 @@ public class DependencyManagerImpl implements DependencyManager {
     private static final int LOG_VERBOSE = 2;
     private static final int LOG_DEBUG = 3;
     private static final String LOG_PREFIX = "CAPSULE: ";
+    //</editor-fold>
 
     private final boolean forceRefresh;
     private final boolean offline;
@@ -117,29 +119,48 @@ public class DependencyManagerImpl implements DependencyManager {
     private final int logLevel;
     private final Settings settings;
 
+    //<editor-fold desc="Construction and Setup">
+    /////////// Construction and Setup ///////////////////////////////////
     public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean allowSnapshots, int logLevel) {
         this.logLevel = logLevel;
         this.allowSnapshots = allowSnapshots;
         this.forceRefresh = forceRefresh;
-        this.system = newRepositorySystem();
-        this.settings = getSettings();
-
         this.offline = isPropertySet(PROP_OFFLINE, false);
         log(LOG_DEBUG, "Offline: " + offline);
-
-        if(localRepoPath == null)
+        if (localRepoPath == null)
             localRepoPath = DEFAULT_LOCAL_MAVEN.resolve("repository");
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
+
+        this.settings = getSettings();
+        this.system = newRepositorySystem();
         this.session = newRepositorySession(system, localRepo);
 
         if (repos == null)
             repos = Arrays.asList("central");
-
         this.repos = new ArrayList<RemoteRepository>();
         for (String r : repos)
             this.repos.add(createRepo(r, allowSnapshots));
 
         log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
+    }
+
+    private static Settings getSettings() {
+        final DefaultSettingsBuildingRequest request = new DefaultSettingsBuildingRequest();
+        request.setUserSettingsFile(DEFAULT_LOCAL_MAVEN.resolve(SETTINGS_XML).toFile());
+        request.setGlobalSettingsFile(MAVEN_HOME != null ? MAVEN_HOME.resolve("conf").resolve(SETTINGS_XML).toFile() : null);
+        request.setSystemProperties(getSystemProperties());
+
+        try {
+            final Settings settings = new DefaultSettingsBuilderFactory().newInstance().build(request).getEffectiveSettings();
+            final SettingsDecryptionResult result = newDefaultSettingsDecrypter().decrypt(new DefaultSettingsDecryptionRequest(settings));
+
+            settings.setServers(result.getServers());
+            settings.setProxies(result.getProxies());
+
+            return settings;
+        } catch (SettingsBuildingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static RepositorySystem newRepositorySystem() {
@@ -166,25 +187,6 @@ public class DependencyManagerImpl implements DependencyManager {
         return locator.getService(RepositorySystem.class);
     }
 
-    private static Settings getSettings() {
-        final DefaultSettingsBuildingRequest request = new DefaultSettingsBuildingRequest();
-        request.setUserSettingsFile(DEFAULT_LOCAL_MAVEN.resolve(SETTINGS_XML).toFile());
-        request.setGlobalSettingsFile(MAVEN_HOME != null ? MAVEN_HOME.resolve("conf").resolve(SETTINGS_XML).toFile() : null);
-        request.setSystemProperties(getSystemProperties());
-
-        try {
-            final Settings settings = new DefaultSettingsBuilderFactory().newInstance().build(request).getEffectiveSettings();
-            final SettingsDecryptionResult result = newDefaultSettingsDecrypter().decrypt(new DefaultSettingsDecryptionRequest(settings));
-
-            settings.setServers(result.getServers());
-            settings.setProxies(result.getProxies());
-
-            return settings;
-        } catch (SettingsBuildingException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private RepositorySystemSession newRepositorySession(RepositorySystem system, LocalRepository localRepo) {
         final DefaultRepositorySystemSession s = MavenRepositorySystemUtils.newSession();
 
@@ -197,9 +199,9 @@ public class DependencyManagerImpl implements DependencyManager {
 
         s.setLocalRepositoryManager(system.newLocalRepositoryManager(s, localRepo));
 
-        s.setProxySelector(getProxySelector());
-        s.setMirrorSelector(getMirrorSelector());
-        s.setAuthenticationSelector(getAuthSelector());
+        s.setProxySelector(getProxySelector(settings));
+        s.setMirrorSelector(getMirrorSelector(settings));
+        s.setAuthenticationSelector(getAuthSelector(settings));
 
         if (logLevel > LOG_NONE) {
             final PrintStream out = prefixStream(System.err, LOG_PREFIX);
@@ -208,6 +210,13 @@ public class DependencyManagerImpl implements DependencyManager {
         }
 
         return s;
+    }
+    //</editor-fold>
+
+    //<editor-fold desc="Operations">
+    /////////// Operations ///////////////////////////////////
+    private CollectRequest collect() {
+        return new CollectRequest().setRepositories(repos);
     }
 
     @Override
@@ -253,10 +262,6 @@ public class DependencyManagerImpl implements DependencyManager {
         }
     }
 
-    private CollectRequest collect() {
-        return new CollectRequest().setRepositories(repos);
-    }
-
     @Override
     public String getLatestVersion(String coords, String type) {
         return artifactToCoords(getLatestVersion0(coords, type));
@@ -287,7 +292,10 @@ public class DependencyManagerImpl implements DependencyManager {
     private static boolean isVersionRange(String version) {
         return version.startsWith("(") || version.startsWith("[");
     }
+    //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Parsing">
+    /////////// Parsing ///////////////////////////////////
     // visible for testing
     static Dependency toDependency(String coords, String type) {
         return new Dependency(coordsToArtifact(coords, type), JavaScopes.RUNTIME, false, getExclusions(coords));
@@ -313,7 +321,7 @@ public class DependencyManagerImpl implements DependencyManager {
 
     private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(]+):(?<artifactId>[^:\\(]+)(:(?<version>\\(?[^:\\(]*))?(:(?<classifier>[^:\\(]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
 
-    static Artifact coordsToArtifact(final String depString, String type) {
+    private static Artifact coordsToArtifact(final String depString, String type) {
         final Matcher m = PAT_DEPENDENCY.matcher(depString);
         if (!m.matches())
             throw new IllegalArgumentException("Could not parse dependency: " + depString);
@@ -327,7 +335,7 @@ public class DependencyManagerImpl implements DependencyManager {
         return new DefaultArtifact(groupId, artifactId, classifier, type, version);
     }
 
-    static Collection<Exclusion> getExclusions(String depString) {
+    private static Collection<Exclusion> getExclusions(String depString) {
         final Matcher m = PAT_DEPENDENCY.matcher(depString);
         if (!m.matches())
             throw new IllegalArgumentException("Could not parse dependency: " + depString);
@@ -370,68 +378,15 @@ public class DependencyManagerImpl implements DependencyManager {
         }
         return new RemoteRepository.Builder(id, "default", url).setReleasePolicy(releasePolicy).setSnapshotPolicy(snapshotPolicy).build();
     }
+    //</editor-fold>
 
-    private static PrintStream prefixStream(PrintStream out, final String prefix) {
-        return new PrintStream(out) {
-            @Override
-            public void println(String x) {
-                super.println(prefix + x);
-            }
-        };
-    }
-
-    private static String propertyOrEnv(String propName, String envVar) {
-        String val = System.getProperty(propName);
-        if (val == null)
-            val = emptyToNull(System.getenv(envVar));
-        return val;
-    }
-
+    //<editor-fold defaultstate="collapsed" desc="Setup Helpers">
+    /////////// Setup Helpers ///////////////////////////////////
     private static Path getMavenHome() {
         String mhome = emptyToNull(System.getenv(ENV_MAVEN_HOME));
         if (mhome == null)
             mhome = System.getProperty(PROP_MAVEN_HOME);
         return mhome != null ? Paths.get(mhome) : null;
-    }
-
-    public static File findUserSettings() {
-        return new File(new File(System.getProperty(PROP_USER_HOME), ".m2"), SETTINGS_XML);
-    }
-
-    private ProxySelector getProxySelector() {
-        final DefaultProxySelector selector = new DefaultProxySelector();
-
-        for (org.apache.maven.settings.Proxy proxy : settings.getProxies()) {
-            AuthenticationBuilder auth = new AuthenticationBuilder();
-            auth.addUsername(proxy.getUsername()).addPassword(proxy.getPassword());
-            selector.add(new org.eclipse.aether.repository.Proxy(proxy.getProtocol(), proxy.getHost(),
-                    proxy.getPort(), auth.build()),
-                    proxy.getNonProxyHosts());
-        }
-
-        return selector;
-    }
-
-    private MirrorSelector getMirrorSelector() {
-        final DefaultMirrorSelector selector = new DefaultMirrorSelector();
-
-        for (org.apache.maven.settings.Mirror mirror : settings.getMirrors())
-            selector.add(String.valueOf(mirror.getId()), mirror.getUrl(), mirror.getLayout(), false, mirror.getMirrorOf(), mirror.getMirrorOfLayouts());
-
-        return selector;
-    }
-
-    private AuthenticationSelector getAuthSelector() {
-        final DefaultAuthenticationSelector selector = new DefaultAuthenticationSelector();
-
-        for (Server server : settings.getServers()) {
-            AuthenticationBuilder auth = new AuthenticationBuilder();
-            auth.addUsername(server.getUsername()).addPassword(server.getPassword());
-            auth.addPrivateKey(server.getPrivateKey(), server.getPassphrase());
-            selector.add(server.getId(), auth.build());
-        }
-
-        return new ConservativeAuthenticationSelector(selector);
     }
 
     private static Properties getSystemProperties() {
@@ -456,35 +411,59 @@ public class DependencyManagerImpl implements DependencyManager {
         return props;
     }
 
-    private static String emptyToNull(String s) {
-        if (s == null)
-            return null;
-        s = s.trim();
-        return s.isEmpty() ? null : s;
+    private static ProxySelector getProxySelector(Settings settings) {
+        final DefaultProxySelector selector = new DefaultProxySelector();
+
+        for (org.apache.maven.settings.Proxy proxy : settings.getProxies()) {
+            AuthenticationBuilder auth = new AuthenticationBuilder();
+            auth.addUsername(proxy.getUsername()).addPassword(proxy.getPassword());
+            selector.add(new org.eclipse.aether.repository.Proxy(proxy.getProtocol(), proxy.getHost(),
+                    proxy.getPort(), auth.build()),
+                    proxy.getNonProxyHosts());
+        }
+
+        return selector;
     }
 
-    private static boolean isWindows() {
-        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
+    private static MirrorSelector getMirrorSelector(Settings settings) {
+        final DefaultMirrorSelector selector = new DefaultMirrorSelector();
+
+        for (org.apache.maven.settings.Mirror mirror : settings.getMirrors())
+            selector.add(String.valueOf(mirror.getId()), mirror.getUrl(), mirror.getLayout(), false, mirror.getMirrorOf(), mirror.getMirrorOfLayouts());
+
+        return selector;
     }
 
-    protected final boolean isLogging(int level) {
-        return level <= logLevel;
+    private static AuthenticationSelector getAuthSelector(Settings settings) {
+        final DefaultAuthenticationSelector selector = new DefaultAuthenticationSelector();
+
+        for (Server server : settings.getServers()) {
+            AuthenticationBuilder auth = new AuthenticationBuilder();
+            auth.addUsername(server.getUsername()).addPassword(server.getPassword());
+            auth.addPrivateKey(server.getPrivateKey(), server.getPassphrase());
+            selector.add(server.getId(), auth.build());
+        }
+
+        return new ConservativeAuthenticationSelector(selector);
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="General Utils">
+    /////////// General Utils ///////////////////////////////////
+    private static PrintStream prefixStream(PrintStream out, final String prefix) {
+        return new PrintStream(out) {
+            @Override
+            public void println(String x) {
+                super.println(prefix + x);
+            }
+        };
     }
 
-    private void println(String str) {
-        log(LOG_QUIET, str);
-    }
-
-    private void log(int level, String str) {
-        if (isLogging(level))
-            System.err.println(LOG_PREFIX + str);
-    }
-
-    private static Map<String, String> stringMap(String... ss) {
-        final Map<String, String> m = new HashMap<>();
-        for (int i = 0; i < ss.length / 2; i++)
-            m.put(ss[i * 2], ss[i * 2 + 1]);
-        return Collections.unmodifiableMap(m);
+    private static String propertyOrEnv(String propName, String envVar) {
+        String val = System.getProperty(propName);
+        if (val == null)
+            val = emptyToNull(System.getenv(envVar));
+        return val;
     }
 
     private static Boolean isPropertySet(String property, boolean defaultValue) {
@@ -494,6 +473,39 @@ public class DependencyManagerImpl implements DependencyManager {
         return "".equals(val) | Boolean.parseBoolean(val);
     }
 
+    private static String emptyToNull(String s) {
+        if (s == null)
+            return null;
+        s = s.trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    private static Map<String, String> stringMap(String... ss) {
+        final Map<String, String> m = new HashMap<>();
+        for (int i = 0; i < ss.length / 2; i++)
+            m.put(ss[i * 2], ss[i * 2 + 1]);
+        return Collections.unmodifiableMap(m);
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Logging">
+    /////////// Logging ///////////////////////////////////
+    private boolean isLogging(int level) {
+        return level <= logLevel;
+    }
+
+    private void log(int level, String str) {
+        if (isLogging(level))
+            System.err.println(LOG_PREFIX + str);
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="DI Workarounds">
+    /////////// DI Workarounds ///////////////////////////////////
     private static DefaultSettingsDecrypter newDefaultSettingsDecrypter() {
         /*
          * see:
@@ -538,4 +550,5 @@ public class DependencyManagerImpl implements DependencyManager {
             super(takariFileManager);
         }
     }
+    //</editor-fold>
 }
