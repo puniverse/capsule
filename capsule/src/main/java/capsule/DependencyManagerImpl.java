@@ -137,8 +137,8 @@ public class DependencyManagerImpl implements DependencyManager {
             repos = Arrays.asList("central");
 
         this.repos = new ArrayList<RemoteRepository>();
-        for (String repo : repos)
-            this.repos.add(createRepo(repo, allowSnapshots));
+        for (String r : repos)
+            this.repos.add(createRepo(r, allowSnapshots));
 
         log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
     }

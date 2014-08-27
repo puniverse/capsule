@@ -10,6 +10,7 @@ package capsule;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -20,11 +21,15 @@ public class DependencyManagerDriver {
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty("user.home"), ".m2", "repository");
 
     public static void main(String[] args) {
-        final DependencyManager dm = new DependencyManagerImpl(DEFAULT_LOCAL_MAVEN, null, false, true, 3);
+        DependencyManager dm;
+
+        dm = new DependencyManagerImpl(DEFAULT_LOCAL_MAVEN, null, false, true, 3);
 
         resolve(dm, "co.paralleluniverse:quasar-core:LATEST");
         resolve(dm, "co.paralleluniverse:quasar-core:(0.3.0,0.5.0-SNAPSHOT)");
         resolve(dm, "co.paralleluniverse:quasar-core:0.5.0");
+        
+        // dm = new DependencyManagerImpl(DEFAULT_LOCAL_MAVEN, Arrays.asList("foo(https://repo1.maven.org/maven2/)"), false, true, 3);
     }
 
     static void resolve(DependencyManager dm, String coords) {
