@@ -118,14 +118,18 @@ public class DependencyManagerImpl implements DependencyManager {
     private final int logLevel;
     private final Settings settings;
 
-    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, Boolean offline, boolean allowSnapshots, int logLevel) {
-        this.system = newRepositorySystem();
-        this.settings = getSettings();
-        this.forceRefresh = forceRefresh;
-        this.offline = offline != null ? offline : (settings != null ? settings.isOffline() : false);
+    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean allowSnapshots, int logLevel) {
         this.logLevel = logLevel;
         this.allowSnapshots = allowSnapshots;
+        this.forceRefresh = forceRefresh;
+        this.system = newRepositorySystem();
+        this.settings = getSettings();
 
+        this.offline = isPropertySet(PROP_OFFLINE, false);
+        log(LOG_DEBUG, "Offline: " + offline);
+
+        if(localRepoPath == null)
+            localRepoPath = DEFAULT_LOCAL_MAVEN.resolve("repository");
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
         this.session = newRepositorySession(system, localRepo);
 
@@ -482,6 +486,13 @@ public class DependencyManagerImpl implements DependencyManager {
         for (int i = 0; i < ss.length / 2; i++)
             m.put(ss[i * 2], ss[i * 2 + 1]);
         return Collections.unmodifiableMap(m);
+    }
+
+    private static Boolean isPropertySet(String property, boolean defaultValue) {
+        final String val = System.getProperty(property);
+        if (val == null)
+            return defaultValue;
+        return "".equals(val) | Boolean.parseBoolean(val);
     }
 
     private static DefaultSettingsDecrypter newDefaultSettingsDecrypter() {

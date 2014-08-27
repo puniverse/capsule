@@ -180,7 +180,6 @@ public class Capsule implements Runnable {
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path WINDOWS_PROGRAM_FILES_1 = Paths.get("C:", "Program Files");
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
-    private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2", "repository");
     private static final Object DEFAULT = new Object();
 
     // logging
@@ -1460,15 +1459,10 @@ public class Capsule implements Runnable {
             final Path localRepo = getLocalRepo();
             log(LOG_DEBUG, "Local repo: " + localRepo);
 
-            Boolean offline = null;
-            if (System.getProperty(PROP_OFFLINE) != null)
-                offline = "".equals(System.getProperty(PROP_OFFLINE)) || Boolean.parseBoolean(System.getProperty(PROP_OFFLINE));
-            log(LOG_DEBUG, "Offline: " + offline);
-
             final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));
             log(LOG_DEBUG, "Allow snapshots: " + allowSnapshots);
 
-            return new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, offline, allowSnapshots, logLevel);
+            return new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, allowSnapshots, logLevel);
         } catch (NoClassDefFoundError e) {
             throw new RuntimeException("Jar " + jarFile
                     + " specifies dependencies, while the necessary dependency management classes are not found in the jar");
@@ -1479,7 +1473,7 @@ public class Capsule implements Runnable {
         Path localRepo = cacheDir.resolve(DEPS_CACHE_NAME);
         final String local = expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO));
         if (local != null)
-            localRepo = !local.isEmpty() ? Paths.get(local) : DEFAULT_LOCAL_MAVEN;
+            localRepo = !local.isEmpty() ? Paths.get(local) : null;
         return localRepo;
     }
 
