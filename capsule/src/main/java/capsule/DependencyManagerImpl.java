@@ -370,8 +370,8 @@ public class DependencyManagerImpl implements DependencyManager {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Setup Helpers">
-    /////////// Setup Helpers ///////////////////////////////////
+    //<editor-fold defaultstate="collapsed" desc="Read settings.xml">
+    /////////// Read settings.xml ///////////////////////////////////
     private static Settings getSettings() {
         final DefaultSettingsBuildingRequest request = new DefaultSettingsBuildingRequest();
         request.setUserSettingsFile(DEFAULT_LOCAL_MAVEN.resolve(SETTINGS_XML).toFile());
