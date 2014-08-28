@@ -29,7 +29,7 @@ import java.util.zip.ZipInputStream;
  *
  * @author pron
  */
-public class JarClassLoader extends FlexibleClassLoader {
+public final class JarClassLoader extends FlexibleClassLoader {
     private final Manifest mf;
     private final byte[] buffer;
     private final Path jarFile;

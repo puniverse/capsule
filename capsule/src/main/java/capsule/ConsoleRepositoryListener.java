@@ -13,7 +13,7 @@ import java.io.PrintStream;
 import org.eclipse.aether.AbstractRepositoryListener;
 import org.eclipse.aether.RepositoryEvent;
 
-public class ConsoleRepositoryListener extends AbstractRepositoryListener {
+public final class ConsoleRepositoryListener extends AbstractRepositoryListener {
     private final PrintStream out;
     private final boolean verbose;
 

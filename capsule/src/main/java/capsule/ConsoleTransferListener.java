@@ -35,7 +35,7 @@ import org.eclipse.aether.transfer.TransferResource;
 /**
  * A simplistic transfer listener that logs uploads/downloads to the console.
  */
-public class ConsoleTransferListener extends AbstractTransferListener {
+public final class ConsoleTransferListener extends AbstractTransferListener {
     private final PrintStream out;
     private final Map<TransferResource, Long> downloads = new ConcurrentHashMap<TransferResource, Long>();
     private int lastLength;

@@ -17,7 +17,7 @@ import org.apache.maven.model.Model;
 import org.apache.maven.model.Repository;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 
-public class PomReader {
+public final class PomReader {
     private final Model pom;
 
     public PomReader(InputStream is) {
