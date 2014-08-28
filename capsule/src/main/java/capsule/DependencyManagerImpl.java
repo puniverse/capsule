@@ -17,20 +17,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
-import org.apache.maven.settings.Server;
-import org.apache.maven.settings.Settings;
-import org.apache.maven.settings.building.DefaultSettingsBuilderFactory;
-import org.apache.maven.settings.building.DefaultSettingsBuildingRequest;
-import org.apache.maven.settings.building.SettingsBuildingException;
-import org.apache.maven.settings.crypto.DefaultSettingsDecrypter;
-import org.apache.maven.settings.crypto.DefaultSettingsDecryptionRequest;
-import org.apache.maven.settings.crypto.SettingsDecryptionResult;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositoryException;
@@ -44,10 +34,7 @@ import org.eclipse.aether.collection.DependencyCollectionException;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.impl.DefaultServiceLocator;
-import org.eclipse.aether.repository.AuthenticationSelector;
 import org.eclipse.aether.repository.LocalRepository;
-import org.eclipse.aether.repository.MirrorSelector;
-import org.eclipse.aether.repository.ProxySelector;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.repository.RepositoryPolicy;
 import org.eclipse.aether.resolution.ArtifactResult;
@@ -59,22 +46,12 @@ import org.eclipse.aether.resolution.VersionRequest;
 import org.eclipse.aether.resolution.VersionResult;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
-import org.eclipse.aether.util.repository.AuthenticationBuilder;
-import org.eclipse.aether.util.repository.ConservativeAuthenticationSelector;
-import org.eclipse.aether.util.repository.DefaultAuthenticationSelector;
-import org.eclipse.aether.util.repository.DefaultMirrorSelector;
-import org.eclipse.aether.util.repository.DefaultProxySelector;
 import org.eclipse.aether.version.Version;
-import org.sonatype.plexus.components.cipher.DefaultPlexusCipher;
-import org.sonatype.plexus.components.cipher.PlexusCipherException;
-import org.sonatype.plexus.components.sec.dispatcher.DefaultSecDispatcher;
 
 /**
  * Uses Aether as the Maven dependency manager.
  */
-
-
-public class DependencyManagerImpl implements DependencyManager {
+public final class DependencyManagerImpl implements DependencyManager {
     /*
      * see http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntRepoSys.java
      */
@@ -83,18 +60,12 @@ public class DependencyManagerImpl implements DependencyManager {
     private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
-    private static final String PROP_MAVEN_HOME = "maven.home";
     private static final String PROP_USER_HOME = "user.home";
-    private static final String PROP_OS_NAME = "os.name";
 
-    private static final String ENV_MAVEN_HOME = "M2_HOME";
     private static final String ENV_CONNECT_TIMEOUT = "CAPSULE_CONNECT_TIMEOUT";
     private static final String ENV_REQUEST_TIMEOUT = "CAPSULE_REQUEST_TIMEOUT";
 
     private static final String LATEST_VERSION = "[0,)";
-    private static final String SETTINGS_XML = "settings.xml";
-
-    private static final Path MAVEN_HOME = getMavenHome();
     private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
 
     private static final Map<String, String> WELL_KNOWN_REPOS = stringMap(
@@ -119,7 +90,7 @@ public class DependencyManagerImpl implements DependencyManager {
     private final RepositorySystemSession session;
     private final List<RemoteRepository> repos;
     private final int logLevel;
-    private final Settings settings;
+    private final UserSettings settings;
 
     //<editor-fold desc="Construction and Setup">
     /////////// Construction and Setup ///////////////////////////////////
@@ -133,7 +104,7 @@ public class DependencyManagerImpl implements DependencyManager {
             localRepoPath = DEFAULT_LOCAL_MAVEN.resolve("repository");
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
 
-        this.settings = getSettings();
+        this.settings = UserSettings.getInstance();
         this.system = newRepositorySystem();
         this.session = newRepositorySession(system, localRepo);
 
@@ -144,13 +115,6 @@ public class DependencyManagerImpl implements DependencyManager {
             this.repos.add(createRepo(r, allowSnapshots));
 
         log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
-    }
-
-    private static Path getMavenHome() {
-        String mhome = emptyToNull(System.getenv(ENV_MAVEN_HOME));
-        if (mhome == null)
-            mhome = System.getProperty(PROP_MAVEN_HOME);
-        return mhome != null ? Paths.get(mhome) : null;
     }
 
     private static RepositorySystem newRepositorySystem() {
@@ -189,9 +153,9 @@ public class DependencyManagerImpl implements DependencyManager {
 
         s.setLocalRepositoryManager(system.newLocalRepositoryManager(s, localRepo));
 
-        s.setProxySelector(getProxySelector(settings));
-        s.setMirrorSelector(getMirrorSelector(settings));
-        s.setAuthenticationSelector(getAuthSelector(settings));
+        s.setProxySelector(settings.getProxySelector());
+        s.setMirrorSelector(settings.getMirrorSelector());
+        s.setAuthenticationSelector(settings.getAuthSelector());
 
         if (logLevel > LOG_NONE) {
             final PrintStream out = prefixStream(System.err, LOG_PREFIX);
@@ -370,86 +334,6 @@ public class DependencyManagerImpl implements DependencyManager {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Read settings.xml">
-    /////////// Read settings.xml ///////////////////////////////////
-    private static Settings getSettings() {
-        final DefaultSettingsBuildingRequest request = new DefaultSettingsBuildingRequest();
-        request.setUserSettingsFile(DEFAULT_LOCAL_MAVEN.resolve(SETTINGS_XML).toFile());
-        request.setGlobalSettingsFile(MAVEN_HOME != null ? MAVEN_HOME.resolve("conf").resolve(SETTINGS_XML).toFile() : null);
-        request.setSystemProperties(getSystemProperties());
-
-        try {
-            final Settings settings = new DefaultSettingsBuilderFactory().newInstance().build(request).getEffectiveSettings();
-            final SettingsDecryptionResult result = newDefaultSettingsDecrypter().decrypt(new DefaultSettingsDecryptionRequest(settings));
-
-            settings.setServers(result.getServers());
-            settings.setProxies(result.getProxies());
-
-            return settings;
-        } catch (SettingsBuildingException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static Properties getSystemProperties() {
-        Properties props = new Properties();
-        getEnvProperties(props);
-        props.putAll(System.getProperties());
-        return props;
-    }
-
-    private static Properties getEnvProperties(Properties props) {
-        if (props == null)
-            props = new Properties();
-
-        boolean envCaseInsensitive = isWindows();
-        for (Map.Entry<String, String> entry : System.getenv().entrySet()) {
-            String key = entry.getKey();
-            if (envCaseInsensitive)
-                key = key.toUpperCase(Locale.ENGLISH);
-            key = "env." + key;
-            props.put(key, entry.getValue());
-        }
-        return props;
-    }
-
-    private static ProxySelector getProxySelector(Settings settings) {
-        final DefaultProxySelector selector = new DefaultProxySelector();
-
-        for (org.apache.maven.settings.Proxy proxy : settings.getProxies()) {
-            AuthenticationBuilder auth = new AuthenticationBuilder();
-            auth.addUsername(proxy.getUsername()).addPassword(proxy.getPassword());
-            selector.add(new org.eclipse.aether.repository.Proxy(proxy.getProtocol(), proxy.getHost(),
-                    proxy.getPort(), auth.build()),
-                    proxy.getNonProxyHosts());
-        }
-
-        return selector;
-    }
-
-    private static MirrorSelector getMirrorSelector(Settings settings) {
-        final DefaultMirrorSelector selector = new DefaultMirrorSelector();
-
-        for (org.apache.maven.settings.Mirror mirror : settings.getMirrors())
-            selector.add(String.valueOf(mirror.getId()), mirror.getUrl(), mirror.getLayout(), false, mirror.getMirrorOf(), mirror.getMirrorOfLayouts());
-
-        return selector;
-    }
-
-    private static AuthenticationSelector getAuthSelector(Settings settings) {
-        final DefaultAuthenticationSelector selector = new DefaultAuthenticationSelector();
-
-        for (Server server : settings.getServers()) {
-            AuthenticationBuilder auth = new AuthenticationBuilder();
-            auth.addUsername(server.getUsername()).addPassword(server.getPassword());
-            auth.addPrivateKey(server.getPrivateKey(), server.getPassphrase());
-            selector.add(server.getId(), auth.build());
-        }
-
-        return new ConservativeAuthenticationSelector(selector);
-    }
-    //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="General Utils">
     /////////// General Utils ///////////////////////////////////
     private static PrintStream prefixStream(PrintStream out, final String prefix) {
@@ -475,7 +359,7 @@ public class DependencyManagerImpl implements DependencyManager {
         return "".equals(val) | Boolean.parseBoolean(val);
     }
 
-    private static String emptyToNull(String s) {
+    static String emptyToNull(String s) {
         if (s == null)
             return null;
         s = s.trim();
@@ -487,10 +371,6 @@ public class DependencyManagerImpl implements DependencyManager {
         for (int i = 0; i < ss.length / 2; i++)
             m.put(ss[i * 2], ss[i * 2 + 1]);
         return Collections.unmodifiableMap(m);
-    }
-
-    private static boolean isWindows() {
-        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
     //</editor-fold>
 
@@ -508,36 +388,6 @@ public class DependencyManagerImpl implements DependencyManager {
 
     //<editor-fold defaultstate="collapsed" desc="DI Workarounds">
     /////////// DI Workarounds ///////////////////////////////////
-    private static DefaultSettingsDecrypter newDefaultSettingsDecrypter() {
-        /*
-         * see:
-         * http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntSettingsDecryptorFactory.java
-         * http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntSecDispatcher.java
-         */
-        DefaultSecDispatcher secDispatcher = new DefaultSecDispatcher() {
-            {
-                _configurationFile = "~/.m2/settings-security.xml";
-                try {
-                    _cipher = new DefaultPlexusCipher();
-                } catch (PlexusCipherException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
-
-        final DefaultSettingsDecrypter decrypter = new DefaultSettingsDecrypter();
-
-        try {
-            java.lang.reflect.Field field = decrypter.getClass().getDeclaredField("securityDispatcher");
-            field.setAccessible(true);
-            field.set(decrypter, secDispatcher);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
-
-        return decrypter;
-    }
-
     // necessary if we want to forgo Guice/Sisu injection and use DefaultServiceLocator instead
     private static final io.takari.filemanager.FileManager takariFileManager = new io.takari.filemanager.internal.DefaultFileManager();
 
