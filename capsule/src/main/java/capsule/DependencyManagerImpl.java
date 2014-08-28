@@ -66,7 +66,7 @@ public final class DependencyManagerImpl implements DependencyManager {
     private static final String ENV_REQUEST_TIMEOUT = "CAPSULE_REQUEST_TIMEOUT";
 
     private static final String LATEST_VERSION = "[0,)";
-    private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
+    static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
 
     private static final Map<String, String> WELL_KNOWN_REPOS = stringMap(
             "central", "central(https://repo1.maven.org/maven2/)",

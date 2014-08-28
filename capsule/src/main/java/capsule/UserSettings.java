@@ -8,6 +8,7 @@
  */
 package capsule;
 
+import static capsule.DependencyManagerImpl.DEFAULT_LOCAL_MAVEN;
 import static capsule.DependencyManagerImpl.emptyToNull;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,9 +45,7 @@ final class UserSettings {
     private static final String ENV_MAVEN_HOME = "M2_HOME";
     private static final String PROP_MAVEN_HOME = "maven.home";
     private static final String PROP_OS_NAME = "os.name";
-    private static final String PROP_USER_HOME = "user.home";
 
-    private static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
     private static final Path MAVEN_HOME = getMavenHome();
 
     private final Settings settings;
