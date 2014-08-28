@@ -72,6 +72,8 @@ import org.sonatype.plexus.components.sec.dispatcher.DefaultSecDispatcher;
 /**
  * Uses Aether as the Maven dependency manager.
  */
+
+
 public class DependencyManagerImpl implements DependencyManager {
     /*
      * see http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntRepoSys.java
@@ -144,23 +146,11 @@ public class DependencyManagerImpl implements DependencyManager {
         log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
     }
 
-    private static Settings getSettings() {
-        final DefaultSettingsBuildingRequest request = new DefaultSettingsBuildingRequest();
-        request.setUserSettingsFile(DEFAULT_LOCAL_MAVEN.resolve(SETTINGS_XML).toFile());
-        request.setGlobalSettingsFile(MAVEN_HOME != null ? MAVEN_HOME.resolve("conf").resolve(SETTINGS_XML).toFile() : null);
-        request.setSystemProperties(getSystemProperties());
-
-        try {
-            final Settings settings = new DefaultSettingsBuilderFactory().newInstance().build(request).getEffectiveSettings();
-            final SettingsDecryptionResult result = newDefaultSettingsDecrypter().decrypt(new DefaultSettingsDecryptionRequest(settings));
-
-            settings.setServers(result.getServers());
-            settings.setProxies(result.getProxies());
-
-            return settings;
-        } catch (SettingsBuildingException e) {
-            throw new RuntimeException(e);
-        }
+    private static Path getMavenHome() {
+        String mhome = emptyToNull(System.getenv(ENV_MAVEN_HOME));
+        if (mhome == null)
+            mhome = System.getProperty(PROP_MAVEN_HOME);
+        return mhome != null ? Paths.get(mhome) : null;
     }
 
     private static RepositorySystem newRepositorySystem() {
@@ -382,11 +372,23 @@ public class DependencyManagerImpl implements DependencyManager {
 
     //<editor-fold defaultstate="collapsed" desc="Setup Helpers">
     /////////// Setup Helpers ///////////////////////////////////
-    private static Path getMavenHome() {
-        String mhome = emptyToNull(System.getenv(ENV_MAVEN_HOME));
-        if (mhome == null)
-            mhome = System.getProperty(PROP_MAVEN_HOME);
-        return mhome != null ? Paths.get(mhome) : null;
+    private static Settings getSettings() {
+        final DefaultSettingsBuildingRequest request = new DefaultSettingsBuildingRequest();
+        request.setUserSettingsFile(DEFAULT_LOCAL_MAVEN.resolve(SETTINGS_XML).toFile());
+        request.setGlobalSettingsFile(MAVEN_HOME != null ? MAVEN_HOME.resolve("conf").resolve(SETTINGS_XML).toFile() : null);
+        request.setSystemProperties(getSystemProperties());
+
+        try {
+            final Settings settings = new DefaultSettingsBuilderFactory().newInstance().build(request).getEffectiveSettings();
+            final SettingsDecryptionResult result = newDefaultSettingsDecrypter().decrypt(new DefaultSettingsDecryptionRequest(settings));
+
+            settings.setServers(result.getServers());
+            settings.setProxies(result.getProxies());
+
+            return settings;
+        } catch (SettingsBuildingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static Properties getSystemProperties() {
