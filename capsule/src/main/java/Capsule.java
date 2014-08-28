@@ -165,6 +165,8 @@ public class Capsule implements Runnable {
     private static final String PROP_CAPSULE_JAR = "capsule.jar";
     private static final String PROP_CAPSULE_DIR = "capsule.dir";
     private static final String PROP_CAPSULE_APP = "capsule.app";
+    
+    private static final String PROP_CAPSULE_APP_PID = "capsule.app.pid";
 
     // misc
     private static final String CACHE_DEFAULT_NAME = "capsule";
@@ -463,9 +465,15 @@ public class Capsule implements Runnable {
 
         if (!isInheritIoBug())
             pb.inheritIO();
+        
         this.child = pb.start();
         if (isInheritIoBug())
             pipeIoStreams();
+        
+        final int pid = getPid(child);
+        if(pid > 0)
+            System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
+        
         return child;
     }
     //</editor-fold>
@@ -2503,6 +2511,19 @@ public class Capsule implements Runnable {
         } catch (IOException e) {
             if (isLogging(LOG_VERBOSE))
                 e.printStackTrace(System.err);
+        }
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="POSIX">
+    /////////// POSIX ///////////////////////////////////
+    private static int getPid(Process p) {
+        try {
+            java.lang.reflect.Field pidField = p.getClass().getDeclaredField("pid");
+            pidField.setAccessible(true);
+            return pidField.getInt(p);
+        } catch (Exception e) {
+            return -1;
         }
     }
     //</editor-fold>
