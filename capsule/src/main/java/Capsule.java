@@ -165,7 +165,7 @@ public class Capsule implements Runnable {
     private static final String PROP_CAPSULE_JAR = "capsule.jar";
     private static final String PROP_CAPSULE_DIR = "capsule.dir";
     private static final String PROP_CAPSULE_APP = "capsule.app";
-    
+
     private static final String PROP_CAPSULE_APP_PID = "capsule.app.pid";
 
     // misc
@@ -465,15 +465,15 @@ public class Capsule implements Runnable {
 
         if (!isInheritIoBug())
             pb.inheritIO();
-        
+
         this.child = pb.start();
         if (isInheritIoBug())
             pipeIoStreams();
-        
+
         final int pid = getPid(child);
-        if(pid > 0)
+        if (pid > 0)
             System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
-        
+
         return child;
     }
     //</editor-fold>
@@ -545,10 +545,34 @@ public class Capsule implements Runnable {
      * @param args The command line arguments passed to the capsule at launch
      */
     protected List<String> buildArgs(List<String> args) {
-        final List<String> args0 = new ArrayList<String>();
-        args0.addAll(nullToEmpty(expand(getListAttribute(ATTR_ARGS))));
-        args0.addAll(args);
-        return args0;
+        return expandArgs(nullToEmpty(expand(getListAttribute(ATTR_ARGS))), args);
+    }
+
+    // visible for testing
+    static List<String> expandArgs(List<String> args0, List<String> args) {
+        final List<String> args1 = new ArrayList<String>();
+        boolean expanded = false;
+        for (String a : args0) {
+            if (a.startsWith("$")) {
+                if (a.equals("$*")) {
+                    args1.addAll(args);
+                    expanded = true;
+                    continue;
+                } else {
+                    try {
+                        final int i = Integer.parseInt(a.substring(1));
+                        args1.add(args.get(i - 1));
+                        expanded = true;
+                        continue;
+                    } catch (NumberFormatException e) {
+                    }
+                }
+            }
+            args1.add(a);
+        }
+        if (!expanded)
+            args1.addAll(args);
+        return args1;
     }
 
     /**
@@ -2185,6 +2209,9 @@ public class Capsule implements Runnable {
      * @return the expanded string
      */
     protected String expand(String str) {
+        if ("$0".equals(str))
+            return jarFile.toString();
+
         if (appCache != null)
             str = str.replaceAll("\\$" + VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
         else if (str.contains("$" + VAR_CAPSULE_DIR))

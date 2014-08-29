@@ -908,6 +908,15 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testExpandArgs() throws Exception {
+        assertEquals(list("x", "y", "z"), Capsule.expandArgs(list("x", "y", "z"), (List) list()));
+        assertEquals(list("a", "b", "c"), Capsule.expandArgs((List) list(), list("a", "b", "c")));
+        assertEquals(list("x", "y", "z", "a", "b", "c"), Capsule.expandArgs(list("x", "y", "z"), list("a", "b", "c")));
+        assertEquals(list("x", "a", "b", "c", "z"), Capsule.expandArgs(list("x", "$*", "z"), list("a", "b", "c")));
+        assertEquals(list("b", "a", "c"), Capsule.expandArgs(list("$2", "$1", "$3"), list("a", "b", "c")));
+    }
+
+    @Test
     public void splitTest() throws Exception {
         assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.split("ab,cd  ef g, hij kl  ", "[,\\s]\\s*"));
     }
