@@ -830,21 +830,6 @@ public class Capsule implements Runnable {
         return extract == null || Boolean.parseBoolean(extract);
     }
 
-    private List<Path> getDefaultCacheClassPath() {
-        final List<Path> cp = new ArrayList<Path>();
-        cp.add(appCache);
-        try (DirectoryStream<Path> ds = Files.newDirectoryStream(appCache)) {
-            for (Path f : ds) {
-                if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar"))
-                    cp.add(f.toAbsolutePath());
-            }
-        } catch (IOException e) {
-            throw new RuntimeException();
-        }
-
-        return cp;
-    }
-
     private void resetAppCache() {
         try {
             log(LOG_DEBUG, "Creating cache for " + jarFile + " in " + appCache.toAbsolutePath());
@@ -1011,12 +996,35 @@ public class Capsule implements Runnable {
                 classPath.add(p);
             }
         }
+        
         if (appCache != null)
-            classPath.addAll(nullToEmpty(getDefaultCacheClassPath()));
+            addAllIfNotContained(classPath, nullToEmpty(getDefaultCacheClassPath()));
 
         classPath.addAll(nullToEmpty(resolveDependencies(getDependencies(), "jar")));
 
         return classPath;
+    }
+
+    private List<Path> getDefaultCacheClassPath() {
+        final List<Path> cp = new ArrayList<Path>();
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(appCache)) {
+            for (Path f : ds) {
+                if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar"))
+                    cp.add(f.toAbsolutePath());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException();
+        }
+
+        // sort to give same reults on all platforms
+        // doing it this way isn't quite right as Path's Javadoc ensures lexicographic ordering, yet warns different results on different platforms
+        // ... but I hope this works well enough. If not, we need to convert to strings, sort, and then convert back.
+        // (I assume the platform dependence has to do with case-sensitivity, and we don't care about that)
+        Collections.sort(cp);
+
+        cp.add(0, appCache);
+
+        return cp;
     }
 
     /**
@@ -2409,6 +2417,14 @@ public class Capsule implements Runnable {
         if (map == null)
             return Collections.emptyMap();
         return map;
+    }
+
+    private static <C extends Collection<T>, T> C addAllIfNotContained(C c, Collection<T> c1) {
+        for (T e : c1) {
+            if (!c.contains(e))
+                c.add(e);
+        }
+        return c;
     }
     //</editor-fold>
 
