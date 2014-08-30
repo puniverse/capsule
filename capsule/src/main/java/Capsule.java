@@ -1733,8 +1733,7 @@ public class Capsule implements Runnable {
             return false;
         if (fileName.startsWith("capsule/"))
             return false;
-        final String dir = getDirectory(fileName);
-        if (dir != null && dir.startsWith("META-INF"))
+        if (fileName.startsWith("META-INF/"))
             return false;
         return true;
     }
