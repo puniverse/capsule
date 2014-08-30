@@ -225,6 +225,8 @@ The capsule will be extracted once. Following run will compare the JAR's modific
 
 The location of the cache and the location of the JAR are communicated to the application through the `capsule.dir` and `capsule.jar` system properties respectively. Capsule defines these properties automatically, and the application may use them, for example, to find extracted resources. In addition, those two filesystem paths can be used within the manifest itself to set various values (system properties, environment variables, etc) by referencing them with `$CAPSULE_DIR` and `$CAPSULE_JAR` respectively.
 
+Using the values in `capsule.dir` or `CAPSULE_DIR` to directly access the cache is generally discouraged, and should be a last resort (but a working one, nonetheless), as it depends on Capsule's inner workings.
+
 Capsule's cache is found, by default, at `~/.capsule/` on Unix/Linux/Mac OS machines, and at `%USERPROFILE%\AppData\Local\capsule\` on Windows. The application caches are placed in the `apps/APP_ID` subdirectory of the cache, while the shared dependency cache is at the `deps` subdirectory. The location of the Capsule cache can be changed with environment variables: setting `CAPSULE_CACHE_NAME` determines the name of the topmost Capsule cache dir (i.e. "capsule" by default), while `CAPSULE_CACHE_DIR` can be used to set a precise path for the cache (e.g. `/tmp/capsule/).
 
 ### Maven Dependencies
@@ -372,7 +374,7 @@ Capsule defines these system properties in the application's process:
 
 * `capsule.app`: the app ID
 * `capsule.jar`: the full path to the capsule's JAR
-* `capsule.dir`: if the JAR has been extracted, the full path of the application cache.
+* `capsule.dir`: if the JAR has been extracted, the full path of the application cache (use generally discouraged).
 
 ### Environment Variables
 
