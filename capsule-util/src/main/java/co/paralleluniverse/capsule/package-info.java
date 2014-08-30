@@ -10,9 +10,9 @@
  * Contains classes to interact with capsules:
  * 
  * <ul>
- * <li>{@link CapsuleUtils} lets an application running in a capsule obtain information from the capsule.</li>
- * <li>{@link Jar} allows simple, programmatic creation of JAR file/streams, and can be used by a server that generates customized capsules.</li>
- * <li>{@link CapsuleLauncher} launched capsules programmatically, and is used by capsule containers.</li>
+ * <li>{@link co.paralleluniverse.capsule.CapsuleUtils} lets an application running in a capsule obtain information from the capsule.</li>
+ * <li>{@link co.paralleluniverse.capsule.Jar} allows simple, programmatic creation of JAR file/streams, and can be used by a server that generates customized capsules.</li>
+ * <li>{@link co.paralleluniverse.capsule.CapsuleLauncher} launched capsules programmatically, and is used by capsule containers.</li>
  * </ul>
  */
 package co.paralleluniverse.capsule;
