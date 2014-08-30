@@ -51,9 +51,13 @@ Maven:
   * https://github.com/christokios/capsule-maven-plugin
   * https://github.com/pguedes/capsule-maven-plugin (limited functionality)
 
+Gradle:
+
+  * https://github.com/danthegoodman/gradle-capsule-plugin
+
 ### What's Missing/TODO (contributions happily accepted!)
 
-* Gradle and Leiningen plugins for easy creation of capsules.
+* Leiningen plugins for easy creation of capsules.
 
 ## Usage Examples
 
