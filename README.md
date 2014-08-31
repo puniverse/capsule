@@ -366,7 +366,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Java-Version`: the highest version of the Java installation required to run the application; Capsule will look for an appropriate installation
 * `JDK-Required`: if set to `true`, the Capsule will only be launched using a JDK, if one matching the requested versions is found.
 * `JVM-Args`: a list of JVM arguments that will be used to launch the application's Java process
-* `Args`: a list of command line arguments to be passed to the application; these will be prepended to any arguments passed to the capsule
+* `Args`: the list of command line arguments to be passed to the application; the UNIX shell-style special variables (`$*`, `$1`, `$2`, ...) can refer to the actual arguments passed on the capsule's command line; if no special var is used, the listed values will be prepended to the supplied arguments (i.e., as if `$*` had been listed last).
 * `Environment-Variables`: a list of environment variables that will be put in the applications environment; formatted `var=value` or `var`
 * `System-Properties`: a list of system properties that will be defined in the applications JVM; formatted `prop=value` or `prop`
 * `App-Class-Path`: a list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed
