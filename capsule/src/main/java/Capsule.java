@@ -96,7 +96,6 @@ public class Capsule implements Runnable {
     private static final String PROP_CAPSULE_JAVA_HOME = "capsule.java.home";
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
-    private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_JVM_ARGS = "capsule.jvm.args";
 
     private static final String PROP_JAVA_VERSION = "java.version";
