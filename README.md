@@ -1,5 +1,5 @@
 # *Capsule*<br/>Dead-Simple Packaging and Deployment for JVM Apps
-[![Build Status](http://img.shields.io/travis/puniverse/capsule.svg?style=flat)](https://travis-ci.org/puniverse/capsule) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030) [![Version](http://img.shields.io/badge/version-0.7.1-blue.svg?style=flat)](https://github.com/puniverse/capsule/releases) [![License](http://img.shields.io/badge/license-EPL-blue.svg?style=flat)](https://www.eclipse.org/legal/epl-v10.html)
+[![Build Status](http://img.shields.io/travis/puniverse/capsule.svg?style=flat)](https://travis-ci.org/puniverse/capsule) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030) [![Version](http://img.shields.io/badge/version-0.8.0-blue.svg?style=flat)](https://github.com/puniverse/capsule/releases) [![License](http://img.shields.io/badge/license-EPL-blue.svg?style=flat)](https://www.eclipse.org/legal/epl-v10.html)
 
 
 Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single JAR file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It can automatically download Maven dependencies when the program is first launched if you choose not to embed them in the capsule, and it can even automatically download a new version of your application when it is published to a Maven repository.
@@ -16,7 +16,7 @@ Capsule doesn't contain a JVM distribution, the application user would need to h
 
 A "fat" capsule (one with all dependencies embedded in the capsule JAR), adds about 100ms to the startup time. A "thin" capsule (one with external dependencies, downloaded at first launch), adds about 500ms to the launch time, once the dependencies have been downloaded and cached during the first launch.
 
-In terms of JAR size, fat capsules add negligible overhead, while thin capsules add 2MB (for the code responsible to downloading and resolving the external dependencies) -- but they don't require the dependencies to be embedded in the JAR, so there's overall savings in deliverable size.
+In terms of JAR size, fat capsules add negligible overhead, while thin capsules add 1.5MB (for the code responsible to downloading and resolving the external dependencies) -- but they don't require the dependencies to be embedded in the JAR, so there's overall savings in deliverable size.
 
 ### Alternatives to Capsule
 
@@ -32,7 +32,7 @@ With Capsule, you just distribute a single JAR and run it.
 
 or:
 
-    co.paralleluniverse:capsule:0.7.1
+    co.paralleluniverse:capsule:0.8.0
 
 On Maven Central.
 
@@ -119,7 +119,7 @@ This capsule doesn't embed the dependencies in the JAR, so our application's cla
 
 Instead of specifying the dependencies and (optionally) the repositories directly in the manifest, if the capsule contains a `pom.xml` file in the JAR root, it will be used to find the dependencies.
 
-In order to support Maven dependencies, we needed to include all of Capsule's classes in the capsule JAR rather than just the `Capsule` class. This will add about 2MB to the (compressed) JAR, but will save a lot more by not embedding all the dependencies.
+In order to support Maven dependencies, we needed to include all of Capsule's classes in the capsule JAR rather than just the `Capsule` class. This will add about 1.5MB to the (compressed) JAR, but will save a lot more by not embedding all the dependencies.
 
 Finally, a capsule may not contain any of the application's classes/JARs at all. The capsule's manifest can contain these two attributes:
 
@@ -243,13 +243,15 @@ Instead of specifying explicit URLs, the following well-known repository names c
 * `jcenter-http` - jCenter, HTTP
 * `local` - Default local Maven repository (`userdir/.m2/repository`). You should only use local repositories in tests.
 
+Capsule also automatically uses the information in Maven's `settings.xml` file to access repositories that require authentication. The `settings.xml` used is the user's settings (in the `.m2` directory in the user's home directory), or in the global settings (in the `conf` subdirectory of the Maven installation). A `settings.xml` file is absolutely not required for Capsule's operation, and is mostly useful when accessing private organizational Maven repositories for dependencies.
+
 The dependencies, (if not read from the POM), are listed in the `Dependencies` attribute, as a space-separated list of Maven coordinates in the Gradle format, i.e. `groupId:artifactId:version`. Exclusions can be given as a comma separated list within parentheses, immediately following the main artifact, of `groupId:artifactId` coordinates, where the artifact can be the wildcard `*`. For example:
 
     Dependencies : com.esotericsoftware.kryo:kryo:2.23.0(org.ow2.asm:*)
 
 The dependencies are downloaded the first time the capsule is launched, and placed in the `deps` subdirectory of the Capsule cache, where they are shared among all capsules.
 
-The `CAPSULE_REPOS` environment variable can be set to a *comma* (`,`) separated list of Maven repository URLS or well-known repository names (see above), which will be prepended to those specified in the manifest or the POM.
+The `CAPSULE_REPOS` environment variable can be set to a *comma-* (`,`) or a whitespace-separated list of Maven repository URLS or well-known repository names (see above), which will be prepended to those specified in the manifest or the POM.
 
 By default, SNAPSHOT dependencies are not allowed, unless the `Allow-Snapshots` is set to `true`.
 
@@ -281,7 +283,9 @@ The `Library-Path-A` manifest attribute can list JARs or directories (relative t
 
 The `JVM-Args` manifest attribute can contain a space-separated list of JVM argument that will be used to launch the application. Any JVM arguments supplied during the capsule's launch, will override those in the manifest. For example, if the `JVM-Args` attribute contains `-Xmx500m`, and the capsule is launched with `java -Xmx800m -jar app.jar`, then the application will be launched with the `-Xmx800m` JVM argument.
 
-The `Args` manifest attribute can contain a space-separated list of ommand line arguments to be passed to the application; these will be prepended to any arguments passed to the capsule at launch.
+JVM arguments listed on the command line apply both to the Capsule launch process as well as the application process (see *The Capsule Execution Process*). Sometimes this is undesirable (e.g. when specifying a debug port, which can only apply to a single process or a port collision will ensue). JVM arguments for at the application process (only) can be supplied by adding `-Dcapsule.jvm.args="MY JVM ARGS"` to the command line.
+
+The `Args` manifest attribute can contain a space-separated list of command line arguments to be passed to the application; these will be prepended to any arguments passed to the capsule at launch.
 
 The `System-Properties` manifest attribute can contain a space-separated list of system properties that will be defined in the launched application. The properties are listed as `property=value` pairs (or just `property` for an empty value). Any system properties supplied during the capsule's launch, will override those in the manifest. For example, if the `JVM-Args` attribute contains `name=Mike`, and the capsule is launched with `java -Dname=Jason -jar app.jar`, then the application will see the `name` system-property defined as `Jason`.
 
@@ -308,6 +312,41 @@ If any of these three properties is set, a security manager will be in effect wh
 You can customize many of the capsule's inner workings by creating a *custom capsule*. A custom capsule is a subclass of `Capsule` that overrides some of the overridable methods. To use your custom capsule, include its class in the root of the capsule JAR, and simply indicate it is the JAR's main class in the mainfest, like so:
 
     Main-Class: MyCustomCapsule
+
+### "Really Executable" Capsules
+
+A JAR file can be made "really executable" in UNIX/Linux/MacOS environments -- i.e. it can be run simply as `capsule.jar ARGS` rather than `java -jar capsule.jar ARGS` -- by [prepending a couple of shell script lines to the JAR](http://skife.org/java/unix/2011/06/20/really_executable_jars.html) (it turns out JAR files can tolerate any prepended headers). In Maven, you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) plugin to make your capsule really executable (or if you're using the [capsule-maven-plugin](https://github.com/christokios/capsule-maven-plugin), just set the `buildExec` tag to true). In Gradle, this can be done by adding the following function to your build file:
+
+``` groovy
+def reallyExecutable(jar) {
+    ant.concat(destfile: "tmp.jar", binary: true) {
+        zipentry(zipfile: configurations.capsule.singleFile, name: 'capsule/execheader.sh')
+        fileset(dir: jar.destinationDir) {
+            include(name: jar.archiveName)
+        }
+    }
+    copy {
+        from 'tmp.jar'
+        into jar.destinationDir
+        rename { jar.archiveName }
+    }
+    delete 'tmp.jar'
+}
+```
+
+and then
+
+``` groovy
+capsule.doLast { task -> reallyExecutable(task) }
+```
+
+### The Capsule Execution Process
+
+When a capsule is launched, two processes are involved: first, a JVM process runs the capsule launcher, which then starts up a second, child process that runs the actual application. The two processes are linked so that killing or suspending one, will do the same for the other. On UNIX systems (Linux, Mac, etc.), the launcher process makes public the identity of the child process by setting the `capsule.app.pid` system property, which can be queried with the `jcmd` command. Suppose the capsule's pid is 1234, then the child (app) process pid can be obtained with the following shell command:
+
+    jcmd 1234 VM.system_properties  | grep capsule.app.pid | cut -f 2 -d =
+
+While this model works well enough in most scenarios, sometimes it is desirable to directly launch the process running the application, rather than indirectly. This is supported by "capsule trampoline", and is available for really executable capsules on UNIX systems only. To take advantage of capsule trampolining, use the `capsule/trampoline-execheader.sh` executable header (rather than `capsule/execheader.sh`) when creating the really executable capsule.
 
 ## Reference
 
@@ -347,6 +386,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Native-Dependencies-Linux`: a list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be Windows and copied into the application's cache directory.
 * `Native-Dependencies-Win`: a list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Native-Dependencies-Mac`: a list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
+* `Capsule-Log-Level`: sets the default log level for the Capsule launcher (which can be overridden with `-Dcapsule.log`); can be one of: `NONE`, `QUIET` (the default), `VERBOSE`, or `DEBUG`.
 
 ### Manifest Variables
 
@@ -361,7 +401,8 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.jvms`: if set, the capsule will print the JVM installations it can locate with their versions, and then quit without launching the app
 * `capsule.resolve`: all external dependencies, if any, will be downloaded (if not cached already), and/or the capsule will be extracted if necessary, but the application will not be launched
 * `capsule.mode`: if set, the capsule will be launched in the specified mode (see *Capsule Configuration and Modes*)
-* `capsule.log`: if set to `verbose`/`debug`, Capsule will print what it's doing
+* `capsule.log`: can be set to 'none'/'quiet' (default)/'verbose'/'debug'
+* `capsule.jvm.args`: specifies JVM arguments for the capsule's app process.
 * `capsule.reset`: if set, forces re-extraction of the capsule, where applies, and/or re-downloading of SNAPSHOT dependencies
 * `capsule.app.id`: sets the value of the application ID (see user guide)
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
@@ -375,6 +416,10 @@ Capsule defines these system properties in the application's process:
 * `capsule.app`: the app ID
 * `capsule.jar`: the full path to the capsule's JAR
 * `capsule.dir`: if the JAR has been extracted, the full path of the application cache (use generally discouraged).
+
+Capsule defines these system properties in the capsule (launcher) process (to be queried by `jcmd`):
+
+* `capsule.app.pid`: the child (application) process PID; available only in POSIX environments.
 
 ### Environment Variables
 
@@ -391,33 +436,6 @@ Capsule defines these variables in the application's environment:
 * `CAPSULE_DIR`: if the JAR has been extracted, the full path of the application cache.
 
 These values can also be accessed with `$VARNAME` in any capsule manifest attributes.
-
-## "Really Executable" Capsules
-
-A JAR file can be made "really executable" in UNIX/Linux/MacOS environments -- i.e. it can be run simply as `capsule.jar ARGS` rather than `java -jar capsule.jar ARGS` -- by [prepending a couple of shell script lines to the JAR](http://skife.org/java/unix/2011/06/20/really_executable_jars.html) (it turns out JAR files can tolerate any prepended headers). In Maven, you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) plugin to make your capsule really executable (or if you're using the [capsule-maven-plugin](https://github.com/christokios/capsule-maven-plugin), just set the `buildExec` tag to true). In Gradle, this can be done by adding the following function to your build file:
-
-``` groovy
-def reallyExecutable(jar) {
-    ant.concat(destfile: "tmp.jar", binary: true) {
-        zipentry(zipfile: configurations.capsule.singleFile, name: 'capsule/execheader.sh')
-        fileset(dir: jar.destinationDir) {
-            include(name: jar.archiveName)
-        }
-    }
-    copy {
-        from 'tmp.jar'
-        into jar.destinationDir
-        rename { jar.archiveName }
-    }
-    delete 'tmp.jar'
-}
-```
-
-and then
-
-``` groovy
-capsule.doLast { task -> reallyExecutable(task) }
-```
 
 ## License
 
