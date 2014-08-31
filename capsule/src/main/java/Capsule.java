@@ -995,7 +995,7 @@ public class Capsule implements Runnable {
                 classPath.add(p);
             }
         }
-        
+
         if (appCache != null)
             addAllIfNotContained(classPath, nullToEmpty(getDefaultCacheClassPath()));
 
@@ -2464,8 +2464,6 @@ public class Capsule implements Runnable {
         String level = System.getProperty(PROP_LOG_LEVEL);
         if (level == null)
             level = getAttribute(ATTR_LOG_LEVEL);
-        if (level == null || level.isEmpty())
-            level = "QUIET";
         int lvl = getLogLevel(level);
         if (lvl < 0)
             throw new IllegalArgumentException("Unrecognized log level: " + level);
@@ -2473,6 +2471,8 @@ public class Capsule implements Runnable {
     }
 
     private static int getLogLevel(String level) {
+        if (level == null || level.isEmpty())
+            level = "QUIET";
         switch (level.toUpperCase()) {
             case "NONE":
                 return LOG_NONE;
