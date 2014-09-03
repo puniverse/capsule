@@ -198,7 +198,7 @@ The application ID is used to find the capsule's application cache, where the ca
 
 The application's ID can be overridden by the `capsule.app.id` system property, if defined when launching the capsule, as in `java -Dcapsule.app.id=my_old_app -jar app.jar`
 
-### Selecting Java Runtime
+### Selecting the Java Runtime
 
 Two manifest attributes determine which Java installation Capsule will use to launch the application. `Min-Java-Version` (e.g. `1.7.0_50` or `1.8.0`) is the lowest Java version to use, while `Java-Version` (e.g. `1.6`) is the highest *major* Java version to use. One, both, or neither of these attributes may be specified in the manifest.
 
@@ -309,9 +309,11 @@ If any of these three properties is set, a security manager will be in effect wh
 
 ### Custom Capsules
 
-You can customize many of the capsule's inner workings by creating a *custom capsule*. A custom capsule is a subclass of `Capsule` that overrides some of the overridable methods. To use your custom capsule, include its class in the root of the capsule JAR, and simply indicate it is the JAR's main class in the mainfest, like so:
+You can customize many of the capsule's inner workings by creating a *custom capsule*. A custom capsule is a subclass of `Capsule` that overrides some of its overridable methods. To use your custom capsule, include its class in the root of the capsule JAR, and simply indicate it is the JAR's main class in the mainfest, like so:
 
     Main-Class: MyCustomCapsule
+
+Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html) for specific documentation on custom capsules.
 
 ### "Really Executable" Capsules
 
@@ -347,6 +349,10 @@ When a capsule is launched, two processes are involved: first, a JVM process run
     jcmd 1234 VM.system_properties  | grep capsule.app.pid | cut -f 2 -d =
 
 While this model works well enough in most scenarios, sometimes it is desirable to directly launch the process running the application, rather than indirectly. This is supported by "capsule trampoline", and is available for really executable capsules on UNIX systems only. To take advantage of capsule trampolining, use the `capsule/trampoline-execheader.sh` executable header (rather than `capsule/execheader.sh`) when creating the really executable capsule.
+
+### capsule-util
+
+The [capsule-util](http://puniverse.github.io/capsule/capsule-util/javadoc/) sub-project contains classes to create and interact with capsule's at runtime. See the Javadocs [here](http://puniverse.github.io/capsule/capsule-util/javadoc/).
 
 ## Reference
 
@@ -436,6 +442,12 @@ Capsule defines these variables in the application's environment:
 * `CAPSULE_DIR`: if the JAR has been extracted, the full path of the application cache.
 
 These values can also be accessed with `$VARNAME` in any capsule manifest attributes.
+
+### Javadoc
+
+* [capsule](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html)
+* [capsule-util](http://puniverse.github.io/capsule/capsule-util/javadoc/)
+* [capsule-container](http://puniverse.github.io/capsule/capsule-container/javadoc/)
 
 ## License
 
