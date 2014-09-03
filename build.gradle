@@ -18,7 +18,7 @@ subprojects {
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group               = "co.paralleluniverse"
-    version             = "0.8.0"
+    version             = "0.8.0-SNAPSHOT"
     status              = "integration"
     description         = "Simple Java deployment"
     ext.url             = "https://github.com/puniverse/capsule"
@@ -224,7 +224,7 @@ project (':capsule') {
             exclude group: 'commons-logging', module: '*'
             exclude group: 'junit', module: '*'
         }
-        runtime 'com.google.guava:guava:17.0' // necessary -- unfortunately -- for maven-aether-provider
+        runtime 'com.google.guava:guava:18.0' // necessary -- unfortunately -- for maven-aether-provider
 
         runtime 'org.slf4j:slf4j-nop:1.7.7'
 
