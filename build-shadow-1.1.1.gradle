@@ -18,7 +18,7 @@ subprojects {
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group               = "co.paralleluniverse"
-    version             = "0.8.0-SNAPSHOT"
+    version             = "0.9.0-SNAPSHOT"
     status              = "integration"
     description         = "Simple Java deployment"
     ext.url             = "https://github.com/puniverse/capsule"
@@ -293,6 +293,7 @@ project (':capsule') {
 
     build.dependsOn proguard
     install.dependsOn proguard
+    signArchives.dependsOn proguard
     uploadArchives.dependsOn proguard
 
     install.repositories.mavenInstaller {
