@@ -18,7 +18,7 @@ subprojects {
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group               = "co.paralleluniverse"
-    version             = "0.8.0-SNAPSHOT"
+    version             = "0.8.0"
     status              = "integration"
     description         = "Simple Java deployment"
     ext.url             = "https://github.com/puniverse/capsule"
