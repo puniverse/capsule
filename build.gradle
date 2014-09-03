@@ -297,6 +297,7 @@ project (':capsule') {
 
     build.dependsOn proguard
     install.dependsOn proguard
+    signArchives.dependsOn proguard
     uploadArchives.dependsOn proguard
 
     install.repositories.mavenInstaller {
