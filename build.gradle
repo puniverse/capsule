@@ -18,7 +18,7 @@ subprojects {
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group               = "co.paralleluniverse"
-    version             = "0.8.0-SNAPSHOT"
+    version             = "0.8.0"
     status              = "integration"
     description         = "Simple Java deployment"
     ext.url             = "https://github.com/puniverse/capsule"
@@ -47,11 +47,11 @@ subprojects {
             failOnVersionConflict()
         }
     }
-    
+
     repositories {
         mavenCentral()
     }
-    
+
     dependencies {
         testCompile 'junit:junit:4.11'
         testCompile('org.truth0:truth:0.23') {
@@ -70,7 +70,7 @@ subprojects {
         test.compileClasspath = test.compileClasspath + configurations.provided
         test.runtimeClasspath = test.runtimeClasspath + configurations.provided
     }
-    
+
     test {
         systemProperty "java.protocol.handler.pkgs", "co.paralleluniverse.filesystem"
 
@@ -105,7 +105,7 @@ subprojects {
     configure (javadoc) {
         options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
     }
-    
+
     task sourcesJar(type: Jar, dependsOn: classes) {
         classifier = 'sources'
         from sourceSets.main.allSource
@@ -119,7 +119,7 @@ subprojects {
     //    tasks.withType(JavaCompile) {
     //        options.compilerArgs << "-Xlint:unchecked"
     //    }
-        
+
     task javancss(dependsOn: 'classes') << {
         ant {
             logging.level = LogLevel.INFO
@@ -317,7 +317,7 @@ project (':capsule-util') {
         runtime project(':capsule')
         compile files("${System.getProperty('java.home')}/../lib/tools.jar")
     }
-    
+
     configure (javadoc) {
         excludes = [ \
         "co/paralleluniverse/common/**",
