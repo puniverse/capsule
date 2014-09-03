@@ -479,7 +479,14 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
-    private ProcessBuilder prelaunch(List<String> args) {
+    /**
+     * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
+     * The ProcessBuilder's IO redirection is left in its default settings.
+     *
+     * @param args the application command-line arguments
+     * @return a configured {@code ProceddBuilder}/
+     */
+    protected final ProcessBuilder prelaunch(List<String> args) {
         final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
         ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
         if (pb == null)
