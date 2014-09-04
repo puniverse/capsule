@@ -71,14 +71,20 @@ import java.util.zip.ZipInputStream;
  */
 public class Capsule implements Runnable {
     /*
-     * This class contains several strange hacks to avoid creating more classes,  
-     * as we'd like this file to compile to a single .class file.
+     * This class follows some STRICT RULES:
+     *
+     * 1. IT MUST COMPILE TO A SINGLE CLASS FILE (so it must not contain nested or inner classes).
+     * 2. IT MUST ONLY REFERENCE CLASSES IN THE JDK AND THOSE IN THE capsule PACKAGE.
+     * 3. CAPSULES WITH NO DECLARED DEPENDENCIES MUST LAUNCH WITHOUT REQUIRING ANY CLASSES BUT THIS AND THE JDK.
+     *
+     * Rules #1 and #3 ensure that fat capsules will work with only Capsule.class included in the JAR. Rule #2 helps enforcing the other rules.
+     *
+     * This class contains several strange hacks to compy with rule #1.
      *
      * Also, the code is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      *
-     * We do a lot of data transformations that would have really benefited from Java 8's lambdas and streams, 
-     * but we want Capsule to support Java 7.
+     * We do a lot of data transformations that could benefited from Java 8's lambdas+streams, but we want Capsule to support Java 7.
      */
     protected static final String VERSION = "0.9.0";
 
