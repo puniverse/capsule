@@ -492,7 +492,7 @@ public class Capsule implements Runnable {
      * @param args the application command-line arguments
      * @return a configured {@code ProceddBuilder}/
      */
-    protected final ProcessBuilder prelaunch(List<String> args) {
+    protected ProcessBuilder prelaunch(List<String> args) {
         final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
         ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
         if (pb == null)
