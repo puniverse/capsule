@@ -80,7 +80,7 @@ public class Capsule implements Runnable {
      * We do a lot of data transformations that would have really benefited from Java 8's lambdas and streams, 
      * but we want Capsule to support Java 7.
      */
-    private static final String VERSION = "0.9.0";
+    protected static final String VERSION = "0.9.0";
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
@@ -924,7 +924,7 @@ public class Capsule implements Runnable {
 
         final List<String> command = pb.command();
 
-        command.add(getJavaProcessImage(javaHome).toString());
+        command.add(getJavaExecutable0(javaHome).toString());
         command.addAll(buildJVMArgs(cmdLine));
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
@@ -943,8 +943,17 @@ public class Capsule implements Runnable {
         return true;
     }
 
+    /**
+     * Returns the path to the executable that will be used to launch Java
+     */
+    protected Path getJavaExecutable(Path javaHome) {
+        return getJavaExecutable0(javaHome);
+    }
+
     private Path setJavaHomeEnv(ProcessBuilder pb) {
         final Path javaHome = getJavaHome();
+        if (javaHome == null)
+            return null;
         log(LOG_VERBOSE, "Using JVM: " + javaHome);
         pb.environment().put(VAR_JAVA_HOME, javaHome.toString());
         return javaHome;
@@ -1352,7 +1361,7 @@ public class Capsule implements Runnable {
     /**
      * The path to the Java installation this capsule's app will use.
      */
-    protected final Path getJavaHome() {
+    protected Path getJavaHome() {
         if (javaHome_ == null) {
             final Path jhome = chooseJavaHome();
             this.javaHome_ = jhome != null ? jhome : Paths.get(System.getProperty(PROP_JAVA_HOME));
@@ -2065,7 +2074,7 @@ public class Capsule implements Runnable {
         return false;
     }
 
-    private static Path getJavaProcessImage(Path javaHome) {
+    private static Path getJavaExecutable0(Path javaHome) {
         return javaHome.resolve("bin").resolve("java" + (isWindows() ? ".exe" : ""));
     }
 
@@ -2073,7 +2082,7 @@ public class Capsule implements Runnable {
 
     private static String getActualJavaVersion(Path javaHome) {
         try {
-            final ProcessBuilder pb = new ProcessBuilder(getJavaProcessImage(javaHome).toString(), "-version");
+            final ProcessBuilder pb = new ProcessBuilder(getJavaExecutable0(javaHome).toString(), "-version");
             if (javaHome != null)
                 pb.environment().put("JAVA_HOME", javaHome.toString());
             final Process p = pb.start();
@@ -2112,11 +2121,26 @@ public class Capsule implements Runnable {
         }
     }
 
-    static final int compareVersions(String a, String b, int n) {
+    /**
+     * Compares two dotted software versions, regarding only the first several version components.
+     *
+     * @param a first version
+     * @param b second version
+     * @param n the number of (most significant) components to consider
+     * @return {@code 0} if {@code a == b}; {@code > 0} if {@code a > b}; {@code < 0} if {@code a < b};
+     */
+    protected static final int compareVersions(String a, String b, int n) {
         return compareVersions(parseJavaVersion(a), parseJavaVersion(b), n);
     }
 
-    static final int compareVersions(String a, String b) {
+    /**
+     * Compares two dotted software versions.
+     *
+     * @param a first version
+     * @param b second version
+     * @return {@code 0} if {@code a == b}; {@code > 0} if {@code a > b}; {@code < 0} if {@code a < b};
+     */
+    protected static final int compareVersions(String a, String b) {
         return compareVersions(parseJavaVersion(a), parseJavaVersion(b));
     }
 
@@ -2235,7 +2259,9 @@ public class Capsule implements Runnable {
         assert appId != null;
         str = str.replaceAll("\\$" + VAR_CAPSULE_APP, appId);
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, jarFile.toString());
-        str = str.replaceAll("\\$" + VAR_JAVA_HOME, getJavaHome().toString());
+        final String jhome = toString(getJavaHome());
+        if (jhome != null)
+            str = str.replaceAll("\\$" + VAR_JAVA_HOME, jhome);
         str = str.replace('/', FILE_SEPARATOR.charAt(0));
         return str;
     }
@@ -2243,6 +2269,10 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="String Utils">
     /////////// String Utils ///////////////////////////////////
+    private static String toString(Object obj) {
+        return obj != null ? obj.toString() : null;
+    }
+
     /**
      * Splits a string into a list using a regex separator
      */
