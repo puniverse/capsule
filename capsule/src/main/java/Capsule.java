@@ -1851,13 +1851,13 @@ public class Capsule implements Runnable {
     }
 
     private static Manifest getManifest(Path jar) throws IOException {
-        try (final JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jar)))) {
+        try (JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jar)))) {
             return jis.getManifest();
         }
     }
 
     private static boolean hasEntry(Path jarFile, String name) throws IOException {
-        try (final JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jarFile)))) {
+        try (JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jarFile)))) {
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
                 if (name.equals(entry.getName()))
                     return true;
