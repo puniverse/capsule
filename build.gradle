@@ -6,11 +6,13 @@ buildscript {
     dependencies {
         classpath 'com.github.jengelman.gradle.plugins:shadow:0.8'
         classpath 'net.sf.proguard:proguard-gradle:5.0'
+        classpath "net.saliman:gradle-cobertura-plugin:2.2.4"
     }
 }
 
 subprojects {
     apply plugin: 'java'
+    apply plugin: 'cobertura'
 
     sourceCompatibility = '1.7'
     targetCompatibility = '1.7'
@@ -42,11 +44,11 @@ subprojects {
         javancss
     }
 
-    configurations.all {
-        resolutionStrategy {
-            failOnVersionConflict()
-        }
-    }
+//    configurations.all {
+//        resolutionStrategy {
+//            failOnVersionConflict()
+//        }
+//    }
 
     repositories {
         mavenCentral()
