@@ -53,7 +53,7 @@ public final class CapsuleLauncher {
     public static Object newCapsule(Path jarFile, Path cacheDir, Map<String, Path> javaHomes) {
         try {
             final Manifest mf;
-            try (final JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
+            try (JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
                 mf = jis.getManifest();
             }
 
