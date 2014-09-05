@@ -101,6 +101,7 @@ public class Capsule implements Runnable {
     private static final String PROP_APP_ID = "capsule.app.id";
     private static final String PROP_PRINT_JRES = "capsule.jvms";
     private static final String PROP_CAPSULE_JAVA_HOME = "capsule.java.home";
+    private static final String PROP_CAPSULE_JAVA_CMD = "capsule.java.cmd";
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
     private static final String PROP_JVM_ARGS = "capsule.jvm.args";
@@ -919,11 +920,15 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Build Java Process">
     /////////// Build Java Process ///////////////////////////////////
     private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
-        final Path javaHome = setJavaHomeEnv(pb);
-
         final List<String> command = pb.command();
 
-        command.add(getJavaExecutable0(javaHome).toString());
+        if (emptyToNull(System.getProperty(PROP_CAPSULE_JAVA_CMD)) != null)
+            command.add(System.getProperty(PROP_CAPSULE_JAVA_CMD));
+        else {
+            final Path javaHome = setJavaHomeEnv(pb);
+            command.add(getJavaExecutable0(javaHome).toString());
+        }
+
         command.addAll(buildJVMArgs(cmdLine));
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
@@ -1381,7 +1386,7 @@ public class Capsule implements Runnable {
      * @return the path of the Java installation to use for launching the app, or {@code null} if the current JVM is to be used.
      */
     protected Path chooseJavaHome() {
-        Path jhome = System.getProperty(PROP_CAPSULE_JAVA_HOME) != null ? Paths.get(System.getProperty(PROP_CAPSULE_JAVA_HOME)) : null;
+        Path jhome = emptyToNull(System.getProperty(PROP_CAPSULE_JAVA_HOME)) != null ? Paths.get(System.getProperty(PROP_CAPSULE_JAVA_HOME)) : null;
         if (jhome == null && !isMatchingJavaVersion(System.getProperty(PROP_JAVA_VERSION))) {
             final boolean jdk = hasAttribute(ATTR_JDK_REQUIRED) && Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
             jhome = findJavaHome(jdk);

@@ -169,6 +169,48 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testCapsuleJavaHome() throws Exception {
+        System.setProperty("capsule.java.home", "/my/java/home");
+        try {
+            Jar jar = newCapsuleJar()
+                    .setAttribute("Application-Class", "com.acme.Foo")
+                    .setAttribute("Extract-Capsule", "false")
+                    .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
+
+            List<String> args = list("hi", "there");
+            List<String> cmdLine = list();
+
+            Capsule capsule = newCapsule(jar, null);
+            ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+            assertEquals("/my/java/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""), pb.command().get(0));
+        } finally {
+            System.setProperty("capsule.java.home", "");
+        }
+    }
+
+    @Test
+    public void testCapsuleJavaCmd() throws Exception {
+        System.setProperty("capsule.java.cmd", "/my/java/home/gogo");
+        try {
+            Jar jar = newCapsuleJar()
+                    .setAttribute("Application-Class", "com.acme.Foo")
+                    .setAttribute("Extract-Capsule", "false")
+                    .addEntry("foo.jar", Jar.toInputStream("", UTF_8));
+
+            List<String> args = list("hi", "there");
+            List<String> cmdLine = list();
+
+            Capsule capsule = newCapsule(jar, null);
+            ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+            assertEquals("/my/java/home/gogo", pb.command().get(0));
+        } finally {
+            System.setProperty("capsule.java.cmd", "");
+        }
+    }
+
+    @Test
     public void whenNoNameAndPomTakeIdFromPom() throws Exception {
         Model pom = newPom();
         pom.setGroupId("com.acme");
