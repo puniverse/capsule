@@ -481,6 +481,7 @@ public class Capsule implements Runnable {
     /**
      * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
      * The ProcessBuilder's IO redirection is left in its default settings.
+     * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
      *
      * @param jvmArgs the JVM command-line arguments
      * @param args    the application command-line arguments
