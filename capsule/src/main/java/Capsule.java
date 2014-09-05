@@ -120,6 +120,7 @@ public class Capsule implements Runnable {
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
     private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
     private static final String ENV_CAPSULE_LOCAL_REPO = "CAPSULE_LOCAL_REPO";
+    private static final String ENV_JAVA_CMD = "JAVACMD";
 
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
@@ -922,12 +923,12 @@ public class Capsule implements Runnable {
     private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
         final List<String> command = pb.command();
 
-        if (emptyToNull(System.getProperty(PROP_CAPSULE_JAVA_CMD)) != null)
-            command.add(System.getProperty(PROP_CAPSULE_JAVA_CMD));
-        else {
-            final Path javaHome = setJavaHomeEnv(pb);
-            command.add(getJavaExecutable0(javaHome).toString());
+        String javaCmd = getJavaCmd();
+        if (javaCmd == null) {
+            Path javaHome = setJavaHomeEnv(pb);
+            javaCmd = getJavaExecutable0(javaHome).toString();
         }
+        command.add(javaCmd);
 
         command.addAll(buildJVMArgs(cmdLine));
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
@@ -948,7 +949,17 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Returns the path to the executable that will be used to launch Java
+     * Returns the path to the executable that will be used to launch Java.
+     */
+    protected String getJavaCmd() {
+        if (emptyToNull(System.getProperty(PROP_CAPSULE_JAVA_CMD)) != null)
+            return System.getProperty(PROP_CAPSULE_JAVA_CMD);
+        return emptyToNull(System.getenv(ENV_JAVA_CMD));
+    }
+
+    /**
+     * Returns the path to the executable that will be used to launch Java, in the event {@link #getJavaCmd()} returned {@code null}.
+     * The returned path must be a descendant directory of {@code javaHome}.
      */
     protected Path getJavaExecutable(Path javaHome) {
         return getJavaExecutable0(javaHome);
