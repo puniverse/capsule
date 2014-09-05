@@ -651,7 +651,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Capsule Artifact">
     /////////// Capsule Artifact ///////////////////////////////////
     // visible for testing
-    final ProcessBuilder launchCapsuleArtifact(List<String> cmdLine, List<String> args) {
+    final ProcessBuilder launchCapsuleArtifact(List<String> jvmArgs, List<String> args) {
         if (getScript() == null) {
             final String appArtifact = getAppArtifact(args);
             if (appArtifact != null && isDependency(appArtifact)) {
@@ -662,7 +662,7 @@ public class Capsule implements Runnable {
                     if (isCapsule(jars.get(0))) {
                         log(LOG_VERBOSE, "Running capsule " + jars.get(0));
                         return launchCapsule(jars.get(0), cacheDir,
-                                cmdLine, isEmptyCapsule() ? args.subList(1, args.size()) : buildArgs(args));
+                                jvmArgs, isEmptyCapsule() ? args.subList(1, args.size()) : buildArgs(args));
                     } else if (isEmptyCapsule())
                         throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
                 } catch (RuntimeException e) {
