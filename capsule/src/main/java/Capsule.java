@@ -999,14 +999,12 @@ public class Capsule implements Runnable {
         }
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
+            if (appCache == null)
+                throw new IllegalStateException("Cannot resolve classpath " + getListAttribute(ATTR_APP_CLASS_PATH)
+                        + "  in " + ATTR_APP_CLASS_PATH + " attribute when the " + ATTR_EXTRACT + " attribute is set to false");
+
             for (String sp : getListAttribute(ATTR_APP_CLASS_PATH)) {
-                Path p = path(expand(sanitize(sp)));
-
-                if (appCache == null && (!p.isAbsolute() || p.startsWith(appCache)))
-                    throw new IllegalStateException("Cannot resolve " + sp + "  in " + ATTR_APP_CLASS_PATH + " attribute when the "
-                            + ATTR_EXTRACT + " attribute is set to false");
-
-                p = appCache.resolve(p);
+                final Path p = appCache.resolve(path(expand(sanitize(sp))));
                 classPath.add(p);
             }
         }
