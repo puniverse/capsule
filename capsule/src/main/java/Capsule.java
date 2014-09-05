@@ -203,7 +203,7 @@ public class Capsule implements Runnable {
     private static Capsule CAPSULE;
 
     /**
-     * Returns the singleton Capsule instance
+     * Returns the singleton Capsule instance.
      */
     protected static Capsule myCapsule() {
         if (CAPSULE == null)
@@ -447,14 +447,13 @@ public class Capsule implements Runnable {
 
     private void launch(List<String> args) throws IOException, InterruptedException {
         final ProcessBuilder pb = prelaunch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
-        final int exitValue;
+        assert pb != null;
 
         if (propertyDefined(PROP_TRAMPOLINE)) {
             if (hasAttribute(ATTR_ENV))
                 throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
             pb.command().remove("-D" + PROP_TRAMPOLINE);
             System.out.println(join(pb.command(), " "));
-            exitValue = 0;
         } else {
             Runtime.getRuntime().addShutdownHook(new Thread(this));
 
@@ -469,11 +468,11 @@ public class Capsule implements Runnable {
             final int pid = getPid(child);
             if (pid > 0)
                 System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
-
-            exitValue = child.waitFor();
+            
+            child.waitFor();
         }
 
-        System.exit(exitValue);
+        System.exit(child != null ? child.exitValue() : 0);
     }
     //</editor-fold>
 
@@ -2583,8 +2582,8 @@ public class Capsule implements Runnable {
 
     private void pipe(InputStream in, OutputStream out) {
         try (OutputStream out1 = out) {
+            final byte[] buf = new byte[1024];
             int read;
-            byte[] buf = new byte[1024];
             while (-1 != (read = in.read(buf))) {
                 out.write(buf, 0, read);
                 out.flush();
