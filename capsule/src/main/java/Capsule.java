@@ -69,14 +69,17 @@ import java.util.zip.ZipInputStream;
  * @author pron
  */
 public class Capsule implements Runnable {
+    protected static final String VERSION = "0.9.0";
     /*
      * This class follows some STRICT RULES:
      *
      * 1. IT MUST COMPILE TO A SINGLE CLASS FILE (so it must not contain nested or inner classes).
      * 2. IT MUST ONLY REFERENCE CLASSES IN THE JDK AND THOSE IN THE capsule PACKAGE.
      * 3. CAPSULES WITH NO DECLARED DEPENDENCIES MUST LAUNCH WITHOUT REQUIRING ANY CLASSES BUT THIS AND THE JDK.
+     * 4. ALL METHODS MUST BE PURE OR, AT LEAST, IDEMPOTENT (with the exception of the launch method, and, of course, the constructor).
      *
-     * Rules #1 and #3 ensure that fat capsules will work with only Capsule.class included in the JAR. Rule #2 helps enforcing the other rules.
+     * Rules #1 and #3 ensure that fat capsules will work with only Capsule.class included in the JAR. Rule #2 helps enforcing rules #1 and #3.
+     * Rule #4 ensures methods can be called in any order (after construction completes), and makes maintenance and evolution of Capsule simpler.
      *
      * This class contains several strange hacks to compy with rule #1.
      *
@@ -85,7 +88,6 @@ public class Capsule implements Runnable {
      *
      * We do a lot of data transformations that could benefited from Java 8's lambdas+streams, but we want Capsule to support Java 7.
      */
-    protected static final String VERSION = "0.9.0";
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
@@ -200,6 +202,9 @@ public class Capsule implements Runnable {
     /////////// Main ///////////////////////////////////
     private static Capsule CAPSULE;
 
+    /**
+     * Returns the singleton Capsule instance
+     */
     protected static Capsule myCapsule() {
         if (CAPSULE == null)
             CAPSULE = newCapsule(findMyJarFile(), getCacheDir());
@@ -207,7 +212,9 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Launches the capsule
+     * Launches the capsule.
+     * Custom capsules may provide their own main methods to add capsule actions, and then call this method
+     * if no custom action is performed.
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args0) {
