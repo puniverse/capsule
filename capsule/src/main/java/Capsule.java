@@ -981,16 +981,15 @@ public class Capsule implements Runnable {
     protected List<Path> buildClassPath() {
         final List<Path> classPath = new ArrayList<Path>();
 
-        if (!isEmptyCapsule() && !hasAttribute(ATTR_APP_ARTIFACT)) {
-            // the capsule jar
-            final String isCapsuleInClassPath = getAttribute(ATTR_CAPSULE_IN_CLASS_PATH);
-            if (isCapsuleInClassPath == null || Boolean.parseBoolean(isCapsuleInClassPath))
-                classPath.add(jarFile);
-            else if (appCache == null)
-                throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
-                        + ATTR_EXTRACT + " attribute is also set to false");
-        }
+        // the capsule jar
+        final String isCapsuleInClassPath = getAttribute(ATTR_CAPSULE_IN_CLASS_PATH);
+        if (isCapsuleInClassPath == null || Boolean.parseBoolean(isCapsuleInClassPath))
+            classPath.add(jarFile);
+        else if (appCache == null)
+            throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
+                    + ATTR_EXTRACT + " attribute is also set to false");
 
+        // the app artifact (musn't be a capsule if we're here)
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             if (isDependency(getAttribute(ATTR_APP_ARTIFACT)))
                 classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT), "jar")));
@@ -1327,13 +1326,17 @@ public class Capsule implements Runnable {
         try {
             String mainClass = getAttribute(ATTR_APP_CLASS);
             if (mainClass == null && hasAttribute(ATTR_APP_ARTIFACT))
-                mainClass = getMainClass(classPath.get(0));
+                mainClass = getMainClass(getAppArtifactJarFromClasspath(classPath));
             if (mainClass == null)
                 throw new RuntimeException("Jar " + classPath.get(0).toAbsolutePath() + " does not have a main class defined in the manifest.");
             return mainClass;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Path getAppArtifactJarFromClasspath(List<Path> classPath) {
+        return classPath.get(0).equals(jarFile) ? classPath.get(1) : classPath.get(1);
     }
 
     private String getAppArtifact(List<String> args) {
