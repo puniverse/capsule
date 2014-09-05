@@ -233,10 +233,7 @@ public class Capsule implements Runnable {
                 return;
             }
 
-            if (propertyDefined(PROP_TRAMPOLINE))
-                capsule.trampoline(args);
-            else
-                capsule.launch(args);
+            capsule.launch(args);
         } catch (Throwable t) {
             System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
             if (getLogLevel(System.getProperty(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
@@ -441,36 +438,35 @@ public class Capsule implements Runnable {
         log(LOG_QUIET, "Capsule resolved");
     }
 
-    private void trampoline(List<String> args) {
-        if (hasAttribute(ATTR_ENV)) {
-            println("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
-            System.exit(1);
-        }
-
-        final ProcessBuilder pb = prelaunch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
-        pb.command().remove("-D" + PROP_TRAMPOLINE);
-        System.out.println(join(pb.command(), " "));
-        System.exit(0);
-    }
-
     private void launch(List<String> args) throws IOException, InterruptedException {
         final ProcessBuilder pb = prelaunch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
+        final int exitValue;
 
-        Runtime.getRuntime().addShutdownHook(new Thread(this));
+        if (propertyDefined(PROP_TRAMPOLINE)) {
+            if (hasAttribute(ATTR_ENV))
+                throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
+            pb.command().remove("-D" + PROP_TRAMPOLINE);
+            System.out.println(join(pb.command(), " "));
+            exitValue = 0;
+        } else {
+            Runtime.getRuntime().addShutdownHook(new Thread(this));
 
-        if (!isInheritIoBug())
-            pb.inheritIO();
+            if (!isInheritIoBug())
+                pb.inheritIO();
 
-        this.child = pb.start();
-        
-        if (isInheritIoBug())
-            pipeIoStreams();
+            this.child = pb.start();
 
-        final int pid = getPid(child);
-        if (pid > 0)
-            System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
+            if (isInheritIoBug())
+                pipeIoStreams();
 
-        System.exit(child.waitFor());
+            final int pid = getPid(child);
+            if (pid > 0)
+                System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
+
+            exitValue = child.waitFor();
+        }
+
+        System.exit(exitValue);
     }
     //</editor-fold>
 
