@@ -468,7 +468,7 @@ public class Capsule implements Runnable {
             final int pid = getPid(child);
             if (pid > 0)
                 System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
-            
+
             child.waitFor();
         }
 
@@ -657,8 +657,7 @@ public class Capsule implements Runnable {
                         return null;
                     if (isCapsule(jars.get(0))) {
                         log(LOG_VERBOSE, "Running capsule " + jars.get(0));
-                        return launchCapsule(jars.get(0), cacheDir,
-                                jvmArgs, isEmptyCapsule() ? args.subList(1, args.size()) : buildArgs(args));
+                        return launchCapsule(jars.get(0), cacheDir, jvmArgs, isEmptyCapsule() ? args.subList(1, args.size()) : buildArgs(args));
                     } else if (isEmptyCapsule())
                         throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
                 } catch (RuntimeException e) {
@@ -714,8 +713,6 @@ public class Capsule implements Runnable {
                         + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
         }
         if (appName == null) {
-            if (isEmptyCapsule())
-                return null;
             throw new IllegalArgumentException("Capsule jar " + jarFile + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
                     + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
         }
@@ -1172,13 +1169,11 @@ public class Capsule implements Runnable {
             return;
         if (appCache == null)
             throw new IllegalStateException("Cannot have native dependencies when the " + ATTR_EXTRACT + " attribute is set to false");
+
         final List<String> deps = new ArrayList<String>(depsAndRename.size());
         final List<String> renames = new ArrayList<String>(depsAndRename.size());
-        for (String depAndRename : depsAndRename) {
-            String[] dna = depAndRename.split(",");
-            deps.add(dna[0]);
-            renames.add(dna.length > 1 ? dna[1] : null);
-        }
+        splitDepsAndRename(depsAndRename, deps, renames);
+
         log(LOG_VERBOSE, "Resolving native libs " + deps);
         final List<Path> resolved = resolveDependencies(deps, getNativeLibExtension());
         if (resolved.size() != deps.size())
@@ -1197,6 +1192,14 @@ public class Capsule implements Runnable {
             } catch (IOException e) {
                 throw new RuntimeException("Exception while copying native libs", e);
             }
+        }
+    }
+
+    private void splitDepsAndRename(List<String> depsAndRename, List<String> deps, List<String> renames) {
+        for (String depAndRename : depsAndRename) {
+            String[] dna = depAndRename.split(",");
+            deps.add(dna[0]);
+            renames.add(dna.length > 1 ? dna[1] : null);
         }
     }
 
