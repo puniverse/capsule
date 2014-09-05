@@ -450,21 +450,14 @@ public class Capsule implements Runnable {
             System.exit(1);
         }
 
-        final ProcessBuilder pb = prelaunch(args);
+        final ProcessBuilder pb = prelaunch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
         pb.command().remove("-D" + PROP_TRAMPOLINE);
         System.out.println(join(pb.command(), " "));
         System.exit(0);
     }
 
-    /**
-     * Creates the {@link Process} this capsule will launch.
-     * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
-     *
-     * @param args the application's command-line arguments (does not include JVM args)
-     * @return the process this capsule will launch
-     */
-    protected Process launch(List<String> args) throws IOException, InterruptedException {
-        final ProcessBuilder pb = prelaunch(args);
+    private Process launch(List<String> args) throws IOException, InterruptedException {
+        final ProcessBuilder pb = prelaunch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
 
         Runtime.getRuntime().addShutdownHook(new Thread(this));
 
@@ -489,11 +482,13 @@ public class Capsule implements Runnable {
      * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
      * The ProcessBuilder's IO redirection is left in its default settings.
      *
-     * @param args the application command-line arguments
+     * @param jvmArgs the JVM command-line arguments
+     * @param args    the application command-line arguments
      * @return a configured {@code ProceddBuilder}/
      */
-    protected ProcessBuilder prelaunch(List<String> args) {
-        final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
+    protected ProcessBuilder prelaunch(List<String> jvmArgs, List<String> args) {
+        jvmArgs = nullToEmpty(jvmArgs);
+        args = nullToEmpty(args);
         ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
         if (pb == null)
             pb = prepareForLaunch(jvmArgs, args);
