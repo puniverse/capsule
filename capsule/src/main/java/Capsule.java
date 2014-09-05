@@ -60,8 +60,7 @@ import java.util.zip.ZipInputStream;
  * This API is to be used by custom capsules to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
  * <p>
  * All non-final protected methods may be overridden by custom capsules. These methods will usually be called once, but they must be idempotent,
- * i.e. if called numerous times they must always return the same value, and produce the same effect as if called once. The only exception to this
- * rule is the {@link #launch(List) launch} method.
+ * i.e. if called numerous times they must always return the same value, and produce the same effect as if called once.
  * <br>
  * Overridden methods need not be thread-safe, and are guaranteed to be called by a single thread at a time.
  * <p>
@@ -235,11 +234,9 @@ public class Capsule implements Runnable {
             }
 
             if (propertyDefined(PROP_TRAMPOLINE))
-                capsule.trampoline(args); // never returns
-
-            final Process p = capsule.launch(args);
-            if (p != null)
-                System.exit(p.waitFor());
+                capsule.trampoline(args);
+            else
+                capsule.launch(args);
         } catch (Throwable t) {
             System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
             if (getLogLevel(System.getProperty(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
@@ -456,7 +453,7 @@ public class Capsule implements Runnable {
         System.exit(0);
     }
 
-    private Process launch(List<String> args) throws IOException, InterruptedException {
+    private void launch(List<String> args) throws IOException, InterruptedException {
         final ProcessBuilder pb = prelaunch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
 
         Runtime.getRuntime().addShutdownHook(new Thread(this));
@@ -465,6 +462,7 @@ public class Capsule implements Runnable {
             pb.inheritIO();
 
         this.child = pb.start();
+        
         if (isInheritIoBug())
             pipeIoStreams();
 
@@ -472,7 +470,7 @@ public class Capsule implements Runnable {
         if (pid > 0)
             System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
 
-        return child;
+        System.exit(child.waitFor());
     }
     //</editor-fold>
 
