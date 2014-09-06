@@ -167,7 +167,7 @@ public final class DependencyManagerImpl implements DependencyManager {
     }
     //</editor-fold>
 
-    //<editor-fold desc="Operations">
+    //<editor-fold defaultstate="collapsed" desc="Operations">
     /////////// Operations ///////////////////////////////////
     private CollectRequest collect() {
         return new CollectRequest().setRepositories(repos);
