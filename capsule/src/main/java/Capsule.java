@@ -120,7 +120,6 @@ public class Capsule implements Runnable {
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
     private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
     private static final String ENV_CAPSULE_LOCAL_REPO = "CAPSULE_LOCAL_REPO";
-    private static final String ENV_JAVA_CMD = "JAVACMD";
 
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
@@ -979,8 +978,6 @@ public class Capsule implements Runnable {
      */
     protected Path getJavaExecutable() {
         String javaCmd = emptyToNull(System.getProperty(PROP_CAPSULE_JAVA_CMD));
-        if (javaCmd == null)
-            javaCmd = emptyToNull(System.getenv(ENV_JAVA_CMD));
         if (javaCmd != null)
             return path(javaCmd);
 
