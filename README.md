@@ -299,7 +299,9 @@ Remember that values listed in all these configuration values can contain the `$
 
 While Capsule mostly makes startup scripts unnecessary, in some circumstances they can be useful. Capsule allows placing platform-specific scripts into the capsule JAR, and executing them instead of launching a JVM and running `Application-Class`. The `Unix-Script` attribute specifies the location (relative to the capsule JAR's root) of a POSIX shell script, to be run on POSIX machines, while `Windows-Script` specifies the location of a Windows script file. If only, say, `Unix-Script` is defined, then on Windows machines Capsule will simply run the `Application-Class` as usual.
 
-The scripts can make use of the `CAPSULE_DIR` environment variable to locate capsule files. Scripts cannot be used if the `Extract-Capsule` attribute is `false`.
+The scripts can make use of the `CAPSULE_DIR` environment variable to locate capsule files. In addition, Capsule will choose the JVM installation based on the version requirements, and set the `JAVA_HOME` environment variable for the script appropriately.
+
+Scripts cannot be used if the `Extract-Capsule` attribute is `false`.
 
 ### Security Manager
 

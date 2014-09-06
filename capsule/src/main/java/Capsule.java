@@ -549,10 +549,10 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Constructs a {@link ProcessBuilder} that is later used to launch the capsule. 
-     * The returned process builder should contain the command <i>minus</i> the application arguments (which are later constructed by 
+     * Constructs a {@link ProcessBuilder} that is later used to launch the capsule.
+     * The returned process builder should contain the command <i>minus</i> the application arguments (which are later constructed by
      * {@link #buildArgs(List) buildArgs} and appended to the command).<br>
-     * While environment variables may be set at this stage, the environment is later configured by 
+     * While environment variables may be set at this stage, the environment is later configured by
      * {@link #buildEnvironmentVariables(Map) buildEnvironmentVariables}.
      * <p>
      * This implementation tries to create a process running a startup script, and, if one has not been set, constructs a Java process.
@@ -655,7 +655,7 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("Cannot run the startup script " + script + " when the "
                     + ATTR_EXTRACT + " attribute is set to false");
 
-        setJavaHomeEnv(pb);
+        setJavaHomeEnv(pb, getJavaHome());
 
         final List<Path> classPath = buildClassPath();
         resolveNativeDependencies();
@@ -665,6 +665,13 @@ public class Capsule implements Runnable {
         ensureExecutable(scriptPath);
         pb.command().add(scriptPath.toString());
         return true;
+    }
+
+    private Path setJavaHomeEnv(ProcessBuilder pb, Path javaHome) {
+        if (javaHome == null)
+            return null;
+        pb.environment().put(VAR_JAVA_HOME, javaHome.toString());
+        return javaHome;
     }
     //</editor-fold>
 
@@ -945,13 +952,8 @@ public class Capsule implements Runnable {
     private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
         final List<String> command = pb.command();
 
-        String javaCmd = getJavaCmd();
-        if (javaCmd == null) {
-            Path javaHome = setJavaHomeEnv(pb);
-            javaCmd = getJavaExecutable0(javaHome).toString();
-        }
-        command.add(javaCmd);
-
+        command.add(getJavaExecutable().toString());
+        
         command.addAll(buildJVMArgs(cmdLine));
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
@@ -972,28 +974,26 @@ public class Capsule implements Runnable {
 
     /**
      * Returns the path to the executable that will be used to launch Java.
+     * The default implementation uses the {@code capsule.java.cmd} property or the {@code JAVACMD} environment variable,
+     * and if not set, returns the value of {@code getJavaExecutable(getJavaHome())}.
      */
-    protected String getJavaCmd() {
-        if (emptyToNull(System.getProperty(PROP_CAPSULE_JAVA_CMD)) != null)
-            return System.getProperty(PROP_CAPSULE_JAVA_CMD);
-        return emptyToNull(System.getenv(ENV_JAVA_CMD));
+    protected Path getJavaExecutable() {
+        String javaCmd = emptyToNull(System.getProperty(PROP_CAPSULE_JAVA_CMD));
+        if (javaCmd == null)
+            javaCmd = emptyToNull(System.getenv(ENV_JAVA_CMD));
+        if (javaCmd != null)
+            return path(javaCmd);
+
+        return getJavaExecutable(getJavaHome());
     }
 
     /**
-     * Returns the path to the executable that will be used to launch Java, in the event {@link #getJavaCmd()} returned {@code null}.
-     * The returned path must be a descendant directory of {@code javaHome}.
+     * Finds the path to the executable that will be used to launch Java within the given {@code javaHome}.
      */
-    protected Path getJavaExecutable(Path javaHome) {
-        return getJavaExecutable0(javaHome);
-    }
-
-    private Path setJavaHomeEnv(ProcessBuilder pb) {
-        final Path javaHome = getJavaHome();
-        if (javaHome == null)
-            return null;
-        log(LOG_VERBOSE, "Using JVM: " + javaHome);
-        pb.environment().put(VAR_JAVA_HOME, javaHome.toString());
-        return javaHome;
+    protected static final Path getJavaExecutable(Path javaHome) {
+        final Path exec = getJavaExecutable0(javaHome);
+        assert exec.startsWith(javaHome);
+        return exec;
     }
 
     private static List<String> compileSystemProperties(Map<String, String> ps) {
@@ -1405,10 +1405,12 @@ public class Capsule implements Runnable {
     /**
      * The path to the Java installation this capsule's app will use.
      */
-    protected Path getJavaHome() {
+    protected final Path getJavaHome() {
         if (javaHome_ == null) {
             final Path jhome = chooseJavaHome();
             this.javaHome_ = jhome != null ? jhome : Paths.get(System.getProperty(PROP_JAVA_HOME));
+            log(LOG_VERBOSE, "Using JVM: " + javaHome_);
+
         }
         return javaHome_;
     }
