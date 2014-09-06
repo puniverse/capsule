@@ -484,6 +484,7 @@ public class Capsule implements Runnable {
      * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
      * The ProcessBuilder's IO redirection is left in its default settings.
      * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
+     * Other, more elaborate customization of the command are best done by overriding {@link #buildProcess(List, List) buildProcess}.
      *
      * @param jvmArgs the JVM command-line arguments
      * @param args    the application command-line arguments
@@ -534,7 +535,21 @@ public class Capsule implements Runnable {
         }
     }
 
-    private ProcessBuilder buildProcess(List<String> jvmArgs, List<String> args) {
+    /**
+     * Constructs a {@link ProcessBuilder} that is later used to launch the capsule.
+     * <p>
+     * This implementation tries to create a process running a startup script, and, if one has not been set,
+     * constructs a Java process.
+     * <p>
+     * This method should be overriden to add new types of processes the capsule can launch (like, say, Python scripts).
+     * If all you want is to configure the returned {@link ProcessBuilder}, for example to set IO stream redirection,
+     * you should override {@link #prelaunch(List, List) prelaunch}.
+     *
+     * @param jvmArgs the JVM command-line arguments
+     * @param args    the application command-line arguments
+     * @return a {@code ProcessBuilder}
+     */
+    protected ProcessBuilder buildProcess(List<String> jvmArgs, List<String> args) {
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
             buildJavaProcess(pb, jvmArgs);
