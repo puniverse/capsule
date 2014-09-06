@@ -487,7 +487,7 @@ public class Capsule implements Runnable {
      *
      * @param jvmArgs the JVM command-line arguments
      * @param args    the application command-line arguments
-     * @return a configured {@code ProceddBuilder}/
+     * @return a configured {@code ProcessBuilder}
      */
     protected ProcessBuilder prelaunch(List<String> jvmArgs, List<String> args) {
         jvmArgs = nullToEmpty(jvmArgs);
