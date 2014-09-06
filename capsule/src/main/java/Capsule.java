@@ -503,7 +503,7 @@ public class Capsule implements Runnable {
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
         chooseMode1();
         ensureExtractedIfNecessary();
-        final ProcessBuilder pb = buildProcess(jvmArgs, args);
+        final ProcessBuilder pb = buildProcess1(jvmArgs, args);
         if (appCache != null && !cacheUpToDate)
             markCache();
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
@@ -535,13 +535,29 @@ public class Capsule implements Runnable {
         }
     }
 
+    private ProcessBuilder buildProcess1(List<String> jvmArgs, List<String> args) {
+        final ProcessBuilder pb = buildProcess(jvmArgs, args);
+
+        final List<String> command = pb.command();
+        command.addAll(buildArgs(args));
+
+        buildEnvironmentVariables(pb.environment());
+
+        log(LOG_VERBOSE, join(command, " "));
+
+        return pb;
+    }
+
     /**
-     * Constructs a {@link ProcessBuilder} that is later used to launch the capsule.
+     * Constructs a {@link ProcessBuilder} that is later used to launch the capsule. 
+     * The returned process builder should contain the command <i>minus</i> the application arguments (which are later constructed by 
+     * {@link #buildArgs(List) buildArgs} and appended to the command).<br>
+     * While environment variables may be set at this stage, the environment is later configured by 
+     * {@link #buildEnvironmentVariables(Map) buildEnvironmentVariables}.
      * <p>
-     * This implementation tries to create a process running a startup script, and, if one has not been set,
-     * constructs a Java process.
+     * This implementation tries to create a process running a startup script, and, if one has not been set, constructs a Java process.
      * <p>
-     * This method should be overriden to add new types of processes the capsule can launch (like, say, Python scripts).
+     * This method should be overridden to add new types of processes the capsule can launch (like, say, Python scripts).
      * If all you want is to configure the returned {@link ProcessBuilder}, for example to set IO stream redirection,
      * you should override {@link #prelaunch(List, List) prelaunch}.
      *
@@ -553,14 +569,6 @@ public class Capsule implements Runnable {
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
             buildJavaProcess(pb, jvmArgs);
-
-        final List<String> command = pb.command();
-        command.addAll(buildArgs(args));
-
-        buildEnvironmentVariables(pb.environment());
-
-        log(LOG_VERBOSE, join(command, " "));
-
         return pb;
     }
 
