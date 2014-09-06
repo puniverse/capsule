@@ -503,7 +503,7 @@ public class Capsule implements Runnable {
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
         chooseMode1();
         ensureExtractedIfNecessary();
-        final ProcessBuilder pb = buildProcess1(jvmArgs, args);
+        final ProcessBuilder pb = buildProcess(jvmArgs, args);
         if (appCache != null && !cacheUpToDate)
             markCache();
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
@@ -535,8 +535,8 @@ public class Capsule implements Runnable {
         }
     }
 
-    private ProcessBuilder buildProcess1(List<String> jvmArgs, List<String> args) {
-        final ProcessBuilder pb = buildProcess(jvmArgs, args);
+    private ProcessBuilder buildProcess(List<String> jvmArgs, List<String> args) {
+        final ProcessBuilder pb = buildProcess(jvmArgs);
 
         final List<String> command = pb.command();
         command.addAll(buildArgs(args));
@@ -562,10 +562,9 @@ public class Capsule implements Runnable {
      * you should override {@link #prelaunch(List, List) prelaunch}.
      *
      * @param jvmArgs the JVM command-line arguments
-     * @param args    the application command-line arguments
      * @return a {@code ProcessBuilder}
      */
-    protected ProcessBuilder buildProcess(List<String> jvmArgs, List<String> args) {
+    protected ProcessBuilder buildProcess(List<String> jvmArgs) {
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
             buildJavaProcess(pb, jvmArgs);
