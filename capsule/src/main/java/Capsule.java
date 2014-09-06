@@ -640,41 +640,6 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Script">
-    /////////// Script ///////////////////////////////////
-    private String getScript() {
-        return getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
-    }
-
-    private boolean buildScriptProcess(ProcessBuilder pb) {
-        final String script = getScript();
-        if (script == null)
-            return false;
-
-        if (appCache == null)
-            throw new IllegalStateException("Cannot run the startup script " + script + " when the "
-                    + ATTR_EXTRACT + " attribute is set to false");
-
-        setJavaHomeEnv(pb, getJavaHome());
-
-        final List<Path> classPath = buildClassPath();
-        resolveNativeDependencies();
-        pb.environment().put(VAR_CLASSPATH, compileClassPath(classPath));
-
-        final Path scriptPath = appCache.resolve(sanitize(script)).toAbsolutePath();
-        ensureExecutable(scriptPath);
-        pb.command().add(scriptPath.toString());
-        return true;
-    }
-
-    private Path setJavaHomeEnv(ProcessBuilder pb, Path javaHome) {
-        if (javaHome == null)
-            return null;
-        pb.environment().put(VAR_JAVA_HOME, javaHome.toString());
-        return javaHome;
-    }
-    //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="Capsule Artifact">
     /////////// Capsule Artifact ///////////////////////////////////
     // visible for testing
@@ -947,8 +912,43 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Build Java Process">
-    /////////// Build Java Process ///////////////////////////////////
+    //<editor-fold defaultstate="collapsed" desc="Script Process">
+    /////////// Script Process ///////////////////////////////////
+    private String getScript() {
+        return getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
+    }
+
+    private boolean buildScriptProcess(ProcessBuilder pb) {
+        final String script = getScript();
+        if (script == null)
+            return false;
+
+        if (appCache == null)
+            throw new IllegalStateException("Cannot run the startup script " + script + " when the "
+                    + ATTR_EXTRACT + " attribute is set to false");
+
+        setJavaHomeEnv(pb, getJavaHome());
+
+        final List<Path> classPath = buildClassPath();
+        resolveNativeDependencies();
+        pb.environment().put(VAR_CLASSPATH, compileClassPath(classPath));
+
+        final Path scriptPath = appCache.resolve(sanitize(script)).toAbsolutePath();
+        ensureExecutable(scriptPath);
+        pb.command().add(scriptPath.toString());
+        return true;
+    }
+
+    private Path setJavaHomeEnv(ProcessBuilder pb, Path javaHome) {
+        if (javaHome == null)
+            return null;
+        pb.environment().put(VAR_JAVA_HOME, javaHome.toString());
+        return javaHome;
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Java Process">
+    /////////// Java Process ///////////////////////////////////
     private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
         final List<String> command = pb.command();
 
