@@ -488,7 +488,7 @@ public class Capsule implements Runnable {
      * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
      * The ProcessBuilder's IO redirection is left in its default settings.
      * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
-     * Other, more elaborate customization of the command are best done by overriding {@link #buildProcess(List, List) buildProcess}.
+     * Other, more elaborate customization of the command are best done by overriding {@link #buildProcess() buildProcess}.
      *
      * @param args the application command-line arguments
      * @return a configured {@code ProcessBuilder}
@@ -564,7 +564,7 @@ public class Capsule implements Runnable {
      * <p>
      * This method should be overridden to add new types of processes the capsule can launch (like, say, Python scripts).
      * If all you want is to configure the returned {@link ProcessBuilder}, for example to set IO stream redirection,
-     * you should override {@link #prelaunch(List, List) prelaunch}.
+     * you should override {@link #prelaunch(List) prelaunch}.
      *
      * @return a {@code ProcessBuilder}
      */
