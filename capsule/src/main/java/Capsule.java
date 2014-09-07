@@ -216,7 +216,7 @@ public class Capsule implements Runnable {
 
     /**
      * Launches the capsule.
-     * Custom capsules may provide their own main methods to add capsule actions, and then call this method
+     * A custom capsule may provide its own main method to add capsule actions, and then call this method
      * if no custom action is performed.
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
@@ -280,7 +280,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Constructors">
     /////////// Constructors ///////////////////////////////////
     /**
-     * Constructs a capsule from the given JAR file
+     * Constructs a capsule from the given JAR file.
      *
      * @param jarFile  the path to the JAR file
      * @param cacheDir the path to the (shared) Capsule cache directory
@@ -455,6 +455,8 @@ public class Capsule implements Runnable {
         final ProcessBuilder pb = prelaunch(args);
         assert pb != null;
 
+        log(LOG_VERBOSE, join(pb.command(), " "));
+
         if (propertyDefined(PROP_TRAMPOLINE)) {
             if (hasAttribute(ATTR_ENV))
                 throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
@@ -494,22 +496,27 @@ public class Capsule implements Runnable {
      * @return a configured {@code ProcessBuilder}
      */
     protected ProcessBuilder prelaunch(List<String> args) {
-        final List<String> _jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
-        ProcessBuilder pb = launchCapsuleArtifact(_jvmArgs, args);
+        final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
+
+        ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
         if (pb == null)
-            pb = prepareForLaunch(_jvmArgs, args);
+            pb = prepareForLaunch(jvmArgs, args);
+
         return pb;
     }
 
     // directly used by CapsuleLauncher
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
         chooseMode1();
-        ensureExtractedIfNecessary();
-        this.jvmArgs_ = nullToEmpty(jvmArgs);
 
+        ensureExtractedIfNecessary();
+
+        this.jvmArgs_ = nullToEmpty(jvmArgs);
         final ProcessBuilder pb = buildProcess(nullToEmpty(args));
+
         if (appCache != null && !cacheUpToDate)
             markCache();
+
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
 
         return pb;
@@ -547,8 +554,6 @@ public class Capsule implements Runnable {
         command.addAll(buildArgs(args));
 
         buildEnvironmentVariables(pb.environment());
-
-        log(LOG_VERBOSE, join(command, " "));
 
         return pb;
     }
