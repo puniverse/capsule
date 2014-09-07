@@ -63,6 +63,8 @@ import java.util.zip.ZipInputStream;
  * i.e. if called numerous times they must always return the same value, and produce the same effect as if called once.
  * <br>
  * Overridden methods need not be thread-safe, and are guaranteed to be called by a single thread at a time.
+ * <br>
+ * Overridable (non-final) methods <b>must never</b> be called directly by custom capsule code.
  * <p>
  * Final methods implement various utility or accessors, which may be freely used by custom capsules.
  *
@@ -270,6 +272,9 @@ public class Capsule implements Runnable {
     private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final Object dependencyManager; // non-null iff needsDependencyManager is true
     private final int logLevel;
+
+    // very limited state
+    private List<String> jvmArgs_;
     private Process child;
 
     //<editor-fold defaultstate="collapsed" desc="Constructors">
@@ -447,7 +452,7 @@ public class Capsule implements Runnable {
     }
 
     private void launch(List<String> args) throws IOException, InterruptedException {
-        final ProcessBuilder pb = prelaunch(ManagementFactory.getRuntimeMXBean().getInputArguments(), args);
+        final ProcessBuilder pb = prelaunch(args);
         assert pb != null;
 
         if (propertyDefined(PROP_TRAMPOLINE)) {
@@ -485,16 +490,14 @@ public class Capsule implements Runnable {
      * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
      * Other, more elaborate customization of the command are best done by overriding {@link #buildProcess(List, List) buildProcess}.
      *
-     * @param jvmArgs the JVM command-line arguments
-     * @param args    the application command-line arguments
+     * @param args the application command-line arguments
      * @return a configured {@code ProcessBuilder}
      */
-    protected ProcessBuilder prelaunch(List<String> jvmArgs, List<String> args) {
-        jvmArgs = nullToEmpty(jvmArgs);
-        args = nullToEmpty(args);
-        ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
+    protected ProcessBuilder prelaunch(List<String> args) {
+        final List<String> _jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
+        ProcessBuilder pb = launchCapsuleArtifact(_jvmArgs, args);
         if (pb == null)
-            pb = prepareForLaunch(jvmArgs, args);
+            pb = prepareForLaunch(_jvmArgs, args);
         return pb;
     }
 
@@ -502,10 +505,13 @@ public class Capsule implements Runnable {
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
         chooseMode1();
         ensureExtractedIfNecessary();
-        final ProcessBuilder pb = buildProcess(jvmArgs, args);
+        this.jvmArgs_ = nullToEmpty(jvmArgs);
+
+        final ProcessBuilder pb = buildProcess(nullToEmpty(args));
         if (appCache != null && !cacheUpToDate)
             markCache();
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
+
         return pb;
     }
 
@@ -534,8 +540,8 @@ public class Capsule implements Runnable {
         }
     }
 
-    private ProcessBuilder buildProcess(List<String> jvmArgs, List<String> args) {
-        final ProcessBuilder pb = buildProcess(jvmArgs);
+    private ProcessBuilder buildProcess(List<String> args) {
+        final ProcessBuilder pb = buildProcess();
 
         final List<String> command = pb.command();
         command.addAll(buildArgs(args));
@@ -560,13 +566,15 @@ public class Capsule implements Runnable {
      * If all you want is to configure the returned {@link ProcessBuilder}, for example to set IO stream redirection,
      * you should override {@link #prelaunch(List, List) prelaunch}.
      *
-     * @param jvmArgs the JVM command-line arguments
      * @return a {@code ProcessBuilder}
      */
-    protected ProcessBuilder buildProcess(List<String> jvmArgs) {
+    protected ProcessBuilder buildProcess() {
+        if (jvmArgs_ == null)
+            throw new IllegalStateException("Capsule has not been prepared for launch!");
+
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
-            buildJavaProcess(pb, jvmArgs);
+            buildJavaProcess(pb, jvmArgs_);
         return pb;
     }
 
@@ -952,7 +960,7 @@ public class Capsule implements Runnable {
         final List<String> command = pb.command();
 
         command.add(getJavaExecutable().toString());
-        
+
         command.addAll(buildJVMArgs(cmdLine));
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
