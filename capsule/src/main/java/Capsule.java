@@ -2576,21 +2576,22 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Tests id the given log level is currently being logged
-     *
-     * @param level
+     * Tests if the given log level is currently being logged
      */
     protected final boolean isLogging(int level) {
         return level <= logLevel;
     }
 
-    private void println(String str) {
-        log(LOG_QUIET, str);
-    }
-
-    private void log(int level, String str) {
+    /**
+     * Prints a message to stderr if the given log-level is being logged.
+     */
+    protected final void log(int level, String str) {
         if (isLogging(level))
             System.err.println(LOG_PREFIX + str);
+    }
+
+    private void println(String str) {
+        log(LOG_QUIET, str);
     }
     //</editor-fold>
 
