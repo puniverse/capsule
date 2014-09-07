@@ -64,7 +64,7 @@ import java.util.zip.ZipInputStream;
  * <br>
  * Overridden methods need not be thread-safe, and are guaranteed to be called by a single thread at a time.
  * <br>
- * Overridable (non-final) methods <b>must never</b> be called directly by custom capsule code.
+ * Overridable (non-final) methods <b>must never</b> be called directly by custom capsule code, except by their overrides.
  * <p>
  * Final methods implement various utility or accessors, which may be freely used by custom capsules.
  *
