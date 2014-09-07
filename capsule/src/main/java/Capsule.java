@@ -316,7 +316,7 @@ public class Capsule implements Runnable {
             this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
         this.appId = buildAppId();
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
-        this.cacheUpToDate = appCache != null ? isUpToDate() : false;
+        this.cacheUpToDate = appCache != null ? isAppCacheUpToDate1() : false;
     }
     //</editor-fold>
 
@@ -854,12 +854,12 @@ public class Capsule implements Runnable {
         }
     }
 
-    private boolean isUpToDate() {
+    private boolean isAppCacheUpToDate1() {
         try {
-            boolean res = isUpToDate0();
+            boolean res = isAppCacheUpToDate();
             if (!res) {
                 lockAppCache();
-                res = isUpToDate0();
+                res = isAppCacheUpToDate();
                 if (res)
                     unlockAppCache();
             }
@@ -869,7 +869,13 @@ public class Capsule implements Runnable {
         }
     }
 
-    private boolean isUpToDate0() {
+    /**
+     * Tests if the app cache is up to date.
+     *
+     * The app cache directory is obtained by calling {@link #getAppCache() getAppCache}.
+     * This creates a file in the app cache, whose timestamp is compared with the capsule's JAR timestamp.
+     */
+    protected boolean isAppCacheUpToDate() {
         if (Boolean.parseBoolean(System.getProperty(PROP_RESET, "false")))
             return false;
         try {
@@ -884,7 +890,11 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void extractCapsule() {
+    /**
+     * Extracts the capsule's contents into the app cache directory.
+     * This method may be overridden to write additional files to the app cache.
+     */
+    protected void extractCapsule() {
         try {
             log(LOG_VERBOSE, "Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
             extractJar(openJarInputStream(), appCache);
