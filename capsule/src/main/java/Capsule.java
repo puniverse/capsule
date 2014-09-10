@@ -2148,19 +2148,12 @@ public class Capsule implements Runnable {
 
     private static String getActualJavaVersion(Path javaHome) {
         try {
-            final ProcessBuilder pb = new ProcessBuilder(getJavaExecutable0(javaHome).toString(), "-version");
-            if (javaHome != null)
-                pb.environment().put("JAVA_HOME", javaHome.toString());
-            final Process p = pb.start();
-            final String version;
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
-                final String versionLine = reader.readLine();
-                final Matcher m = PAT_JAVA_VERSION_LINE.matcher(versionLine);
-                if (!m.matches())
-                    throw new IllegalArgumentException("Could not parse version line: " + versionLine);
-                version = m.group(1);
-            }
-            // p.waitFor();
+            final String versionLine = exec(1, getJavaExecutable0(javaHome).toString(), "-version").get(0);
+            final Matcher m = PAT_JAVA_VERSION_LINE.matcher(versionLine);
+            if (!m.matches())
+                throw new IllegalArgumentException("Could not parse version line: " + versionLine);
+            final String version = m.group(1);
+
             return version;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -2556,6 +2549,78 @@ public class Capsule implements Runnable {
 //            throw new AssertionError(e);
 //        }
 //    }
+
+    /**
+     * Executes a command and returns its output as a list of lines.
+     * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
+     * <br>
+     * This is the same as calling {@code exec(-1, cmd}}.
+     *
+     * @param cmd the command
+     * @return the lines output by the command
+     */
+    protected static List<String> exec(String... cmd) throws IOException {
+        return exec(-1, cmd);
+    }
+
+    /**
+     * Executes a command and returns its output as a list of lines.
+     * If the number of lines read is less than {@code numLines}, or if {@code numLines < 0}, then the method will wait for the child process
+     * to terminate, and throw an exception if the command returns an exit value {@code != 0}.
+     *
+     * @param cmd the command
+     * @param pb  the {@link ProcessBuilder} that will be used to launch the command
+     * @return the lines output by the command
+     */
+    protected static List<String> exec(int numLines, String... cmd) throws IOException {
+        return exec(numLines, new ProcessBuilder(Arrays.asList(cmd)));
+    }
+
+    /**
+     * Executes a command and returns its output as a list of lines.
+     * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
+     * <br>
+     * This is the same as calling {@code exec(-1, pb}}.
+     *
+     * @param pb the {@link ProcessBuilder} that will be used to launch the command
+     * @return the lines output by the command
+     */
+    protected static List<String> exec(ProcessBuilder pb) throws IOException {
+        return exec(-1, pb);
+    }
+
+    /**
+     * Executes a command and returns its output as a list of lines.
+     * If the number of lines read is less than {@code numLines}, or if {@code numLines < 0}, then the method will wait for the child process
+     * to terminate, and throw an exception if the command returns an exit value {@code != 0}.
+     *
+     * @param numLines the maximum number of lines to read, or {@code -1} for an unbounded number
+     * @param pb       the {@link ProcessBuilder} that will be used to launch the command
+     * @return the lines output by the command
+     */
+    protected static List<String> exec(int numLines, ProcessBuilder pb) throws IOException {
+        final List<String> lines = new ArrayList<>();
+        final Process p = pb.start();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
+            for (int i = 0; numLines < 0 || i < numLines; i++) {
+                final String line = reader.readLine();
+                if (line == null)
+                    break;
+                lines.add(line);
+            }
+        }
+        try {
+            if (numLines < 0 || lines.size() < numLines) {
+                final int exitValue = p.waitFor();
+                if (exitValue != 0)
+                    throw new RuntimeException("Command '" + join(pb.command(), " ") + "' has returned " + exitValue);
+            }
+            return lines;
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Logging">
