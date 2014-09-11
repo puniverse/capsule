@@ -319,30 +319,9 @@ Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/ja
 
 ### "Really Executable" Capsules
 
-A JAR file can be made "really executable" in UNIX/Linux/MacOS environments -- i.e. it can be run simply as `capsule.jar ARGS` rather than `java -jar capsule.jar ARGS` -- by [prepending a couple of shell script lines to the JAR](http://skife.org/java/unix/2011/06/20/really_executable_jars.html) (it turns out JAR files can tolerate any prepended headers). In Maven, you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) plugin to make your capsule really executable (or if you're using the [capsule-maven-plugin](https://github.com/christokios/capsule-maven-plugin), just set the `buildExec` tag to true). In Gradle, this can be done by adding the following function to your build file:
+A JAR file can be made "really executable" in UNIX/Linux/MacOS environments -- i.e. it can be run simply as `capsule.jar ARGS` rather than `java -jar capsule.jar ARGS` -- by [prepending a couple of shell script lines to the JAR](http://skife.org/java/unix/2011/06/20/really_executable_jars.html) (it turns out JAR files can tolerate any prepended headers). In Maven, you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) plugin to make your capsule really executable (or if you're using the [capsule-maven-plugin](https://github.com/christokios/capsule-maven-plugin), just set the `buildExec` tag to true). 
 
-``` groovy
-def reallyExecutable(jar) {
-    ant.concat(destfile: "tmp.jar", binary: true) {
-        zipentry(zipfile: configurations.capsule.singleFile, name: 'capsule/execheader.sh')
-        fileset(dir: jar.destinationDir) {
-            include(name: jar.archiveName)
-        }
-    }
-    copy {
-        from 'tmp.jar'
-        into jar.destinationDir
-        rename { jar.archiveName }
-    }
-    delete 'tmp.jar'
-}
-```
-
-and then
-
-``` groovy
-capsule.doLast { task -> reallyExecutable(task) }
-```
+With the gradle plugin, you may enable this with [`reallyExecutable`](https://github.com/danthegoodman/gradle-capsule-plugin#really-executable-capsules).
 
 ### The Capsule Execution Process
 
