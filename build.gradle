@@ -44,11 +44,11 @@ subprojects {
         javancss
     }
 
-//    configurations.all {
-//        resolutionStrategy {
-//            failOnVersionConflict()
-//        }
-//    }
+    //    configurations.all {
+    //        resolutionStrategy {
+    //            failOnVersionConflict()
+    //        }
+    //    }
 
     repositories {
         mavenCentral()
@@ -104,7 +104,7 @@ subprojects {
         classpath += sourceSets.test.runtimeClasspath
     }
 
-    configure (javadoc) {
+    javadoc {
         options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
     }
 
@@ -321,10 +321,9 @@ project (':capsule-util') {
         compile files("${System.getProperty('java.home')}/../lib/tools.jar")
     }
 
-    configure (javadoc) {
-        excludes = [ \
-        "co/paralleluniverse/common/**",
-        "co/paralleluniverse/filesystem/**"
+    javadoc {
+        excludes = ["co/paralleluniverse/common/**",
+                    "co/paralleluniverse/filesystem/**"
         ]
     }
 }
