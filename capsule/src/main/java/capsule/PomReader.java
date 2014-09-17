@@ -70,7 +70,8 @@ public final class PomReader {
     private static boolean includeDependency(Dependency dep) {
         if (dep.isOptional())
             return false;
-
+        if (dep.getScope() == null || dep.getScope().isEmpty())
+            return true;
         switch (dep.getScope().toLowerCase()) {
             case "compile":
             case "runtime":
