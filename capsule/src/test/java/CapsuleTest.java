@@ -6,7 +6,6 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-
 import capsule.DependencyManager;
 import co.paralleluniverse.capsule.Jar;
 import com.google.common.jimfs.Jimfs;
@@ -67,6 +66,8 @@ public class CapsuleTest {
                 .addEntry("b.txt", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/b.class", Jar.toInputStream("", UTF_8))
+                .addEntry("q/w/x.txt", Jar.toInputStream("", UTF_8))
+                .addEntry("d\\f\\y.txt", Jar.toInputStream("", UTF_8)) // test with Windows path
                 .addEntry("META-INF/x.txt", Jar.toInputStream("", UTF_8));
 
         List<String> args = list("hi", "there");
@@ -101,6 +102,11 @@ public class CapsuleTest {
         assertTrue(!Files.isRegularFile(appCache.resolve("lib").resolve("b.class")));
         assertTrue(!Files.isDirectory(appCache.resolve("META-INF")));
         assertTrue(!Files.isRegularFile(appCache.resolve("META-INF").resolve("x.txt")));
+
+        assertTrue(Files.isDirectory(appCache.resolve("q").resolve("w")));
+        assertTrue(Files.isDirectory(appCache.resolve("d").resolve("f")));
+        assertTrue(Files.isRegularFile(appCache.resolve("q").resolve("w").resolve("x.txt")));
+        assertTrue(Files.isRegularFile(appCache.resolve("d").resolve("f").resolve("y.txt")));
 
         ASSERT.that(getClassPath(pb)).has().item(path("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache);

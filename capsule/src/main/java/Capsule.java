@@ -6,7 +6,6 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-
 import capsule.DependencyManagerImpl;
 import capsule.DependencyManager;
 import capsule.JarClassLoader;
@@ -188,6 +187,7 @@ public class Capsule implements Runnable {
     private static final String TIMESTAMP_FILE_NAME = ".extracted";
     private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
+    private static final char FILE_SEPARATOR_CHAR = FILE_SEPARATOR.charAt(0);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path WINDOWS_PROGRAM_FILES_1 = Paths.get("C:", "Program Files");
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
@@ -1977,20 +1977,30 @@ public class Capsule implements Runnable {
         return list;
     }
 
-    private static String getDirectory(String filename) {
-        final int index = filename.lastIndexOf('/');
-        if (index < 0)
-            return null;
-        return filename.substring(0, index);
-    }
-
     private static void writeFile(Path targetDir, String fileName, InputStream is) throws IOException {
+        fileName = toNativePath(fileName);
         final String dir = getDirectory(fileName);
         if (dir != null)
             Files.createDirectories(targetDir.resolve(dir));
 
         final Path targetFile = targetDir.resolve(fileName);
         Files.copy(is, targetFile);
+    }
+
+    private static String toNativePath(String filename) {
+        final char ps = getPathSeparator(filename);
+        return ps != FILE_SEPARATOR_CHAR ? filename.replace(ps, FILE_SEPARATOR_CHAR) : filename;
+    }
+
+    private static char getPathSeparator(String filename) {
+        return (!filename.contains("/") && filename.contains("\\")) ? '\\' : '/';
+    }
+
+    private static String getDirectory(String filename) {
+        final int index = filename.lastIndexOf(FILE_SEPARATOR_CHAR);
+        if (index < 0)
+            return null;
+        return filename.substring(0, index);
     }
 
     // visible for testing
@@ -2321,7 +2331,7 @@ public class Capsule implements Runnable {
         final String jhome = toString(getJavaHome());
         if (jhome != null)
             str = str.replaceAll("\\$" + VAR_JAVA_HOME, jhome);
-        str = str.replace('/', FILE_SEPARATOR.charAt(0));
+        str = str.replace('/', FILE_SEPARATOR_CHAR);
         return str;
     }
     //</editor-fold>
@@ -2569,7 +2579,7 @@ public class Capsule implements Runnable {
      * to terminate, and throw an exception if the command returns an exit value {@code != 0}.
      *
      * @param numLines the maximum number of lines to read, or {@code -1} for an unbounded number
-     * @param cmd the command
+     * @param cmd      the command
      * @return the lines output by the command
      */
     protected static List<String> exec(int numLines, String... cmd) throws IOException {
