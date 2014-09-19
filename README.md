@@ -48,7 +48,7 @@ Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.g
 
 Maven:
 
-  * https://github.com/christokios/capsule-maven-plugin
+  * https://github.com/chrischristo/capsule-maven-plugin
   * https://github.com/pguedes/capsule-maven-plugin (limited functionality)
 
 Gradle:
@@ -321,9 +321,9 @@ Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/ja
 
 A JAR file can be made "really executable" in UNIX/Linux/MacOS environments -- i.e. it can be run simply as `capsule.jar ARGS` rather than `java -jar capsule.jar ARGS` -- by [prepending a couple of shell script lines to the JAR](http://skife.org/java/unix/2011/06/20/really_executable_jars.html) (it turns out JAR files can tolerate any prepended headers).
 
-Both [capsule-maven-plugin](https://github.com/christokios/capsule-maven-plugin) and  [gradle-capsule-plugin](https://github.com/danthegoodman/gradle-capsule-plugin) support creation of really executable capsules simply by setting a flag.
+Both [capsule-maven-plugin](https://github.com/chrischristo/capsule-maven-plugin) and  [gradle-capsule-plugin](https://github.com/danthegoodman/gradle-capsule-plugin) support creation of really executable capsules simply by setting a flag.
 
-If you choose not to use one of the capsule plugins, then you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) Maven plugin to make your capsule really executable (or if you're using the [capsule-maven-plugin](https://github.com/christokios/capsule-maven-plugin), just set the `buildExec` tag to true). In Gradle, this can be done by adding the following function to your build file:
+If you choose not to use one of the capsule plugins, then you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) Maven plugin to make your capsule really executable (or if you're using the [capsule-maven-plugin](https://github.com/chrischristo/capsule-maven-plugin), just set the `buildExec` tag to true). In Gradle, this can be done by adding the following function to your build file:
 
 ``` groovy
 def reallyExecutable(jar) {
