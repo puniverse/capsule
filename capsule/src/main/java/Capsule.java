@@ -1988,12 +1988,8 @@ public class Capsule implements Runnable {
     }
 
     private static String toNativePath(String filename) {
-        final char ps = getPathSeparator(filename);
+        final char ps = (!filename.contains("/") && filename.contains("\\")) ? '\\' : '/';
         return ps != FILE_SEPARATOR_CHAR ? filename.replace(ps, FILE_SEPARATOR_CHAR) : filename;
-    }
-
-    private static char getPathSeparator(String filename) {
-        return (!filename.contains("/") && filename.contains("\\")) ? '\\' : '/';
     }
 
     private static String getDirectory(String filename) {
