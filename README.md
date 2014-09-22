@@ -32,7 +32,7 @@ With Capsule, you just distribute a single JAR and run it.
 
 or:
 
-    co.paralleluniverse:capsule:0.8.0
+    co.paralleluniverse:capsule:0.9.0
 
 On Maven Central.
 
@@ -213,6 +213,8 @@ The major version can be given as a single digit (`7`) or as a "formal" Java ver
 If the `JDK-Required` attribute is set to `true`, Capsule will only select JDK installations.
 
 Whatever the `Min-Java-Version`, `Java-Version`, or `JDK-Required` attributes specify, launching the capsule with the `capsule.java.home` system property, will use whatever Java installation is specified by the property, for example: `java -Dcapsule.java.home=/Library/Java/JavaVirtualMachines/jdk1.8.0.jdk/Contents/Home -jar app.jar`.
+
+Finally, setting the `capsule.java.cmd` system property with the path to the executable which will be used to launch the JVM, overrides any JRE selection mechanism.
 
 Running `java -Dcapsule.jvms -jar app.jar` will list all Java installations Capsule can find, and then quit without launching the app.
 
@@ -418,6 +420,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.reset`: if set, forces re-extraction of the capsule, where applies, and/or re-downloading of SNAPSHOT dependencies
 * `capsule.app.id`: sets the value of the application ID (see user guide)
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
+* `capsule.java.cmd`: firces the capsule to use the give executable to launch the JVM.
 * `capsule.offline`: if defined (without a value) or set to `true`, Capsule will not attempt to contact online repositories for dependencies
 * `capsule.local`: the path for the local Maven repository; defaults to CAPSULE_CACHE/deps
 * `capsule.connect.timeout`: The maximum amount of time (in milliseconds) to wait for a successful connection to a remote repository. Non-positive values indicate no timeout.
