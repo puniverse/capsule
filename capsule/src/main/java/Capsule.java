@@ -464,14 +464,8 @@ public class Capsule implements Runnable {
 
         try {
             pb = prelaunch(args);
-            assert pb != null;
         } catch (Throwable t) {
-            try {
-                if (pathingJar != null)
-                    Files.delete(pathingJar);
-            } catch (Exception e) {
-                t.addSuppressed(e);
-            }
+            cleanup();
             throw t;
         }
 
@@ -503,11 +497,7 @@ public class Capsule implements Runnable {
         System.exit(child != null ? child.exitValue() : 0);
     }
 
-    private static boolean isTrampoline() {
-        return propertyDefined(PROP_TRAMPOLINE);
-    }
     //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
     /**
@@ -517,7 +507,7 @@ public class Capsule implements Runnable {
      * Other, more elaborate customization of the command are best done by overriding {@link #buildProcess() buildProcess}.
      *
      * @param args the application command-line arguments
-     * @return a configured {@code ProcessBuilder}
+     * @return a configured {@code ProcessBuilder} (must never return {@code null})
      */
     protected ProcessBuilder prelaunch(List<String> args) {
         final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
@@ -527,6 +517,41 @@ public class Capsule implements Runnable {
             pb = prepareForLaunch(jvmArgs, args);
 
         return pb;
+    }
+
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    @Override
+    public final void run() {
+        if (isInheritIoBug() && pipeIoStream())
+            return;
+
+        // shutdown hook
+        cleanup();
+    }
+
+    /**
+     * Called when the capsule exits after a successful or failed attempt to launch the application.
+     * If you override this method, you must make sure to call {@code super.cleanup()} even in the event of an abnormal termination
+     * (i.e. when an exception is thrown). This method must not throw any exceptions. All exceptions origination by {@code cleanup}
+     * must be wither ignored completely or printed to STDERR.
+     */
+    @SuppressWarnings("CallToPrintStackTrace")
+    protected void cleanup() {
+        try {
+            if (child != null)
+                child.destroy();
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+
+        try {
+            if (pathingJar != null)
+                Files.delete(pathingJar);
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
     }
 
     // directly used by CapsuleLauncher
@@ -675,6 +700,10 @@ public class Capsule implements Runnable {
         env.put(VAR_CAPSULE_JAR, jarFile.toString());
         assert appId != null;
         env.put(VAR_CAPSULE_APP, appId);
+    }
+
+    private static boolean isTrampoline() {
+        return propertyDefined(PROP_TRAMPOLINE);
     }
     //</editor-fold>
 
@@ -2020,12 +2049,12 @@ public class Capsule implements Runnable {
             final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
             final Manifest man = new Manifest();
             man.getMainAttributes().putValue(ATTR_MANIFEST_VERSION, "1.0");
-            
+
             // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file: URLs
             final List<Path> paths = new ArrayList<>(cp.size());
-            for(Path p : cp)
+            for (Path p : cp)
                 paths.add(dir.relativize(p));
-            
+
             man.getMainAttributes().putValue(ATTR_CLASS_PATH, join(paths, " "));
             try (JarOutputStream jos = new JarOutputStream(Files.newOutputStream(pathingJar), man)) {
             }
@@ -2779,34 +2808,19 @@ public class Capsule implements Runnable {
         new Thread(this, "pipe-in").start();
     }
 
-    /**
-     * @deprecated marked deprecated to exclude from javadoc
-     */
-    @SuppressWarnings("CallToPrintStackTrace")
-    @Override
-    public final void run() {
-        if (isInheritIoBug()) {
-            switch (Thread.currentThread().getName()) {
-                case "pipe-out":
-                    pipe(child.getInputStream(), System.out);
-                    return;
-                case "pipe-err":
-                    pipe(child.getErrorStream(), System.err);
-                    return;
-                case "pipe-in":
-                    pipe(System.in, child.getOutputStream());
-                    return;
-                default: // shutdown hook
-            }
-        }
-        if (child != null)
-            child.destroy();
-        if (pathingJar != null) {
-            try {
-                Files.delete(pathingJar);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+    private boolean pipeIoStream() {
+        switch (Thread.currentThread().getName()) {
+            case "pipe-out":
+                pipe(child.getInputStream(), System.out);
+                return true;
+            case "pipe-err":
+                pipe(child.getErrorStream(), System.err);
+                return true;
+            case "pipe-in":
+                pipe(System.in, child.getOutputStream());
+                return true;
+            default:
+                return false;
         }
     }
 
