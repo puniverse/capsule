@@ -1055,9 +1055,9 @@ public class Capsule implements Runnable {
         if (!isWindows())
             return cp; // why work hard if we know the problem only exists on Windows?
 
-        long len = extra + getStringsLength(cp);
+        long len = extra + getStringsLength(cp) + cp.size();
         for (List<?> list : args)
-            len += getStringsLength(list);
+            len += getStringsLength(list) + list.size();
 
         if (len >= getMaxCommandLineLength()) {
             if (isTrampoline())
