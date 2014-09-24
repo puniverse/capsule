@@ -457,7 +457,7 @@ public class Capsule implements Runnable {
 
         log(LOG_VERBOSE, join(pb.command(), " "));
 
-        if (propertyDefined(PROP_TRAMPOLINE)) {
+        if (isTrampoline()) {
             if (hasAttribute(ATTR_ENV))
                 throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
             pb.command().remove("-D" + PROP_TRAMPOLINE);
@@ -481,6 +481,10 @@ public class Capsule implements Runnable {
         }
 
         System.exit(child != null ? child.exitValue() : 0);
+    }
+
+    private static boolean isTrampoline() {
+        return propertyDefined(PROP_TRAMPOLINE);
     }
     //</editor-fold>
 
