@@ -974,13 +974,17 @@ public class CapsuleTest {
     @Test
     public void testPathingJar() throws Exception {
         Files.createDirectories(tmp);
-        List<Path> cp = list(path("a.jar"), path("b.jar"), path("c.jar"));
+        List<Path> cp = list(path("/a.jar"), path("/b.jar"), path("/c.jar"));
         Path pathingJar = Capsule.createPathingJar(tmp, cp);
         try {
+            final List<Path> cp2;
             try (JarInputStream jis = new JarInputStream(Files.newInputStream(pathingJar))) {
-                List<Path> cp2 = toPath(Arrays.asList(jis.getManifest().getMainAttributes().getValue("Class-Path").split(" ")));
-                assertEquals(cp, cp2);
+                cp2 = toPath(Arrays.asList(jis.getManifest().getMainAttributes().getValue("Class-Path").split(" ")));
+                
             }
+            assertEquals(cp, toAbsolutePath(cp2));
+            for(Path p : cp2)
+                assertTrue(!p.isAbsolute());
         } finally {
             Files.delete(pathingJar);
         }
@@ -1154,6 +1158,13 @@ public class CapsuleTest {
         final List<Path> pss = new ArrayList<Path>(ps.size());
         for (String p : ps)
             pss.add(path(p));
+        return pss;
+    }
+
+    private List<Path> toAbsolutePath(List<Path> ps) {
+        final List<Path> pss = new ArrayList<Path>(ps.size());
+        for (Path p : ps)
+            pss.add(p.toAbsolutePath().normalize());
         return pss;
     }
 
