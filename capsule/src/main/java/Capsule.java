@@ -2250,7 +2250,8 @@ public class Capsule implements Runnable {
     }
 
     private static Path getJavaExecutable0(Path javaHome) {
-        return javaHome.resolve("bin").resolve("java" + (isWindows() ? ".exe" : ""));
+        final String exec = (isWindows() && System.console() == null) ? "javaw" : "java";
+        return javaHome.resolve("bin").resolve(exec + (isWindows() ? ".exe" : ""));
     }
 
     private static final Pattern PAT_JAVA_VERSION_LINE = Pattern.compile(".*?\"(.+?)\"");
