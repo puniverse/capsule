@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
+import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -116,11 +117,16 @@ public class Capsule implements Runnable {
     private static final String PROP_PATH_SEPARATOR = "path.separator";
     private static final String PROP_JAVA_SECURITY_POLICY = "java.security.policy";
     private static final String PROP_JAVA_SECURITY_MANAGER = "java.security.manager";
+    private static final String PROP_TMP_DIR = "java.io.tmpdir";
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
     private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
     private static final String ENV_CAPSULE_LOCAL_REPO = "CAPSULE_LOCAL_REPO";
+
+    private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
+    private static final String ATTR_CLASS_PATH = "Class-Path";
+    private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
 
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
@@ -156,7 +162,6 @@ public class Capsule implements Runnable {
     private static final String ATTR_NATIVE_DEPENDENCIES_WIN = "Native-Dependencies-Win";
     private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
-    private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
     private static final String ATTR_LOG_LEVEL = "Capsule-Log-Level";
 
     private static final Set<String> NON_MODAL_ATTRS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
@@ -191,6 +196,7 @@ public class Capsule implements Runnable {
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path WINDOWS_PROGRAM_FILES_1 = Paths.get("C:", "Program Files");
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
+    private static final int WINDOWS_MAX_CMD = 32000; // actually 32768
     private static final Object DEFAULT = new Object();
 
     // logging
@@ -275,6 +281,8 @@ public class Capsule implements Runnable {
 
     // very limited state
     private List<String> jvmArgs_;
+    private List<String> args_;
+    private Path pathingJar;
     private Process child;
 
     //<editor-fold defaultstate="collapsed" desc="Constructors">
@@ -515,7 +523,9 @@ public class Capsule implements Runnable {
 
         ensureExtractedIfNecessary();
 
-        this.jvmArgs_ = nullToEmpty(jvmArgs);
+        this.jvmArgs_ = nullToEmpty(jvmArgs); // hack
+        this.args_ = nullToEmpty(jvmArgs);    // hack
+
         final ProcessBuilder pb = buildProcess(nullToEmpty(args));
 
         if (appCache != null && !cacheUpToDate)
@@ -583,7 +593,7 @@ public class Capsule implements Runnable {
 
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
-            buildJavaProcess(pb, jvmArgs_);
+            buildJavaProcess(pb, jvmArgs_, args_);
         return pb;
     }
 
@@ -975,7 +985,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Java Process">
     /////////// Java Process ///////////////////////////////////
-    private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
+    private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine, List<String> args) {
         final List<String> command = pb.command();
 
         command.add(getJavaExecutable().toString());
@@ -987,15 +997,34 @@ public class Capsule implements Runnable {
         addOption(command, "-Xbootclasspath/p:", compileClassPath(buildBootClassPathP()));
         addOption(command, "-Xbootclasspath/a:", compileClassPath(buildBootClassPathA()));
 
-        final List<Path> classPath = buildClassPath();
-        command.add("-classpath");
-        command.add(compileClassPath(classPath));
-
         for (String jagent : nullToEmpty(buildJavaAgents()))
             command.add("-javaagent:" + jagent);
 
-        command.add(getMainClass(classPath));
+        final List<Path> classPath = buildClassPath();
+        final String mainClass = getMainClass(classPath);
+
+        command.add("-classpath");
+        command.add(compileClassPath(handleLongClasspath(classPath, mainClass.length(), command, args)));
+
+        command.add(mainClass);
         return true;
+    }
+
+    private List<Path> handleLongClasspath(List<Path> cp, int extra, List<?>... args) {
+        if (!isWindows())
+            return cp; // why work hard if we know the problem only exists on Windows?
+
+        long len = extra + getStringsLength(cp);
+        for (List<?> list : args)
+            len += getStringsLength(list);
+
+        if (len >= getMaxCommandLineLength()) {
+            if (isTrampoline())
+                throw new RuntimeException("Command line too long and trampoline requested.");
+            this.pathingJar = createPathingJar(Paths.get(System.getProperty(PROP_TMP_DIR)), cp);
+            return Collections.singletonList(pathingJar);
+        } else
+            return cp;
     }
 
     /**
@@ -1906,6 +1935,12 @@ public class Capsule implements Runnable {
             return "so";
         throw new RuntimeException("Unsupported operating system: " + System.getProperty(PROP_OS_NAME));
     }
+
+    private static long getMaxCommandLineLength() {
+        if (isWindows())
+            return WINDOWS_MAX_CMD;
+        return Long.MAX_VALUE;
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="JAR Utils">
@@ -1960,6 +1995,25 @@ public class Capsule implements Runnable {
         }
         is.reset();
         return is;
+    }
+
+    /**
+     * Visible for testing
+     *
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    static Path createPathingJar(Path dir, List<Path> cp) {
+        try {
+            final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
+            final Manifest man = new Manifest();
+            man.getMainAttributes().putValue(ATTR_MANIFEST_VERSION, "1.0");
+            man.getMainAttributes().putValue(ATTR_CLASS_PATH, join(cp, " "));
+            try (JarOutputStream jos = new JarOutputStream(Files.newOutputStream(pathingJar), man)) {
+            }
+            return pathingJar;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
     //</editor-fold>
 
@@ -2416,6 +2470,14 @@ public class Capsule implements Runnable {
         return s.substring(i + 1);
     }
 
+    private static long getStringsLength(Collection<?> coll) {
+        if (coll == null)
+            return 0;
+        long len = 0;
+        for (Object o : coll)
+            len += coll.toString().length();
+        return len;
+    }
 //    private static String globToRegex(String line) {
 //        line = line.trim();
 //        int strLen = line.length();
@@ -2501,6 +2563,7 @@ public class Capsule implements Runnable {
 //        }
 //        return sb.toString();
 //    }
+
     private static String emptyToNull(String s) {
         if (s == null)
             return null;
@@ -2700,6 +2763,7 @@ public class Capsule implements Runnable {
     /**
      * @deprecated marked deprecated to exclude from javadoc
      */
+    @SuppressWarnings("CallToPrintStackTrace")
     @Override
     public final void run() {
         if (isInheritIoBug()) {
@@ -2718,6 +2782,13 @@ public class Capsule implements Runnable {
         }
         if (child != null)
             child.destroy();
+        if (pathingJar != null) {
+            try {
+                Files.delete(pathingJar);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private void pipe(InputStream in, OutputStream out) {

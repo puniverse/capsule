@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.jar.JarInputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.model.Dependency;
@@ -49,6 +50,7 @@ public class CapsuleTest {
      */
     private final FileSystem fs = Jimfs.newFileSystem();
     private final Path cache = fs.getPath("/cache");
+    private final Path tmp = fs.getPath("/tmp");
 
     @After
     public void tearDown() throws Exception {
@@ -968,6 +970,21 @@ public class CapsuleTest {
     public void splitTest() throws Exception {
         assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.split("ab,cd  ef g, hij kl  ", "[,\\s]\\s*"));
     }
+
+    @Test
+    public void testPathingJar() throws Exception {
+        Files.createDirectories(tmp);
+        List<Path> cp = list(path("a.jar"), path("b.jar"), path("c.jar"));
+        Path pathingJar = Capsule.createPathingJar(tmp, cp);
+        try {
+            try (JarInputStream jis = new JarInputStream(Files.newInputStream(pathingJar))) {
+                List<Path> cp2 = toPath(Arrays.asList(jis.getManifest().getMainAttributes().getValue("Class-Path").split(" ")));
+                assertEquals(cp, cp2);
+            }
+        } finally {
+            Files.delete(pathingJar);
+        }
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
@@ -1131,6 +1148,13 @@ public class CapsuleTest {
 
     private static int[] ints(int... xs) {
         return xs;
+    }
+
+    private List<Path> toPath(List<String> ps) {
+        final List<Path> pss = new ArrayList<Path>(ps.size());
+        for (String p : ps)
+            pss.add(path(p));
+        return pss;
     }
 
     private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
