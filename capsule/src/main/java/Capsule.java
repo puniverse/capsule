@@ -460,8 +460,20 @@ public class Capsule implements Runnable {
     }
 
     private void launch(List<String> args) throws IOException, InterruptedException {
-        final ProcessBuilder pb = prelaunch(args);
-        assert pb != null;
+        final ProcessBuilder pb;
+
+        try {
+            pb = prelaunch(args);
+            assert pb != null;
+        } catch (Throwable t) {
+            try {
+                if (pathingJar != null)
+                    Files.delete(pathingJar);
+            } catch (Exception e) {
+                t.addSuppressed(e);
+            }
+            throw t;
+        }
 
         log(LOG_VERBOSE, join(pb.command(), " "));
 
