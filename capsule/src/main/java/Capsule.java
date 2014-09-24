@@ -2039,25 +2039,22 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Visible for testing
-     *
-     * @deprecated marked deprecated to exclude from javadoc
+     * @deprecated marked deprecated to exclude from javadoc. Visible for testing
      */
     static Path createPathingJar(Path dir, List<Path> cp) {
         try {
             dir = dir.toAbsolutePath();
-            final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
-            final Manifest man = new Manifest();
-            man.getMainAttributes().putValue(ATTR_MANIFEST_VERSION, "1.0");
-
             // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file: URLs
             final List<Path> paths = new ArrayList<>(cp.size());
             for (Path p : cp)
                 paths.add(dir.relativize(p));
 
+            final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
+            final Manifest man = new Manifest();
+            man.getMainAttributes().putValue(ATTR_MANIFEST_VERSION, "1.0");
             man.getMainAttributes().putValue(ATTR_CLASS_PATH, join(paths, " "));
-            try (JarOutputStream jos = new JarOutputStream(Files.newOutputStream(pathingJar), man)) {
-            }
+            new JarOutputStream(Files.newOutputStream(pathingJar), man).close();
+            
             return pathingJar;
         } catch (IOException e) {
             throw new RuntimeException(e);
