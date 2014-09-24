@@ -70,7 +70,7 @@ import java.util.zip.ZipInputStream;
  * @author pron
  */
 public class Capsule implements Runnable {
-    protected static final String VERSION = "0.9.0";
+    protected static final String VERSION = "0.10.0";
     /*
      * This class follows some STRICT RULES:
      *
