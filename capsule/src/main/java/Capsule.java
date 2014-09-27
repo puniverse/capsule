@@ -28,6 +28,7 @@ import java.nio.channels.FileLock;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
@@ -1127,15 +1128,14 @@ public class Capsule implements Runnable {
             if (isDependency(getAttribute(ATTR_APP_ARTIFACT)))
                 classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT), "jar")));
             else
-                classPath.add(getPath(getAttribute(ATTR_APP_ARTIFACT)));
+                classPath.add(single(getPath(getAttribute(ATTR_APP_ARTIFACT))));
         }
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
-            if (appCache == null)
-                throw new IllegalStateException("Cannot resolve classpath " + getListAttribute(ATTR_APP_CLASS_PATH)
-                        + "  in " + ATTR_APP_CLASS_PATH + " attribute when the " + ATTR_EXTRACT + " attribute is set to false");
-
             for (String sp : getListAttribute(ATTR_APP_CLASS_PATH)) {
+                if (isDependency(sp))
+                    throw new IllegalArgumentException("Dependency " + sp + " is not allowed in the " + ATTR_APP_CLASS_PATH + " attribute");
+                addAllIfNotContained(classPath, getPath(sp));
             }
         }
 
@@ -1148,15 +1148,7 @@ public class Capsule implements Runnable {
     }
 
     private List<Path> getDefaultCacheClassPath() {
-        final List<Path> cp = new ArrayList<Path>();
-        try (DirectoryStream<Path> ds = Files.newDirectoryStream(appCache)) {
-            for (Path f : ds) {
-                if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar"))
-                    cp.add(f.toAbsolutePath());
-            }
-        } catch (IOException e) {
-            throw new RuntimeException();
-        }
+        final List<Path> cp = new ArrayList<Path>(listDir(appCache, "*.jar", true));
 
         // sort to give same reults on all platforms
         // doing it this way isn't quite right as Path's Javadoc ensures lexicographic ordering, yet warns different results on different platforms
@@ -1165,7 +1157,6 @@ public class Capsule implements Runnable {
         Collections.sort(cp);
 
         cp.add(0, appCache);
-
         return cp;
     }
 
@@ -1442,7 +1433,7 @@ public class Capsule implements Runnable {
             final String agentJar = agent.getKey();
             final String agentOptions = agent.getValue();
             try {
-                final Path agentPath = getPath(agent.getKey());
+                final Path agentPath = first(getPath(agent.getKey()));
                 agents.add(agentPath + ((agentOptions != null && !agentOptions.isEmpty()) ? "=" + agentOptions : ""));
             } catch (IllegalStateException e) {
                 if (appCache == null)
@@ -1843,34 +1834,48 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Paths">
     /////////// Paths ///////////////////////////////////
-    private Path getPath(String p) {
+    /**
+     * Returns the path or paths to the given file descriptor.
+     * The given descriptor can be a dependency, a file name (relative to the app cache)
+     * or a glob pattern (again, relative to the app cache). The returned list can contain more than one element
+     * if a dependency is given and it resolves to more than a single artifact, or if a glob pattern is given,
+     * which matches more than one file.
+     */
+    private List<Path> getPath(String p) {
         if (p == null)
             return null;
         if (isDependency(p) && dependencyManager != null)
-            return getDependencyPath(dependencyManager, p);
+            return singletonList(getDependencyPath(dependencyManager, p));
 
         if (appCache == null)
             throw new IllegalStateException(
-                    (isDependency(p) ? "Dependency manager not found. Cannot resolve" : "Capsule not extracted. Cannot obtain path")
-                    + " " + p);
+                    (isDependency(p) ? "Dependency manager not found. Cannot resolve" : "Capsule not extracted. Cannot obtain path") + " " + p);
         if (isDependency(p)) {
             Path f = appCache.resolve(dependencyToLocalJar(true, p));
             if (Files.isRegularFile(f))
-                return f;
+                return singletonList(f);
             f = appCache.resolve(dependencyToLocalJar(false, p));
             if (Files.isRegularFile(f))
-                return f;
+                return singletonList(f);
             throw new IllegalArgumentException("Dependency manager not found, and could not locate artifact " + p + " in capsule");
+        } else if (isGlob(p)) {
+            final List<Path> files = listDir(appCache, p, false);
+            Collections.sort(files); // see comment in getDefaultCacheClassPath()
+            return files;
         } else
-            return toAbsolutePath(appCache, p);
+            return singletonList(toAbsolutePath(appCache, p));
     }
 
+    /**
+     * Returns a list which is a concatenation of all lists returned by calling
+     * {@link #getPath(String) getPath(String)} on each of the file descriptors in the given list.
+     */
     private List<Path> getPath(List<String> ps) {
         if (ps == null)
             return null;
         final List<Path> res = new ArrayList<Path>(ps.size());
         for (String p : ps)
-            res.add(getPath(p));
+            res.addAll(getPath(p));
         return res;
     }
     //</editor-fold>
@@ -2070,22 +2075,6 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="File Utils">
     /////////// File Utils ///////////////////////////////////
-    /**
-     * Returns the contents of a directory
-     *
-     * @param dir the directory
-     */
-    protected static final List<Path> listDir(Path dir) {
-        final List<Path> list = new ArrayList<>();
-        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
-            for (Path f : ds)
-                list.add(f);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return list;
-    }
-
     private static void writeFile(Path targetDir, String fileName, InputStream is) throws IOException {
         fileName = toNativePath(fileName);
         final String dir = getDirectory(fileName);
@@ -2110,7 +2099,6 @@ public class Capsule implements Runnable {
 
     // visible for testing
     static void delete(Path file) throws IOException {
-        // not using FileWalker so as not to create another class
         if (Files.isDirectory(file)) {
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(file)) {
                 for (Path f : ds)
@@ -2133,6 +2121,77 @@ public class Capsule implements Runnable {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    /**
+     * Returns the contents of a directory. <br>
+     * Passing {@code null} as the glob pattern is the same as passing {@code "*"}
+     *
+     * @param dir     the directory
+     * @param glob    the glob pattern to use to filter the entries, or {@code null} if all entries are to be returned
+     * @param regular whether only regular files should be returned
+     */
+    protected static final List<Path> listDir(Path dir, String glob, boolean regular) {
+        return listDir(dir, glob, false, regular, false, new ArrayList<Path>());
+    }
+
+    /**
+     * Finds the first file matching the glob pattern in the given directory (or subdirectories, according to the glob).
+     *
+     * @param dir     the directory
+     * @param glob    the glob pattern to use to filter the entries
+     * @param regular whether only regular files should be returned
+     * @return the path to the matching file or {@code null} if no matching file is found.
+     */
+    protected static final Path findFile(Path dir, String glob, boolean regular) {
+        final List<Path> list = listDir(dir, glob, false, regular, true, new ArrayList<Path>());
+        return !list.isEmpty() ? list.get(0) : null;
+    }
+
+    private static boolean isGlob(String s) {
+        return s.contains("*") || s.contains("?") || s.contains("{") || s.contains("[");
+    }
+
+    private static List<Path> listDir(Path dir, String glob, boolean recursive, boolean regularFile, boolean firstMatch, List<Path> res) {
+        return listDir(dir, splitGlob(glob), recursive, regularFile, firstMatch, res);
+    }
+
+    private static List<String> splitGlob(String glob) { // splits glob pattern by directory
+        return glob != null ? Arrays.asList(glob.split(FILE_SEPARATOR_CHAR == '\\' ? "\\\\" : FILE_SEPARATOR)) : null;
+    }
+
+    private static List<Path> listDir(Path dir, List<String> globs, boolean recursive, boolean regularFile, boolean firstMatch, List<Path> res) {
+        PathMatcher matcher = null;
+        if (globs != null && !globs.isEmpty()) {
+            if (globs.size() == 1 && "**".equals(globs.get(0)))
+                recursive = true;
+            else
+                matcher = dir.getFileSystem().getPathMatcher("glob:" + globs.get(0));
+        }
+
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
+            for (Path f : ds) {
+                if (recursive && Files.isDirectory(f))
+                    listDir(f, globs, recursive, regularFile, firstMatch, res);
+                if (matcher == null) {
+                    if (!regularFile || Files.isRegularFile(f))
+                        res.add(f);
+                } else {
+                    if (matcher.matches(f.getFileName())) {
+                        assert globs != null;
+                        if (globs.size() == 1 && (!regularFile || Files.isRegularFile(f)))
+                            res.add(f);
+                        else if (Files.isDirectory(f))
+                            listDir(f, globs.subList(1, globs.size()), recursive, regularFile, firstMatch, res);
+                    }
+                }
+                if (firstMatch && !res.isEmpty())
+                    break;
+            }
+            return res;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
     //</editor-fold>
@@ -2194,7 +2253,7 @@ public class Capsule implements Runnable {
         if (!Files.isDirectory(dir))
             return null;
         Map<String, Path> dirs = new HashMap<String, Path>();
-        for (Path f : listDir(dir)) {
+        for (Path f : listDir(dir, null, false)) {
             if (Files.isDirectory(f)) {
                 String dirName = f.getFileName().toString();
                 String ver = isJavaDir(dirName);
@@ -2227,7 +2286,7 @@ public class Capsule implements Runnable {
     private static Path searchJavaHomeInDir(Path dir) {
         if (!Files.isDirectory(dir))
             return null;
-        for (Path f : listDir(dir)) {
+        for (Path f : listDir(dir, null, false)) {
             if (isJavaHome(f))
                 return f;
             Path home = searchJavaHomeInDir(f);
@@ -2238,20 +2297,8 @@ public class Capsule implements Runnable {
     }
 
     private static boolean isJavaHome(Path dir) {
-        if (Files.isDirectory(dir)) {
-            for (Path f : listDir(dir)) {
-                if (Files.isDirectory(f) && f.getFileName().toString().equals("bin")) {
-                    for (Path f0 : listDir(f)) {
-                        if (Files.isRegularFile(f0)) {
-                            String fname = f0.getFileName().toString().toLowerCase();
-                            if (fname.equals("java") || fname.equals("java.exe"))
-                                return true;
-                        }
-                    }
-                    break;
-                }
-            }
-        }
+        if (Files.isDirectory(dir))
+            return findFile(dir, "bin" + FILE_SEPARATOR + "{java|java.exe}", true) != null;
         return false;
     }
 
@@ -2551,6 +2598,20 @@ public class Capsule implements Runnable {
         if (map == null)
             return emptyMap();
         return map;
+    }
+
+    private static <T> T single(Collection<T> c) {
+        if (c == null || c.isEmpty())
+            return null;
+        if (c.size() > 1)
+            throw new IllegalArgumentException("A single element was expected, but got " + c);
+        return c.iterator().next();
+    }
+
+    private static <T> T first(List<T> c) {
+        if (c == null || c.isEmpty())
+            return null;
+        return c.get(0);
     }
 
     private static <C extends Collection<T>, T> C addAllIfNotContained(C c, Collection<T> c1) {

@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -246,10 +247,13 @@ public class CapsuleTest {
     public void testClassPath() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
-                .setListAttribute("App-Class-Path", list("lib/a.jar", "lib/b.jar"))
+                .setListAttribute("App-Class-Path", list("lib/a.jar", "lib/b.jar", "lib2/*.jar"))
                 .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
                 .addEntry("lib/a.jar", Jar.toInputStream("", UTF_8))
-                .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8));
+                .addEntry("lib/b.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib2/c.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib2/d.jar", Jar.toInputStream("", UTF_8))
+                .addEntry("lib2/e.txt", Jar.toInputStream("", UTF_8));
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
@@ -261,12 +265,18 @@ public class CapsuleTest {
 
         assertTrue(Files.isDirectory(appCache.resolve("lib")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib").resolve("a.jar")));
+        assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("c.jar")));
+        assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("d.jar")));
+        assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("e.txt")));
 
         ASSERT.that(getClassPath(pb)).has().item(path("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache);
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("b.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib2").resolve("c.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib2").resolve("d.jar"));
+        ASSERT.that(getClassPath(pb)).has().noneOf(appCache.resolve("lib2").resolve("e.txt"));
     }
 
     @Test
@@ -920,6 +930,27 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testListDir() throws Exception {
+        Files.createDirectories(path("a", "b", "c"));
+        Files.createDirectories(path("a", "b1"));
+        Files.createDirectories(path("a", "b", "c1"));
+        Files.createFile(path("a", "x"));
+        Files.createFile(path("a", "b", "x"));
+        Files.createFile(path("a", "b1", "x"));
+        Files.createFile(path("a", "b", "c", "x"));
+        Files.createFile(path("a", "b", "c1", "x"));
+
+        assertEquals(set(path("a", "b"), path("a", "b1"), path("a", "x")),
+                set(Capsule.listDir(path("a"), null, false)));
+        assertEquals(set(path("a", "x")),
+                set(Capsule.listDir(path("a"), null, true)));
+        assertEquals(set(path("a", "x"), path("a", "b", "x"), path("a", "b1", "x"), path("a", "b", "c", "x"), path("a", "b", "c1", "x")),
+                set(Capsule.listDir(path("a"), "**", true)));
+        assertEquals(set(path("a", "b1", "x")),
+                set(Capsule.listDir(path("a"), "b?/*", false)));
+    }
+
+    @Test
     public void testExpandVars1() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo");
@@ -980,10 +1011,10 @@ public class CapsuleTest {
             final List<Path> cp2;
             try (JarInputStream jis = new JarInputStream(Files.newInputStream(pathingJar))) {
                 cp2 = toPath(Arrays.asList(jis.getManifest().getMainAttributes().getValue("Class-Path").split(" ")));
-                
+
             }
             assertEquals(cp, toAbsolutePath(cp2));
-            for(Path p : cp2)
+            for (Path p : cp2)
                 assertTrue(!p.isAbsolute());
         } finally {
             Files.delete(pathingJar);
@@ -1127,6 +1158,20 @@ public class CapsuleTest {
         return cmd.subList(i, cmd.size());
     }
 
+    private List<Path> toPath(List<String> ps) {
+        final List<Path> pss = new ArrayList<Path>(ps.size());
+        for (String p : ps)
+            pss.add(path(p));
+        return pss;
+    }
+
+    private List<Path> toAbsolutePath(List<Path> ps) {
+        final List<Path> pss = new ArrayList<Path>(ps.size());
+        for (Path p : ps)
+            pss.add(p.toAbsolutePath().normalize());
+        return pss;
+    }
+
     private static String getBefore(String s, char separator) {
         final int i = s.indexOf(separator);
         if (i < 0)
@@ -1141,9 +1186,24 @@ public class CapsuleTest {
         return s.substring(i + 1);
     }
 
+    private static <T extends Comparable<? super T>> List<T> sort(List<T> list) {
+        final List<T> c = new ArrayList<>(list);
+        Collections.<T>sort(c);
+        return c;
+    }
+
+    private static <T> Set<T> set(Collection<T> list) {
+        return new HashSet<>(list);
+    }
+
     @SafeVarargs
     private static <T> List<T> list(T... xs) {
         return Arrays.asList(xs);
+    }
+
+    @SafeVarargs
+    private static <T> Set<T> set(T... xs) {
+        return set(Arrays.asList(xs));
     }
 
     private static String[] strings(String... xs) {
@@ -1152,20 +1212,6 @@ public class CapsuleTest {
 
     private static int[] ints(int... xs) {
         return xs;
-    }
-
-    private List<Path> toPath(List<String> ps) {
-        final List<Path> pss = new ArrayList<Path>(ps.size());
-        for (String p : ps)
-            pss.add(path(p));
-        return pss;
-    }
-
-    private List<Path> toAbsolutePath(List<Path> ps) {
-        final List<Path> pss = new ArrayList<Path>(ps.size());
-        for (Path p : ps)
-            pss.add(p.toAbsolutePath().normalize());
-        return pss;
     }
 
     private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
