@@ -494,8 +494,8 @@ public class Capsule implements Runnable {
 
         System.exit(child != null ? child.exitValue() : 0);
     }
-
     //</editor-fold>
+    
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
     /**
@@ -1725,7 +1725,14 @@ public class Capsule implements Runnable {
      * The methods in this section are the only ones accessing the manifest. Therefore other means of
      * setting attributes can be added by changing these methods alone.
      */
-    private void verifyNonModalAttributes() {
+    private void validateManifest() {
+        if (manifest.getMainAttributes().getValue(ATTR_CLASS_PATH) != null)
+            throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
+                    + " Use " + ATTR_APP_CLASS_PATH + " and/or " + ATTR_DEPENDENCIES + " instead.");
+        validateNonModalAttributes();
+    }
+
+    private void validateNonModalAttributes() {
         for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
             for (String attr : NON_MODAL_ATTRS) {
                 if (entry.getValue().containsKey(new Attributes.Name(attr)))
