@@ -216,7 +216,7 @@ public class Capsule implements Runnable {
      */
     protected static Capsule myCapsule() {
         if (CAPSULE == null)
-            CAPSULE = newCapsule(findMyJarFile(), getCacheDir());
+            CAPSULE = newCapsule(findOwnJarFile(), getCacheDir());
         return CAPSULE;
     }
 
@@ -304,7 +304,7 @@ public class Capsule implements Runnable {
         Objects.requireNonNull(cacheDir, "cacheDir can't be null");
         this.jarFile = jarFile;
 
-        try (JarInputStream jis = openJarInputStream()) {
+        try (JarInputStream jis = openJarInputStream(jarFile)) {
             this.manifest = jis.getManifest();
             if (manifest == null)
                 throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
@@ -361,7 +361,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
     /////////// Capsule JAR ///////////////////////////////////
-    private static Path findMyJarFile() {
+    private static Path findOwnJarFile() {
         final URL url = Capsule.class.getClassLoader().getResource(Capsule.class.getName().replace('.', '/') + ".class");
         if (!"jar".equals(url.getProtocol()))
             throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
@@ -381,8 +381,8 @@ public class Capsule implements Runnable {
         return "jar:file:" + jarFile.toAbsolutePath() + "!/" + relPath;
     }
 
-    private JarInputStream openJarInputStream() throws IOException {
-        return new JarInputStream(skipToZipStart(Files.newInputStream(jarFile)));
+    private static JarInputStream openJarInputStream(Path jar) throws IOException {
+        return new JarInputStream(skipToZipStart(Files.newInputStream(jar)));
     }
 
     private InputStream getEntry(ZipInputStream zis, String name) throws IOException {
@@ -957,7 +957,7 @@ public class Capsule implements Runnable {
     protected void extractCapsule() {
         try {
             log(LOG_VERBOSE, "Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
-            extractJar(openJarInputStream(), appCache);
+            extractJar(openJarInputStream(jarFile), appCache);
         } catch (IOException e) {
             throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
