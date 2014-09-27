@@ -53,6 +53,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import static java.util.Collections.*;
 
 /**
  * An application capsule.
@@ -164,7 +165,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_MAIN_CLASS = "Main-Class";
     private static final String ATTR_LOG_LEVEL = "Capsule-Log-Level";
 
-    private static final Set<String> NON_MODAL_ATTRS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+    private static final Set<String> NON_MODAL_ATTRS = unmodifiableSet(new HashSet<String>(Arrays.asList(
             new String[]{ATTR_APP_NAME, ATTR_APP_VERSION}
     )));
 
@@ -495,7 +496,7 @@ public class Capsule implements Runnable {
         System.exit(child != null ? child.exitValue() : 0);
     }
     //</editor-fold>
-    
+
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
     /**
@@ -1063,7 +1064,7 @@ public class Capsule implements Runnable {
                 throw new RuntimeException("Command line too long and trampoline requested.");
             this.pathingJar = createPathingJar(Paths.get(System.getProperty(PROP_TMP_DIR)), cp);
             log(LOG_VERBOSE, "Writing classpath: " + cp + " to pathing JAR: " + pathingJar);
-            return Collections.singletonList(pathingJar);
+            return singletonList(pathingJar);
         } else
             return cp;
     }
@@ -1176,7 +1177,7 @@ public class Capsule implements Runnable {
         if ((deps == null || deps.isEmpty()) && pom != null)
             deps = getPomDependencies();
 
-        return (deps != null && !deps.isEmpty()) ? Collections.unmodifiableList(deps) : null;
+        return (deps != null && !deps.isEmpty()) ? unmodifiableList(deps) : null;
     }
 
     /**
@@ -1642,7 +1643,7 @@ public class Capsule implements Runnable {
             }
         }
 
-        return !repos.isEmpty() ? Collections.unmodifiableList(repos) : null;
+        return !repos.isEmpty() ? unmodifiableList(repos) : null;
     }
 
     private Object createDependencyManager(List<String> repositories) {
@@ -1758,7 +1759,7 @@ public class Capsule implements Runnable {
      * Returns the names of all modes defined in this capsule's manifest.
      */
     protected final Set<String> getModes() {
-        return Collections.unmodifiableSet(manifest.getEntries().keySet());
+        return unmodifiableSet(manifest.getEntries().keySet());
     }
 
     /**
@@ -2542,13 +2543,13 @@ public class Capsule implements Runnable {
     /////////// Collection Utils ///////////////////////////////////
     private static <T> List<T> nullToEmpty(List<T> list) {
         if (list == null)
-            return Collections.emptyList();
+            return emptyList();
         return list;
     }
 
     private static <K, V> Map<K, V> nullToEmpty(Map<K, V> map) {
         if (map == null)
-            return Collections.emptyMap();
+            return emptyMap();
         return map;
     }
 
