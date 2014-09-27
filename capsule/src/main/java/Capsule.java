@@ -187,10 +187,8 @@ public class Capsule implements Runnable {
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
     private static final String SEPARATOR_DOT = "\\.";
-    private static final String SEPARATOR_PIPE = "\\|";
     private static final String LOCK_FILE_NAME = ".lock";
     private static final String TIMESTAMP_FILE_NAME = ".extracted";
-    private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final char FILE_SEPARATOR_CHAR = FILE_SEPARATOR.charAt(0);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
