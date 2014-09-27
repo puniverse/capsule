@@ -196,7 +196,7 @@ public class Capsule implements Runnable {
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path WINDOWS_PROGRAM_FILES_1 = Paths.get("C:", "Program Files");
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
-    private static final int WINDOWS_MAX_CMD = 32000; // actually 32768
+    private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
     private static final Object DEFAULT = new Object();
 
     // logging
@@ -308,7 +308,7 @@ public class Capsule implements Runnable {
             this.manifest = jis.getManifest();
             if (manifest == null)
                 throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
-            verifyNonModalAttributes();
+            validateManifest();
 
             this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader(jis) : null;
         } catch (IOException e) {
@@ -1121,7 +1121,7 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
                     + ATTR_EXTRACT + " attribute is also set to false");
 
-        // the app artifact (musn't be a capsule if we're here)
+        // the app artifact (mustn't be a capsule if we're here)
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             if (isDependency(getAttribute(ATTR_APP_ARTIFACT)))
                 classPath.addAll(nullToEmpty(resolveAppArtifact(getAttribute(ATTR_APP_ARTIFACT), "jar")));
@@ -2030,7 +2030,7 @@ public class Capsule implements Runnable {
                     break;
             } else {
                 state = 0;
-                if (b == ZIP_HEADER[state]) // consecutive '\n'
+                if (b == ZIP_HEADER[state])
                     state++;
             }
         }
@@ -2044,9 +2044,8 @@ public class Capsule implements Runnable {
     static Path createPathingJar(Path dir, List<Path> cp) {
         try {
             dir = dir.toAbsolutePath();
-            // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file: URLs
             final List<Path> paths = new ArrayList<>(cp.size());
-            for (Path p : cp)
+            for (Path p : cp) // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file URLs
                 paths.add(dir.relativize(p));
 
             final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
@@ -2054,7 +2053,7 @@ public class Capsule implements Runnable {
             man.getMainAttributes().putValue(ATTR_MANIFEST_VERSION, "1.0");
             man.getMainAttributes().putValue(ATTR_CLASS_PATH, join(paths, " "));
             new JarOutputStream(Files.newOutputStream(pathingJar), man).close();
-            
+
             return pathingJar;
         } catch (IOException e) {
             throw new RuntimeException(e);
