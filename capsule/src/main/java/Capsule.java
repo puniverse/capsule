@@ -1058,9 +1058,11 @@ public class Capsule implements Runnable {
             len += getStringsLength(list) + list.size();
 
         if (len >= getMaxCommandLineLength()) {
+            log(LOG_DEBUG, "Command line length: " + len);
             if (isTrampoline())
                 throw new RuntimeException("Command line too long and trampoline requested.");
             this.pathingJar = createPathingJar(Paths.get(System.getProperty(PROP_TMP_DIR)), cp);
+            log(LOG_VERBOSE, "Writing classpath: " + cp + " to pathing JAR: " + pathingJar);
             return Collections.singletonList(pathingJar);
         } else
             return cp;
