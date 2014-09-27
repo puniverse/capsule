@@ -1008,7 +1008,7 @@ public class Capsule implements Runnable {
         resolveNativeDependencies();
         pb.environment().put(VAR_CLASSPATH, compileClassPath(classPath));
 
-        final Path scriptPath = appCache.resolve(sanitize(script)).toAbsolutePath();
+        final Path scriptPath = sanitize(appCache, script).toAbsolutePath();
         ensureExecutable(scriptPath);
         pb.command().add(scriptPath.toString());
         return true;
@@ -1135,8 +1135,6 @@ public class Capsule implements Runnable {
                         + "  in " + ATTR_APP_CLASS_PATH + " attribute when the " + ATTR_EXTRACT + " attribute is set to false");
 
             for (String sp : getListAttribute(ATTR_APP_CLASS_PATH)) {
-                final Path p = appCache.resolve(path(expand(sanitize(sp))));
-                classPath.add(p);
             }
         }
 
@@ -1315,8 +1313,8 @@ public class Capsule implements Runnable {
             try {
                 for (int i = 0; i < deps.size(); i++) {
                     final Path lib = resolved.get(i);
-                    final String rename = sanitize(renames.get(i));
-                    Files.copy(lib, appCache.resolve(rename != null ? rename : lib.getFileName().toString()));
+                    final String rename = renames.get(i);
+                    Files.copy(lib, sanitize(appCache, rename != null ? rename : lib.getFileName().toString()));
                 }
             } catch (IOException e) {
                 throw new RuntimeException("Exception while copying native libs", e);
@@ -1923,12 +1921,13 @@ public class Capsule implements Runnable {
     }
 
     private static Path toAbsolutePath(Path root, String p) {
-        return root.resolve(sanitize(p)).toAbsolutePath();
+        return sanitize(root, p).toAbsolutePath();
     }
 
-    private static String sanitize(String path) {
-        if (path.startsWith("/") || path.startsWith("../") || path.contains("/../"))
-            throw new IllegalArgumentException("Path " + path + " is not local");
+    private static Path sanitize(Path dir, String p) {
+        final Path path = dir.resolve(p).normalize().toAbsolutePath();
+        if (!path.startsWith(dir))
+            throw new IllegalArgumentException("Path " + p + " is not local");
         return path;
     }
 
