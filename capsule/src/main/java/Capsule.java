@@ -455,7 +455,7 @@ public class Capsule implements Runnable {
 
     private void resolve(List<String> args) throws IOException, InterruptedException {
         ensureExtractedIfNecessary();
-        resolveAppArtifact(getAppArtifact(args), "jar");
+        resolveDependency(getAppArtifact(args), "jar");
         resolveDependencies(getDependencies(), "jar");
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_P));
@@ -1670,22 +1670,25 @@ public class Capsule implements Runnable {
     }
 
     private void printDependencyTree(String root, String type) {
-        final DependencyManager dm = (DependencyManager) dependencyManager;
-        dm.printDependencyTree(root, type, System.out);
+        ((DependencyManager) dependencyManager).printDependencyTree(root, type, System.out);
     }
 
     private void printDependencyTree(List<String> dependencies, String type) {
         if (dependencies == null)
             return;
-        final DependencyManager dm = (DependencyManager) dependencyManager;
-        dm.printDependencyTree(dependencies, type, System.out);
+        ((DependencyManager) dependencyManager).printDependencyTree(dependencies, type, System.out);
     }
 
     private List<Path> resolveDependencies(List<String> dependencies, String type) {
         if (dependencies == null)
             return null;
-
         return ((DependencyManager) dependencyManager).resolveDependencies(dependencies, type);
+    }
+
+    private List<Path> resolveDependency(String coords, String type) {
+        if (coords == null)
+            return null;
+        return ((DependencyManager) dependencyManager).resolveDependency(coords, type);
     }
 
     private String getAppArtifactSpecificVersion(String appArtifact) {
@@ -1695,26 +1698,7 @@ public class Capsule implements Runnable {
     private String getArtifactLatestVersion(String coords, String type) {
         if (coords == null)
             return null;
-        final DependencyManager dm = (DependencyManager) dependencyManager;
-        return dm.getLatestVersion(coords, type);
-    }
-
-    private List<Path> resolveAppArtifact(String coords, String type) {
-        if (coords == null)
-            return null;
-        final DependencyManager dm = (DependencyManager) dependencyManager;
-        return dm.resolveDependency(coords, type);
-    }
-
-    private static Path getDependencyPath(Object dependencyManager, String p) {
-        if (dependencyManager == null)
-            throw new RuntimeException("No dependencies specified in the capsule. Cannot resolve dependency " + p);
-        final DependencyManager dm = (DependencyManager) dependencyManager;
-        List<Path> depsJars = dm.resolveDependency(p, "jar");
-
-        if (depsJars == null || depsJars.isEmpty())
-            throw new RuntimeException("Dependency " + p + " was not found.");
-        return depsJars.iterator().next().toAbsolutePath();
+        return ((DependencyManager) dependencyManager).getLatestVersion(coords, type);
     }
     //</editor-fold>
 
@@ -1852,8 +1836,12 @@ public class Capsule implements Runnable {
     private List<Path> getPath(String p) {
         if (p == null)
             return null;
-        if (isDependency(p) && dependencyManager != null)
-            return singletonList(getDependencyPath(dependencyManager, p));
+        if (isDependency(p) && dependencyManager != null) {
+            final List<Path> res = resolveDependency(p, "jar");
+            if (res == null || res.isEmpty())
+                throw new RuntimeException("Dependency " + p + " was not found.");
+            return res;
+        }
 
         if (appCache == null)
             throw new IllegalStateException(
@@ -2608,7 +2596,7 @@ public class Capsule implements Runnable {
         return map;
     }
 
-    private static <T> T single(Collection<T> c) {
+    private static <T> T singleOrNull(Collection<T> c) {
         if (c == null || c.isEmpty())
             return null;
         if (c.size() > 1)
@@ -2616,7 +2604,20 @@ public class Capsule implements Runnable {
         return c.iterator().next();
     }
 
+    private static <T> T single(Collection<T> c) {
+        final T res = singleOrNull(c);
+        if (res == null)
+            throw new IllegalArgumentException("Not found");
+        return res;
+    }
+
     private static <T> T first(List<T> c) {
+        if (c == null || c.isEmpty())
+            throw new IllegalArgumentException("Not found");
+        return c.get(0);
+    }
+
+    private static <T> T firstOrNull(List<T> c) {
         if (c == null || c.isEmpty())
             return null;
         return c.get(0);
