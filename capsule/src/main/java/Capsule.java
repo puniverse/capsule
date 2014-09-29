@@ -1780,7 +1780,7 @@ public class Capsule implements Runnable {
             if (manifest.getAttributes(mode).containsKey(key))
                 return true;
         }
-        return manifest.getMainAttributes().containsKey(new Attributes.Name(attr));
+        return manifest.getMainAttributes().containsKey(key);
     }
 
     /**
@@ -2596,21 +2596,6 @@ public class Capsule implements Runnable {
         return map;
     }
 
-    private static <T> T singleOrNull(Collection<T> c) {
-        if (c == null || c.isEmpty())
-            return null;
-        if (c.size() > 1)
-            throw new IllegalArgumentException("A single element was expected, but got " + c);
-        return c.iterator().next();
-    }
-
-    private static <T> T single(Collection<T> c) {
-        final T res = singleOrNull(c);
-        if (res == null)
-            throw new IllegalArgumentException("Not found");
-        return res;
-    }
-
     private static <T> T first(List<T> c) {
         if (c == null || c.isEmpty())
             throw new IllegalArgumentException("Not found");
@@ -2673,17 +2658,6 @@ public class Capsule implements Runnable {
             return false;
         return value.isEmpty() || Boolean.parseBoolean(value);
     }
-//    private static void setLibraryPath(String path) {
-//        try {
-//            System.setProperty("java.library.path", path);
-//
-//            final java.lang.reflect.Field fieldSysPath = ClassLoader.class.getDeclaredField("sys_paths");
-//            fieldSysPath.setAccessible(true);
-//            fieldSysPath.set(null, null);
-//        } catch (ReflectiveOperationException e) {
-//            throw new AssertionError(e);
-//        }
-//    }
 
     /**
      * Executes a command and returns its output as a list of lines.
