@@ -85,36 +85,42 @@ public final class DependencyManagerImpl implements DependencyManager {
 
     private final boolean forceRefresh;
     private final boolean offline;
-    private final boolean allowSnapshots;
     private final RepositorySystem system;
     private final RepositorySystemSession session;
-    private final List<RemoteRepository> repos;
+    private boolean allowSnapshots;
+    private List<RemoteRepository> repos;
     private final int logLevel;
     private final UserSettings settings;
 
     //<editor-fold desc="Construction and Setup">
     /////////// Construction and Setup ///////////////////////////////////
-    public DependencyManagerImpl(Path localRepoPath, List<String> repos, boolean forceRefresh, boolean allowSnapshots, int logLevel) {
+    public DependencyManagerImpl(Path localRepoPath, boolean forceRefresh, int logLevel) {
         this.logLevel = logLevel;
-        this.allowSnapshots = allowSnapshots;
         this.forceRefresh = forceRefresh;
         this.offline = isPropertySet(PROP_OFFLINE, false);
-        log(LOG_DEBUG, "Offline: " + offline);
         if (localRepoPath == null)
             localRepoPath = DEFAULT_LOCAL_MAVEN.resolve("repository");
-        final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
 
+        log(LOG_DEBUG, "DependencyManager - Offline: " + offline);
+        log(LOG_DEBUG, "DependencyManager - Local repo: " + localRepoPath);
+        log(LOG_DEBUG, "DependencyManager - Allow snapshots: " + allowSnapshots);
+
+        final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
         this.settings = UserSettings.getInstance();
         this.system = newRepositorySystem();
         this.session = newRepositorySession(system, localRepo);
+        setRepos(null, false);
+        
+        log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
+    }
 
+    @Override
+    public void setRepos(List<String> repos, boolean allowSnapshots) {
         if (repos == null)
             repos = Arrays.asList("central");
         this.repos = new ArrayList<RemoteRepository>();
         for (String r : repos)
             this.repos.add(createRepo(r, allowSnapshots));
-
-        log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
     }
 
     private static RepositorySystem newRepositorySystem() {

@@ -13,6 +13,8 @@ import java.nio.file.Path;
 import java.util.List;
 
 public interface DependencyManager {
+    void setRepos(List<String> repos, boolean allowSnapshots);
+    
     List<Path> resolveDependencies(List<String> coords, String type);
 
     List<Path> resolveDependency(String coords, String type);

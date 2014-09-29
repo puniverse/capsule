@@ -8,7 +8,6 @@
  */
 import capsule.DependencyManagerImpl;
 import capsule.DependencyManager;
-import capsule.JarClassLoader;
 import capsule.PomReader;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -19,10 +18,10 @@ import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.DirectoryStream;
@@ -109,6 +108,7 @@ public class Capsule implements Runnable {
     private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
     private static final String PROP_JVM_ARGS = "capsule.jvm.args";
+    private static final String PROP_NO_DEP_MANAGER = "capsule.no_dep_manager";
 
     private static final String PROP_JAVA_VERSION = "java.version";
     private static final String PROP_JAVA_HOME = "java.home";
@@ -198,6 +198,7 @@ public class Capsule implements Runnable {
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
     private static final Object DEFAULT = new Object();
+    private static final String RUN_OTHER_MAIN = "CAPSULERUNOTHERMAIN";
 
     // logging
     private static final String LOG_PREFIX = "CAPSULE: ";
@@ -210,13 +211,18 @@ public class Capsule implements Runnable {
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
     private static Capsule CAPSULE;
+    private static String CAPSULE_ARTIFACT;
 
     /**
      * Returns the singleton Capsule instance.
+     *
+     * @param args The command-line arguments passed to {@code main}.
      */
-    protected static Capsule myCapsule() {
-        if (CAPSULE == null)
+    protected static Capsule myCapsule(String[] args) {
+        if (CAPSULE == null) {
             CAPSULE = newCapsule(findOwnJarFile(), getCacheDir());
+            CAPSULE_ARTIFACT = (args != null && args.length > 0) ? args[0] : null;
+        }
         return CAPSULE;
     }
 
@@ -225,11 +231,12 @@ public class Capsule implements Runnable {
      * A custom capsule may provide its own main method to add capsule actions, and then call this method
      * if no custom action is performed.
      */
-    @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
+    @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace", "StringEquality", "null"})
     public static final void main(String[] args0) {
+        final List<String> args = Arrays.asList(args0);
+        Capsule capsule = null;
         try {
-            Capsule capsule = myCapsule();
-            final List<String> args = Arrays.asList(args0);
+            capsule = myCapsule(args0);
             if (propertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (propertyDefined(PROP_VERSION))
                     capsule.printVersion(args);
@@ -248,18 +255,33 @@ public class Capsule implements Runnable {
 
                 return;
             }
-
             capsule.launch(args);
         } catch (Throwable t) {
-            System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
-            if (hasContext() && t.getMessage().length() < 50)
-                System.err.print(" while processing " + reportContext());
-            if (getLogLevel(System.getProperty(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
-                System.err.println();
-                t.printStackTrace(System.err);
-            } else
-                System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
+            if (t.getMessage() == RUN_OTHER_MAIN)
+                runMain(capsule.jarFile, args.subList(1, args.size()));
+            else {
+                if (propertyDefined(PROP_VERSION))
+                    System.out.println(LOG_PREFIX + "Capsule Version " + VERSION + "\n");
+                System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
+                if (hasContext() && t.getMessage().length() < 50)
+                    System.err.print(" while processing " + reportContext());
+                if (getLogLevel(System.getProperty(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
+                    System.err.println();
+                    t.printStackTrace(System.err);
+                } else
+                    System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
+            }
             System.exit(1);
+        }
+    }
+
+    private static void runMain(Path jar, List<String> args) {
+        try {
+            final ClassLoader cl = new URLClassLoader(new URL[]{jar.toUri().toURL()});
+            final Class<?> mainClass = cl.loadClass(getMainClass(jar));
+            mainClass.getMethod("main", String[].class).invoke(null, args);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
     //</editor-fold>
@@ -270,16 +292,16 @@ public class Capsule implements Runnable {
     private final Path jarFile;      // never null
     private final Manifest manifest; // never null
     private final String appId;      // null iff isEmptyCapsule()
-
     private String mode;
+    private boolean wrapper;
 
     private final Path appCache;     // non-null iff capsule is extracted
     private final boolean cacheUpToDate;
     private FileLock appCacheLock;
 
     private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
-    private final Object dependencyManager; // non-null iff needsDependencyManager is true
-    private final int logLevel;
+    private /*final*/ Object dependencyManager; // non-null iff needsDependencyManager is true
+    private int logLevel; // effectively final after constructor completes
 
     // very limited state
     private List<String> jvmArgs_;
@@ -308,41 +330,78 @@ public class Capsule implements Runnable {
     private Capsule(Path jarFile, Path cacheDir, Object dependencyManager) {
         Objects.requireNonNull(jarFile, "jarFile can't be null");
         Objects.requireNonNull(cacheDir, "cacheDir can't be null");
-        this.jarFile = jarFile;
 
-        try (JarInputStream jis = openJarInputStream(jarFile)) {
-            this.manifest = jis.getManifest();
-            if (manifest == null)
-                throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
-            validateManifest();
+        this.cacheDir = initCacheDir(cacheDir);
+        this.manifest = new Manifest();
 
-            this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader(jis) : null;
-        } catch (IOException e) {
-            throw new RuntimeException("Could not read JAR file " + jarFile, e);
+        for (;;) {
+            try (JarInputStream jis = openJarInputStream(jarFile)) {
+                final Manifest man = jis.getManifest();
+                if (man == null)
+                    throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
+                merge(manifest, man);
+
+                this.logLevel = chooseLogLevel();
+
+                if (this.dependencyManager == null)
+                    this.dependencyManager = dependencyManager != DEFAULT ? dependencyManager : tryCreateDependencyManager();
+                if (this.dependencyManager != null)
+                    setDependencyRepositories(getRepositories());
+
+                final Path wrappedCapsule = getWrappedCapsule();
+                if (wrappedCapsule == null) {
+                    this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader(jis) : null;
+                    break;
+                }
+
+                if (wrappedCapsule.equals(jarFile)) // catch simple loops
+                    throw new RuntimeException("Capsule wrapping loop detected with capsule " + jarFile);
+                log(LOG_VERBOSE, "Wrapping capsule " + wrappedCapsule);
+                jarFile = wrappedCapsule;
+            } catch (IOException e) {
+                throw new RuntimeException("Could not read JAR file " + jarFile, e);
+            }
         }
 
-        this.logLevel = chooseLogLevel();
-        this.cacheDir = initCacheDir(cacheDir);
+        this.jarFile = jarFile;
+        if (wrapper && getClass().equals(Capsule.class))
+            throw new IllegalStateException(RUN_OTHER_MAIN);
 
-        if (dependencyManager != DEFAULT)
-            this.dependencyManager = dependencyManager;
-        else
-            this.dependencyManager = needsDependencyManager() ? createDependencyManager(getRepositories()) : null;
+        validateManifest();
+
         this.appId = buildAppId();
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
         this.cacheUpToDate = appCache != null ? isAppCacheUpToDate1() : false;
+    }
+
+    private Path getWrappedCapsule() {
+        final boolean empty = !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
+
+        String capsuleArtifact = null;
+        if (hasAttribute(ATTR_APP_ARTIFACT))
+            capsuleArtifact = getAttribute(ATTR_APP_ARTIFACT);
+        else if (empty) {
+            wrapper = true;
+            capsuleArtifact = CAPSULE_ARTIFACT;
+            CAPSULE_ARTIFACT = null;
+        }
+        if (capsuleArtifact != null) {
+            final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
+            if (jar == null)
+                throw new RuntimeException(capsuleArtifact + " ");
+            if (isCapsule(jar)) {
+                if (!empty)
+                    removeAttribute(ATTR_APP_ARTIFACT);
+                return jar;
+            } else if (empty)
+                throw new RuntimeException(jar + " is not a capsule");
+        }
+        return null;
     }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Properties">
     /////////// Properties ///////////////////////////////////
-    /**
-     * Tests if this is an empty capsule.
-     */
-    protected final boolean isEmptyCapsule() {
-        return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
-    }
-
     /**
      * This capsule's current mode.
      */
@@ -387,10 +446,6 @@ public class Capsule implements Runnable {
         return "jar:file:" + jarFile.toAbsolutePath() + "!/" + relPath;
     }
 
-    private static JarInputStream openJarInputStream(Path jar) throws IOException {
-        return new JarInputStream(skipToZipStart(Files.newInputStream(jar)));
-    }
-
     private InputStream getEntry(ZipInputStream zis, String name) throws IOException {
         for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
             if (entry.getName().equals(name))
@@ -403,12 +458,12 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Main Operations">
     /////////// Main Operations ///////////////////////////////////
     private void printVersion(List<String> args) {
-        System.out.println(LOG_PREFIX + "Application " + getAppId(args));
+        System.out.println(LOG_PREFIX + "Application " + getAppId());
         System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
     }
 
     private void printModes(List<String> args) {
-        System.out.println(LOG_PREFIX + "Application " + getAppId(args));
+        System.out.println(LOG_PREFIX + "Application " + getAppId());
         System.out.println("Available modes:");
         final Set<String> modes = getModes();
         if (modes.isEmpty())
@@ -435,11 +490,11 @@ public class Capsule implements Runnable {
     }
 
     private void printDependencyTree(List<String> args) {
-        System.out.println("Dependencies for " + getAppId(args));
+        System.out.println("Dependencies for " + getAppId());
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
-        else if (hasAttribute(ATTR_APP_ARTIFACT) || isEmptyCapsule()) {
-            final String appArtifact = isEmptyCapsule() ? getCommandLineArtifact(args) : getAttribute(ATTR_APP_ARTIFACT);
+        else if (hasAttribute(ATTR_APP_ARTIFACT)) {
+            final String appArtifact = getAttribute(ATTR_APP_ARTIFACT);
             if (appArtifact == null)
                 throw new IllegalStateException("capsule " + jarFile + " has nothing to run");
             printDependencyTree(appArtifact, "jar");
@@ -455,7 +510,7 @@ public class Capsule implements Runnable {
 
     private void resolve(List<String> args) throws IOException, InterruptedException {
         ensureExtractedIfNecessary();
-        resolveDependency(getAppArtifact(args), "jar");
+        resolveDependency(getAttribute(ATTR_APP_ARTIFACT), "jar");
         resolveDependencies(getDependencies(), "jar");
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_P));
@@ -466,6 +521,7 @@ public class Capsule implements Runnable {
     }
 
     private void launch(List<String> args) throws IOException, InterruptedException {
+        args = shiftArgs(args);
         final ProcessBuilder pb;
 
         try {
@@ -503,6 +559,10 @@ public class Capsule implements Runnable {
 
         System.exit(child != null ? child.exitValue() : 0);
     }
+
+    private List<String> shiftArgs(List<String> args) {
+        return wrapper ? args.subList(1, args.size()) : args;
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Launch">
@@ -518,12 +578,7 @@ public class Capsule implements Runnable {
      */
     protected ProcessBuilder prelaunch(List<String> args) {
         final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
-
-        ProcessBuilder pb = launchCapsuleArtifact(jvmArgs, args);
-        if (pb == null)
-            pb = prepareForLaunch(jvmArgs, args);
-
-        return pb;
+        return prepareForLaunch(jvmArgs, args);
     }
 
     /**
@@ -714,53 +769,12 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Capsule Artifact">
-    /////////// Capsule Artifact ///////////////////////////////////
-    // visible for testing
-    final ProcessBuilder launchCapsuleArtifact(List<String> jvmArgs, List<String> args) {
-        if (getScript() == null) {
-            final String appArtifact = getAppArtifact(args);
-            if (appArtifact != null && isDependency(appArtifact)) {
-                try {
-                    final List<Path> jars = resolveDependency(appArtifact, "jar");
-                    if (jars == null || jars.isEmpty())
-                        return null;
-                    if (isCapsule(jars.get(0))) {
-                        log(LOG_VERBOSE, "Running capsule " + jars.get(0));
-                        return launchCapsule(jars.get(0), cacheDir, jvmArgs, isEmptyCapsule() ? args.subList(1, args.size()) : buildArgs(args));
-                    } else if (isEmptyCapsule())
-                        throw new IllegalArgumentException("Artifact " + appArtifact + " is not a capsule.");
-                } catch (RuntimeException e) {
-                    if (isEmptyCapsule())
-                        throw new RuntimeException("Usage: java -jar capsule.jar CAPSULE_ARTIFACT_COORDINATES args...\n" + e, e);
-                    else
-                        throw e;
-                }
-            }
-        }
-        return null;
-    }
-
-    private static boolean isCapsule(Path path) {
-        if (Files.isRegularFile(path)) {
-            try {
-                return hasEntry(path, "Capsule.class");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return false;
-    }
-    //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="App ID">
     /////////// App ID ///////////////////////////////////
     /**
      * Computes and returns application's ID
      */
     protected String buildAppId() {
-        if (isEmptyCapsule())
-            return null;
         String appName = systemProperty(PROP_APP_ID);
         if (appName == null)
             appName = getAttribute(ATTR_APP_NAME);
@@ -793,20 +807,9 @@ public class Capsule implements Runnable {
 
     /**
      * Returns the app's ID.
-     * The arguments are required in case this is an empty capsule, in which case the ID is determined by the artifact supplied at the command line.
-     *
-     * @param args the command line arguments; may be {@code null}.
-     * @return the app ID
      */
-    protected final String getAppId(List<String> args) {
-        if (appId != null)
-            return appId;
-        assert isEmptyCapsule();
-
-        String appArtifact = getAppArtifact(args);
-        if (appArtifact == null)
-            throw new RuntimeException("No application to run");
-        return getAppArtifactId(getAppArtifactSpecificVersion(appArtifact));
+    protected final String getAppId() {
+        return appId;
     }
 
     private static String getAppArtifactId(String coords) {
@@ -891,8 +894,6 @@ public class Capsule implements Runnable {
     }
 
     private boolean needsAppCache() {
-        if (isEmptyCapsule())
-            return false;
         if (hasRenamedNativeDependencies())
             return true;
         if (hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
@@ -1132,10 +1133,9 @@ public class Capsule implements Runnable {
 
         // the app artifact (mustn't be a capsule if we're here)
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
-            if (isDependency(getAttribute(ATTR_APP_ARTIFACT)))
-                classPath.addAll(nullToEmpty(resolveDependency(getAttribute(ATTR_APP_ARTIFACT), "jar")));
-            else
-                classPath.add(single(getPath(getAttribute(ATTR_APP_ARTIFACT))));
+            if (isGlob(getAttribute(ATTR_APP_ARTIFACT)))
+                throw new IllegalArgumentException("Glob pattern not allowed in " + ATTR_APP_ARTIFACT + " attribute.");
+            classPath.addAll(getPath(getAttribute(ATTR_APP_ARTIFACT)));
         }
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
@@ -1465,27 +1465,7 @@ public class Capsule implements Runnable {
     }
 
     private Path getAppArtifactJarFromClasspath(List<Path> classPath) {
-        return classPath.get(0).equals(jarFile) ? classPath.get(1) : classPath.get(1);
-    }
-
-    private String getAppArtifact(List<String> args) {
-        String appArtifact = null;
-        if (isEmptyCapsule()) {
-            if (args == null)
-                return null;
-            appArtifact = getCommandLineArtifact(args);
-            if (appArtifact == null)
-                throw new IllegalStateException("Capsule " + jarFile + " has nothing to run");
-        }
-        if (appArtifact == null)
-            appArtifact = getAttribute(ATTR_APP_ARTIFACT);
-        return appArtifact;
-    }
-
-    private String getCommandLineArtifact(List<String> args) {
-        if (!args.isEmpty())
-            return args.get(0);
-        return null;
+        return classPath.get(0).equals(jarFile) ? classPath.get(1) : classPath.get(0);
     }
     //</editor-fold>
 
@@ -1588,15 +1568,17 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="POM">
     /////////// POM ///////////////////////////////////
-    private Object createPomReader(ZipInputStream zis) throws IOException {
-        final InputStream is = getEntry(zis, POM_FILE);
-        if (is == null)
-            return null;
+    private Object createPomReader(ZipInputStream zis) {
         try {
+            final InputStream is = getEntry(zis, POM_FILE);
+            if (is == null)
+                return null;
             return new PomReader(is);
         } catch (NoClassDefFoundError e) {
             throw new RuntimeException("Jar " + jarFile
                     + " contains a pom.xml file, while the necessary dependency management classes are not found in the jar");
+        } catch (IOException e) {
+            throw new RuntimeException("Could not read " + POM_FILE, e);
         }
     }
 
@@ -1616,13 +1598,6 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Dependency Manager">
     /////////// Dependency Manager ///////////////////////////////////
-    private boolean needsDependencyManager() {
-        return hasAttribute(ATTR_APP_ARTIFACT)
-                || isEmptyCapsule()
-                || getDependencies() != null
-                || getStrippedNativeDependencies() != null;
-    }
-
     private List<String> getRepositories() {
         final List<String> repos = new ArrayList<String>();
 
@@ -1644,21 +1619,27 @@ public class Capsule implements Runnable {
         return !repos.isEmpty() ? unmodifiableList(repos) : null;
     }
 
-    private Object createDependencyManager(List<String> repositories) {
+    private Object tryCreateDependencyManager() {
+        if (systemPropertyEmptyOrTrue(PROP_NO_DEP_MANAGER))
+            return null;
         try {
             final boolean reset = systemPropertyEmptyOrTrue(PROP_RESET);
-
             final Path localRepo = getLocalRepo();
-            log(LOG_DEBUG, "Local repo: " + localRepo);
-
-            final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));
-            log(LOG_DEBUG, "Allow snapshots: " + allowSnapshots);
-
-            return new DependencyManagerImpl(localRepo.toAbsolutePath(), repositories, reset, allowSnapshots, logLevel);
+            return new DependencyManagerImpl(localRepo.toAbsolutePath(), reset, logLevel);
         } catch (NoClassDefFoundError e) {
-            throw new RuntimeException("Jar " + jarFile
-                    + " specifies dependencies, while the necessary dependency management classes are not found in the jar");
+            return null;
         }
+    }
+
+    private void verifyDependencyManager() {
+        if (dependencyManager == null)
+            throw new RuntimeException("JAR " + jarFile + " uses dependencies, while the necessary dependency management classes are not found in the capsule JAR");
+    }
+
+    private void setDependencyRepositories(List<String> repositories) {
+        verifyDependencyManager();
+        final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));
+        ((DependencyManager) dependencyManager).setRepos(repositories, allowSnapshots);
     }
 
     private Path getLocalRepo() {
@@ -1670,24 +1651,28 @@ public class Capsule implements Runnable {
     }
 
     private void printDependencyTree(String root, String type) {
+        verifyDependencyManager();
         ((DependencyManager) dependencyManager).printDependencyTree(root, type, System.out);
     }
 
     private void printDependencyTree(List<String> dependencies, String type) {
         if (dependencies == null)
             return;
+        verifyDependencyManager();
         ((DependencyManager) dependencyManager).printDependencyTree(dependencies, type, System.out);
     }
 
     private List<Path> resolveDependencies(List<String> dependencies, String type) {
         if (dependencies == null)
             return null;
+        verifyDependencyManager();
         return ((DependencyManager) dependencyManager).resolveDependencies(dependencies, type);
     }
 
     private List<Path> resolveDependency(String coords, String type) {
         if (coords == null)
             return null;
+        verifyDependencyManager();
         return ((DependencyManager) dependencyManager).resolveDependency(coords, type);
     }
 
@@ -1698,6 +1683,7 @@ public class Capsule implements Runnable {
     private String getArtifactLatestVersion(String coords, String type) {
         if (coords == null)
             return null;
+        verifyDependencyManager();
         return ((DependencyManager) dependencyManager).getLatestVersion(coords, type);
     }
     //</editor-fold>
@@ -1801,6 +1787,37 @@ public class Capsule implements Runnable {
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
         return mapSplit(getAttribute(attr), '=', "\\s+", defaultValue);
+    }
+
+    private void removeAttribute(String attr) {
+        final Attributes.Name key = new Attributes.Name(attr);
+        if (mode != null && !NON_MODAL_ATTRS.contains(attr)) {
+            if (manifest.getAttributes(mode).remove(key) != null)
+                return;
+        }
+        manifest.getMainAttributes().remove(key);
+    }
+
+    private static void merge(Manifest man1, Manifest man2) {
+        if (man2 == null)
+            return;
+        // man1 takes precedence
+        merge(man1.getMainAttributes(), man2.getMainAttributes());
+        for (Map.Entry<String, Attributes> entry : man2.getEntries().entrySet()) {
+            Attributes attr = man1.getAttributes(entry.getKey());
+            if (attr != null)
+                merge(attr, entry.getValue());
+            else
+                man1.getEntries().put(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private static void merge(Attributes a1, Attributes a2) {
+        // a1 gets precedence
+        for (Map.Entry<Object, Object> entry : a2.entrySet()) {
+            if (!a1.containsKey(entry.getKey()))
+                a1.put(entry.getKey(), entry.getValue());
+        }
     }
     //</editor-fold>
 
@@ -1994,6 +2011,10 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="JAR Utils">
     /////////// JAR Utils ///////////////////////////////////
+    private static JarInputStream openJarInputStream(Path jar) throws IOException {
+        return new JarInputStream(skipToZipStart(Files.newInputStream(jar)));
+    }
+
     private static String getMainClass(Path jar) throws IOException {
         return getMainClass(getManifest(jar));
     }
@@ -2005,19 +2026,17 @@ public class Capsule implements Runnable {
     }
 
     private static Manifest getManifest(Path jar) throws IOException {
-        try (JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jar)))) {
+        try (JarInputStream jis = openJarInputStream(jar)) {
             return jis.getManifest();
         }
     }
 
-    private static boolean hasEntry(Path jarFile, String name) throws IOException {
-        try (JarInputStream jis = new JarInputStream(skipToZipStart(Files.newInputStream(jarFile)))) {
-            for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
-                if (name.equals(entry.getName()))
-                    return true;
-            }
-            return false;
+    private static boolean hasEntry(JarInputStream jis, String name) throws IOException {
+        for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
+            if (name.equals(entry.getName()))
+                return true;
         }
+        return false;
     }
 
     private static int[] ZIP_HEADER = new int[]{'\n', 'P', 'K', 0x03, 0x04};
@@ -2739,7 +2758,7 @@ public class Capsule implements Runnable {
      */
     protected int chooseLogLevel() {
         String level = System.getProperty(PROP_LOG_LEVEL);
-        if (level == null)
+        if (level == null && manifest != null)
             level = getAttribute(ATTR_LOG_LEVEL);
         int lvl = getLogLevel(level);
         if (lvl < 0)
@@ -2911,6 +2930,19 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule Loading and Launching">
     /////////// Capsule Loading and Launching ///////////////////////////////////
+    private static boolean isCapsule(Path jar) {
+        if (Files.isRegularFile(jar)) {
+            try (JarInputStream jis = openJarInputStream(jar)) {
+                if (jis.getManifest().getMainAttributes().getValue(ATTR_MAIN_CLASS) == null)
+                    return false;
+                return hasEntry(jis, "Capsule.class");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return false;
+    }
+
     // visible for testing
     static Capsule newCapsule(Path jarFile, Path cacheDir) {
         return (Capsule) newCapsule(jarFile, cacheDir, Capsule.class.getClassLoader());
@@ -2937,23 +2969,6 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static ProcessBuilder launchCapsule(Path path, Path cacheDir, List<String> cmdLine, List<String> args) {
-        try {
-            final ClassLoader cl = (ClassLoader) createClassLoader(path);
-            final Object capsule = newCapsule(path, cacheDir, cl);
-            final Method launch = getMethod(capsule.getClass(), "prepareForLaunch", List.class, List.class);
-            if (launch != null)
-                return (ProcessBuilder) launch.invoke(capsule, cmdLine, args);
-            throw new RuntimeException(path + " does not appear to be a valid capsule.");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
-        } catch (InvocationTargetException e) {
-            throw rethrow(e.getTargetException());
-        }
-    }
-
     private static RuntimeException rethrow(Throwable t) {
         if (t instanceof RuntimeException)
             throw (RuntimeException) t;
@@ -2969,17 +2984,7 @@ public class Capsule implements Runnable {
     }
 
     private static Object createClassLoader(Path path) throws IOException {
-        return new JarClassLoader(path, true); // new URLClassLoader(new URL[]{path.toUri().toURL()}); // 
-    }
-
-    private static Method getMethod(Class<?> clazz, String name, Class<?>... paramTypes) {
-        try {
-            final Method method = clazz.getDeclaredMethod(name, paramTypes);
-            method.setAccessible(true);
-            return method;
-        } catch (NoSuchMethodException e) {
-            return clazz.getSuperclass() != null ? getMethod(clazz.getSuperclass(), name, paramTypes) : null;
-        }
+        return new URLClassLoader(new URL[]{path.toUri().toURL()}); // 
     }
     //</editor-fold>
 }
