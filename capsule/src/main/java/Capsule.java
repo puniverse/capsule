@@ -579,7 +579,7 @@ public class Capsule implements Runnable {
         ensureExtractedIfNecessary();
 
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
-        final ProcessBuilder pb = buildProcess(nullToEmpty(args));
+        final ProcessBuilder pb = prelaunch(nullToEmpty(args));
 
         if (appCache != null && !cacheUpToDate)
             markCache();
@@ -639,12 +639,13 @@ public class Capsule implements Runnable {
     /**
      * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
      * The ProcessBuilder's IO redirection is left in its default settings.
-     * Custom capsules may override this method to display a message prior to launch, to configure the process's IO streams, environment etc.
+     * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
+     * For more elaborate manipulation of the Capsule's launched process, consider overriding {@link #buildProcess() buildProcess}.
      *
      * @param args the application command-line arguments
      * @return a configured {@code ProcessBuilder} (must never return {@code null})
      */
-    protected ProcessBuilder buildProcess(List<String> args) {
+    protected ProcessBuilder prelaunch(List<String> args) {
         final ProcessBuilder pb = buildProcess();
 
         final List<String> command = pb.command();
@@ -1742,9 +1743,6 @@ public class Capsule implements Runnable {
 
     /**
      * Returns the description of the given mode.
-     *
-     * @param mode
-     * @return the description of the given mode, or {@code null} if no description is found.
      */
     protected final String getModeDescription(String mode) {
         return manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
