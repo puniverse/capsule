@@ -806,7 +806,7 @@ public class CapsuleTest {
         assertTrue(!getJvmArgs(pb).contains("-Xms10"));
     }
 
-    //@Test
+    // @Test
     public void testEmptyCapsule() throws Exception {
         Jar jar = newCapsuleJar();
 
@@ -963,11 +963,10 @@ public class CapsuleTest {
 
         Capsule capsule = newCapsule(jar, null);
         capsule.prepareForLaunch(null, null);
-        
+
         String cj = path("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId();
-        
 
         assertEquals(cj + "abc" + cj + "def" + cj, capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR"));
         assertEquals(cid + "abc" + cid + "def" + cid, capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP"));
@@ -1054,12 +1053,12 @@ public class CapsuleTest {
                 .setAttribute("Main-Class", "Capsule");
     }
 
-    private Path path(String first, String... more) {
-        return fs.getPath(first, more);
-    }
-
     private Model newPom() {
         return new Model();
+    }
+
+    private Path path(String first, String... more) {
+        return fs.getPath(first, more);
     }
 
     private InputStream toInputStream(Model model) {

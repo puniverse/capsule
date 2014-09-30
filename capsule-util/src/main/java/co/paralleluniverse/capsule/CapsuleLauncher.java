@@ -47,10 +47,35 @@ public final class CapsuleLauncher {
      *         {@link #prepareForLaunch(Object, List, List) prepareForLaunch}.
      */
     public static Object newCapsule(Path jarFile, Path cacheDir) {
-        return newCapsule(jarFile, cacheDir, null);
+        return newCapsule(jarFile, null, cacheDir, null);
     }
 
-    public static Object newCapsule(Path jarFile, Path cacheDir, Map<String, Path> javaHomes) {
+    /**
+     * Creates a new capsule
+     *
+     * @param jarFile    the capsule JAR
+     * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
+     *                   or {@code null} if no wrapped capsule is wanted
+     * @param cacheDir   the directory to use as cache
+     * @return a capsule object which can then be passed to {@link #getAppId(Object) getAppId} and
+     *         {@link #prepareForLaunch(Object, List, List) prepareForLaunch}.
+     */
+    public static Object newCapsule(Path jarFile, Path wrappedJar, Path cacheDir) {
+        return newCapsule(jarFile, wrappedJar, cacheDir, null);
+    }
+
+    /**
+     * Creates a new capsule
+     *
+     * @param jarFile    the capsule JAR
+     * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
+     *                   or {@code null} if no wrapped capsule is wanted
+     * @param cacheDir   the directory to use as cache
+     * @param javaHomes  a map from Java version strings to their respective JVM installation paths
+     * @return a capsule object which can then be passed to {@link #getAppId(Object) getAppId} and
+     *         {@link #prepareForLaunch(Object, List, List) prepareForLaunch}.
+     */
+    public static Object newCapsule(Path jarFile, Path wrappedJar, Path cacheDir, Map<String, Path> javaHomes) {
         try {
             final Manifest mf;
             try (JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
@@ -67,7 +92,14 @@ public final class CapsuleLauncher {
 
             final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
             ctor.setAccessible(true);
-            return ctor.newInstance(jarFile, cacheDir);
+            final Object capsule = ctor.newInstance(jarFile, cacheDir);
+
+            if (wrappedJar != null) {
+                final Method setTarget = clazz.getDeclaredMethod("setTargetCapsule", Path.class);
+                setTarget.invoke(capsule, wrappedJar);
+            }
+
+            return capsule;
         } catch (IOException e) {
             throw new RuntimeException(e);
         } catch (ReflectiveOperationException e) {
