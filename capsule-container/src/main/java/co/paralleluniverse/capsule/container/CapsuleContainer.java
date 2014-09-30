@@ -113,7 +113,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
      * @return a unique process ID
      */
     public String launchCapsule(Path capsulePath, List<String> jvmArgs, List<String> args) throws IOException {
-        final Object capsule = CapsuleLauncher.newCapsule(capsulePath, cacheDir, javaHomes);
+        final Object capsule = CapsuleLauncher.newCapsule(capsulePath, null, cacheDir, javaHomes);
         return launchCapsule(capsule, jvmArgs, args);
     }
 
@@ -194,6 +194,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
 
     private void monitorProcess(final String id, final Process p) {
         new Thread("process-monitor-" + id) {
+            @SuppressWarnings("CallToPrintStackTrace")
             @Override
             public void run() {
                 try {
