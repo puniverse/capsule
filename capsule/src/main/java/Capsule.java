@@ -220,7 +220,7 @@ public class Capsule implements Runnable {
     protected static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
             final Capsule capsule = newCapsule(findOwnJarFile(), getCacheDir());
-            if (capsule.isEmpty() && !args.isEmpty()) {
+            if (capsule.isEmptyCapsule() && !args.isEmpty()) {
                 final String target = args.remove(0);
                 if (!capsule.getClass().equals(Capsule.class)) // this is a custom capsule
                     capsule.setTargetCapsule(target);
@@ -264,7 +264,7 @@ public class Capsule implements Runnable {
                 return;
             }
 
-            if (capsule.isEmpty())
+            if (capsule.isEmptyCapsule())
                 throw new RuntimeException("USAGE: java -jar " + capsule.jarFile + " PATH_OR_MAVEN_COORDINATES\n" + capsule.jarFile + " is an empty capsule.");
 
             capsule.launch(args);
@@ -304,7 +304,7 @@ public class Capsule implements Runnable {
     private boolean cacheUpToDate;
     private FileLock appCacheLock;
 
-    private /*final*/ Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
+    private /*final*/ Object pom;           // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final Object dependencyManager; // non-null iff needsDependencyManager is true
     private int logLevel; // effectively final after constructor completes
 
@@ -356,7 +356,7 @@ public class Capsule implements Runnable {
         if (this.dependencyManager != null)
             setDependencyRepositories(getRepositories());
 
-        if (!isEmpty()) {
+        if (!isEmptyCapsule()) {
             validateManifest();
             this.appId = buildAppId();
         }
@@ -371,7 +371,7 @@ public class Capsule implements Runnable {
     }
 
     private void setTargetCapsule(Path jar) {
-        if (!isEmpty())
+        if (!isEmptyCapsule())
             throw new IllegalStateException("Capsule " + jarFile + " isn't empty");
         if (jar.equals(jarFile)) // catch simple loops
             throw new RuntimeException("Capsule wrapping loop detected with capsule " + jarFile);
@@ -402,7 +402,7 @@ public class Capsule implements Runnable {
         this.appId = buildAppId();
     }
 
-    private boolean isEmpty() {
+    private boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
     }
     //</editor-fold>
@@ -578,27 +578,13 @@ public class Capsule implements Runnable {
         chooseMode1();
         ensureExtractedIfNecessary();
 
-        final ProcessBuilder pb = prelaunch(nullToEmpty(args));
+        log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
+        final ProcessBuilder pb = buildProcess(nullToEmpty(args));
 
         if (appCache != null && !cacheUpToDate)
             markCache();
 
-        log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
-
         return pb;
-    }
-
-    /**
-     * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
-     * The ProcessBuilder's IO redirection is left in its default settings.
-     * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
-     * Other, more elaborate customization of the command are best done by overriding {@link #buildProcess() buildProcess}.
-     *
-     * @param args the application command-line arguments
-     * @return a configured {@code ProcessBuilder} (must never return {@code null})
-     */
-    protected ProcessBuilder prelaunch(List<String> args) {
-        return buildProcess(args);
     }
 
     /**
@@ -650,7 +636,15 @@ public class Capsule implements Runnable {
         return emptyToNull(systemProperty(PROP_MODE));
     }
 
-    private ProcessBuilder buildProcess(List<String> args) {
+    /**
+     * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
+     * The ProcessBuilder's IO redirection is left in its default settings.
+     * Custom capsules may override this method to display a message prior to launch, to configure the process's IO streams, environment etc.
+     *
+     * @param args the application command-line arguments
+     * @return a configured {@code ProcessBuilder} (must never return {@code null})
+     */
+    protected ProcessBuilder buildProcess(List<String> args) {
         final ProcessBuilder pb = buildProcess();
 
         final List<String> command = pb.command();
