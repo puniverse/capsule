@@ -213,9 +213,9 @@ public class Capsule implements Runnable {
 
     /**
      * Returns the singleton Capsule instance.
-     * {@code  List<String> args = new ArrayList<>(Arrays.asList(args0));}
+     * The passed argument list must be mutable, as this method might consume some arguments and remove them from the list.
      *
-     * @param args The command-line arguments passed to {@code main}.
+     * @param args The command-line arguments passed to {@code main}, as a <i>mutable</i> list.
      */
     protected static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
@@ -369,12 +369,16 @@ public class Capsule implements Runnable {
     }
 
     private void setTargetCapsule(Path jar) {
+        if (!isEmpty())
+            throw new IllegalStateException("Capsule " + jarFile + " isn't empty");
         if (jar.equals(jarFile)) // catch simple loops
             throw new RuntimeException("Capsule wrapping loop detected with capsule " + jarFile);
 
-        boolean isCapsule = false;
+        log(LOG_VERBOSE, "Wrapping capsule " + jar);
         this.jarFile = jar;
+        
         try (JarInputStream jis = openJarInputStream(jarFile)) {
+            boolean isCapsule = false;
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
                 if (entry.getName().equals(Capsule.class.getName()))
                     isCapsule = true;
@@ -385,13 +389,10 @@ public class Capsule implements Runnable {
             final Manifest man = jis.getManifest();
             if (man == null || !isCapsule)
                 throw new RuntimeException(jarFile + " is not a capsule");
-
             merge(manifest, man);
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
-
-        log(LOG_VERBOSE, "Wrapping capsule " + jar);
 
         if (this.dependencyManager != null)
             setDependencyRepositories(getRepositories());
