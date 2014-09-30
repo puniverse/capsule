@@ -293,10 +293,10 @@ public class Capsule implements Runnable {
     private final Manifest manifest; // never null
     private final String appId;      // null iff isEmptyCapsule()
     private String mode;
-    private boolean wrapper;
+    private final boolean wrapper;
 
-    private final Path appCache;     // non-null iff capsule is extracted
-    private final boolean cacheUpToDate;
+    private Path appCache;     // non-null iff capsule is extracted
+    private boolean cacheUpToDate;
     private FileLock appCacheLock;
 
     private final Object pom;               // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
@@ -334,6 +334,7 @@ public class Capsule implements Runnable {
         this.cacheDir = initCacheDir(cacheDir);
         this.manifest = new Manifest();
 
+        boolean wrapperCapsule = false;
         for (;;) {
             try (JarInputStream jis = openJarInputStream(jarFile)) {
                 final Manifest man = jis.getManifest();
@@ -349,11 +350,13 @@ public class Capsule implements Runnable {
                     setDependencyRepositories(getRepositories());
 
                 final Path wrappedCapsule = getWrappedCapsule();
+
                 if (wrappedCapsule == null) {
                     this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader(jis) : null;
                     break;
                 }
 
+                wrapperCapsule = true;
                 if (wrappedCapsule.equals(jarFile)) // catch simple loops
                     throw new RuntimeException("Capsule wrapping loop detected with capsule " + jarFile);
                 log(LOG_VERBOSE, "Wrapping capsule " + wrappedCapsule);
@@ -363,6 +366,7 @@ public class Capsule implements Runnable {
             }
         }
 
+        this.wrapper = wrapperCapsule;
         this.jarFile = jarFile;
         if (wrapper && getClass().equals(Capsule.class))
             throw new IllegalStateException(RUN_OTHER_MAIN);
@@ -370,33 +374,25 @@ public class Capsule implements Runnable {
         validateManifest();
 
         this.appId = buildAppId();
-        this.appCache = needsAppCache() ? getAppCacheDir() : null;
-        this.cacheUpToDate = appCache != null ? isAppCacheUpToDate1() : false;
     }
 
     private Path getWrappedCapsule() {
-        final boolean empty = !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
+        final boolean emptyCapsule = !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
+        if (!emptyCapsule)
+            return null;
 
-        String capsuleArtifact = null;
-        if (hasAttribute(ATTR_APP_ARTIFACT))
-            capsuleArtifact = getAttribute(ATTR_APP_ARTIFACT);
-        else if (empty) {
-            wrapper = true;
-            capsuleArtifact = CAPSULE_ARTIFACT;
-            CAPSULE_ARTIFACT = null;
-        }
-        if (capsuleArtifact != null) {
-            final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
-            if (jar == null)
-                throw new RuntimeException(capsuleArtifact + " ");
-            if (isCapsule(jar)) {
-                if (!empty)
-                    removeAttribute(ATTR_APP_ARTIFACT);
-                return jar;
-            } else if (empty)
-                throw new RuntimeException(jar + " is not a capsule");
-        }
-        return null;
+        final String capsuleArtifact = CAPSULE_ARTIFACT;
+        CAPSULE_ARTIFACT = null;
+        if (capsuleArtifact == null)
+            throw new RuntimeException("USAGE: java -jar " + jarFile + " PATH_OR_MAVEN_COORDINATES\n" + jarFile + " is an empty capsule.");
+
+        final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
+        if (jar == null)
+            throw new RuntimeException(capsuleArtifact + " not found.");
+        if (isCapsule(jar))
+            return jar;
+        else
+            throw new RuntimeException(capsuleArtifact + " is not a capsule.");
     }
     //</editor-fold>
 
@@ -522,10 +518,11 @@ public class Capsule implements Runnable {
 
     private void launch(List<String> args) throws IOException, InterruptedException {
         args = shiftArgs(args);
-        final ProcessBuilder pb;
 
+        final ProcessBuilder pb;
         try {
-            pb = prelaunch(args);
+            final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
+            pb = prepareForLaunch(jvmArgs, args);
         } catch (Throwable t) {
             cleanup();
             throw t;
@@ -567,6 +564,24 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
+    // directly used by CapsuleLauncher
+    final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
+        this.jvmArgs_ = nullToEmpty(jvmArgs); // hack
+        this.args_ = nullToEmpty(jvmArgs);    // hack
+
+        chooseMode1();
+        ensureExtractedIfNecessary();
+
+        final ProcessBuilder pb = prelaunch(nullToEmpty(args));
+
+        if (appCache != null && !cacheUpToDate)
+            markCache();
+
+        log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
+
+        return pb;
+    }
+
     /**
      * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
      * The ProcessBuilder's IO redirection is left in its default settings.
@@ -577,8 +592,7 @@ public class Capsule implements Runnable {
      * @return a configured {@code ProcessBuilder} (must never return {@code null})
      */
     protected ProcessBuilder prelaunch(List<String> args) {
-        final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
-        return prepareForLaunch(jvmArgs, args);
+        return buildProcess(args);
     }
 
     /**
@@ -616,25 +630,6 @@ public class Capsule implements Runnable {
         }
     }
 
-    // directly used by CapsuleLauncher
-    final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
-        chooseMode1();
-
-        ensureExtractedIfNecessary();
-
-        this.jvmArgs_ = nullToEmpty(jvmArgs); // hack
-        this.args_ = nullToEmpty(jvmArgs);    // hack
-
-        final ProcessBuilder pb = buildProcess(nullToEmpty(args));
-
-        if (appCache != null && !cacheUpToDate)
-            markCache();
-
-        log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
-
-        return pb;
-    }
-
     private void chooseMode1() {
         this.mode = chooseMode();
         if (mode != null && !hasMode(mode))
@@ -647,17 +642,6 @@ public class Capsule implements Runnable {
      */
     protected String chooseMode() {
         return emptyToNull(systemProperty(PROP_MODE));
-    }
-
-    private void ensureExtractedIfNecessary() {
-        if (appCache != null) {
-            if (!cacheUpToDate) {
-                resetAppCache();
-                if (shouldExtract())
-                    extractCapsule();
-            } else
-                log(LOG_VERBOSE, "App cache " + appCache + " is up to date.");
-        }
     }
 
     private ProcessBuilder buildProcess(List<String> args) {
@@ -890,6 +874,26 @@ public class Capsule implements Runnable {
             return appDir;
         } catch (IOException e) {
             throw new RuntimeException("Application cache directory " + appDir.toAbsolutePath() + " could not be created.");
+        }
+    }
+
+    private void ensureAppCacheIfNecessary() {
+        if (appCache != null)
+            return;
+
+        this.appCache = needsAppCache() ? getAppCacheDir() : null;
+        this.cacheUpToDate = appCache != null ? isAppCacheUpToDate1() : false;
+    }
+
+    private void ensureExtractedIfNecessary() {
+        ensureAppCacheIfNecessary();
+        if (appCache != null) {
+            if (!cacheUpToDate) {
+                resetAppCache();
+                if (shouldExtract())
+                    extractCapsule();
+            } else
+                log(LOG_VERBOSE, "App cache " + appCache + " is up to date.");
         }
     }
 
@@ -1789,19 +1793,9 @@ public class Capsule implements Runnable {
         return mapSplit(getAttribute(attr), '=', "\\s+", defaultValue);
     }
 
-    private void removeAttribute(String attr) {
-        final Attributes.Name key = new Attributes.Name(attr);
-        if (mode != null && !NON_MODAL_ATTRS.contains(attr)) {
-            if (manifest.getAttributes(mode).remove(key) != null)
-                return;
-        }
-        manifest.getMainAttributes().remove(key);
-    }
-
-    private static void merge(Manifest man1, Manifest man2) {
+    private void merge(Manifest man1, Manifest man2) {
         if (man2 == null)
             return;
-        // man1 takes precedence
         merge(man1.getMainAttributes(), man2.getMainAttributes());
         for (Map.Entry<String, Attributes> entry : man2.getEntries().entrySet()) {
             Attributes attr = man1.getAttributes(entry.getKey());
@@ -1812,12 +1806,29 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static void merge(Attributes a1, Attributes a2) {
-        // a1 gets precedence
+    private void merge(Attributes a1, Attributes a2) {
         for (Map.Entry<Object, Object> entry : a2.entrySet()) {
             if (!a1.containsKey(entry.getKey()))
-                a1.put(entry.getKey(), entry.getValue());
+                a1.put(entry.getKey(), merge(((Attributes.Name) entry.getKey()).toString(), (String) a1.get(entry.getKey()), (String) entry.getValue()));
         }
+    }
+
+    /**
+     * When using an empty capsule to launch another, this method will be called for each attribute in the wrapped (non-empty) manifest to merge
+     * the wrapped capsule's attribute with the wrapper (empty) capsule's attribute.
+     * When overriding this method, it may be useful to make use of {@link #split(String, String) split}, {@link #mapSplit(String, char, String, String) mapSplit},
+     * {@link #join(Collection, String) join}, and {@link #join(Map, String, String) map join}.
+     * <p>
+     * The default implementation simply returns {@code value1}, unless it is {@code null} in which case it will pick {@code value2};
+     * in other words, it gives preference to the wrapper capsule's attributes.
+     *
+     * @param attribute the attribute's name
+     * @param value1    the attribute's value in the wrapper (empty) capsule
+     * @param value2    the attribute's value in the wrapped capsule
+     * @return the value which will be used when launching the capsule
+     */
+    protected String merge(String attribute, String value1, String value2) {
+        return (value1 != null) ? value1 : value2;
     }
     //</editor-fold>
 
@@ -2570,6 +2581,23 @@ public class Capsule implements Runnable {
         return sb.toString();
     }
 
+    /**
+     * Joins a map into a string.
+     *
+     * @param map         the map
+     * @param kvSeparator will be used to separate keys from values
+     * @param separator   will be used to separate between key-value pairs
+     */
+    protected final static String join(Map<String, String> map, String kvSeparator, String separator) {
+        if (map == null)
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : map.entrySet())
+            sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
+        sb.delete(sb.length() - separator.length(), sb.length());
+        return sb.toString();
+    }
+
     private static String getBefore(String s, char separator) {
         final int i = s.indexOf(separator);
         if (i < 0)
@@ -2807,9 +2835,7 @@ public class Capsule implements Runnable {
     }
 
     private static void clearContext() {
-        contextType_ = null;
-        contextKey_ = null;
-        contextValue_ = null;
+        setContext(null, null, null);
     }
 
     private static void setContext(String type, String key, String value) {

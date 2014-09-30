@@ -962,10 +962,12 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo");
 
         Capsule capsule = newCapsule(jar, null);
-
+        capsule.prepareForLaunch(null, null);
+        
         String cj = path("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId();
+        
 
         assertEquals(cj + "abc" + cj + "def" + cj, capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR"));
         assertEquals(cid + "abc" + cid + "def" + cid, capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP"));
@@ -980,6 +982,7 @@ public class CapsuleTest {
                 .setAttribute("Extract-Capsule", "false");
 
         Capsule capsule = newCapsule(jar, null);
+        capsule.prepareForLaunch(null, null);
 
         String cj = path("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
