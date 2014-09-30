@@ -219,15 +219,17 @@ public class Capsule implements Runnable {
      */
     protected static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
-            CAPSULE = newCapsule(findOwnJarFile(), getCacheDir());
-            if (CAPSULE.isEmpty() && !args.isEmpty()) {
-                if (CAPSULE.getClass().equals(Capsule.class)) {
-                    runMain(CAPSULE.jarFile, args.subList(1, args.size()));
+            final Capsule capsule = newCapsule(findOwnJarFile(), getCacheDir());
+            if (capsule.isEmpty() && !args.isEmpty()) {
+                final String target = args.remove(0);
+                if (!capsule.getClass().equals(Capsule.class)) // this is a custom capsule
+                    capsule.setTargetCapsule(target);
+                else {
+                    runMain(capsule.jarFile, args);
                     System.exit(0);
                 }
-                CAPSULE.setTargetCapsule(args.get(0));
-                args.remove(0);
             }
+            CAPSULE = capsule;
         }
         return CAPSULE;
     }
@@ -239,9 +241,9 @@ public class Capsule implements Runnable {
      */
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace", "StringEquality", "null"})
     public static final void main(String[] args0) {
-        final List<String> args = new ArrayList<>(Arrays.asList(args0));
+        final List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         try {
-            Capsule capsule = myCapsule(args);
+            final Capsule capsule = myCapsule(args);
 
             if (propertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (propertyDefined(PROP_VERSION))
@@ -376,7 +378,7 @@ public class Capsule implements Runnable {
 
         log(LOG_VERBOSE, "Wrapping capsule " + jar);
         this.jarFile = jar;
-        
+
         try (JarInputStream jis = openJarInputStream(jarFile)) {
             boolean isCapsule = false;
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
