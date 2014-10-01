@@ -14,10 +14,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
@@ -60,22 +57,11 @@ public final class DependencyManagerImpl implements DependencyManager {
     private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
-    private static final String PROP_USER_HOME = "user.home";
 
     private static final String ENV_CONNECT_TIMEOUT = "CAPSULE_CONNECT_TIMEOUT";
     private static final String ENV_REQUEST_TIMEOUT = "CAPSULE_REQUEST_TIMEOUT";
 
     private static final String LATEST_VERSION = "[0,)";
-    static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
-
-    private static final Map<String, String> WELL_KNOWN_REPOS = stringMap(
-            "central", "central(https://repo1.maven.org/maven2/)",
-            "central-http", "central(http://repo1.maven.org/maven2/)",
-            "jcenter", "jcenter(https://jcenter.bintray.com/)",
-            "jcenter-http", "jcenter(http://jcenter.bintray.com/)",
-            "local", "local(file:" + DEFAULT_LOCAL_MAVEN.resolve("repository") + ")"
-    );
-
     private static final int LOG_NONE = 0;
     private static final int LOG_QUIET = 1;
     private static final int LOG_VERBOSE = 2;
@@ -372,12 +358,6 @@ public final class DependencyManagerImpl implements DependencyManager {
         return s.isEmpty() ? null : s;
     }
 
-    private static Map<String, String> stringMap(String... ss) {
-        final Map<String, String> m = new HashMap<>();
-        for (int i = 0; i < ss.length / 2; i++)
-            m.put(ss[i * 2], ss[i * 2 + 1]);
-        return Collections.unmodifiableMap(m);
-    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Logging">

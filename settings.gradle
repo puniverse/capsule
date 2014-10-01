@@ -1,5 +1,7 @@
 include 'capsule'
 include 'capsule-util'
 include 'capsule-container'
+include 'capsule-build'
 
 rootProject.name = 'capsule'
+
