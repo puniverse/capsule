@@ -283,9 +283,9 @@ public class Capsule implements Runnable {
 
     private static void runMain(Path jar, List<String> args) {
         try {
-            final ClassLoader cl = new URLClassLoader(new URL[]{jar.toUri().toURL()});
-            final Class<?> mainClass = cl.loadClass(getMainClass(jar));
-            mainClass.getMethod("main", String[].class).invoke(null, (Object) args.toArray(new String[0]));
+            new URLClassLoader(new URL[]{jar.toUri().toURL()})
+                    .loadClass(getMainClass(jar))
+                    .getMethod("main", String[].class).invoke(null, (Object) args.toArray(new String[0]));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -828,10 +828,8 @@ public class Capsule implements Runnable {
         try {
             if (!Files.exists(cache))
                 Files.createDirectory(cache);
-            if (!Files.exists(cache.resolve(APP_CACHE_NAME)))
-                Files.createDirectory(cache.resolve(APP_CACHE_NAME));
-            if (!Files.exists(cache.resolve(DEPS_CACHE_NAME)))
-                Files.createDirectory(cache.resolve(DEPS_CACHE_NAME));
+            Files.createDirectories(cache.resolve(APP_CACHE_NAME));
+            Files.createDirectories(cache.resolve(DEPS_CACHE_NAME));
 
             return cache;
         } catch (IOException e) {
@@ -2048,14 +2046,6 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static boolean hasEntry(JarInputStream jis, String name) throws IOException {
-        for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
-            if (name.equals(entry.getName()))
-                return true;
-        }
-        return false;
-    }
-
     private static int[] ZIP_HEADER = new int[]{'\n', 'P', 'K', 0x03, 0x04};
 
     private static InputStream skipToZipStart(InputStream is) throws IOException {
@@ -2716,7 +2706,7 @@ public class Capsule implements Runnable {
      * Executes a command and returns its output as a list of lines.
      * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
      * <br>
-     * This is the same as calling {@code exec(-1, cmd}}.
+     * Same as calling {@code exec(-1, cmd}}.
      *
      * @param cmd the command
      * @return the lines output by the command
@@ -2742,7 +2732,7 @@ public class Capsule implements Runnable {
      * Executes a command and returns its output as a list of lines.
      * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
      * <br>
-     * This is the same as calling {@code exec(-1, pb}}.
+     * Same as calling {@code exec(-1, pb}}.
      *
      * @param pb the {@link ProcessBuilder} that will be used to launch the command
      * @return the lines output by the command
@@ -2916,9 +2906,10 @@ public class Capsule implements Runnable {
     /**
      * Throws a {@link CloneNotSupportedException}
      */
+    @SuppressWarnings("CloneDoesntCallSuperClone")
     @Override
     protected final Object clone() throws CloneNotSupportedException {
-        return super.clone();
+        throw new CloneNotSupportedException();
     }
 
     @Override
@@ -2950,7 +2941,7 @@ public class Capsule implements Runnable {
         sb.append(jarFile);
         if (appId != null) {
             sb.append(", ").append(appId);
-            sb.append(getAttribute(ATTR_APP_CLASS) != null ? getAttribute(ATTR_APP_CLASS) : getAttribute(ATTR_APP_ARTIFACT));
+            sb.append(", ").append(getAttribute(ATTR_APP_CLASS) != null ? getAttribute(ATTR_APP_CLASS) : getAttribute(ATTR_APP_ARTIFACT));
         } else
             sb.append(", ").append("empty");
         if (mode != null)
@@ -2964,18 +2955,14 @@ public class Capsule implements Runnable {
     /////////// Capsule Loading and Launching ///////////////////////////////////
     // visible for testing
     static Capsule newCapsule(Path jarFile, Path cacheDir) {
-        return (Capsule) newCapsule(jarFile, cacheDir, Capsule.class.getClassLoader());
-    }
-
-    private static Object newCapsule(Path jarFile, Path cacheDir, ClassLoader cl) {
         try {
             final String mainClassName = getMainClass(jarFile);
             if (mainClassName != null) {
-                final Class<?> clazz = cl.loadClass(mainClassName);
+                final Class<?> clazz = Capsule.class.getClassLoader().loadClass(mainClassName);
                 if (isCapsuleClass(clazz)) {
                     final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
                     ctor.setAccessible(true);
-                    return ctor.newInstance(jarFile, cacheDir);
+                    return (Capsule) ctor.newInstance(jarFile, cacheDir);
                 }
             }
             throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
@@ -3000,10 +2987,6 @@ public class Capsule implements Runnable {
         if (clazz == null)
             return false;
         return Capsule.class.getName().equals(clazz.getName()) || isCapsuleClass(clazz.getSuperclass());
-    }
-
-    private static Object createClassLoader(Path path) throws IOException {
-        return new URLClassLoader(new URL[]{path.toUri().toURL()}); // 
     }
     //</editor-fold>
 }
