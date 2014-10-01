@@ -1,9 +1,18 @@
-package co.paralleluniverse.capsule.build.test;
+/*
+ * Capsule
+ * Copyright (c) 2014, Parallel Universe Software Co. and Contributors. All rights reserved.
+ * 
+ * This program and the accompanying materials are licensed under the terms 
+ * of the Eclipse Public License v1.0, available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ */
+package co.paralleluniverse.capsule.build;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 import static co.paralleluniverse.capsule.build.Dependencies.*;
+import java.util.Arrays;
 
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.Dependency;
@@ -16,7 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Created by circlespainter on 01/10/14.
+ * @author circlespainter
  */
 public class DependenciesTest {
     @Test
@@ -97,9 +106,8 @@ public class DependenciesTest {
     private static final RemoteRepository repoUrl =
         new RemoteRepository.Builder(null, null, "http://clojars.org/repo").build();
 
-    private static <X> Set<X> set(X... xx) {
-        final Set<X> s = new HashSet<>();
-        for(X x : xx) s.add(x);
-        return Collections.unmodifiableSet(s);
+    @SafeVarargs
+    private static <T> Set<T> set(T... xs) {
+        return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(xs)));
     }
 }

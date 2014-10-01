@@ -1,9 +1,14 @@
+/*
+ * Capsule
+ * Copyright (c) 2014, Parallel Universe Software Co. and Contributors. All rights reserved.
+ * 
+ * This program and the accompanying materials are licensed under the terms 
+ * of the Eclipse Public License v1.0, available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ */
 package co.paralleluniverse.capsule.build;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 
 import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.graph.Dependency;
@@ -13,7 +18,7 @@ import capsule.DependencyManager;
 import org.eclipse.aether.repository.RemoteRepository;
 
 /**
- * Created by circlespainter on 01/10/14.
+ * @author circlespainter
  */
 public class Dependencies {
 
@@ -23,9 +28,8 @@ public class Dependencies {
      * @param rr The remote repository
      */
     public static String toCapsuleRepositoryString(RemoteRepository rr) {
-        return
-            DependencyManager.WELL_KNOWN_REPOS.keySet().contains(rr.getId()) ?
-                rr.getId() : rr.getUrl();
+        return DependencyManager.WELL_KNOWN_REPOS.keySet().contains(rr.getId())
+                ? rr.getId() : rr.getUrl();
     }
 
     /**
@@ -34,20 +38,16 @@ public class Dependencies {
      * @param d The dependency
      */
     public static String toCapsuleDependencyString(Dependency d) {
-        return
-            toCapsuleArtifactString(d.getArtifact()) +
-            toCapsuleExclusionsString(d.getExclusions());
+        return toCapsuleArtifactString(d.getArtifact())
+                + toCapsuleExclusionsString(d.getExclusions());
     }
 
     private static String toCapsuleArtifactString(Artifact a) {
-        return
-            a.getGroupId() + ":" +
-            a.getArtifactId() + ":" +
-            a.getBaseVersion();
+        return a.getGroupId() + ":" + a.getArtifactId() + ":" + a.getBaseVersion();
     }
 
     private static String toCapsuleExclusionsString(Collection<Exclusion> exclusions) {
-        StringBuffer res = new StringBuffer();
+        final StringBuilder res = new StringBuilder();
 
         if (!exclusions.isEmpty()) {
             res.append("(");

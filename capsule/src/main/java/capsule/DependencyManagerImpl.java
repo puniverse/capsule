@@ -10,10 +10,14 @@ package capsule;
 
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import static java.util.Collections.unmodifiableMap;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -57,9 +61,19 @@ public final class DependencyManagerImpl implements DependencyManager {
     private static final String PROP_OFFLINE = "capsule.offline";
     private static final String PROP_CONNECT_TIMEOUT = "capsule.connect.timeout";
     private static final String PROP_REQUEST_TIMEOUT = "capsule.request.timeout";
+    private static final String PROP_USER_HOME = "user.home";
 
     private static final String ENV_CONNECT_TIMEOUT = "CAPSULE_CONNECT_TIMEOUT";
     private static final String ENV_REQUEST_TIMEOUT = "CAPSULE_REQUEST_TIMEOUT";
+
+    static final Path DEFAULT_LOCAL_MAVEN = Paths.get(System.getProperty(PROP_USER_HOME), ".m2");
+
+    @SuppressWarnings("FieldNameHidesFieldInSuperclass")
+    private static final Map<String, String> WELL_KNOWN_REPOS = unmodifiableMap(new HashMap<String, String>(DependencyManager.WELL_KNOWN_REPOS) {
+        {
+            put("local", "local(file:" + DEFAULT_LOCAL_MAVEN.resolve("repository") + ")");
+        }
+    });
 
     private static final String LATEST_VERSION = "[0,)";
     private static final int LOG_NONE = 0;
@@ -364,9 +378,8 @@ public final class DependencyManagerImpl implements DependencyManager {
         s = s.trim();
         return s.isEmpty() ? null : s;
     }
-
     //</editor-fold>
-
+    
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
     private boolean isLogging(int level) {
