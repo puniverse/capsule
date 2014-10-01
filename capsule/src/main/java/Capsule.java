@@ -237,8 +237,8 @@ public class Capsule implements Runnable {
         final List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         try {
             final Capsule capsule = myCapsule(args);
-
-            if (!capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) { // not a custom capsule
+            
+            if (capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) { // not a custom capsule
                 runMain(capsule.jarFile, args);
                 System.exit(0);
             }
@@ -268,7 +268,7 @@ public class Capsule implements Runnable {
             capsule.launch(args);
         } catch (Throwable t) {
             System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
-            if (hasContext() && t.getMessage().length() < 50)
+            if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
                 System.err.print(" while processing " + reportContext());
             if (getLogLevel(System.getProperty(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
                 System.err.println();
@@ -281,7 +281,7 @@ public class Capsule implements Runnable {
 
     private static void runMain(Path jar, List<String> args) {
         try {
-            new URLClassLoader(new URL[]{jar.toUri().toURL()})
+            new URLClassLoader(new URL[]{jar.toUri().toURL()}, null)
                     .loadClass(getMainClass(jar))
                     .getMethod("main", String[].class).invoke(null, (Object) args.toArray(new String[0]));
         } catch (Exception e) {
@@ -362,11 +362,11 @@ public class Capsule implements Runnable {
     }
 
     private void setTargetCapsule(String capsuleArtifact) {
+        clearContext();
         final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
         if (jar == null)
             throw new RuntimeException(capsuleArtifact + " not found.");
         setTargetCapsule(jar);
-
     }
 
     private void setTargetCapsule(Path jar) {
@@ -381,7 +381,7 @@ public class Capsule implements Runnable {
         try (JarInputStream jis = openJarInputStream(jarFile)) {
             boolean isCapsule = false;
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
-                if (entry.getName().equals(Capsule.class.getName()))
+                if (entry.getName().equals(Capsule.class.getName() + ".class"))
                     isCapsule = true;
                 else if (entry.getName().equals(POM_FILE))
                     this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader0(jis) : null;
