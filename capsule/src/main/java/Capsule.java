@@ -220,15 +220,8 @@ public class Capsule implements Runnable {
     protected static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
             final Capsule capsule = newCapsule(findOwnJarFile(), getCacheDir());
-            if (capsule.isEmptyCapsule() && !args.isEmpty()) {
-                final String target = args.remove(0);
-                if (!capsule.getClass().equals(Capsule.class)) // this is a custom capsule
-                    capsule.setTargetCapsule(target);
-                else {
-                    runMain(capsule.jarFile, args);
-                    System.exit(0);
-                }
-            }
+            if (capsule.isEmptyCapsule() && !args.isEmpty())
+                capsule.setTargetCapsule(args.remove(0));
             CAPSULE = capsule;
         }
         return CAPSULE;
@@ -244,6 +237,11 @@ public class Capsule implements Runnable {
         final List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         try {
             final Capsule capsule = myCapsule(args);
+
+            if (!capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) { // not a custom capsule
+                runMain(capsule.jarFile, args);
+                System.exit(0);
+            }
 
             if (propertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (propertyDefined(PROP_VERSION))
@@ -294,19 +292,20 @@ public class Capsule implements Runnable {
 
     private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
 
+    // fields marked /*final*/ are effectively final after finalizeCapsule
     private final Path cacheDir;     // never null
+    private final Object dependencyManager;
+    private final boolean wrapper;
     private /*final*/ Path jarFile;  // never null
     private final Manifest manifest; // never null
     private /*final*/ String appId;  // null iff empty capsule
-    private String mode;
+    private /*final*/ String mode;
+    private /*final*/ Object pom;    // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
+    private final int logLevel;
 
-    private Path appCache;     // non-null iff capsule is extracted
+    private Path appCache;           // non-null iff capsule is extracted
     private boolean cacheUpToDate;
     private FileLock appCacheLock;
-
-    private /*final*/ Object pom;           // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
-    private final Object dependencyManager; // non-null iff needsDependencyManager is true
-    private int logLevel; // effectively final after constructor completes
 
     // very limited state
     private List<String> jvmArgs_;
@@ -352,14 +351,14 @@ public class Capsule implements Runnable {
         }
 
         this.logLevel = chooseLogLevel();
+        this.wrapper = isEmptyCapsule();
         this.dependencyManager = dependencyManager != DEFAULT ? dependencyManager : tryCreateDependencyManager();
+
         if (this.dependencyManager != null)
             setDependencyRepositories(getRepositories());
 
-        if (!isEmptyCapsule()) {
-            validateManifest();
-            this.appId = buildAppId();
-        }
+        if (!wrapper)
+            finalizeCapsule();
     }
 
     private void setTargetCapsule(String capsuleArtifact) {
@@ -391,6 +390,7 @@ public class Capsule implements Runnable {
             final Manifest man = jis.getManifest();
             if (man == null || !isCapsule)
                 throw new RuntimeException(jarFile + " is not a capsule");
+
             merge(manifest, man);
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
@@ -398,8 +398,13 @@ public class Capsule implements Runnable {
 
         if (this.dependencyManager != null)
             setDependencyRepositories(getRepositories());
+        finalizeCapsule();
+    }
+
+    private void finalizeCapsule() {
         validateManifest();
         this.appId = buildAppId();
+        this.mode = chooseMode1();
     }
 
     private boolean isEmptyCapsule() {
@@ -621,10 +626,11 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void chooseMode1() {
-        this.mode = chooseMode();
-        if (mode != null && !hasMode(mode))
-            throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + mode);
+    private String chooseMode1() {
+        String m = chooseMode();
+        if (m != null && !hasMode(m))
+            throw new IllegalArgumentException("Capsule " + jarFile + " does not have mode " + m);
+        return m;
     }
 
     /**
