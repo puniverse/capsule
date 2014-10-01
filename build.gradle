@@ -336,6 +336,13 @@ project (':capsule-container') {
     }
 }
 
+project (':capsule-build') {
+	dependencies {
+		compile 'org.eclipse.aether:aether-api:1.0.0.v20140518'
+		compile project(':capsule')
+	}
+}
+
 task wrapper(type: Wrapper) {
     gradleVersion = '2.1'
 }
