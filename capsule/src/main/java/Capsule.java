@@ -575,16 +575,15 @@ public class Capsule implements Runnable {
         this.jvmArgs_ = nullToEmpty(jvmArgs); // hack
         this.args_ = nullToEmpty(jvmArgs);    // hack
 
-        chooseMode1();
-        ensureExtractedIfNecessary();
-
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
-        final ProcessBuilder pb = prelaunch(nullToEmpty(args));
-
-        if (appCache != null && !cacheUpToDate)
-            markCache();
-
-        return pb;
+        ProcessBuilder pb = null;
+        ensureExtractedIfNecessary();
+        try {
+            pb = prelaunch(nullToEmpty(args));
+            return pb;
+        } finally {
+            markCache(pb != null);
+        }
     }
 
     /**
@@ -976,9 +975,12 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void markCache() {
+    private void markCache(boolean success) {
+        if (appCache == null || cacheUpToDate)
+            return;
         try {
-            Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
+            if (success)
+                Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
             unlockAppCache();
         } catch (IOException e) {
             throw new RuntimeException(e);
