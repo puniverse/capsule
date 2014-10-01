@@ -1,7 +1,7 @@
 package co.paralleluniverse.capsule.build.test;
 
 import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 import static capsule.Lang.*;
 import static co.paralleluniverse.capsule.build.Dependencies.*;
@@ -31,9 +31,13 @@ public class DependenciesTest {
             "com.esotericsoftware.kryo:kryo:RELEASE(org.ow2.asm:*)",
             toCapsuleDependencyString(depWithExclusionWildcardImplicit)
         );
-        assertEquals (
-            "com.esotericsoftware.kryo:kryo:[2.23.0)(org.ow2.asm:1.0.0,capsule:*)",
-            toCapsuleDependencyString(depWithExclusions)
+        assertTrue (
+            "com.esotericsoftware.kryo:kryo:[2.23.0)(capsule:*,org.ow2.asm:1.0.0)".equals (
+                toCapsuleDependencyString(depWithExclusions)
+            ) ||
+            "com.esotericsoftware.kryo:kryo:[2.23.0)(org.ow2.asm:1.0.0,capsule:*)".equals (
+                toCapsuleDependencyString(depWithExclusions)
+            )
         );
     }
 
