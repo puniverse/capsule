@@ -3,7 +3,6 @@ package co.paralleluniverse.capsule.build.test;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-import static capsule.Lang.*;
 import static co.paralleluniverse.capsule.build.Dependencies.*;
 
 import org.eclipse.aether.artifact.DefaultArtifact;
@@ -11,6 +10,10 @@ import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.graph.Exclusion;
 import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.util.artifact.JavaScopes;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Created by circlespainter on 01/10/14.
@@ -31,13 +34,13 @@ public class DependenciesTest {
             "com.esotericsoftware.kryo:kryo:RELEASE(org.ow2.asm:*)",
             toCapsuleDependencyString(depWithExclusionWildcardImplicit)
         );
-        assertTrue (
-            "com.esotericsoftware.kryo:kryo:[2.23.0)(capsule:*,org.ow2.asm:1.0.0)".equals (
+        assertTrue(
+            "com.esotericsoftware.kryo:kryo:[2.23.0)(capsule:*,org.ow2.asm:1.0.0)".equals(
                 toCapsuleDependencyString(depWithExclusions)
             ) ||
-            "com.esotericsoftware.kryo:kryo:[2.23.0)(org.ow2.asm:1.0.0,capsule:*)".equals (
-                toCapsuleDependencyString(depWithExclusions)
-            )
+                "com.esotericsoftware.kryo:kryo:[2.23.0)(org.ow2.asm:1.0.0,capsule:*)".equals(
+                    toCapsuleDependencyString(depWithExclusions)
+                )
         );
     }
 
@@ -93,4 +96,10 @@ public class DependenciesTest {
 
     private static final RemoteRepository repoUrl =
         new RemoteRepository.Builder(null, null, "http://clojars.org/repo").build();
+
+    private static <X> Set<X> set(X... xx) {
+        final Set<X> s = new HashSet<>();
+        for(X x : xx) s.add(x);
+        return Collections.unmodifiableSet(s);
+    }
 }
