@@ -4,4 +4,3 @@ include 'capsule-container'
 include 'capsule-build'
 
 rootProject.name = 'capsule'
-

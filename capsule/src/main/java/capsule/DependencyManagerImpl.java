@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
@@ -96,17 +98,24 @@ public final class DependencyManagerImpl implements DependencyManager {
         this.system = newRepositorySystem();
         this.session = newRepositorySession(system, localRepo);
         setRepos(null, false);
-        
-        log(LOG_VERBOSE, "Dependency manager initialized with repositories: " + this.repos);
     }
 
     @Override
     public void setRepos(List<String> repos, boolean allowSnapshots) {
         if (repos == null)
             repos = Arrays.asList("central");
-        this.repos = new ArrayList<RemoteRepository>();
-        for (String r : repos)
-            this.repos.add(createRepo(r, allowSnapshots));
+
+        final List<RemoteRepository> rs = new ArrayList<RemoteRepository>();
+        for (String r : repos) {
+            RemoteRepository repo = createRepo(r, allowSnapshots);
+            if (!rs.contains(repo))
+                rs.add(repo);
+        }
+
+        if (!Objects.equals(this.repos, rs)) {
+            this.repos = rs;
+            log(LOG_VERBOSE, "Dependency manager repositories: " + this.repos);
+        }
     }
 
     private static RepositorySystem newRepositorySystem() {
