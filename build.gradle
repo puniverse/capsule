@@ -118,9 +118,9 @@ subprojects {
         from javadoc.destinationDir
     }
 
-    //    tasks.withType(JavaCompile) {
-    //        options.compilerArgs << "-Xlint:unchecked"
-    //    }
+//    tasks.withType(JavaCompile) {
+//        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+//    }
 
     task javancss(dependsOn: 'classes') << {
         ant {

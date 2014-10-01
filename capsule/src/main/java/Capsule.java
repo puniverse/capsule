@@ -285,7 +285,7 @@ public class Capsule implements Runnable {
                     .loadClass(getMainClass(jar))
                     .getMethod("main", String[].class).invoke(null, (Object) args.toArray(new String[0]));
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw rethrow(e);
         }
     }
     //</editor-fold>
@@ -581,13 +581,18 @@ public class Capsule implements Runnable {
         this.args_ = nullToEmpty(jvmArgs);    // hack
 
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
-        ProcessBuilder pb = null;
-        ensureExtractedIfNecessary();
         try {
-            pb = prelaunch(nullToEmpty(args));
-            return pb;
-        } finally {
-            markCache(pb != null);
+            ProcessBuilder pb = null;
+            try {
+                ensureExtractedIfNecessary();
+
+                pb = prelaunch(nullToEmpty(args));
+                return pb;
+            } finally {
+                markCache(pb != null);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -869,7 +874,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="App Cache">
     /////////// App Cache ///////////////////////////////////
-    private Path getAppCacheDir() {
+    private Path getAppCacheDir() throws IOException {
         assert appId != null;
         Path appDir = cacheDir.resolve(APP_CACHE_NAME).resolve(appId);
         try {
@@ -877,11 +882,11 @@ public class Capsule implements Runnable {
                 Files.createDirectory(appDir);
             return appDir;
         } catch (IOException e) {
-            throw new RuntimeException("Application cache directory " + appDir.toAbsolutePath() + " could not be created.");
+            throw new IOException("Application cache directory " + appDir.toAbsolutePath() + " could not be created.");
         }
     }
 
-    private void ensureAppCacheIfNecessary() {
+    private void ensureAppCacheIfNecessary() throws IOException {
         if (appCache != null)
             return;
 
@@ -889,7 +894,7 @@ public class Capsule implements Runnable {
         this.cacheUpToDate = appCache != null ? isAppCacheUpToDate1() : false;
     }
 
-    private void ensureExtractedIfNecessary() {
+    private void ensureExtractedIfNecessary() throws IOException {
         ensureAppCacheIfNecessary();
         if (appCache != null) {
             if (!cacheUpToDate) {
@@ -914,7 +919,7 @@ public class Capsule implements Runnable {
         return extract == null || Boolean.parseBoolean(extract);
     }
 
-    private void resetAppCache() {
+    private void resetAppCache() throws IOException {
         try {
             log(LOG_DEBUG, "Creating cache for " + jarFile + " in " + appCache.toAbsolutePath());
             final Path lockFile = appCache.resolve(LOCK_FILE_NAME);
@@ -926,23 +931,19 @@ public class Capsule implements Runnable {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
+            throw new IOException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
     }
 
-    private boolean isAppCacheUpToDate1() {
-        try {
-            boolean res = isAppCacheUpToDate();
-            if (!res) {
-                lockAppCache();
-                res = isAppCacheUpToDate();
-                if (res)
-                    unlockAppCache();
-            }
-            return res;
-        } catch (IOException e) {
-            throw new AssertionError(e);
+    private boolean isAppCacheUpToDate1() throws IOException {
+        boolean res = isAppCacheUpToDate();
+        if (!res) {
+            lockAppCache();
+            res = isAppCacheUpToDate();
+            if (res)
+                unlockAppCache();
         }
+        return res;
     }
 
     /**
@@ -951,44 +952,37 @@ public class Capsule implements Runnable {
      * The app cache directory is obtained by calling {@link #getAppCache() getAppCache}.
      * This creates a file in the app cache, whose timestamp is compared with the capsule's JAR timestamp.
      */
-    protected boolean isAppCacheUpToDate() {
+    protected boolean isAppCacheUpToDate() throws IOException {
         if (systemPropertyEmptyOrTrue(PROP_RESET))
             return false;
-        try {
-            Path extractedFile = appCache.resolve(TIMESTAMP_FILE_NAME);
-            if (!Files.exists(extractedFile))
-                return false;
-            FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
-            FileTime jarTime = Files.getLastModifiedTime(jarFile);
-            return extractedTime.compareTo(jarTime) >= 0;
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
+
+        Path extractedFile = appCache.resolve(TIMESTAMP_FILE_NAME);
+        if (!Files.exists(extractedFile))
+            return false;
+        FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
+        FileTime jarTime = Files.getLastModifiedTime(jarFile);
+        return extractedTime.compareTo(jarTime) >= 0;
     }
 
     /**
      * Extracts the capsule's contents into the app cache directory.
      * This method may be overridden to write additional files to the app cache.
      */
-    protected void extractCapsule() {
+    protected void extractCapsule() throws IOException {
         try {
             log(LOG_VERBOSE, "Extracting " + jarFile + " to app cache directory " + appCache.toAbsolutePath());
             extractJar(openJarInputStream(jarFile), appCache);
         } catch (IOException e) {
-            throw new RuntimeException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
+            throw new IOException("Exception while extracting jar " + jarFile + " to app cache directory " + appCache.toAbsolutePath(), e);
         }
     }
 
-    private void markCache(boolean success) {
+    private void markCache(boolean success) throws IOException {
         if (appCache == null || cacheUpToDate)
             return;
-        try {
-            if (success)
-                Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
-            unlockAppCache();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        if (success)
+            Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
+        unlockAppCache();
     }
 
     private void lockAppCache() throws IOException {
@@ -1579,14 +1573,14 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="POM">
     /////////// POM ///////////////////////////////////
-    private Object createPomReader(ZipInputStream zis) {
+    private Object createPomReader(ZipInputStream zis) throws IOException {
         try {
             final InputStream is = getEntry(zis, POM_FILE);
             if (is == null)
                 return null;
             return createPomReader0(is);
         } catch (IOException e) {
-            throw new RuntimeException("Could not read " + POM_FILE, e);
+            throw new IOException("Could not read " + POM_FILE, e);
         }
     }
 
@@ -2096,7 +2090,7 @@ public class Capsule implements Runnable {
 
             return pathingJar;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Pathing JAR creation failed", e);
         }
     }
     //</editor-fold>
@@ -2887,7 +2881,7 @@ public class Capsule implements Runnable {
                 out.write(buf, 0, read);
                 out.flush();
             }
-        } catch (IOException e) {
+        } catch (Throwable e) {
             if (isLogging(LOG_VERBOSE))
                 e.printStackTrace(System.err);
         }
@@ -2982,6 +2976,8 @@ public class Capsule implements Runnable {
     }
 
     private static RuntimeException rethrow(Throwable t) {
+        if (t instanceof InvocationTargetException)
+            t = ((InvocationTargetException) t).getTargetException();
         if (t instanceof RuntimeException)
             throw (RuntimeException) t;
         if (t instanceof Error)
