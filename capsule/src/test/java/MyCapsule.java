@@ -6,13 +6,11 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-
-import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.jar.Manifest;
 
 /**
  * A custom capsule example
@@ -21,7 +19,7 @@ public class MyCapsule extends Capsule {
     public MyCapsule(Path jarFile, Path cacheDir) {
         super(jarFile, cacheDir);
     }
-    
+
     @Override
     protected List<Path> buildBootClassPathA() {
         return super.buildBootClassPathA();
@@ -82,4 +80,25 @@ public class MyCapsule extends Capsule {
     protected List<String> buildArgs(List<String> args) {
         return super.buildArgs(args);
     }
+
+    @Override
+    protected String merge(String attribute, String value1, String value2) {
+        switch (attribute) {
+            case "System-Properties":
+                Map<String, String> map1 = split(value1, '=', " ", "");
+                Map<String, String> map2 = split(value2, '=', " ", "");
+                Map<String, String> combined = new HashMap<>(map1);
+                for (Map.Entry<String, String> entry : map2.entrySet()) {
+                    if (combined.containsKey(entry.getKey()))
+                        combined.put(entry.getKey(), map1.get(entry.getKey()) + entry.getValue());
+                    else
+                        combined.put(entry.getKey(), entry.getValue());
+                }
+                return join(combined, '=', " ");
+
+            default:
+                return super.merge(attribute, value1, value2);
+        }
+    }
+
 }

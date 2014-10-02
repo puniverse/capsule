@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -36,7 +37,6 @@ import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Exclusion;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
-import static org.joor.Reflect.on;
 import org.junit.After;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -753,8 +753,6 @@ public class CapsuleTest {
         assertEquals(list(appCache.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"),
                 pb.command());
 
-        String PS = PATH_SEPARATOR;
-
         assertEquals(getEnv(pb, "CLASSPATH"), path("capsule.jar") + PS + appCache + PS + appCache.resolve("foo.jar") + PS + barPath);
     }
 
@@ -771,7 +769,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
 
-        final Path capsuleJar = path("capsule.jar");
+        Path capsuleJar = path("capsule.jar");
         jar.write(capsuleJar);
         Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
 
@@ -790,7 +788,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
 
-        final Path capsuleJar = path("capsule.jar");
+        Path capsuleJar = path("capsule.jar");
         jar.write(capsuleJar);
         Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
 
@@ -811,12 +809,16 @@ public class CapsuleTest {
     public void testWrapperCapsule() throws Exception {
         Jar wrapper = newCapsuleJar()
                 .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("System-Properties", "p1=555")
                 .addClass(Capsule.class)
                 .addClass(MyCapsule.class);
+        Path wrapperJar = path("capsule.jar");
+        wrapper.write(wrapperJar);
 
         Jar app = newCapsuleJar()
                 .setAttribute("Main-Class", "Capsule")
                 .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "p1=111")
                 .setListAttribute("App-Class-Path", list("lib/a.jar"))
                 .addClass(Capsule.class)
                 .addEntry("foo.jar", Jar.toInputStream("", UTF_8))
@@ -837,7 +839,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(wrapper, dm);
+        Capsule capsule = Capsule.newCapsule(wrapperJar, cache);
         setTargetCapsule(capsule, fooPath);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
@@ -870,6 +872,8 @@ public class CapsuleTest {
                 appCache,
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"));
+
+        assertEquals("555111", getProperty(pb, "p1")); // <- MyCapsule.merge
     }
     //</editor-fold>
 
@@ -1023,10 +1027,9 @@ public class CapsuleTest {
         List<Path> cp = list(path("/a.jar"), path("/b.jar"), path("/c.jar"));
         Path pathingJar = Capsule.createPathingJar(tmp, cp);
         try {
-            final List<Path> cp2;
+            List<Path> cp2;
             try (JarInputStream jis = new JarInputStream(Files.newInputStream(pathingJar))) {
                 cp2 = toPath(Arrays.asList(jis.getManifest().getMainAttributes().getValue("Class-Path").split(" ")));
-
             }
             assertEquals(cp, toAbsolutePath(cp2));
             for (Path p : cp2)
@@ -1055,13 +1058,21 @@ public class CapsuleTest {
     }
 
     private Capsule setTargetCapsule(Capsule capsule, String artifact) {
-        on(capsule).call("setTargetCapsule", artifact);
-        return capsule;
+        try {
+            accessible(Capsule.class.getDeclaredMethod("setTargetCapsule", String.class)).invoke(capsule, artifact);
+            return capsule;
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private Capsule setTargetCapsule(Capsule capsule, Path jar) {
-        on(capsule).call("setTargetCapsule", jar);
-        return capsule;
+        try {
+            accessible(Capsule.class.getDeclaredMethod("setTargetCapsule", Path.class)).invoke(capsule, jar);
+            return capsule;
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private Jar newCapsuleJar() {
@@ -1239,6 +1250,12 @@ public class CapsuleTest {
         return xs;
     }
 
+    private static <T extends AccessibleObject> T accessible(T x) {
+        if (!x.isAccessible())
+            x.setAccessible(true);
+        return x;
+    }
+
     private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
 
     static Dependency coordsToDependency(final String depString) {
@@ -1297,6 +1314,6 @@ public class CapsuleTest {
         }
     }
 
-    private static final String PATH_SEPARATOR = System.getProperty("path.separator");
+    private static final String PS = System.getProperty("path.separator");
     //</editor-fold>
 }
