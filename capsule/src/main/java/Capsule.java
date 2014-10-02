@@ -237,7 +237,7 @@ public class Capsule implements Runnable {
         final List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         try {
             final Capsule capsule = myCapsule(args);
-            
+
             if (capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) { // not a custom capsule
                 runMain(capsule.jarFile, args);
                 System.exit(0);
@@ -1802,7 +1802,7 @@ public class Capsule implements Runnable {
             return;
         merge(man1.getMainAttributes(), man2.getMainAttributes());
         for (Map.Entry<String, Attributes> entry : man2.getEntries().entrySet()) {
-            Attributes attr = man1.getAttributes(entry.getKey());
+            final Attributes attr = man1.getAttributes(entry.getKey());
             if (attr != null)
                 merge(attr, entry.getValue());
             else
@@ -1811,17 +1811,15 @@ public class Capsule implements Runnable {
     }
 
     private void merge(Attributes a1, Attributes a2) {
-        for (Map.Entry<Object, Object> entry : a2.entrySet()) {
-            if (!a1.containsKey(entry.getKey()))
-                a1.put(entry.getKey(), merge(((Attributes.Name) entry.getKey()).toString(), (String) a1.get(entry.getKey()), (String) entry.getValue()));
-        }
+        for (Map.Entry<Object, Object> entry : a2.entrySet())
+            a1.put(entry.getKey(), merge(((Attributes.Name) entry.getKey()).toString(), (String) a1.get(entry.getKey()), (String) entry.getValue()));
     }
 
     /**
      * When using an empty capsule to launch another, this method will be called for each attribute in the wrapped (non-empty) manifest to merge
      * the wrapped capsule's attribute with the wrapper (empty) capsule's attribute.
      * When overriding this method, it may be useful to make use of {@link #split(String, String) split}, {@link #split(String, char, String, String) map split},
-     * {@link #join(Collection, String) join}, and {@link #join(Map, String, String) map join}.
+     * {@link #join(Collection, String) join}, and {@link #join(Map, char, String) map join}.
      * <p>
      * The default implementation simply returns {@code value1}, unless it is {@code null} in which case it will pick {@code value2};
      * in other words, it gives preference to the wrapper capsule's attributes.
@@ -2584,7 +2582,7 @@ public class Capsule implements Runnable {
      * @param kvSeparator will be used to separate keys from values
      * @param separator   will be used to separate between key-value pairs
      */
-    protected final static String join(Map<String, String> map, String kvSeparator, String separator) {
+    protected final static String join(Map<String, String> map, char kvSeparator, String separator) {
         if (map == null)
             return null;
         StringBuilder sb = new StringBuilder();

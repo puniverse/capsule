@@ -698,7 +698,7 @@ public class Jar {
         return sb.toString();
     }
 
-    private static String join(Map<String, String> map, String kvSeparator, String separator) {
+    private static String join(Map<String, String> map, char kvSeparator, String separator) {
         if (map == null)
             return null;
         StringBuilder sb = new StringBuilder();
@@ -713,7 +713,7 @@ public class Jar {
     }
 
     private static String join(Map<String, String> map) {
-        return join(map, "=", " ");
+        return join(map, '=', " ");
     }
 
     private static List<String> split(String str, String separator) {
@@ -733,7 +733,7 @@ public class Jar {
         return split(list, " ");
     }
 
-    private static Map<String, String> mapSplit(String map, char kvSeparator, String separator, String defaultValue) {
+    private static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
         if (map == null)
             return null;
         Map<String, String> m = new HashMap<>();
@@ -752,7 +752,7 @@ public class Jar {
     }
 
     private static Map<String, String> mapSplit(String map, String defaultValue) {
-        return mapSplit(map, '=', " ", defaultValue);
+        return split(map, '=', " ", defaultValue);
     }
 
     private static String getBefore(String s, char separator) {
