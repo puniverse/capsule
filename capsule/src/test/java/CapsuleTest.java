@@ -36,6 +36,7 @@ import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Exclusion;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
+import static org.joor.Reflect.on;
 import org.junit.After;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -806,11 +807,15 @@ public class CapsuleTest {
         assertTrue(!getJvmArgs(pb).contains("-Xms10"));
     }
 
-    // @Test
-    public void testEmptyCapsule() throws Exception {
-        Jar jar = newCapsuleJar();
+    @Test
+    public void testWrapperCapsule() throws Exception {
+        Jar wrapper = newCapsuleJar()
+                .setAttribute("Main-Class", "MyCapsule")
+                .addClass(Capsule.class)
+                .addClass(MyCapsule.class);
 
         Jar app = newCapsuleJar()
+                .setAttribute("Main-Class", "Capsule")
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("App-Class-Path", list("lib/a.jar"))
                 .addClass(Capsule.class)
@@ -832,8 +837,9 @@ public class CapsuleTest {
         List<String> args = list("com.acme:foo", "hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, dm);
-        ProcessBuilder pb = null; //capsule.launchCapsuleArtifact(cmdLine, args);
+        Capsule capsule = newCapsule(wrapper, dm);
+        setTargetCapsule(capsule, fooPath);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args.subList(1, args.size()));
 
         // dumpFileSystem(fs);
         assertTrue(pb != null);
@@ -1036,7 +1042,7 @@ public class CapsuleTest {
     // may be called once per test (always writes jar into /capsule.jar)
     private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
         try {
-            final Path capsuleJar = path("capsule.jar");
+            Path capsuleJar = path("capsule.jar");
             jar.write(capsuleJar);
             Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, Path.class, Object.class);
             ctor.setAccessible(true);
@@ -1046,6 +1052,16 @@ public class CapsuleTest {
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    private Capsule setTargetCapsule(Capsule capsule, String artifact) {
+        on(capsule).call("setTargetCapsule", artifact);
+        return capsule;
+    }
+
+    private Capsule setTargetCapsule(Capsule capsule, Path jar) {
+        on(capsule).call("setTargetCapsule", jar);
+        return capsule;
     }
 
     private Jar newCapsuleJar() {
