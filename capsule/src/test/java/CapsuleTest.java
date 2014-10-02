@@ -834,12 +834,12 @@ public class CapsuleTest {
         when(dm.resolveDependency("com.acme:foo", "jar")).thenReturn(list(fooPath));
         when(dm.getLatestVersion("com.acme:foo", "jar")).thenReturn("com.acme.foo:1.0");
 
-        List<String> args = list("com.acme:foo", "hi", "there");
+        List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(wrapper, dm);
         setTargetCapsule(capsule, fooPath);
-        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args.subList(1, args.size()));
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
         assertTrue(pb != null);
