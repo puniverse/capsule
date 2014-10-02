@@ -256,7 +256,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
 
     /**
      *
-     * @param id the process ID (as returned from {@link #launchCapsule(Object, List, List) launchCapsule}.
+     * @param id the process ID (as returned from {@link #launchCapsule(Path, List, List) launchCapsule}.
      * @return the process
      */
     public final Process getProcess(String id) {
