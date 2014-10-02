@@ -10,10 +10,13 @@ package co.paralleluniverse.capsule;
 
 import co.paralleluniverse.common.JarClassLoader;
 import java.io.IOException;
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -21,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -43,10 +45,9 @@ public final class CapsuleLauncher {
      *
      * @param jarFile  the capsule JAR
      * @param cacheDir the directory to use as cache
-     * @return a capsule object which can then be passed to {@link #getAppId(Object) getAppId} and
-     *         {@link #prepareForLaunch(Object, List, List) prepareForLaunch}.
+     * @return the capsule.
      */
-    public static Object newCapsule(Path jarFile, Path cacheDir) {
+    public static Capsule newCapsule(Path jarFile, Path cacheDir) {
         return newCapsule(jarFile, null, cacheDir, null);
     }
 
@@ -57,10 +58,9 @@ public final class CapsuleLauncher {
      * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
      *                   or {@code null} if no wrapped capsule is wanted
      * @param cacheDir   the directory to use as cache
-     * @return a capsule object which can then be passed to {@link #getAppId(Object) getAppId} and
-     *         {@link #prepareForLaunch(Object, List, List) prepareForLaunch}.
+     * @return the capsule.
      */
-    public static Object newCapsule(Path jarFile, Path wrappedJar, Path cacheDir) {
+    public static Capsule newCapsule(Path jarFile, Path wrappedJar, Path cacheDir) {
         return newCapsule(jarFile, wrappedJar, cacheDir, null);
     }
 
@@ -72,10 +72,9 @@ public final class CapsuleLauncher {
      *                   or {@code null} if no wrapped capsule is wanted
      * @param cacheDir   the directory to use as cache
      * @param javaHomes  a map from Java version strings to their respective JVM installation paths
-     * @return a capsule object which can then be passed to {@link #getAppId(Object) getAppId} and
-     *         {@link #prepareForLaunch(Object, List, List) prepareForLaunch}.
+     * @return the capsule.
      */
-    public static Object newCapsule(Path jarFile, Path wrappedJar, Path cacheDir, Map<String, Path> javaHomes) {
+    public static Capsule newCapsule(Path jarFile, Path wrappedJar, Path cacheDir, Map<String, Path> javaHomes) {
         try {
             final Manifest mf;
             try (JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
@@ -90,16 +89,15 @@ public final class CapsuleLauncher {
             if (javaHomes != null)
                 setJavaHomes(clazz, javaHomes);
 
-            final Constructor<?> ctor = clazz.getDeclaredConstructor(Path.class, Path.class);
-            ctor.setAccessible(true);
+            final Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class, Path.class));
             final Object capsule = ctor.newInstance(jarFile, cacheDir);
 
             if (wrappedJar != null) {
-                final Method setTarget = clazz.getDeclaredMethod("setTargetCapsule", Path.class);
+                final Method setTarget = accessible(clazz.getDeclaredMethod("setTargetCapsule", Path.class));
                 setTarget.invoke(capsule, wrappedJar);
             }
 
-            return capsule;
+            return wrap(capsule);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } catch (ReflectiveOperationException e) {
@@ -130,39 +128,59 @@ public final class CapsuleLauncher {
         return isCapsuleClass(clazz.getSuperclass());
     }
 
-    /**
-     * Creates a {@link ProcessBuilder} ready to use for launching the capsule.
-     *
-     * @param capsule the capsule object returned from {@link #newCapsule(Path, Path) newCapsule}.
-     * @param jvmArgs JVM arguments to use for launching the capsule
-     * @param args    command line arguments to pass to the capsule.
-     * @return a {@link ProcessBuilder} for launching the capsule process
-     */
-    public static ProcessBuilder prepareForLaunch(Object capsule, List<String> jvmArgs, List<String> args) {
-        final Method launch = getCapsuleMethod(capsule, "prepareForLaunch", List.class, List.class);
-        return (ProcessBuilder) invoke(capsule, launch, jvmArgs, args);
+    private static Capsule wrap(Object capsule) {
+        return (Capsule) Proxy.newProxyInstance(CapsuleLauncher.class.getClassLoader(), new Class<?>[]{Capsule.class}, new CapsuleAccess(capsule));
     }
 
-    /**
-     * Returns a capsule's ID.
-     *
-     * @param capsule the capsule object returned from {@link #newCapsule(Path, Path) newCapsule}.
-     * @return the capsule's ID.
-     */
-    public static String getAppId(Object capsule) {
-        final Method appId = getCapsuleMethod(capsule, "appId", List.class);
-        return (String) invoke(capsule, appId, (Object) null);
-    }
+    private static class CapsuleAccess implements InvocationHandler {
+        private final Object capsule;
+        private final Class clazz;
 
-    /**
-     * Returns a capsule's version.
-     *
-     * @param capsule the capsule object returned from {@link #newCapsule(Path, Path) newCapsule}.
-     * @return the capsule's version.
-     */
-    public static String getVersion(Object capsule) {
-        final Field version = getCapsuleField(capsule, "VERSION");
-        return (String) get(capsule, version);
+        public CapsuleAccess(Object capsule) {
+            this.capsule = capsule;
+            this.clazz = capsule.getClass();
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            if (method.getDeclaringClass().equals(Object.class) && method.getName().equals("equals")) {
+                final Object other = args[0];
+                if (other == this)
+                    return true;
+                if (!(other instanceof CapsuleAccess))
+                    return false;
+                return call(method, args);
+            }
+
+            try {
+                return call(method, args);
+            } catch (NoSuchMethodException e) {
+                switch (method.getName()) {
+                    case "getVersion":
+                        return get("VERSION");
+
+                    case "getModes":
+                        Collections.emptySet();
+
+                    default:
+                        throw new UnsupportedOperationException("Capsule " + clazz + " does not support this operation");
+                }
+            }
+        }
+
+        private Object call(Method method, Object[] args) throws NoSuchMethodException {
+            final Method m = getMethod(clazz, method.getName(), method.getParameterTypes());
+            if (m == null)
+                throw new NoSuchMethodException();
+            return CapsuleLauncher.invoke(capsule, m, args);
+        }
+
+        private Object get(String field) {
+            final Field f = getField(clazz, field);
+            if (f == null)
+                throw new UnsupportedOperationException("Capsule " + clazz + " does not contain the field " + field);
+            return CapsuleLauncher.get(capsule, f);
+        }
     }
 
     /**
@@ -173,26 +191,10 @@ public final class CapsuleLauncher {
     @SuppressWarnings("unchecked")
     public static Map<String, Path> getJavaHomes() {
         try {
-            final Class<?> clazz = dontInstantiate(CapsuleLauncher.class.getClassLoader().loadClass(CAPSULE_CLASS_NAME));
-
-            final Method m = clazz.getDeclaredMethod("getJavaHomes");
-            m.setAccessible(true);
-            return (Map<String, Path>) m.invoke(null);
+            return (Map<String, Path>) accessible(Class.forName(CAPSULE_CLASS_NAME).getDeclaredMethod("getJavaHomes")).invoke(null);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
-    }
-
-    private static Class<?> dontInstantiate(Class<?> capsuleClass) {
-        try {
-            final Field f = capsuleClass.getField("INSTANTIATE");
-            f.setAccessible(true);
-            f.set(null, false);
-        } catch (NoSuchFieldException e) {
-        } catch (IllegalAccessException e) {
-            throw new AssertionError(e);
-        }
-        return capsuleClass;
     }
 
     private static void setJavaHomes(Class<?> capsuleClass, Map<String, Path> javaHomes) {
@@ -200,82 +202,6 @@ public final class CapsuleLauncher {
         if (homes == null)
             return;
         set(null, homes, javaHomes);
-    }
-
-    /**
-     * Returns the given capsule's supported modes.
-     *
-     * @param capsule
-     */
-    @SuppressWarnings("unchecked")
-    public static Set<String> getModes(Object capsule) {
-        final Method getModes = getMethod(capsule.getClass(), "getModes");
-        return (Set<String>) (getModes != null ? invoke(capsule, getModes) : Collections.emptySet());
-    }
-
-    private static Method getCapsuleMethod(Object capsule, String name, Class<?>... paramTypes) {
-        final Method m = getMethod(capsule.getClass(), name, paramTypes);
-        if (m == null)
-            throw new RuntimeException("Could not call " + name + " on " + capsule + ". It does not appear to be a valid capsule.");
-        return m;
-    }
-
-    private static Field getCapsuleField(Object capsule, String name) {
-        final Field f = getField(capsule.getClass(), name);
-        if (f == null)
-            throw new RuntimeException("Could not find " + name + " on " + capsule + ". It does not appear to be a valid capsule.");
-        return f;
-    }
-
-    private static Method getMethod(Class<?> clazz, String name, Class<?>... paramTypes) {
-        try {
-            final Method method = clazz.getDeclaredMethod(name, paramTypes);
-            method.setAccessible(true);
-            return method;
-        } catch (NoSuchMethodException e) {
-            return clazz.getSuperclass() != null ? getMethod(clazz.getSuperclass(), name, paramTypes) : null;
-        }
-    }
-
-    private static Field getField(Class<?> clazz, String name) {
-        try {
-            final Field field = clazz.getDeclaredField(name);
-            field.setAccessible(true);
-            return field;
-        } catch (NoSuchFieldException e) {
-            return clazz.getSuperclass() != null ? getField(clazz.getSuperclass(), name) : null;
-        }
-    }
-
-    private static Object invoke(Object obj, Method method, Object... params) {
-        try {
-            return method.invoke(obj, params);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
-        } catch (InvocationTargetException e) {
-            final Throwable t = e.getTargetException();
-            if (t instanceof RuntimeException)
-                throw (RuntimeException) t;
-            if (t instanceof Error)
-                throw (Error) t;
-            throw new RuntimeException(t);
-        }
-    }
-
-    private static Object get(Object obj, Field field) {
-        try {
-            return field.get(obj);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
-        }
-    }
-
-    private static void set(Object obj, Field field, Object value) {
-        try {
-            field.set(obj, value);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
-        }
     }
 
     /**
@@ -328,6 +254,70 @@ public final class CapsuleLauncher {
     private static boolean isWindows() {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
+
+    //<editor-fold defaultstate="collapsed" desc="Reflection">
+    /////////// Reflection ///////////////////////////////////
+    private static Method getMethod(Class<?> clazz, String name, Class<?>... paramTypes) {
+        try {
+            return clazz.getMethod(name, paramTypes);
+        } catch (NoSuchMethodException e) {
+            return getMethod0(clazz, name, paramTypes);
+        }
+    }
+
+    private static Method getMethod0(Class<?> clazz, String name, Class<?>... paramTypes) {
+        try {
+            return accessible(clazz.getDeclaredMethod(name, paramTypes));
+        } catch (NoSuchMethodException e) {
+            return clazz.getSuperclass() != null ? getMethod0(clazz.getSuperclass(), name, paramTypes) : null;
+        }
+    }
+
+    private static Field getField(Class<?> clazz, String name) {
+        try {
+            return accessible(clazz.getDeclaredField(name));
+        } catch (NoSuchFieldException e) {
+            return clazz.getSuperclass() != null ? getField(clazz.getSuperclass(), name) : null;
+        }
+    }
+
+    private static Object invoke(Object obj, Method method, Object... params) {
+        try {
+            return method.invoke(obj, params);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError();
+        } catch (InvocationTargetException e) {
+            final Throwable t = e.getTargetException();
+            if (t instanceof RuntimeException)
+                throw (RuntimeException) t;
+            if (t instanceof Error)
+                throw (Error) t;
+            throw new RuntimeException(t);
+        }
+    }
+
+    private static <T extends AccessibleObject> T accessible(T x) {
+        if (!x.isAccessible())
+            x.setAccessible(true);
+        return x;
+    }
+
+    private static Object get(Object obj, Field field) {
+        try {
+            return field.get(obj);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError();
+        }
+    }
+
+    private static void set(Object obj, Field field, Object value) {
+        try {
+            field.set(obj, value);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError();
+        }
+    }
+    //</editor-fold>
 
     private CapsuleLauncher() {
     }

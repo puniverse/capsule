@@ -8,6 +8,7 @@
  */
 package co.paralleluniverse.capsule.container;
 
+import co.paralleluniverse.capsule.Capsule;
 import co.paralleluniverse.capsule.CapsuleLauncher;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -113,20 +114,19 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
      * @return a unique process ID
      */
     public String launchCapsule(Path capsulePath, List<String> jvmArgs, List<String> args) throws IOException {
-        final Object capsule = CapsuleLauncher.newCapsule(capsulePath, null, cacheDir, javaHomes);
+        final Capsule capsule = CapsuleLauncher.newCapsule(capsulePath, null, cacheDir, javaHomes);
         return launchCapsule(capsule, jvmArgs, args);
     }
 
-    private String launchCapsule(Object capsule, List<String> jvmArgs, List<String> args) throws IOException {
+    private String launchCapsule(Capsule capsule, List<String> jvmArgs, List<String> args) throws IOException {
         if (jvmArgs == null)
             jvmArgs = Collections.emptyList();
         if (args == null)
             args = Collections.emptyList();
 
         try {
-            final String capsuleId = CapsuleLauncher.getAppId(capsule);
-            ProcessBuilder pb = CapsuleLauncher.prepareForLaunch(capsule, CapsuleLauncher.enableJMX(jvmArgs), args);
-            pb = configureCapsuleProcess(pb);
+            final String capsuleId = capsule.getAppId();
+            final ProcessBuilder pb = configureCapsuleProcess(capsule.prepareForLaunch(CapsuleLauncher.enableJMX(jvmArgs), args));
 
             final Process p = pb.start();
             final String id = createProcessId(capsuleId, p);
