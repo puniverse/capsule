@@ -27,8 +27,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.regex.Matcher;
@@ -812,8 +814,6 @@ public class CapsuleTest {
                 .setAttribute("System-Properties", "p1=555")
                 .addClass(Capsule.class)
                 .addClass(MyCapsule.class);
-        Path wrapperJar = path("capsule.jar");
-        wrapper.write(wrapperJar);
 
         Jar app = newCapsuleJar()
                 .setAttribute("Main-Class", "Capsule")
@@ -839,8 +839,8 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = Capsule.newCapsule(wrapperJar, cache);
-        setTargetCapsule(capsule, fooPath);
+        Capsule capsule = newCapsule(wrapper, dm);
+        setTargetCapsule(capsule, "com.acme:foo");
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
@@ -1018,6 +1018,13 @@ public class CapsuleTest {
     @Test
     public void splitTest() throws Exception {
         assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.split("ab,cd  ef g, hij kl  ", "[,\\s]\\s*"));
+
+        assertEquals(stringMap("ab", "1",
+                "cd", "xx",
+                "ef", "32",
+                "g", "xx",
+                "hij", "",
+                "kl", ""), Capsule.split("ab=1,cd  ef=32 g, hij= kl=  ", '=', "[,\\s]\\s*", "xx"));
     }
 
     @Test
@@ -1047,9 +1054,10 @@ public class CapsuleTest {
         try {
             Path capsuleJar = path("capsule.jar");
             jar.write(capsuleJar);
-            Constructor<Capsule> ctor = Capsule.class.getDeclaredConstructor(Path.class, Path.class, Object.class);
-            ctor.setAccessible(true);
-            return ctor.newInstance(capsuleJar, cache, dependencyManager);
+            Class<?> clazz = Class.forName(jar.getAttribute("Main-Class"));
+            accessible(Capsule.class.getDeclaredField("DEPENDENCY_MANAGER")).set(null, dependencyManager);
+            Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class, Path.class));
+            return (Capsule) ctor.newInstance(capsuleJar, cache);
         } catch (InvocationTargetException e) {
             throw new RuntimeException(e.getCause());
         } catch (Exception e) {
@@ -1248,6 +1256,13 @@ public class CapsuleTest {
 
     private static int[] ints(int... xs) {
         return xs;
+    }
+
+    private static Map<String, String> stringMap(String... ss) {
+        final Map<String, String> m = new HashMap<>();
+        for (int i = 0; i < ss.length / 2; i++)
+            m.put(ss[i * 2], ss[i * 2 + 1]);
+        return Collections.unmodifiableMap(m);
     }
 
     private static <T extends AccessibleObject> T accessible(T x) {

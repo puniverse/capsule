@@ -199,6 +199,9 @@ public class Capsule implements Runnable {
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
     private static final Object DEFAULT = new Object();
 
+    @SuppressWarnings("FieldMayBeFinal")
+    private static Object DEPENDENCY_MANAGER = DEFAULT; // used only by tests
+
     // logging
     private static final String LOG_PREFIX = "CAPSULE: ";
     protected static final int LOG_NONE = 0;
@@ -328,13 +331,8 @@ public class Capsule implements Runnable {
      * @param jarFile  the path to the JAR file
      * @param cacheDir the path to the (shared) Capsule cache directory
      */
-    protected Capsule(Path jarFile, Path cacheDir) {
-        this(jarFile, cacheDir, DEFAULT);
-    }
-
-    // Used directly by tests
     @SuppressWarnings("OverridableMethodCallInConstructor")
-    private Capsule(Path jarFile, Path cacheDir, Object dependencyManager) {
+    protected Capsule(Path jarFile, Path cacheDir) {
         Objects.requireNonNull(jarFile, "jarFile can't be null");
         Objects.requireNonNull(cacheDir, "cacheDir can't be null");
 
@@ -352,7 +350,7 @@ public class Capsule implements Runnable {
 
         this.logLevel = chooseLogLevel();
         this.wrapper = isEmptyCapsule();
-        this.dependencyManager = dependencyManager != DEFAULT ? dependencyManager : tryCreateDependencyManager();
+        this.dependencyManager = DEPENDENCY_MANAGER != DEFAULT ? DEPENDENCY_MANAGER : tryCreateDependencyManager();
 
         if (this.dependencyManager != null)
             setDependencyRepositories(getRepositories());
