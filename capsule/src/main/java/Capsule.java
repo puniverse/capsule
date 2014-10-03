@@ -1644,7 +1644,7 @@ public class Capsule implements Runnable {
 
     private void verifyDependencyManager() {
         if (dependencyManager == null)
-            throw new RuntimeException("JAR " + jarFile + " uses dependencies, while the necessary dependency management classes are not found in the capsule JAR");
+            throw new RuntimeException("Capsule " + jarFile + " uses dependencies, while the necessary dependency management classes are not found in the capsule JAR");
     }
 
     private void setDependencyRepositories(List<String> repositories) {
