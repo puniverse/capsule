@@ -85,8 +85,8 @@ public class MyCapsule extends Capsule {
     protected String merge(String attribute, String value1, String value2) {
         switch (attribute) {
             case "System-Properties":
-                Map<String, String> map1 = split(value1, '=', " ", "");
-                Map<String, String> map2 = split(value2, '=', " ", "");
+                Map<String, String> map1 = parse(value1, "");
+                Map<String, String> map2 = parse(value2, "");
                 Map<String, String> combined = new HashMap<>(map1);
                 for (Map.Entry<String, String> entry : map2.entrySet()) {
                     if (combined.containsKey(entry.getKey()))
@@ -94,7 +94,7 @@ public class MyCapsule extends Capsule {
                     else
                         combined.put(entry.getKey(), entry.getValue());
                 }
-                return join(combined, '=', " ");
+                return toStringValue(combined);
 
             default:
                 return super.merge(attribute, value1, value2);

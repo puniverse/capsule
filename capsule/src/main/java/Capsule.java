@@ -1780,21 +1780,61 @@ public class Capsule implements Runnable {
     /**
      * Returns the value of the given attribute (with consideration to the capsule's mode) as a list.
      * The items comprising attribute's value must be whitespace-separated.
+     * <p>
+     * Same as {@code parse(getAttribute(attr))}.
      *
      * @param attr the attribute
      */
     protected final List<String> getListAttribute(String attr) {
-        return Capsule.split(getAttribute(attr), "\\s+");
+        return parse(getAttribute(attr));
     }
 
     /**
      * Returns the value of the given attribute (with consideration to the capsule's mode) as a map.
      * The key-value pairs comprising attribute's value must be whitespace-separated, with each pair written as <i>key</i>=<i>value</i>.
+     * <p>
+     * Same as {@code parse(getAttribute(attr), defaultValue)}.
      *
-     * @param attr the attribute
+     * @param attr         the attribute
+     * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
-        return split(getAttribute(attr), '=', "\\s+", defaultValue);
+        return parse(getAttribute(attr), defaultValue);
+    }
+
+    /**
+     * Parses an attribute's value string into a list.
+     * The items comprising attribute's value must be whitespace-separated.
+     *
+     * @param value the attribute's value
+     */
+    protected static final List<String> parse(String value) {
+        return split(value, "\\s+");
+    }
+
+    /**
+     * Parses an attribute's value string into a map.
+     * The key-value pairs comprising string must be whitespace-separated, with each pair written as <i>key</i>=<i>value</i>.
+     *
+     * @param value        the attribute's value
+     * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
+     */
+    protected static final Map<String, String> parse(String value, String defaultValue) {
+        return split(value, '=', "\\s+", defaultValue);
+    }
+
+    /**
+     * Combines collection elements into a string that can be used as the value of an attribute.
+     */
+    protected static final String toStringValue(Collection<String> list) {
+        return join(list, " ");
+    }
+
+    /**
+     * Combines map elements into a string that can be used as the value of an attribute.
+     */
+    protected static final String toStringValue(Map<String, String> map) {
+        return join(map, '=', " ");
     }
 
     private void merge(Manifest man1, Manifest man2) {
@@ -1818,8 +1858,8 @@ public class Capsule implements Runnable {
     /**
      * When using an empty capsule to launch another, this method will be called for each attribute in the wrapped (non-empty) manifest to merge
      * the wrapped capsule's attribute with the wrapper (empty) capsule's attribute.
-     * When overriding this method, it may be useful to make use of {@link #split(String, String) split}, {@link #split(String, char, String, String) map split},
-     * {@link #join(Collection, String) join}, and {@link #join(Map, char, String) map join}.
+     * When overriding this method, it may be useful to make use of {@link #parse(String) parse}, {@link #parse(String, String) parse map},
+     * {@link #toStringValue(Collection) toStringValue}, and {@link #toStringValue(Map) map toStringValue}.
      * <p>
      * The default implementation simply returns {@code value1}, unless it is {@code null} in which case it will pick {@code value2};
      * in other words, it gives preference to the wrapper capsule's attributes.
@@ -2044,7 +2084,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static int[] ZIP_HEADER = new int[]{'\n', 'P', 'K', 0x03, 0x04};
+    private static final int[] ZIP_HEADER = new int[]{'\n', 'P', 'K', 0x03, 0x04};
 
     private static InputStream skipToZipStart(InputStream is) throws IOException {
         if (!is.markSupported())
@@ -2515,10 +2555,7 @@ public class Capsule implements Runnable {
         return obj != null ? obj.toString() : null;
     }
 
-    /**
-     * Splits a string into a list using a regex separator
-     */
-    protected final static List<String> split(String str, String separator) {
+    static List<String> split(String str, String separator) {
         if (str == null)
             return null;
         String[] es = str.split(separator);
@@ -2531,16 +2568,7 @@ public class Capsule implements Runnable {
         return list;
     }
 
-    /**
-     * Splits a string into a map
-     *
-     * @param map          the string
-     * @param kvSeparator  the character separating each key from its corresponding value
-     * @param separator    a regex separator between key-value pairs
-     * @param defaultValue A default value to use for keys without a value, or {@code null} if such an event should throw an exception
-     * @return the map
-     */
-    protected final static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
+    static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
         if (map == null)
             return null;
         Map<String, String> m = new HashMap<>();
@@ -2558,10 +2586,7 @@ public class Capsule implements Runnable {
         return m;
     }
 
-    /**
-     * Joins a collections into a string, separating elements with the given separator string.
-     */
-    protected final static String join(Collection<?> coll, String separator) {
+    final static String join(Collection<?> coll, String separator) {
         if (coll == null)
             return null;
         if (coll.isEmpty())
@@ -2575,14 +2600,7 @@ public class Capsule implements Runnable {
         return sb.toString();
     }
 
-    /**
-     * Joins a map into a string.
-     *
-     * @param map         the map
-     * @param kvSeparator will be used to separate keys from values
-     * @param separator   will be used to separate between key-value pairs
-     */
-    protected final static String join(Map<String, String> map, char kvSeparator, String separator) {
+    final static String join(Map<String, String> map, char kvSeparator, String separator) {
         if (map == null)
             return null;
         StringBuilder sb = new StringBuilder();
