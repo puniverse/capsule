@@ -2209,6 +2209,7 @@ public class Capsule implements Runnable {
         return glob != null ? Arrays.asList(glob.split(FILE_SEPARATOR_CHAR == '\\' ? "\\\\" : FILE_SEPARATOR)) : null;
     }
 
+    @SuppressWarnings("null")
     private static List<Path> listDir(Path dir, List<String> globs, boolean recursive, boolean regularFile, boolean firstMatch, List<Path> res) {
         PathMatcher matcher = null;
         if (globs != null && !globs.isEmpty()) {
@@ -2217,26 +2218,36 @@ public class Capsule implements Runnable {
             else
                 matcher = dir.getFileSystem().getPathMatcher("glob:" + globs.get(0));
         }
-
-        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
-            for (Path f : ds) {
-                if (recursive && Files.isDirectory(f))
-                    listDir(f, globs, recursive, regularFile, firstMatch, res);
-                if (matcher == null) {
-                    if (!regularFile || Files.isRegularFile(f))
-                        res.add(f);
-                } else {
-                    if (matcher.matches(f.getFileName())) {
-                        assert globs != null;
-                        if (globs.size() == 1 && (!regularFile || Files.isRegularFile(f)))
+        try {
+            List<Path> ds = new ArrayList<>(); // for breadth-first traversal
+            try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
+                for (Path f : fs) {
+                    if (matcher == null) {
+                        if (!regularFile || Files.isRegularFile(f))
                             res.add(f);
-                        else if (Files.isDirectory(f))
-                            listDir(f, globs.subList(1, globs.size()), recursive, regularFile, firstMatch, res);
+                    } else {
+                        if (matcher.matches(f.getFileName())) {
+                            if (globs.size() == 1 && (!regularFile || Files.isRegularFile(f)))
+                                res.add(f);
+                            else if (Files.isDirectory(f))
+                                ds.add(f);
+                        }
+                    }
+                    if (firstMatch && !res.isEmpty())
+                        break;
+                }
+            }
+            for (Path d : ds)
+                listDir(d, globs.subList(1, globs.size()), recursive, regularFile, firstMatch, res);
+            if (recursive) {
+                try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
+                    for (Path f : fs) {
+                        if (Files.isDirectory(f))
+                            listDir(f, globs, recursive, regularFile, firstMatch, res);
                     }
                 }
-                if (firstMatch && !res.isEmpty())
-                    break;
             }
+
             return res;
         } catch (IOException e) {
             throw new RuntimeException(e);
