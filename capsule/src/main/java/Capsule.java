@@ -1504,7 +1504,12 @@ public class Capsule implements Runnable {
         Path jhome = emptyToNull(systemProperty(PROP_CAPSULE_JAVA_HOME)) != null ? Paths.get(systemProperty(PROP_CAPSULE_JAVA_HOME)) : null;
         if (jhome == null && !isMatchingJavaVersion(systemProperty(PROP_JAVA_VERSION))) {
             final boolean jdk = hasAttribute(ATTR_JDK_REQUIRED) && Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
+
+            final long start = System.nanoTime();
             jhome = findJavaHome(jdk);
+            if (isLogging(LOG_VERBOSE))
+                log(LOG_VERBOSE, "Finding JVM: " + ((System.nanoTime() - start) / 1_000_000) + "ms");
+
             if (jhome == null) {
                 throw new RuntimeException("Could not find Java installation for requested version "
                         + '[' + "Min. Java version: " + getAttribute(ATTR_MIN_JAVA_VERSION)
