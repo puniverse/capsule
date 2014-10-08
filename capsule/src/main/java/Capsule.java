@@ -359,6 +359,7 @@ public class Capsule implements Runnable {
 
         if (!wrapper)
             finalizeCapsule();
+        clearContext();
     }
 
     private void setTargetCapsule(String capsuleArtifact) {
@@ -399,6 +400,7 @@ public class Capsule implements Runnable {
         if (this.dependencyManager != null)
             setDependencyRepositories(getRepositories());
         finalizeCapsule();
+        clearContext();
     }
 
     private void finalizeCapsule() {
@@ -408,7 +410,7 @@ public class Capsule implements Runnable {
     }
 
     private boolean isEmptyCapsule() {
-        return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && getScript() == null;
+        return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasScript();
     }
     //</editor-fold>
 
@@ -1004,6 +1006,10 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Script Process">
     /////////// Script Process ///////////////////////////////////
+    private boolean hasScript() {
+        return hasAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
+    }
+
     private String getScript() {
         return getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
     }
