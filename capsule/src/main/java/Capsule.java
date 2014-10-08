@@ -2844,6 +2844,7 @@ public class Capsule implements Runnable {
             case "VERBOSE":
                 return LOG_VERBOSE;
             case "DEBUG":
+            case "ALL":
                 return LOG_DEBUG;
             default:
                 return -1;
