@@ -1975,10 +1975,6 @@ public class Capsule implements Runnable {
         return cacheDir.getFileSystem().getPath(p, more);
     }
 
-    private static Path relativeToRoot(Path p) {
-        return p != null ? p.getRoot().relativize(p) : null;
-    }
-
     private List<Path> toPath(List<String> ps) {
         if (ps == null)
             return null;

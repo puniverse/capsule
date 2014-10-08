@@ -428,7 +428,7 @@ public class Jar {
                 addDir(Paths.get(path), Paths.get(dirURL.toURI()), false);
             else {
                 if (dirURL == null) // In case of a jar file, we can't actually find a directory.
-                    dirURL = clazz.getClassLoader().getResource(clazz.getName().replace(".", "/") + ".class");
+                    dirURL = clazz.getClassLoader().getResource(clazz.getName().replace('.', '/') + ".class");
 
                 if (dirURL.getProtocol().equals("jar")) {
                     String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf("!"));
