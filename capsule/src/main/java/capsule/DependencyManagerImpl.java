@@ -87,7 +87,6 @@ public final class DependencyManagerImpl implements DependencyManager {
     private final boolean offline;
     private final RepositorySystem system;
     private final RepositorySystemSession session;
-    private boolean allowSnapshots;
     private List<RemoteRepository> repos;
     private final int logLevel;
     private final UserSettings settings;
@@ -103,7 +102,6 @@ public final class DependencyManagerImpl implements DependencyManager {
 
         log(LOG_DEBUG, "DependencyManager - Offline: " + offline);
         log(LOG_DEBUG, "DependencyManager - Local repo: " + localRepoPath);
-        log(LOG_DEBUG, "DependencyManager - Allow snapshots: " + allowSnapshots);
 
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
         this.settings = UserSettings.getInstance();
@@ -266,10 +264,6 @@ public final class DependencyManagerImpl implements DependencyManager {
     // visible for testing
     static Dependency toDependency(String coords, String type) {
         return new Dependency(coordsToArtifact(coords, type), JavaScopes.RUNTIME, false, getExclusions(coords));
-    }
-
-    private static Dependency toDependency(Artifact artifact) {
-        return new Dependency(artifact, JavaScopes.RUNTIME, false, null);
     }
 
     private static List<Dependency> toDependencies(List<String> coords, String type) {

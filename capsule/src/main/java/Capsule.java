@@ -24,6 +24,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -268,7 +269,7 @@ public class Capsule implements Runnable {
             if (capsule.isEmptyCapsule())
                 throw new RuntimeException("USAGE: java -jar " + capsule.jarFile + " PATH_OR_MAVEN_COORDINATES\n" + capsule.jarFile + " is an empty capsule.");
 
-            capsule.launch(args);
+            System.exit(capsule.launch(args));
         } catch (Throwable t) {
             System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
             if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
@@ -531,7 +532,7 @@ public class Capsule implements Runnable {
         log(LOG_QUIET, "Capsule resolved");
     }
 
-    private void launch(List<String> args) throws IOException, InterruptedException {
+    private int launch(List<String> args) throws IOException, InterruptedException {
         final ProcessBuilder pb;
         try {
             final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
@@ -567,7 +568,7 @@ public class Capsule implements Runnable {
             child.waitFor();
         }
 
-        System.exit(child != null ? child.exitValue() : 0);
+        return child != null ? child.exitValue() : 0;
     }
     //</editor-fold>
 
@@ -737,7 +738,7 @@ public class Capsule implements Runnable {
                 String var = getBefore(e, '=');
                 String value = getAfter(e, '=');
 
-                if (var == null)
+                if (var.isEmpty())
                     throw new IllegalArgumentException("Malformed env variable definition: " + e);
 
                 boolean overwrite = false;
@@ -1328,7 +1329,8 @@ public class Capsule implements Runnable {
         for (String depAndRename : depsAndRename) {
             String[] dna = depAndRename.split(",");
             deps.add(dna[0]);
-            renames.add(dna.length > 1 ? dna[1] : null);
+            if (renames != null)
+                renames.add(dna.length > 1 ? dna[1] : null);
         }
     }
 
@@ -1346,21 +1348,6 @@ public class Capsule implements Runnable {
         if (isUnix())
             return getListAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX);
         return null;
-    }
-
-    private List<String> getStrippedNativeDependencies() {
-        return stripNativeDependencies(getNativeDependencies());
-    }
-
-    private List<String> stripNativeDependencies(List<String> nativeDepsAndRename) {
-        if (nativeDepsAndRename == null)
-            return null;
-        final List<String> deps = new ArrayList<String>(nativeDepsAndRename.size());
-        for (String depAndRename : nativeDepsAndRename) {
-            String[] dna = depAndRename.split(",");
-            deps.add(dna[0]);
-        }
-        return deps;
     }
 
     private boolean hasRenamedNativeDependencies() {
@@ -1430,7 +1417,7 @@ public class Capsule implements Runnable {
         if (a.startsWith("-XX:+") || a.startsWith("-XX:-"))
             return "-XX:" + a.substring("-XX:+".length());
         if (a.contains("="))
-            return a.substring(0, a.indexOf("="));
+            return a.substring(0, a.indexOf('='));
         return a;
     }
 
@@ -1850,7 +1837,7 @@ public class Capsule implements Runnable {
 
     private void merge(Attributes a1, Attributes a2) {
         for (Map.Entry<Object, Object> entry : a2.entrySet())
-            a1.put(entry.getKey(), merge(((Attributes.Name) entry.getKey()).toString(), (String) a1.get(entry.getKey()), (String) entry.getValue()));
+            a1.put(entry.getKey(), merge(entry.getKey().toString(), (String) a1.get(entry.getKey()), (String) entry.getValue()));
     }
 
     /**
@@ -2623,7 +2610,7 @@ public class Capsule implements Runnable {
             return 0;
         long len = 0;
         for (Object o : coll)
-            len += coll.toString().length();
+            len += o.toString().length();
         return len;
     }
 
@@ -2764,7 +2751,7 @@ public class Capsule implements Runnable {
         final List<String> lines = new ArrayList<>();
         final Process p = pb.start();
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getErrorStream()))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getErrorStream(), Charset.defaultCharset()))) {
             for (int i = 0; numLines < 0 || i < numLines; i++) {
                 final String line = reader.readLine();
                 if (line == null)
