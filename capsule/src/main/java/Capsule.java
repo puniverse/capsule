@@ -2341,7 +2341,7 @@ public class Capsule implements Runnable {
 
     private static boolean isJavaHome(Path dir) {
         if (Files.isDirectory(dir))
-            return findFile(dir, "bin" + FILE_SEPARATOR + "{java|java.exe}", true) != null;
+            return findFile(dir, "bin" + FILE_SEPARATOR + "java{.exe,}", true) != null;
         return false;
     }
 

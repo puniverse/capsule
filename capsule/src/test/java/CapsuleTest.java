@@ -18,9 +18,11 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -964,6 +966,17 @@ public class CapsuleTest {
                 set(Capsule.listDir(path("a"), "**", true)));
         assertEquals(set(path("a", "b1", "x")),
                 set(Capsule.listDir(path("a"), "b?/*", false)));
+    }
+    
+    @Test
+    public void testGlob() throws Exception {
+        FileSystem fs = FileSystems.getDefault();
+        PathMatcher pathMatcher = fs.getPathMatcher("glob:java{.exe,}");
+        assertTrue(pathMatcher.matches(fs.getPath("java")));
+        assertTrue(pathMatcher.matches(fs.getPath("java.exe")));
+        assertTrue(!pathMatcher.matches(fs.getPath(".java.exe")));
+        assertTrue(!pathMatcher.matches(fs.getPath("java.exe1")));
+        assertTrue(!pathMatcher.matches(fs.getPath("java.")));
     }
 
     @Test
