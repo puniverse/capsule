@@ -2300,8 +2300,9 @@ public class Capsule implements Runnable {
                 String dirName = f.getFileName().toString();
                 String ver = isJavaDir(dirName);
                 if (ver != null) {
-                    final Path home = searchJavaHomeInDir(f).toAbsolutePath();
+                    Path home = searchJavaHomeInDir(f);
                     if (home != null) {
+                        home = home.toAbsolutePath();
                         if (parseJavaVersion(ver)[3] == 0)
                             ver = getActualJavaVersion(home);
                         dirs.put(ver, home);
