@@ -2688,6 +2688,21 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Reflection Utils">
+    /////////// Reflection Utils ///////////////////////////////////
+    private static Method getMethod(Class<?> clazz, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
+        try {
+            final Method m = clazz.getDeclaredMethod(name, parameterTypes);
+            m.setAccessible(true);
+            return m;
+        } catch (NoSuchMethodException e) {
+            if (clazz.getSuperclass() == null)
+                throw new NoSuchMethodException(name + "(" + Arrays.toString(parameterTypes) + ")");
+            return getMethod(clazz.getSuperclass(), name, parameterTypes);
+        }
+    }
+    //</editor-fold>
+
     //<editor-fold defaultstate="collapsed" desc="Misc Utils">
     /////////// Misc Utils ///////////////////////////////////
     private static boolean propertyDefined(String... props) {
@@ -2799,18 +2814,6 @@ public class Capsule implements Runnable {
             return lines;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private static Method getMethod(Class<?> clazz, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
-        try {
-            final Method m = clazz.getDeclaredMethod(name, parameterTypes);
-            m.setAccessible(true);
-            return m;
-        } catch (NoSuchMethodException e) {
-            if (clazz.getSuperclass() == null)
-                throw new NoSuchMethodException(name + "(" + Arrays.toString(parameterTypes) + ")");
-            return getMethod(clazz.getSuperclass(), name, parameterTypes);
         }
     }
     //</editor-fold>
