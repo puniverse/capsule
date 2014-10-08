@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -214,14 +215,17 @@ public class Capsule implements Runnable {
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
     private static Capsule CAPSULE;
+    private static final Map<String, String> ACTIONS = new LinkedHashMap<>();
 
-    /**
-     * Returns the singleton Capsule instance.
-     * The passed argument list must be mutable, as this method might consume some arguments and remove them from the list.
-     *
-     * @param args The command-line arguments passed to {@code main}, as a <i>mutable</i> list.
-     */
-    protected static Capsule myCapsule(List<String> args) {
+    static {
+        registerAction(PROP_VERSION, "printVersion");
+        registerAction(PROP_MODES, "printModes");
+        registerAction(PROP_TREE, "printDependencyTree");
+        registerAction(PROP_RESOLVE, "resolve");
+        registerAction(PROP_PRINT_JRES, "printJVMs");
+    }
+
+    final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
             final Capsule capsule = newCapsule(findOwnJarFile(), getCacheDir());
             if (capsule.isEmptyCapsule() && !args.isEmpty())
@@ -231,38 +235,19 @@ public class Capsule implements Runnable {
         return CAPSULE;
     }
 
-    /**
-     * Launches the capsule.
-     * A custom capsule may provide its own main method to add capsule actions, and then call this method
-     * if no custom action is performed.
-     */
-    @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace", "StringEquality", "null"})
+    @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args0) {
-        final List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
+        List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         try {
             final Capsule capsule = myCapsule(args);
+
+            args = unmodifiableList(args);
 
             if (capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) // not a custom capsule
                 System.exit(runMain(capsule.jarFile, args));
 
-            if (propertyDefined(PROP_VERSION, PROP_MODES, PROP_TREE, PROP_RESOLVE, PROP_PRINT_JRES)) {
-                if (propertyDefined(PROP_VERSION))
-                    capsule.printVersion(args);
-
-                if (propertyDefined(PROP_MODES))
-                    capsule.printModes(args);
-
-                if (propertyDefined(PROP_TREE))
-                    capsule.printDependencyTree(args);
-
-                if (propertyDefined(PROP_RESOLVE))
-                    capsule.resolve(args);
-
-                if (propertyDefined(PROP_PRINT_JRES))
-                    capsule.printJVMs(args);
-
+            if (runActions(capsule, args))
                 return;
-            }
 
             if (capsule.isEmptyCapsule())
                 throw new RuntimeException("USAGE: java -jar " + capsule.jarFile + " PATH_OR_MAVEN_COORDINATES\n" + capsule.jarFile + " is an empty capsule.");
@@ -291,6 +276,33 @@ public class Capsule implements Runnable {
         } catch (Exception e) {
             e.printStackTrace();
             return 1;
+        }
+    }
+
+    /**
+     * Registers a top-level capsule *action* (like print dependency tree or list JVMs).
+     *
+     * @param propertyName the name of the system property that,if defined, will cause the action to be run.
+     * @param methodName   the method which will run the action. The method must accept a single {@code args} parameter of type {@code List<String>}.
+     */
+    protected static final void registerAction(String propertyName, String methodName) {
+        ACTIONS.put(propertyName, methodName);
+    }
+
+    private static boolean runActions(Capsule capsule, List<String> args) {
+        try {
+            boolean found = false;
+            for (Map.Entry<String, String> entry : ACTIONS.entrySet()) {
+                if (propertyDefined(entry.getKey())) {
+                    getMethod(capsule.getClass(), entry.getValue(), List.class).invoke(capsule, args);
+                    found = true;
+                }
+            }
+            return found;
+        } catch (InvocationTargetException e) {
+            throw rethrow(e);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
         }
     }
     //</editor-fold>
@@ -471,13 +483,13 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Main Operations">
     /////////// Main Operations ///////////////////////////////////
-    private void printVersion(List<String> args) {
+    void printVersion(List<String> args) {
         if (getAppId() != null)
             System.out.println(LOG_PREFIX + "Application " + getAppId());
         System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
     }
 
-    private void printModes(List<String> args) {
+    void printModes(List<String> args) {
         System.out.println(LOG_PREFIX + "Application " + getAppId());
         System.out.println("Available modes:");
         final Set<String> modes = getModes();
@@ -491,7 +503,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void printJVMs(List<String> args) {
+    void printJVMs(List<String> args) {
         final Map<String, Path> jres = getJavaHomes();
         if (jres == null)
             println("No detected Java installations");
@@ -504,7 +516,7 @@ public class Capsule implements Runnable {
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (systemProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
-    private void printDependencyTree(List<String> args) {
+    void printDependencyTree(List<String> args) {
         System.out.println("Dependencies for " + getAppId());
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
@@ -523,7 +535,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void resolve(List<String> args) throws IOException, InterruptedException {
+    void resolve(List<String> args) throws IOException, InterruptedException {
         ensureExtractedIfNecessary();
         resolveDependency(getAttribute(ATTR_APP_ARTIFACT), "jar");
         resolveDependencies(getDependencies(), "jar");
@@ -2787,6 +2799,18 @@ public class Capsule implements Runnable {
             return lines;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static Method getMethod(Class<?> clazz, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
+        try {
+            final Method m = clazz.getDeclaredMethod(name, parameterTypes);
+            m.setAccessible(true);
+            return m;
+        } catch (NoSuchMethodException e) {
+            if (clazz.getSuperclass() == null)
+                throw new NoSuchMethodException(name + "(" + Arrays.toString(parameterTypes) + ")");
+            return getMethod(clazz.getSuperclass(), name, parameterTypes);
         }
     }
     //</editor-fold>
