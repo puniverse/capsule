@@ -2290,20 +2290,21 @@ public class Capsule implements Runnable {
      * @return a map from installations' versions to their respective paths
      */
     protected static Map<String, Path> getJavaHomes() {
-        if (JAVA_HOMES != null)
-            return JAVA_HOMES;
-        Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
-        while (dir != null) {
-            Map<String, Path> homes = getJavaHomes(dir);
-            if (homes != null) {
-                if (isWindows())
-                    homes = windowsJavaHomesHeuristics(dir, homes);
-                JAVA_HOMES = homes;
-                return homes;
+        if (JAVA_HOMES == null) {
+            Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
+            Map<String, Path> homes = null;
+            while (dir != null) {
+                homes = getJavaHomes(dir);
+                if (homes != null) {
+                    if (isWindows())
+                        homes = windowsJavaHomesHeuristics(dir, homes);
+                    break;
+                }
+                dir = dir.getParent();
             }
-            dir = dir.getParent();
+            JAVA_HOMES = homes;
         }
-        return null;
+        return JAVA_HOMES;
     }
 
     private static Map<String, Path> windowsJavaHomesHeuristics(Path dir, Map<String, Path> homes) {
