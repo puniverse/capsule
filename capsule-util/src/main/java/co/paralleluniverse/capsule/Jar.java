@@ -444,7 +444,8 @@ public class Jar {
         }
     }
 
-    private void addDir(final Path path, final Path dir, final boolean recursive) throws IOException {
+    private void addDir(final Path path, final Path dir1, final boolean recursive) throws IOException {
+        final Path dir = dir1.toAbsolutePath();
         Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult preVisitDirectory(Path d, BasicFileAttributes attrs) throws IOException {
@@ -453,7 +454,7 @@ public class Jar {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                final Path p = dir.relativize(file);
+                final Path p = dir.relativize(file.toAbsolutePath());
                 final Path target = path != null ? path.resolve(p.toString()) : p;
                 if (!target.toString().equals(MANIFEST_NAME))
                     addEntry(target, file);
