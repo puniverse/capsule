@@ -245,7 +245,7 @@ public class Capsule implements Runnable {
             if (capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) // not a custom capsule
                 System.exit(runMain(capsule.jarFile, args));
 
-            if (propertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
+            if (propertyDefined(PROP_VERSION, PROP_MODES, PROP_TREE, PROP_RESOLVE, PROP_PRINT_JRES)) {
                 if (propertyDefined(PROP_VERSION))
                     capsule.printVersion(args);
 
