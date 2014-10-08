@@ -433,7 +433,7 @@ public class Jar {
                 if (dirURL.getProtocol().equals("jar")) {
                     String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf("!"));
                     try (FileSystem zipfs = newZipFileSystem(Paths.get(jarPath))) {
-                        addDir(Paths.get(path), zipfs.getPath(path), false, zipfs.getPath("/"));
+                        addDir(Paths.get(path), zipfs.getPath(path), false);
                     }
                 } else
                     throw new AssertionError();
@@ -444,11 +444,8 @@ public class Jar {
         }
     }
 
-    private void addDir(final Path path, final Path dir, final boolean recursive) throws IOException {
-        addDir(path, dir, recursive, null);
-    }
-
-    private void addDir(final Path path, final Path dir, final boolean recursive, final Path optRootPath) throws IOException {
+    private void addDir(final Path path, final Path dir1, final boolean recursive) throws IOException {
+        final Path dir = dir1.toAbsolutePath();
         Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult preVisitDirectory(Path d, BasicFileAttributes attrs) throws IOException {
@@ -457,18 +454,7 @@ public class Jar {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                // circlespainter: it looks like relativize in Path needs both paths (source object and
-                // parameter) to be either absolute or relative (found logic in
-                // http://www.docjar.com/html/api/com/sun/nio/zipfs/ZipPath.java.html l. 229)
-                Path newDir = dir;
-                if (file.isAbsolute() != dir.isAbsolute() && optRootPath != null) {
-                    if (file.isAbsolute())
-                        file = optRootPath.relativize(file);
-                    else
-                        newDir = optRootPath.relativize(dir);
-                }
-
-                final Path p = newDir.relativize(file);
+                final Path p = dir.relativize(file.toAbsolutePath());
                 final Path target = path != null ? path.resolve(p.toString()) : p;
                 if (!target.toString().equals(MANIFEST_NAME))
                     addEntry(target, file);
