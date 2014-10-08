@@ -954,25 +954,25 @@ public class CapsuleTest {
         Files.createFile(path("a", "b", "c", "x"));
         Files.createFile(path("a", "b", "c1", "x"));
 
-        assertEquals(set(path("a", "b"), path("a", "b1"), path("a", "x")),
-                set(Capsule.listDir(path("a"), null, false)));
-        assertEquals(set(path("a", "x")),
-                set(Capsule.listDir(path("a"), null, true)));
+        assertEquals(list(path("a", "b"), path("a", "b1"), path("a", "x")),
+                Capsule.listDir(path("a"), null, false));
+        assertEquals(list(path("a", "x")),
+                Capsule.listDir(path("a"), null, true));
         assertEquals(set(path("a", "x"), path("a", "b", "x"), path("a", "b1", "x"), path("a", "b", "c", "x"), path("a", "b", "c1", "x")),
                 set(Capsule.listDir(path("a"), "**", true)));
-        assertEquals(set(path("a", "b1", "x")),
-                set(Capsule.listDir(path("a"), "b?/*", false)));
+        assertEquals(list(path("a", "b1", "x")),
+                Capsule.listDir(path("a"), "b?/*", false));
     }
     
     @Test
     public void testGlob() throws Exception {
-        FileSystem fs = FileSystems.getDefault();
-        PathMatcher pathMatcher = fs.getPathMatcher("glob:java{.exe,}");
-        assertTrue(pathMatcher.matches(fs.getPath("java")));
-        assertTrue(pathMatcher.matches(fs.getPath("java.exe")));
-        assertTrue(!pathMatcher.matches(fs.getPath(".java.exe")));
-        assertTrue(!pathMatcher.matches(fs.getPath("java.exe1")));
-        assertTrue(!pathMatcher.matches(fs.getPath("java.")));
+        FileSystem fs1 = FileSystems.getDefault();
+        PathMatcher pathMatcher = fs1.getPathMatcher("glob:java{.exe,}");
+        assertTrue(pathMatcher.matches(fs1.getPath("java")));
+        assertTrue(pathMatcher.matches(fs1.getPath("java.exe")));
+        assertTrue(!pathMatcher.matches(fs1.getPath(".java.exe")));
+        assertTrue(!pathMatcher.matches(fs1.getPath("java.exe1")));
+        assertTrue(!pathMatcher.matches(fs1.getPath("java.")));
     }
 
     @Test

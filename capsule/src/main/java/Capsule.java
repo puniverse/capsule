@@ -37,7 +37,6 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1179,13 +1178,6 @@ public class Capsule implements Runnable {
 
     private List<Path> getDefaultCacheClassPath() {
         final List<Path> cp = new ArrayList<Path>(listDir(appCache, "*.jar", true));
-
-        // sort to give same reults on all platforms
-        // doing it this way isn't quite right as Path's Javadoc ensures lexicographic ordering, yet warns different results on different platforms
-        // ... but I hope this works well enough. If not, we need to convert to strings, sort, and then convert back.
-        // (I assume the platform dependence has to do with case-sensitivity, and we don't care about that)
-        Collections.sort(cp);
-
         cp.add(0, appCache);
         return cp;
     }
@@ -1933,11 +1925,9 @@ public class Capsule implements Runnable {
             if (Files.isRegularFile(f))
                 return singletonList(f);
             throw new IllegalArgumentException("Dependency manager not found, and could not locate artifact " + p + " in capsule");
-        } else if (isGlob(p)) {
-            final List<Path> files = listDir(appCache, p, false);
-            Collections.sort(files); // see comment in getDefaultCacheClassPath()
-            return files;
-        } else
+        } else if (isGlob(p))
+            return listDir(appCache, p, false);
+        else
             return singletonList(toAbsolutePath(appCache, p));
     }
 
@@ -2229,46 +2219,58 @@ public class Capsule implements Runnable {
     @SuppressWarnings("null")
     private static List<Path> listDir(Path dir, List<String> globs, boolean recursive, boolean regularFile, boolean firstMatch, List<Path> res) {
         PathMatcher matcher = null;
-        if (globs != null && !globs.isEmpty()) {
-            if (globs.size() == 1 && "**".equals(globs.get(0)))
+        if (globs != null) {
+            while (!globs.isEmpty() && "**".equals(globs.get(0))) {
                 recursive = true;
-            else
+                globs = globs.subList(1, globs.size());
+            }
+            if (!globs.isEmpty())
                 matcher = dir.getFileSystem().getPathMatcher("glob:" + globs.get(0));
         }
-        try {
-            List<Path> ds = new ArrayList<>(); // for breadth-first traversal
-            try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
-                for (Path f : fs) {
-                    if (matcher == null) {
-                        if (!regularFile || Files.isRegularFile(f))
-                            res.add(f);
-                    } else {
-                        if (matcher.matches(f.getFileName())) {
-                            if (globs.size() == 1 && (!regularFile || Files.isRegularFile(f)))
-                                res.add(f);
-                            else if (Files.isDirectory(f))
-                                ds.add(f);
-                        }
-                    }
-                    if (firstMatch && !res.isEmpty())
-                        break;
-                }
-            }
-            for (Path d : ds)
-                listDir(d, globs.subList(1, globs.size()), recursive, regularFile, firstMatch, res);
-            if (recursive) {
-                try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
-                    for (Path f : fs) {
-                        if (Files.isDirectory(f))
-                            listDir(f, globs, recursive, regularFile, firstMatch, res);
-                    }
-                }
-            }
 
-            return res;
+        final List<Path> ms = new ArrayList<>();
+        final List<Path> mds = matcher != null ? new ArrayList<Path>() : null;
+        final List<Path> rds = recursive ? new ArrayList<Path>() : null;
+
+        try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
+            for (Path f : fs) {
+                if (recursive && Files.isDirectory(f))
+                    rds.add(f);
+                if (matcher == null) {
+                    if (!regularFile || Files.isRegularFile(f))
+                        ms.add(f);
+                } else {
+                    if (matcher.matches(f.getFileName())) {
+                        if (globs.size() == 1 && (!regularFile || Files.isRegularFile(f)))
+                            ms.add(f);
+                        else if (Files.isDirectory(f))
+                            mds.add(f);
+                    }
+                }
+                if (firstMatch && !ms.isEmpty())
+                    break;
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        sort(ms); // sort to give same reults on all platforms (hopefully)
+        res.addAll(ms);
+
+        recurse:
+        for (List<Path> ds : Arrays.asList(mds, rds)) {
+            if (ds == null)
+                continue;
+            sort(ds);
+            final List<String> gls = (ds == mds ? globs.subList(1, globs.size()) : globs);
+            for (Path d : ds) {
+                listDir(d, gls, recursive, regularFile, firstMatch, res);
+                if (firstMatch && !res.isEmpty())
+                    break recurse;
+            }
+        }
+
+        return res;
     }
     //</editor-fold>
 
