@@ -2294,7 +2294,7 @@ public class Capsule implements Runnable {
     private static Map<String, Path> getJavaHomes(Path dir) {
         if (!Files.isDirectory(dir))
             return null;
-        Map<String, Path> dirs = new HashMap<String, Path>();
+        final Map<String, Path> dirs = new HashMap<String, Path>();
         for (Path f : listDir(dir, null, false)) {
             if (Files.isDirectory(f)) {
                 String dirName = f.getFileName().toString();
@@ -2975,7 +2975,7 @@ public class Capsule implements Runnable {
     }
 
     private static RuntimeException rethrow(Throwable t) {
-        if (t instanceof InvocationTargetException)
+        while (t instanceof InvocationTargetException)
             t = ((InvocationTargetException) t).getTargetException();
         if (t instanceof RuntimeException)
             throw (RuntimeException) t;
