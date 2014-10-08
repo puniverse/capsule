@@ -242,10 +242,8 @@ public class Capsule implements Runnable {
         try {
             final Capsule capsule = myCapsule(args);
 
-            if (capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) { // not a custom capsule
-                runMain(capsule.jarFile, args);
-                System.exit(0);
-            }
+            if (capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) // not a custom capsule
+                System.exit(runMain(capsule.jarFile, args));
 
             if (propertyDefined(PROP_VERSION, PROP_PRINT_JRES, PROP_TREE, PROP_RESOLVE)) {
                 if (propertyDefined(PROP_VERSION))
@@ -283,13 +281,16 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static void runMain(Path jar, List<String> args) {
+    @SuppressWarnings("CallToPrintStackTrace")
+    private static int runMain(Path jar, List<String> args) {
         try {
             new URLClassLoader(new URL[]{jar.toUri().toURL()}, null)
                     .loadClass(getMainClass(jar))
                     .getMethod("main", String[].class).invoke(null, (Object) args.toArray(new String[0]));
+            return 0;
         } catch (Exception e) {
-            throw rethrow(e);
+            e.printStackTrace();
+            return 1;
         }
     }
     //</editor-fold>
