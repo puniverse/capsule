@@ -248,7 +248,7 @@ public class CapsuleTest {
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, null);
-        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        capsule.prepareForLaunch(cmdLine, args);
 
         String appId = capsule.getAppId();
         assertEquals("com.acme_foo_1.0", appId);
@@ -519,7 +519,7 @@ public class CapsuleTest {
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);
-        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        capsule.prepareForLaunch(cmdLine, args);
 
         verify(dm).resolveDependencies(deps, "jar");
     }
@@ -546,7 +546,7 @@ public class CapsuleTest {
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(jar, dm);
-        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        capsule.prepareForLaunch(cmdLine, args);
 
         verify(dm).resolveDependencies(deps, "jar");
     }
@@ -564,9 +564,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, dm);
-
-        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        newCapsule(jar, dm).prepareForLaunch(cmdLine, args);
     }
 
     @Test
@@ -678,8 +676,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
-        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        newCapsule(jar, null).prepareForLaunch(cmdLine, args);
     }
 
     @Test
@@ -775,9 +772,8 @@ public class CapsuleTest {
 
         Path capsuleJar = path("capsule.jar");
         jar.write(capsuleJar);
-        Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
 
-        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        Capsule.newCapsule(capsuleJar, cache).prepareForLaunch(cmdLine, args);
     }
 
     @Test
