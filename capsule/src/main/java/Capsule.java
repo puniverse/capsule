@@ -2426,7 +2426,7 @@ public class Capsule implements Runnable {
     }
 
     private static boolean isJavaHome(Path dir) {
-        return findFile(dir, "bin" + FILE_SEPARATOR + "java{.exe,}", true) != null;
+        return Files.isRegularFile(dir.resolve("bin").resolve("java" + (isWindows() ? ".exe" : "")));
     }
 
     private static Path getJavaExecutable0(Path javaHome) {
