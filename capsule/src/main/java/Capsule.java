@@ -2225,28 +2225,15 @@ public class Capsule implements Runnable {
      * @param regular whether only regular files should be returned
      */
     protected static final List<Path> listDir(Path dir, String glob, boolean regular) {
-        return listDir(dir, glob, false, regular, false, new ArrayList<Path>());
-    }
-
-    /**
-     * Finds the first file matching the glob pattern in the given directory (or subdirectories, according to the glob).
-     *
-     * @param dir     the directory
-     * @param glob    the glob pattern to use to filter the entries
-     * @param regular whether only regular files should be returned
-     * @return the path to the matching file or {@code null} if no matching file is found.
-     */
-    protected static final Path findFile(Path dir, String glob, boolean regular) {
-        final List<Path> list = listDir(dir, glob, false, regular, true, new ArrayList<Path>());
-        return !list.isEmpty() ? list.get(0) : null;
+        return listDir(dir, glob, false, regular, new ArrayList<Path>());
     }
 
     private static boolean isGlob(String s) {
         return s.contains("*") || s.contains("?") || s.contains("{") || s.contains("[");
     }
 
-    private static List<Path> listDir(Path dir, String glob, boolean recursive, boolean regularFile, boolean firstMatch, List<Path> res) {
-        return listDir(dir, splitGlob(glob), recursive, regularFile, firstMatch, res);
+    private static List<Path> listDir(Path dir, String glob, boolean recursive, boolean regularFile, List<Path> res) {
+        return listDir(dir, splitGlob(glob), recursive, regularFile, res);
     }
 
     private static List<String> splitGlob(String glob) { // splits glob pattern by directory
@@ -2254,7 +2241,7 @@ public class Capsule implements Runnable {
     }
 
     @SuppressWarnings("null")
-    private static List<Path> listDir(Path dir, List<String> globs, boolean recursive, boolean regularFile, boolean firstMatch, List<Path> res) {
+    private static List<Path> listDir(Path dir, List<String> globs, boolean recursive, boolean regularFile, List<Path> res) {
         PathMatcher matcher = null;
         if (globs != null) {
             while (!globs.isEmpty() && "**".equals(globs.get(0))) {
@@ -2284,8 +2271,6 @@ public class Capsule implements Runnable {
                             mds.add(f);
                     }
                 }
-                if (firstMatch && !ms.isEmpty())
-                    break;
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -2294,19 +2279,14 @@ public class Capsule implements Runnable {
         sort(ms); // sort to give same reults on all platforms (hopefully)
         res.addAll(ms);
 
-        if (!(firstMatch && !res.isEmpty())) {
-            recurse:
-            for (List<Path> ds : Arrays.asList(mds, rds)) {
-                if (ds == null)
-                    continue;
-                sort(ds);
-                final List<String> gls = (ds == mds ? globs.subList(1, globs.size()) : globs);
-                for (Path d : ds) {
-                    listDir(d, gls, recursive, regularFile, firstMatch, res);
-                    if (firstMatch && !res.isEmpty())
-                        break recurse;
-                }
-            }
+        recurse:
+        for (List<Path> ds : Arrays.asList(mds, rds)) {
+            if (ds == null)
+                continue;
+            sort(ds);
+            final List<String> gls = (ds == mds ? globs.subList(1, globs.size()) : globs);
+            for (Path d : ds)
+                listDir(d, gls, recursive, regularFile, res);
         }
 
         return res;
