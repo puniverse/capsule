@@ -843,7 +843,7 @@ public class CapsuleTest {
         List<String> cmdLine = list();
 
         Capsule capsule = newCapsule(wrapper, dm);
-        setTargetCapsule(capsule, "com.acme:foo");
+        setTarget(capsule, "com.acme:foo");
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
@@ -1079,9 +1079,9 @@ public class CapsuleTest {
         }
     }
 
-    private Capsule setTargetCapsule(Capsule capsule, String artifact) {
+    private Capsule setTarget(Capsule capsule, String artifact) {
         try {
-            accessible(Capsule.class.getDeclaredMethod("setTargetCapsule", String.class)).invoke(capsule, artifact);
+            accessible(Capsule.class.getDeclaredMethod("setTarget", String.class)).invoke(capsule, artifact);
             return capsule;
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
@@ -1090,7 +1090,7 @@ public class CapsuleTest {
 
     private Capsule setTargetCapsule(Capsule capsule, Path jar) {
         try {
-            accessible(Capsule.class.getDeclaredMethod("setTargetCapsule", Path.class)).invoke(capsule, jar);
+            accessible(Capsule.class.getDeclaredMethod("setTarget", Path.class)).invoke(capsule, jar);
             return capsule;
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);

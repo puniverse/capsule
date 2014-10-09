@@ -394,6 +394,8 @@ public class Capsule implements Runnable {
         boolean isCapsule = false;
         try (JarInputStream jis = openJarInputStream(jar)) {
             man = jis.getManifest();
+            if (man == null || man.getMainAttributes().getValue(ATTR_MAIN_CLASS) == null)
+                throw new RuntimeException(jar + " is not a capsule or an executable JAR");
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
                 if (entry.getName().equals(Capsule.class.getName() + ".class"))
                     isCapsule = true;
@@ -403,9 +405,6 @@ public class Capsule implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jar, e);
         }
-
-        if (man == null || man.getMainAttributes().getValue(ATTR_MAIN_CLASS) != null)
-            throw new RuntimeException(jar + " is not a capsule or an executable JAR");
 
         if (!isCapsule)
             setAttribute(ATTR_APP_ARTIFACT, jar.toString());
