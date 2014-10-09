@@ -710,13 +710,16 @@ public class CapsuleTest {
     public void testEmbeddedArtifact() throws Exception {
         Jar bar = new Jar()
                 .setAttribute("Main-Class", "com.acme.Bar")
-                .addEntry("com/acme/Bar.class", Jar.toInputStream("", UTF_8));
+                .setAttribute("Class-Path", "lib/liba.jar lib/libb.jar")
+                .addEntry("com/acme/Bar.class", emptyInputStream());
 
         Jar jar = newCapsuleJar()
-                .setAttribute("Application", "libs/bar.jar")
+                .setAttribute("Application", "bar.jar")
                 .setAttribute("Application-Name", "AcmeFoo")
                 .setAttribute("Application-Version", "1.0")
-                .addEntry("libs/bar.jar", bar.toByteArray());
+                .addEntry("bar.jar", bar.toByteArray())
+                .addEntry("lib/liba.jar", emptyInputStream())
+                .addEntry("lib/libb.jar", emptyInputStream());
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
@@ -725,7 +728,9 @@ public class CapsuleTest {
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("AcmeFoo_1.0");
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("libs").resolve("bar.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("bar.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("liba.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("libb.jar"));
         assertEquals("com.acme.Bar", getMainClass(pb));
     }
 

@@ -149,7 +149,7 @@ This attributes makes the JAR file into a capsule. The second attribute tells th
 
 which specifies the application's main class, or,
 
-    Application : [the Maven coordinates of the application's main JAR]
+    Application : [the Maven coordinates of the application's main JAR or the path of the main JAR within the capsule]
 
 or,
 
@@ -271,7 +271,7 @@ Two more system properties affect the way Capsule searches for dependencies. If 
 
 ### Class Paths
 
-By default, Capsule sets the application's class path to: the capsule JAR itself, the application's cache directory (if the capsule is extracted) and every JAR found in the root of the cache directory (i.e. every JAR file placed in the capsule JAR's root) -- in no particular order -- and, finally, the application's Maven dependencies in the order they are listen in the `Dependencies` attribute or the POM file.
+By default, Capsule sets the application's class path to: the capsule JAR itself, the application's cache directory (if the capsule is extracted) and every JAR found in the root of the cache directory (i.e. every JAR file placed in the capsule JAR's root) -- in no particular order -- and, finally, the application's Maven dependencies in the order they are listen in the `Dependencies` attribute or the POM file. Also, if the capsule contains an `Application` attribute, all entries in the `Class-Path` attribute in the manifest of the `Application` JAR are added to the classpath automatically.
 
 The classpath, however, can be customized by the `Class-Path` attribute, which can be given an ordered (space separated) list of JARs and/or directories relative to the capsule JAR root. This attribute only applies if the capsule is extracted, and if it is found in the manifest, then all JARs in the cache's root will not be added automatically to the classpath.
 
@@ -371,7 +371,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Application-Name`: the name of the application, used to define its ID
 * `Application-Version`: the application's version, used to define its ID
 * `Application-Class`: the application's main class
-* `Application`: The Maven coordinates of the application's main JAR (can be a capsule)
+* `Application`: the Maven coordinates of the application's main JAR or the path of the main JAR within the capsule
 * `Unix-Script`: a startup script to be run *instead* of `Application-Class` on Unix/Linux/Mac OS, given as a path relative to the capsule's root
 * `Windows-Script`: a startup script to be run *instead* of `Application-Class` on Windows, given as a path relative to the capsule's root
 * `Extract-Capsule`: if `false`, the capsule JAR will not be extracted to the filesystem (default: `true`)

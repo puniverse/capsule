@@ -19,6 +19,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -1160,11 +1161,24 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
                     + ATTR_EXTRACT + " attribute is also set to false");
 
-        // the app artifact (mustn't be a capsule if we're here)
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             if (isGlob(getAttribute(ATTR_APP_ARTIFACT)))
                 throw new IllegalArgumentException("Glob pattern not allowed in " + ATTR_APP_ARTIFACT + " attribute.");
-            classPath.addAll(getPath(getAttribute(ATTR_APP_ARTIFACT)));
+            final List<Path> app = getPath(getAttribute(ATTR_APP_ARTIFACT));
+            classPath.addAll(app);
+            final Path jar = app.get(0);
+            final Manifest man = getManifest(jar);
+            for (String e : nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CLASS_PATH)))) {
+                Path p;
+                try {
+                    p = path(new URL(e).toURI());
+                } catch (MalformedURLException | URISyntaxException ex) {
+                    e = e.replace('/', FILE_SEPARATOR_CHAR);
+                    p = sanitize(appCache, jar.getParent().resolve(path(e)));
+                }
+                if (!classPath.contains(p))
+                    classPath.add(p);
+            }
         }
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
@@ -1463,16 +1477,12 @@ public class Capsule implements Runnable {
     }
 
     private String getMainClass(List<Path> classPath) {
-        try {
-            String mainClass = getAttribute(ATTR_APP_CLASS);
-            if (mainClass == null && hasAttribute(ATTR_APP_ARTIFACT))
-                mainClass = getMainClass(getAppArtifactJarFromClasspath(classPath));
-            if (mainClass == null)
-                throw new RuntimeException("Jar " + classPath.get(0).toAbsolutePath() + " does not have a main class defined in the manifest.");
-            return mainClass;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        String mainClass = getAttribute(ATTR_APP_CLASS);
+        if (mainClass == null && hasAttribute(ATTR_APP_ARTIFACT))
+            mainClass = getMainClass(getAppArtifactJarFromClasspath(classPath));
+        if (mainClass == null)
+            throw new RuntimeException("Jar " + classPath.get(0).toAbsolutePath() + " does not have a main class defined in the manifest.");
+        return mainClass;
     }
 
     private Path getAppArtifactJarFromClasspath(List<Path> classPath) {
@@ -1993,6 +2003,10 @@ public class Capsule implements Runnable {
         return cacheDir.getFileSystem().getPath(p, more);
     }
 
+    private Path path(URI uri) {
+        return cacheDir.getFileSystem().provider().getPath(uri);
+    }
+
     private List<Path> toPath(List<String> ps) {
         if (ps == null)
             return null;
@@ -2016,7 +2030,11 @@ public class Capsule implements Runnable {
     }
 
     private static Path sanitize(Path dir, String p) {
-        final Path path = dir.resolve(p).normalize().toAbsolutePath();
+        return sanitize(dir, dir.resolve(p));
+    }
+
+    private static Path sanitize(Path dir, Path p) {
+        final Path path = p.normalize().toAbsolutePath();
         if (!path.startsWith(dir))
             throw new IllegalArgumentException("Path " + p + " is not local");
         return path;
