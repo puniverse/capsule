@@ -93,7 +93,7 @@ public final class CapsuleLauncher {
             final Object capsule = ctor.newInstance(jarFile, cacheDir);
 
             if (wrappedJar != null) {
-                final Method setTarget = accessible(clazz.getDeclaredMethod("setTargetCapsule", Path.class));
+                final Method setTarget = accessible(clazz.getDeclaredMethod("setTarget", Path.class));
                 setTarget.invoke(capsule, wrappedJar);
             }
 

@@ -231,7 +231,7 @@ public class Capsule implements Runnable {
         if (CAPSULE == null) {
             final Capsule capsule = newCapsule(findOwnJarFile(), getCacheDir());
             if (capsule.isEmptyCapsule() && !args.isEmpty())
-                capsule.setTargetCapsule(args.remove(0));
+                capsule.setTarget(args.remove(0));
             CAPSULE = capsule;
         }
         return CAPSULE;
@@ -376,43 +376,46 @@ public class Capsule implements Runnable {
         clearContext();
     }
 
-    private void setTargetCapsule(String capsuleArtifact) {
+    private void setTarget(String capsuleArtifact) {
         clearContext();
         final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
         if (jar == null)
             throw new RuntimeException(capsuleArtifact + " not found.");
-        setTargetCapsule(jar);
+        setTarget(jar);
     }
 
-    private void setTargetCapsule(Path jar) {
+    private void setTarget(Path jar) {
         if (!isEmptyCapsule())
             throw new IllegalStateException("Capsule " + jarFile + " isn't empty");
         if (jar.equals(jarFile)) // catch simple loops
             throw new RuntimeException("Capsule wrapping loop detected with capsule " + jarFile);
 
-        log(LOG_VERBOSE, "Wrapping capsule " + jar);
-        this.jarFile = jar;
-
-        try (JarInputStream jis = openJarInputStream(jarFile)) {
-            boolean isCapsule = false;
+        final Manifest man;
+        boolean isCapsule = false;
+        try (JarInputStream jis = openJarInputStream(jar)) {
+            man = jis.getManifest();
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
                 if (entry.getName().equals(Capsule.class.getName() + ".class"))
                     isCapsule = true;
                 else if (entry.getName().equals(POM_FILE))
                     this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader0(jis) : null;
             }
-
-            final Manifest man = jis.getManifest();
-            if (man == null || !isCapsule)
-                throw new RuntimeException(jarFile + " is not a capsule");
-
-            merge(manifest, man);
         } catch (IOException e) {
-            throw new RuntimeException("Could not read JAR file " + jarFile, e);
+            throw new RuntimeException("Could not read JAR file " + jar, e);
         }
 
-        if (this.dependencyManager != null)
-            setDependencyRepositories(getRepositories());
+        if (man == null || man.getMainAttributes().getValue(ATTR_MAIN_CLASS) != null)
+            throw new RuntimeException(jar + " is not a capsule or an executable JAR");
+
+        if (!isCapsule)
+            setAttribute(ATTR_APP_ARTIFACT, jar.toString());
+        else {
+            log(LOG_VERBOSE, "Wrapping capsule " + jar);
+            this.jarFile = jar;
+            merge(manifest, man);
+            if (this.dependencyManager != null)
+                setDependencyRepositories(getRepositories());
+        }
         finalizeCapsule();
         clearContext();
     }
@@ -1606,12 +1609,11 @@ public class Capsule implements Runnable {
         }
     }
 
-    private Object createPomReader0(InputStream is) {
+    private static Object createPomReader0(InputStream is) {
         try {
             return new PomReader(is);
         } catch (NoClassDefFoundError e) {
-            throw new RuntimeException("Jar " + jarFile
-                    + " contains a pom.xml file, while the necessary dependency management classes are not found in the jar");
+            throw new RuntimeException("JAR contains a pom.xml file, while the necessary dependency management classes are not found in the capsule");
         }
     }
 
@@ -1803,6 +1805,11 @@ public class Capsule implements Runnable {
                 return true;
         }
         return manifest.getMainAttributes().containsKey(key);
+    }
+
+    private void setAttribute(String attr, String value) {
+        final Attributes atts = (mode != null && !NON_MODAL_ATTRS.contains(attr)) ? manifest.getAttributes(mode) : manifest.getMainAttributes();
+        atts.putValue(attr, value);
     }
 
     /**
