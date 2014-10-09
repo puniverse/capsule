@@ -2362,6 +2362,8 @@ public class Capsule implements Runnable {
     }
 
     private static Map<String, Path> getJavaHomes(Path dir) throws IOException {
+        if (dir == null)
+            return null;
         if (!Files.isDirectory(dir))
             return null;
         final Map<String, Path> dirs = new HashMap<String, Path>();
