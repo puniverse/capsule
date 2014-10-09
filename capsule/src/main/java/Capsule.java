@@ -2080,7 +2080,7 @@ public class Capsule implements Runnable {
         return new JarInputStream(skipToZipStart(Files.newInputStream(jar)));
     }
 
-    private static String getMainClass(Path jar) throws IOException {
+    private static String getMainClass(Path jar) {
         return getMainClass(getManifest(jar));
     }
 
@@ -2090,9 +2090,11 @@ public class Capsule implements Runnable {
         return manifest.getMainAttributes().getValue(ATTR_MAIN_CLASS);
     }
 
-    private static Manifest getManifest(Path jar) throws IOException {
+    private static Manifest getManifest(Path jar) {
         try (JarInputStream jis = openJarInputStream(jar)) {
             return jis.getManifest();
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading manifest from " + jar, e);
         }
     }
 
@@ -3044,7 +3046,7 @@ public class Capsule implements Runnable {
                 }
             }
             throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(jarFile + " does not appear to be a valid capsule.", e);
         } catch (InvocationTargetException e) {
             throw rethrow(e.getTargetException());
