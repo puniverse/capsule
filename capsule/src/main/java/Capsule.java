@@ -2337,16 +2337,17 @@ public class Capsule implements Runnable {
      */
     protected static Map<String, Path> getJavaHomes() {
         if (JAVA_HOMES == null) {
-            Path dir = Paths.get(System.getProperty(PROP_JAVA_HOME)).getParent();
-            Map<String, Path> homes = null;
-            while (dir != null) {
-                homes = getJavaHomes(dir);
-                if (homes != null) {
-                    if (isWindows())
-                        homes = windowsJavaHomesHeuristics(dir, homes);
+            Path homesDir = null;
+            for (Path d = Paths.get(System.getProperty(PROP_JAVA_HOME)); d != null; d = d.getParent()) {
+                if (isJavaDir(d.getFileName().toString()) != null) {
+                    homesDir = d.getParent();
                     break;
                 }
-                dir = dir.getParent();
+            }
+            Map<String, Path> homes = getJavaHomes(homesDir);
+            if (homes != null) {
+                if (isWindows())
+                    homes = windowsJavaHomesHeuristics(homesDir, homes);
             }
             JAVA_HOMES = homes;
         }
@@ -2403,22 +2404,29 @@ public class Capsule implements Runnable {
     }
 
     private static Path searchJavaHomeInDir(Path dir) {
-        if (!Files.isDirectory(dir))
-            return null;
-        for (Path f : listDir(dir, null, false)) {
-            if (isJavaHome(f))
-                return f;
-            Path home = searchJavaHomeInDir(f);
-            if (home != null)
+        if (isMac()) { // mac heuristics
+            final Path home = dir.resolve("Contents").resolve("Home");
+            if (isJavaHome(home))
                 return home;
+        }
+        return searchJavaHomeInDir0(dir);
+    }
+
+    private static Path searchJavaHomeInDir0(Path dir) {
+        for (Path f : listDir(dir, null, false)) {
+            if (Files.isDirectory(f)) {
+                if (isJavaHome(f))
+                    return f;
+                Path home = searchJavaHomeInDir0(f);
+                if (home != null)
+                    return home;
+            }
         }
         return null;
     }
 
     private static boolean isJavaHome(Path dir) {
-        if (Files.isDirectory(dir))
-            return findFile(dir, "bin" + FILE_SEPARATOR + "java{.exe,}", true) != null;
-        return false;
+        return findFile(dir, "bin" + FILE_SEPARATOR + "java{.exe,}", true) != null;
     }
 
     private static Path getJavaExecutable0(Path javaHome) {
