@@ -1912,7 +1912,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Dependency Utils">
     /////////// Dependency Utils ///////////////////////////////////
     private static boolean isDependency(String lib) {
-        return lib.contains(":");
+        return lib.contains(":") && !lib.contains(":\\");
     }
 
     private String dependencyToLocalJar(boolean withGroupId, String p) {
