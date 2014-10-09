@@ -110,6 +110,7 @@ public class Capsule implements Runnable {
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
     private static final String PROP_JVM_ARGS = "capsule.jvm.args";
     private static final String PROP_NO_DEP_MANAGER = "capsule.no_dep_manager";
+    private static final String PROP_PROFILE = "capsule.profile";
 
     private static final String PROP_JAVA_VERSION = "java.version";
     private static final String PROP_JAVA_HOME = "java.home";
@@ -209,6 +210,7 @@ public class Capsule implements Runnable {
     protected static final int LOG_QUIET = 1;
     protected static final int LOG_VERBOSE = 2;
     protected static final int LOG_DEBUG = 3;
+    private static final int PROFILE = propertyDefined(PROP_PROFILE) ? LOG_QUIET : LOG_DEBUG;
     //</editor-fold>
 
     //<editor-fold desc="Main">
@@ -590,6 +592,7 @@ public class Capsule implements Runnable {
     /////////// Launch ///////////////////////////////////
     // directly used by CapsuleLauncher
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
+        final long start = clock();
         this.jvmArgs_ = nullToEmpty(jvmArgs); // hack
         this.args_ = nullToEmpty(jvmArgs);    // hack
 
@@ -603,6 +606,7 @@ public class Capsule implements Runnable {
                 return pb;
             } finally {
                 markCache(pb != null);
+                time("prepareForLaunch", start);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -908,6 +912,7 @@ public class Capsule implements Runnable {
     }
 
     private void ensureExtractedIfNecessary() throws IOException {
+        final long start = clock();
         ensureAppCacheIfNecessary();
         if (appCache != null) {
             if (!cacheUpToDate) {
@@ -917,6 +922,7 @@ public class Capsule implements Runnable {
             } else
                 log(LOG_VERBOSE, "App cache " + appCache + " is up to date.");
         }
+        time("ensureExtracted", start);
     }
 
     private boolean needsAppCache() {
@@ -1143,6 +1149,7 @@ public class Capsule implements Runnable {
      * Compiles and returns the application's classpath as a list of paths.
      */
     protected List<Path> buildClassPath() {
+        final long start = clock();
         final List<Path> classPath = new ArrayList<Path>();
 
         // the capsule jar
@@ -1173,6 +1180,7 @@ public class Capsule implements Runnable {
 
         classPath.addAll(nullToEmpty(resolveDependencies(getDependencies(), "jar")));
 
+        time("buildClassPath", start);
         return classPath;
     }
 
@@ -1433,6 +1441,7 @@ public class Capsule implements Runnable {
     }
 
     private List<String> buildJavaAgents() {
+        final long start = clock();
         final Map<String, String> agents0 = getMapAttribute(ATTR_JAVA_AGENTS, "");
         if (agents0 == null)
             return null;
@@ -1449,6 +1458,7 @@ public class Capsule implements Runnable {
                 throw e;
             }
         }
+        time("buildJavaAgents", start);
         return agents;
     }
 
@@ -1493,11 +1503,11 @@ public class Capsule implements Runnable {
      * @return the path of the Java installation to use for launching the app, or {@code null} if the current JVM is to be used.
      */
     protected Path chooseJavaHome() {
+        final long start = clock();
         Path jhome = emptyToNull(systemProperty(PROP_CAPSULE_JAVA_HOME)) != null ? Paths.get(systemProperty(PROP_CAPSULE_JAVA_HOME)) : null;
         if (jhome == null && !isMatchingJavaVersion(systemProperty(PROP_JAVA_VERSION))) {
             final boolean jdk = hasAttribute(ATTR_JDK_REQUIRED) && Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
 
-            final long start = System.nanoTime();
             jhome = findJavaHome(jdk);
             if (isLogging(LOG_VERBOSE))
                 log(LOG_VERBOSE, "Finding JVM: " + ((System.nanoTime() - start) / 1_000_000) + "ms");
@@ -1511,6 +1521,7 @@ public class Capsule implements Runnable {
                         + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
             }
         }
+        time("chooseJavaHome", start);
         return jhome != null ? jhome.toAbsolutePath() : jhome;
     }
 
@@ -1678,14 +1689,20 @@ public class Capsule implements Runnable {
         if (dependencies == null)
             return null;
         verifyDependencyManager();
-        return ((DependencyManager) dependencyManager).resolveDependencies(dependencies, type);
+        final long start = clock();
+        final List<Path> res = ((DependencyManager) dependencyManager).resolveDependencies(dependencies, type);
+        time("resolveDependencies", start);
+        return res;
     }
 
     private List<Path> resolveDependency(String coords, String type) {
         if (coords == null)
             return null;
         verifyDependencyManager();
-        return ((DependencyManager) dependencyManager).resolveDependency(coords, type);
+        final long start = clock();
+        final List<Path> res = ((DependencyManager) dependencyManager).resolveDependency(coords, type);
+        time("resolveDependency " + coords, start);
+        return res;
     }
 
     private String getAppArtifactSpecificVersion(String appArtifact) {
@@ -2894,6 +2911,15 @@ public class Capsule implements Runnable {
 
     private static String reportContext() {
         return contextType_ + " " + contextKey_ + ": " + contextValue_;
+    }
+
+    private long clock() {
+        return isLogging(PROFILE) ? System.nanoTime() : 0;
+    }
+
+    private void time(String op, long start) {
+        if (isLogging(PROFILE))
+            log(PROFILE, "PROFILE " + op + " " + ((System.nanoTime() - start) / 1_000_000) + "ms");
     }
     //</editor-fold>
 
