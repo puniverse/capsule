@@ -2404,20 +2404,11 @@ public class Capsule implements Runnable {
     }
 
     private static Path searchJavaHomeInDir(Path dir) {
-        if (isMac()) { // mac heuristics
-            final Path home = dir.resolve("Contents").resolve("Home");
-            if (isJavaHome(home))
-                return home;
-        }
-        return searchJavaHomeInDir0(dir);
-    }
-
-    private static Path searchJavaHomeInDir0(Path dir) {
         for (Path f : listDir(dir, null, false)) {
             if (Files.isDirectory(f)) {
                 if (isJavaHome(f))
                     return f;
-                Path home = searchJavaHomeInDir0(f);
+                Path home = searchJavaHomeInDir(f);
                 if (home != null)
                     return home;
             }
