@@ -8,7 +8,6 @@
  */
 package co.paralleluniverse.capsule;
 
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -339,7 +338,9 @@ public class Jar {
      * @return {@code this}
      */
     public Jar addEntry(String path, File file) throws IOException {
-        return addEntry(path, new FileInputStream(file));
+        try (FileInputStream fos = new FileInputStream(file)) {
+            return addEntry(path, fos);
+        }
     }
 
     /**
@@ -350,7 +351,9 @@ public class Jar {
      * @return {@code this}
      */
     public Jar addEntry(String path, String file) throws IOException {
-        return addEntry(path, new FileInputStream(file));
+        try (FileInputStream fos = new FileInputStream(file)) {
+            return addEntry(path, fos);
+        }
     }
 
     /**
@@ -431,7 +434,7 @@ public class Jar {
                     dirURL = clazz.getClassLoader().getResource(clazz.getName().replace('.', '/') + ".class");
 
                 if (dirURL.getProtocol().equals("jar")) {
-                    String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf("!"));
+                    String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf('!'));
                     try (FileSystem zipfs = newZipFileSystem(Paths.get(jarPath))) {
                         addDir(Paths.get(path), zipfs.getPath(path), false);
                     }
@@ -592,12 +595,6 @@ public class Jar {
         return os;
     }
 
-    private void writeManifest() throws IOException {
-        jos.putNextEntry(new ZipEntry(MANIFEST_NAME));
-        manifest.write(new BufferedOutputStream(jos));
-        jos.closeEntry();
-    }
-
     private void verifyNotSealed() {
         if (sealed)
             throw new IllegalStateException("This JAR has been sealed (when it was written)");
@@ -607,8 +604,10 @@ public class Jar {
      * Writes this JAR to a file.
      */
     public File write(File file) throws IOException {
-        write(new FileOutputStream(file));
-        return file;
+        try (FileOutputStream fos = new FileOutputStream(file)) {
+            write(fos);
+            return file;
+        }
     }
 
     /**
@@ -666,8 +665,10 @@ public class Jar {
 
     private static Manifest getManifest(Path jarFile) throws IOException {
         try (FileSystem zipfs = newZipFileSystem(jarFile)) {
-            final InputStream is = Files.newInputStream(zipfs.getPath(MANIFEST_NAME));
-            return is != null ? new Manifest(is) : null;
+            final Path p = zipfs.getPath(MANIFEST_NAME);
+            if (!Files.exists(p))
+                return null;
+            return new Manifest(Files.newInputStream(p));
         }
     }
 

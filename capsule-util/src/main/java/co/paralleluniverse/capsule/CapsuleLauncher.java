@@ -105,13 +105,13 @@ public final class CapsuleLauncher {
         }
     }
 
-    private static Class loadCapsuleClass(Manifest mf, ClassLoader cl) {
+    private static Class<?> loadCapsuleClass(Manifest mf, ClassLoader cl) {
         final String mainClass = mf.getMainAttributes() != null ? mf.getMainAttributes().getValue(ATTR_MAIN_CLASS) : null;
         if (mainClass == null)
             return null;
 
         try {
-            Class clazz = cl.loadClass(mainClass);
+            Class<?> clazz = cl.loadClass(mainClass);
             if (!isCapsuleClass(clazz))
                 clazz = null;
             return clazz;
@@ -134,7 +134,7 @@ public final class CapsuleLauncher {
 
     private static class CapsuleAccess implements InvocationHandler {
         private final Object capsule;
-        private final Class clazz;
+        private final Class<?> clazz;
 
         public CapsuleAccess(Object capsule) {
             this.capsule = capsule;
@@ -160,7 +160,7 @@ public final class CapsuleLauncher {
                         return get("VERSION");
 
                     case "getModes":
-                        Collections.emptySet();
+                        return Collections.emptySet();
 
                     default:
                         throw new UnsupportedOperationException("Capsule " + clazz + " does not support this operation");
