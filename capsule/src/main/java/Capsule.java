@@ -2317,24 +2317,28 @@ public class Capsule implements Runnable {
      */
     protected static Map<String, Path> getJavaHomes() {
         if (JAVA_HOMES == null) {
-            Path homesDir = null;
-            for (Path d = Paths.get(System.getProperty(PROP_JAVA_HOME)); d != null; d = d.getParent()) {
-                if (isJavaDir(d.getFileName().toString()) != null) {
-                    homesDir = d.getParent();
-                    break;
+            try {
+                Path homesDir = null;
+                for (Path d = Paths.get(System.getProperty(PROP_JAVA_HOME)); d != null; d = d.getParent()) {
+                    if (isJavaDir(d.getFileName().toString()) != null) {
+                        homesDir = d.getParent();
+                        break;
+                    }
                 }
+                Map<String, Path> homes = getJavaHomes(homesDir);
+                if (homes != null) {
+                    if (isWindows())
+                        homes = windowsJavaHomesHeuristics(homesDir, homes);
+                }
+                JAVA_HOMES = homes;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-            Map<String, Path> homes = getJavaHomes(homesDir);
-            if (homes != null) {
-                if (isWindows())
-                    homes = windowsJavaHomesHeuristics(homesDir, homes);
-            }
-            JAVA_HOMES = homes;
         }
         return JAVA_HOMES;
     }
 
-    private static Map<String, Path> windowsJavaHomesHeuristics(Path dir, Map<String, Path> homes) {
+    private static Map<String, Path> windowsJavaHomesHeuristics(Path dir, Map<String, Path> homes) throws IOException {
         Path dir2 = null;
         if (dir.startsWith(WINDOWS_PROGRAM_FILES_1))
             dir2 = WINDOWS_PROGRAM_FILES_2.resolve(WINDOWS_PROGRAM_FILES_1.relativize(dir));
@@ -2348,21 +2352,23 @@ public class Capsule implements Runnable {
             return homes;
     }
 
-    private static Map<String, Path> getJavaHomes(Path dir) {
+    private static Map<String, Path> getJavaHomes(Path dir) throws IOException {
         if (!Files.isDirectory(dir))
             return null;
         final Map<String, Path> dirs = new HashMap<String, Path>();
-        for (Path f : listDir(dir, null, false)) {
-            if (Files.isDirectory(f)) {
-                String dirName = f.getFileName().toString();
-                String ver = isJavaDir(dirName);
-                if (ver != null) {
-                    Path home = searchJavaHomeInDir(f);
-                    if (home != null) {
-                        home = home.toAbsolutePath();
-                        if (parseJavaVersion(ver)[3] == 0)
-                            ver = getActualJavaVersion(home);
-                        dirs.put(ver, home);
+        try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
+            for (Path f : fs) {
+                if (Files.isDirectory(f)) {
+                    String dirName = f.getFileName().toString();
+                    String ver = isJavaDir(dirName);
+                    if (ver != null) {
+                        Path home = searchJavaHomeInDir(f);
+                        if (home != null) {
+                            home = home.toAbsolutePath();
+                            if (parseJavaVersion(ver)[3] == 0)
+                                ver = getActualJavaVersion(home);
+                            dirs.put(ver, home);
+                        }
                     }
                 }
             }
@@ -2383,14 +2389,16 @@ public class Capsule implements Runnable {
             return null;
     }
 
-    private static Path searchJavaHomeInDir(Path dir) {
-        for (Path f : listDir(dir, null, false)) {
-            if (Files.isDirectory(f)) {
-                if (isJavaHome(f))
-                    return f;
-                Path home = searchJavaHomeInDir(f);
-                if (home != null)
-                    return home;
+    private static Path searchJavaHomeInDir(Path dir) throws IOException {
+        try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
+            for (Path f : fs) {
+                if (Files.isDirectory(f)) {
+                    if (isJavaHome(f))
+                        return f;
+                    Path home = searchJavaHomeInDir(f);
+                    if (home != null)
+                        return home;
+                }
             }
         }
         return null;
