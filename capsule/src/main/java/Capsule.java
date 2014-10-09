@@ -2252,7 +2252,7 @@ public class Capsule implements Runnable {
                 matcher = dir.getFileSystem().getPathMatcher("glob:" + globs.get(0));
         }
 
-        final List<Path> ms = new ArrayList<>();
+        final List<Path> ms = (matcher != null || recursive) ? new ArrayList<Path>() : res;
         final List<Path> mds = matcher != null ? new ArrayList<Path>() : null;
         final List<Path> rds = recursive ? new ArrayList<Path>() : null;
 
@@ -2277,16 +2277,18 @@ public class Capsule implements Runnable {
         }
 
         sort(ms); // sort to give same reults on all platforms (hopefully)
-        res.addAll(ms);
+        if (res != ms) {
+            res.addAll(ms);
 
-        recurse:
-        for (List<Path> ds : Arrays.asList(mds, rds)) {
-            if (ds == null)
-                continue;
-            sort(ds);
-            final List<String> gls = (ds == mds ? globs.subList(1, globs.size()) : globs);
-            for (Path d : ds)
-                listDir(d, gls, recursive, regularFile, res);
+            recurse:
+            for (List<Path> ds : Arrays.asList(mds, rds)) {
+                if (ds == null)
+                    continue;
+                sort(ds);
+                final List<String> gls = (ds == mds ? globs.subList(1, globs.size()) : globs);
+                for (Path d : ds)
+                    listDir(d, gls, recursive, regularFile, res);
+            }
         }
 
         return res;
