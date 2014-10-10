@@ -407,7 +407,7 @@ public class Capsule implements Runnable {
         }
 
         if (!isCapsule)
-            setAttribute(ATTR_APP_ARTIFACT, jar.toString());
+            manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT, jar.toString());
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             this.jarFile = jar;
@@ -1804,11 +1804,6 @@ public class Capsule implements Runnable {
                 return true;
         }
         return manifest.getMainAttributes().containsKey(key);
-    }
-
-    private void setAttribute(String attr, String value) {
-        final Attributes atts = (mode != null && !NON_MODAL_ATTRS.contains(attr)) ? manifest.getAttributes(mode) : manifest.getMainAttributes();
-        atts.putValue(attr, value);
     }
 
     /**
