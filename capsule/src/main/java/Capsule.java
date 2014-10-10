@@ -1049,7 +1049,7 @@ public class Capsule implements Runnable {
         resolveNativeDependencies();
         pb.environment().put(VAR_CLASSPATH, compileClassPath(classPath));
 
-        final Path scriptPath = sanitize(appCache, script).toAbsolutePath();
+        final Path scriptPath = sanitize(appCache.resolve(script));
         ensureExecutable(scriptPath);
         pb.command().add(scriptPath.toString());
         return true;
@@ -1175,11 +1175,10 @@ public class Capsule implements Runnable {
                 try {
                     p = path(new URL(e).toURI());
                 } catch (MalformedURLException | URISyntaxException ex) {
-                    e = e.replace('/', FILE_SEPARATOR_CHAR);
-                    p = sanitize(appCache, jar.getParent().resolve(path(e)));
+                    p = jar.getParent().resolve(path(e.replace('/', FILE_SEPARATOR_CHAR)));
                 }
                 if (!classPath.contains(p))
-                    classPath.add(p);
+                    classPath.add(sanitize(p));
             }
         }
 
@@ -1352,7 +1351,7 @@ public class Capsule implements Runnable {
                 for (int i = 0; i < deps.size(); i++) {
                     final Path lib = resolved.get(i);
                     final String rename = renames.get(i);
-                    Files.copy(lib, sanitize(appCache, rename != null ? rename : lib.getFileName().toString()));
+                    Files.copy(lib, sanitize(appCache.resolve(rename != null ? rename : lib.getFileName().toString())));
                 }
             } catch (IOException e) {
                 throw new RuntimeException("Exception while copying native libs", e);
@@ -1956,7 +1955,7 @@ public class Capsule implements Runnable {
         } else if (isGlob(p))
             return listDir(appCache, p, false);
         else
-            return singletonList(toAbsolutePath(appCache, p));
+            return singletonList(sanitize(appCache.resolve(p)));
     }
 
     /**
@@ -2022,23 +2021,19 @@ public class Capsule implements Runnable {
             return null;
         final List<Path> aps = new ArrayList<Path>(ps.size());
         for (String p : ps)
-            aps.add(toAbsolutePath(root, p));
+            aps.add(sanitize(root, root.resolve(p)));
         return aps;
-    }
-
-    private static Path toAbsolutePath(Path root, String p) {
-        return sanitize(root, p).toAbsolutePath();
-    }
-
-    private static Path sanitize(Path dir, String p) {
-        return sanitize(dir, dir.resolve(p));
     }
 
     private static Path sanitize(Path dir, Path p) {
         final Path path = p.normalize().toAbsolutePath();
         if (!path.startsWith(dir))
-            throw new IllegalArgumentException("Path " + p + " is not local");
+            throw new IllegalArgumentException("Path " + p + " is not local to " + dir);
         return path;
+    }
+
+    private Path sanitize(Path dir) {
+        return sanitize(appCache, dir);
     }
 
     private static String expandCommandLinePath(String str) {
