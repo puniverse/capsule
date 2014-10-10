@@ -1039,6 +1039,39 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testSanitize() throws Exception {
+        assertEquals(path("/a", "b"), sanitize(path("/a", "b"), path("/a", "b")));
+        assertEquals(path("/a", "b", "c"), sanitize(path("/a", "b"), path("/a", "b", "c")));
+        assertEquals(path("/a", "b", "c"), sanitize(path("/a", "b"), path("/a", "b", ".", "c")));
+        assertEquals(path("/a", "b"), sanitize(path("/a", "b"), path("/a", "b", "..", "b")));
+        try {
+            sanitize(path("/a", "b"), path("/a"));
+            fail();
+        } catch (Exception e) {
+        }
+        try {
+            sanitize(path("/a", "b"), path("/a"));
+            fail();
+        } catch (Exception e) {
+        }
+        try {
+            sanitize(path("/a", "b"), path("/a", ".."));
+            fail();
+        } catch (Exception e) {
+        }
+        try {
+            sanitize(path("/a", "b"), path("/a", "..", "b"));
+            fail();
+        } catch (Exception e) {
+        }
+        try {
+            sanitize(path("/a", "b"), path("/a", "c"));
+            fail();
+        } catch (Exception e) {
+        }
+    }
+
+    @Test
     public void testGlob() throws Exception {
         FileSystem fs1 = FileSystems.getDefault();
         PathMatcher pathMatcher = fs1.getPathMatcher("glob:java{.exe,}");
@@ -1161,6 +1194,14 @@ public class CapsuleTest {
         try {
             accessible(Capsule.class.getDeclaredMethod("setTarget", Path.class)).invoke(capsule, jar);
             return capsule;
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Path sanitize(Path dir, Path p) {
+        try {
+            return (Path)accessible(Capsule.class.getDeclaredMethod("sanitize", Path.class, Path.class)).invoke(null, dir, p);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
