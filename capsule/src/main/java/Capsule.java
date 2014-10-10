@@ -947,8 +947,7 @@ public class Capsule implements Runnable {
     }
 
     private boolean shouldExtract() {
-        final String extract = getAttribute(ATTR_EXTRACT);
-        return extract == null || Boolean.parseBoolean(extract);
+        return getAttribute(ATTR_EXTRACT, true);
     }
 
     private void resetAppCache() throws IOException {
@@ -1531,7 +1530,7 @@ public class Capsule implements Runnable {
         final long start = clock();
         Path jhome = emptyToNull(systemProperty(PROP_CAPSULE_JAVA_HOME)) != null ? Paths.get(systemProperty(PROP_CAPSULE_JAVA_HOME)) : null;
         if (jhome == null && !isMatchingJavaVersion(systemProperty(PROP_JAVA_VERSION))) {
-            final boolean jdk = hasAttribute(ATTR_JDK_REQUIRED) && Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
+            final boolean jdk = getAttribute(ATTR_JDK_REQUIRED, false);
 
             jhome = findJavaHome(jdk);
             if (isLogging(LOG_VERBOSE))
@@ -1685,8 +1684,7 @@ public class Capsule implements Runnable {
 
     private void setDependencyRepositories(List<String> repositories) {
         verifyDependencyManager();
-        final boolean allowSnapshots = hasAttribute(ATTR_ALLOW_SNAPSHOTS) && Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS));
-        ((DependencyManager) dependencyManager).setRepos(repositories, allowSnapshots);
+        ((DependencyManager) dependencyManager).setRepos(repositories, getAttribute(ATTR_ALLOW_SNAPSHOTS, false));
     }
 
     private Path getLocalRepo() {
@@ -2038,7 +2036,7 @@ public class Capsule implements Runnable {
     private static Path toAbsolutePath(Path p) {
         return p.normalize().toAbsolutePath();
     }
-    
+
     private static List<Path> sanitize(Path root, List<String> ps) {
         if (ps == null)
             return null;
