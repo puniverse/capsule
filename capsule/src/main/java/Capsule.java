@@ -317,7 +317,7 @@ public class Capsule implements Runnable {
     private final boolean wrapper;
     private /*final*/ Path jarFile;  // never null
     private final Manifest manifest; // never null
-    private /*final*/ String appId;  // null iff empty capsule
+    private /*final*/ String appId;  // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
     private /*final*/ Object pom;    // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final int logLevel;
@@ -372,19 +372,21 @@ public class Capsule implements Runnable {
             setDependencyRepositories(getRepositories());
 
         if (!wrapper)
-            finalizeCapsule();
-        clearContext();
+            finalizeCapsule(true);
     }
 
-    private void setTarget(String capsuleArtifact) {
+    final Capsule setTarget(String capsuleArtifact) {
         clearContext();
         final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
         if (jar == null)
             throw new RuntimeException(capsuleArtifact + " not found.");
-        setTarget(jar);
+        return setTarget(jar);
     }
 
-    private void setTarget(Path jar) {
+    final Capsule setTarget(Path jar) {
+        jar = jar.normalize().toAbsolutePath();
+        if (appId != null)
+            throw new IllegalStateException("Capsule is finalized");
         if (!isEmptyCapsule())
             throw new IllegalStateException("Capsule " + jarFile + " isn't empty");
         if (jar.equals(jarFile)) // catch simple loops
@@ -395,7 +397,7 @@ public class Capsule implements Runnable {
         try (JarInputStream jis = openJarInputStream(jar)) {
             man = jis.getManifest();
             if (man == null || man.getMainAttributes().getValue(ATTR_MAIN_CLASS) == null)
-                throw new RuntimeException(jar + " is not a capsule or an executable JAR");
+                throw new IllegalArgumentException(jar + " is not a capsule or an executable JAR");
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
                 if (entry.getName().equals(Capsule.class.getName() + ".class"))
                     isCapsule = true;
@@ -415,14 +417,15 @@ public class Capsule implements Runnable {
             if (this.dependencyManager != null)
                 setDependencyRepositories(getRepositories());
         }
-        finalizeCapsule();
-        clearContext();
+        finalizeCapsule(isCapsule);
+        return this;
     }
 
-    private void finalizeCapsule() {
+    private void finalizeCapsule(boolean setId) {
         validateManifest();
-        this.appId = buildAppId();
+        this.appId = setId ? buildAppId() : null;
         this.mode = chooseMode1();
+        clearContext();
     }
 
     private boolean isEmptyCapsule() {
@@ -432,6 +435,10 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Properties">
     /////////// Properties ///////////////////////////////////
+    private boolean isWrapperOfNonCapsule() {
+        return appId == null;
+    }
+
     /**
      * This capsule's current mode.
      */
@@ -772,11 +779,12 @@ public class Capsule implements Runnable {
                     env.put(var, value != null ? value : "");
             }
         }
-        if (appCache != null)
-            env.put(VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-        env.put(VAR_CAPSULE_JAR, jarFile.toString());
-        assert appId != null;
-        env.put(VAR_CAPSULE_APP, appId);
+        if (appId != null) {
+            if (appCache != null)
+                env.put(VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+            env.put(VAR_CAPSULE_JAR, jarFile.toString());
+            env.put(VAR_CAPSULE_APP, appId);
+        }
     }
 
     private static boolean isTrampoline() {
@@ -931,8 +939,10 @@ public class Capsule implements Runnable {
     private boolean needsAppCache() {
         if (hasRenamedNativeDependencies())
             return true;
-        if (hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
+        if (appId == null)
             return false;
+//        if (hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
+//            return false;
         return shouldExtract();
     }
 
@@ -1156,17 +1166,20 @@ public class Capsule implements Runnable {
         final List<Path> classPath = new ArrayList<Path>();
 
         // the capsule jar
-        final String isCapsuleInClassPath = getAttribute(ATTR_CAPSULE_IN_CLASS_PATH);
-        if (isCapsuleInClassPath == null || Boolean.parseBoolean(isCapsuleInClassPath))
-            classPath.add(jarFile);
-        else if (appCache == null)
-            throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
-                    + ATTR_EXTRACT + " attribute is also set to false");
+        if (!isWrapperOfNonCapsule()) {
+            if (getAttribute(ATTR_CAPSULE_IN_CLASS_PATH, true))
+                classPath.add(jarFile);
+            else if (appCache == null)
+                throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
+                        + ATTR_EXTRACT + " attribute is also set to false");
+        }
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             if (isGlob(getAttribute(ATTR_APP_ARTIFACT)))
                 throw new IllegalArgumentException("Glob pattern not allowed in " + ATTR_APP_ARTIFACT + " attribute.");
-            final List<Path> app = getPath(getAttribute(ATTR_APP_ARTIFACT));
+            final List<Path> app = isWrapperOfNonCapsule()
+                    ? singletonList(toAbsolutePath(path(getAttribute(ATTR_APP_ARTIFACT))))
+                    : getPath(getAttribute(ATTR_APP_ARTIFACT));
             classPath.addAll(app);
             final Path jar = app.get(0);
             final Manifest man = getManifest(jar);
@@ -1178,7 +1191,7 @@ public class Capsule implements Runnable {
                     p = jar.getParent().resolve(path(e.replace('/', FILE_SEPARATOR_CHAR)));
                 }
                 if (!classPath.contains(p))
-                    classPath.add(sanitize(p));
+                    classPath.add(isWrapperOfNonCapsule() ? toAbsolutePath(p) : sanitize(p));
             }
         }
 
@@ -1292,11 +1305,12 @@ public class Capsule implements Runnable {
             systemProperties.put(PROP_JAVA_SECURITY_MANAGER, getAttribute(ATTR_SECURITY_MANAGER));
 
         // Capsule properties
-        if (appCache != null)
-            systemProperties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-        systemProperties.put(PROP_CAPSULE_JAR, jarFile.toString());
-        assert appId != null;
-        systemProperties.put(PROP_CAPSULE_APP, appId);
+        if (appId != null) {
+            if (appCache != null)
+                systemProperties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
+            systemProperties.put(PROP_CAPSULE_JAR, jarFile.toString());
+            systemProperties.put(PROP_CAPSULE_APP, appId);
+        }
 
         return systemProperties;
     }
@@ -1318,8 +1332,8 @@ public class Capsule implements Runnable {
 
         resolveNativeDependencies();
         if (appCache != null) {
-            libraryPath.addAll(0, nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
-            libraryPath.addAll(nullToEmpty(toAbsolutePath(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
+            libraryPath.addAll(0, nullToEmpty(sanitize(appCache, getListAttribute(ATTR_LIBRARY_PATH_P))));
+            libraryPath.addAll(nullToEmpty(sanitize(appCache, getListAttribute(ATTR_LIBRARY_PATH_A))));
             libraryPath.add(appCache);
         } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
             throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
@@ -1805,6 +1819,11 @@ public class Capsule implements Runnable {
         return manifest.getMainAttributes().containsKey(key);
     }
 
+    private boolean getAttribute(String attr, boolean defaultValue) {
+        final String val = getAttribute(attr);
+        return val != null ? Boolean.parseBoolean(val) : defaultValue;
+    }
+
     /**
      * Returns the value of the given attribute (with consideration to the capsule's mode) as a list.
      * The items comprising attribute's value must be whitespace-separated.
@@ -2016,7 +2035,11 @@ public class Capsule implements Runnable {
         return aps;
     }
 
-    private static List<Path> toAbsolutePath(Path root, List<String> ps) {
+    private static Path toAbsolutePath(Path p) {
+        return p.normalize().toAbsolutePath();
+    }
+    
+    private static List<Path> sanitize(Path root, List<String> ps) {
         if (ps == null)
             return null;
         final List<Path> aps = new ArrayList<Path>(ps.size());
@@ -2580,11 +2603,11 @@ public class Capsule implements Runnable {
         if (appCache != null)
             str = str.replaceAll("\\$" + VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
         else if (str.contains("$" + VAR_CAPSULE_DIR))
-            throw new IllegalStateException("The $" + VAR_CAPSULE_DIR + " variable cannot be expanded when the "
-                    + ATTR_EXTRACT + " attribute is set to false");
+            throw new IllegalStateException("The $" + VAR_CAPSULE_DIR + " variable cannot be expanded when the capsule is not extracted");
 
         str = expandCommandLinePath(str);
-        assert appId != null;
+        if (appId == null && str.contains("\\$" + VAR_CAPSULE_APP))
+            throw new IllegalStateException("Cannot use $" + VAR_CAPSULE_APP + " variable in an empty capsule. (in: " + str + ")");
         str = str.replaceAll("\\$" + VAR_CAPSULE_APP, appId);
         str = str.replaceAll("\\$" + VAR_CAPSULE_JAR, jarFile.toString());
         final String jhome = toString(getJavaHome());

@@ -842,8 +842,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(wrapper, dm);
-        setTarget(capsule, "com.acme:foo");
+        Capsule capsule = newCapsule(wrapper, dm).setTarget("com.acme:foo");
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
@@ -877,6 +876,76 @@ public class CapsuleTest {
                 appCache.resolve("lib").resolve("a.jar"));
 
         assertEquals("555111", getProperty(pb, "p1")); // <- MyCapsule.merge
+    }
+
+    @Test
+    public void testWrapperCapsuleNonCapsuleApp() throws Exception {
+        Jar wrapper = newCapsuleJar()
+                .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("System-Properties", "p1=555")
+                .addClass(Capsule.class)
+                .addClass(MyCapsule.class);
+
+        Jar app = new Jar()
+                .setAttribute("Main-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "p1=111")
+                .setAttribute("Class-Path", "lib/a.jar lib/b.jar")
+                .addEntry("a.class", emptyInputStream())
+                .addEntry("b.txt", emptyInputStream())
+                .addEntry("META-INF/x.txt", emptyInputStream());
+
+        Path fooPath = path("foo-1.0.jar");
+        app.write(fooPath);
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(wrapper, null).setTarget(fooPath);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        // dumpFileSystem(fs);
+        assertTrue(pb != null);
+
+        String appId = capsule.getAppId();
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+        assertEquals(list("com.acme.Foo", "hi", "there"), getMainAndArgs(pb));
+
+        //assertTrue(!Files.exists(appCache));
+        assertTrue(!Files.exists(appCache.resolve("b.txt")));
+        assertTrue(!Files.exists(appCache.resolve("a.class")));
+
+        ASSERT.that(getClassPath(pb)).has().allOf(
+                fooPath.toAbsolutePath(),
+                path("lib").resolve("a.jar").toAbsolutePath(),
+                path("lib").resolve("b.jar").toAbsolutePath());
+        ASSERT.that(getClassPath(pb)).has().noneOf(
+                path("capsule.jar"),
+                appCache.resolve("lib").resolve("a.jar"),
+                appCache.resolve("lib").resolve("b.jar"));
+
+        assertEquals("555", getProperty(pb, "p1"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testWrapperCapsuleNoMain() throws Exception {
+        Jar wrapper = newCapsuleJar()
+                .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("System-Properties", "p1=555")
+                .addClass(Capsule.class)
+                .addClass(MyCapsule.class);
+
+        Jar app = new Jar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "p1=111")
+                .setListAttribute("App-Class-Path", list("lib/a.jar"))
+                .addClass(Capsule.class)
+                .addEntry("foo.jar", emptyInputStream());
+
+        Path fooPath = path("foo-1.0.jar");
+        app.write(fooPath);
+
+        Capsule capsule = newCapsule(wrapper, null).setTarget(fooPath);
     }
     //</editor-fold>
 
