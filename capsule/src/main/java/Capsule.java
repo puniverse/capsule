@@ -201,6 +201,12 @@ public class Capsule implements Runnable {
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
     private static final Object DEFAULT = new Object();
+    private static final Set<String> COMMON_ATTRIBUTES = unmodifiableSet(new HashSet<String>(Arrays.asList(
+            ATTR_MANIFEST_VERSION, ATTR_MAIN_CLASS,
+            "Created-By", "Signature-Version", "Sealed", "Magic",
+            "Implementation-Title", "Implementation-Version", "Implementation-Vendor", "Implementation-Vendor-Id", "Implementation-URL",
+            "Specification-Title", "Specification-Version", "Specification-Vendor"
+    )));
 
     @SuppressWarnings("FieldMayBeFinal")
     private static Object DEPENDENCY_MANAGER = DEFAULT; // used only by tests
@@ -245,7 +251,7 @@ public class Capsule implements Runnable {
 
             args = unmodifiableList(args);
 
-            if (capsule.getClass().equals(Capsule.class) && capsule.wrapper && !capsule.isEmptyCapsule()) // not a custom capsule
+            if (capsule.isFactoryCapsule() && !capsule.isEmptyCapsule()) // not a custom capsule
                 System.exit(runMain(capsule.jarFile, args));
 
             if (runActions(capsule, args))
@@ -437,6 +443,23 @@ public class Capsule implements Runnable {
     /////////// Properties ///////////////////////////////////
     private boolean isWrapperOfNonCapsule() {
         return appId == null;
+    }
+
+    private boolean isFactoryCapsule() {
+        if (!getClass().equals(Capsule.class) || !wrapper)
+            return false;
+        for (Object attr : manifest.getMainAttributes().keySet()) {
+            if (!isCommonAttribute(attr.toString()))
+                return false;
+        }
+        for (Attributes atts : manifest.getEntries().values()) {
+            for (Object attr : atts.keySet()) {
+                if (!isCommonAttribute(attr.toString()))
+                    return false;
+            }
+        }
+        log(LOG_DEBUG, "Factory (unchanged) capsule");
+        return true;
     }
 
     /**
