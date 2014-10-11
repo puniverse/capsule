@@ -1770,7 +1770,17 @@ public class Capsule implements Runnable {
         return false;
     }
 
+    private static boolean isCommonAttribute(String attr) {
+        return COMMON_ATTRIBUTES.contains(attr) || attr.toLowerCase().endsWith("-digest");
+    }
+
+    private static boolean isLegalModeName(String name) {
+        return !name.contains("/") && !name.endsWith(".class");
+    }
+
     private boolean hasMode(String mode) {
+        if (!isLegalModeName(mode))
+            throw new IllegalArgumentException(mode + " is an illegal mode name");
         return manifest.getAttributes(mode) != null;
     }
 
@@ -1778,13 +1788,20 @@ public class Capsule implements Runnable {
      * Returns the names of all modes defined in this capsule's manifest.
      */
     protected final Set<String> getModes() {
-        return unmodifiableSet(manifest.getEntries().keySet());
+        final Set<String> modes = new HashSet<>(manifest.getEntries().size());
+        for (String section : manifest.getEntries().keySet()) {
+            if (isLegalModeName(section))
+                modes.add(section);
+        }
+        return unmodifiableSet(modes);
     }
 
     /**
      * Returns the description of the given mode.
      */
     protected final String getModeDescription(String mode) {
+        if (!isLegalModeName(mode))
+            throw new IllegalArgumentException(mode + " is an illegal mode name");
         return manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
     }
 
