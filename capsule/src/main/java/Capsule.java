@@ -132,6 +132,9 @@ public class Capsule implements Runnable {
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
     private static final String ATTR_CLASS_PATH = "Class-Path";
     private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
+    private static final String ATTR_IMPLEMENTATION_TITLE = "Implementation-Title";
+    private static final String ATTR_IMPLEMENTATION_VENDOR = "Implementation-Vendor";
+    private static final String ATTR_IMPLEMENTATION_URL = "Implementation-URL";
 
     private static final String ATTR_APP_NAME = "Application-Name";
     private static final String ATTR_APP_VERSION = "Application-Version";
@@ -204,7 +207,7 @@ public class Capsule implements Runnable {
     private static final Set<String> COMMON_ATTRIBUTES = unmodifiableSet(new HashSet<String>(Arrays.asList(
             ATTR_MANIFEST_VERSION, ATTR_MAIN_CLASS,
             "Created-By", "Signature-Version", "Sealed", "Magic",
-            "Implementation-Title", "Implementation-Version", "Implementation-Vendor", "Implementation-Vendor-Id", "Implementation-URL",
+            ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VERSION, ATTR_IMPLEMENTATION_VENDOR, "Implementation-Vendor-Id", ATTR_IMPLEMENTATION_URL,
             "Specification-Title", "Specification-Version", "Specification-Vendor"
     )));
 
@@ -518,8 +521,13 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Main Operations">
     /////////// Main Operations ///////////////////////////////////
     void printVersion(List<String> args) {
-        if (getAppId() != null)
+        if (getAppId() != null) {
             System.out.println(LOG_PREFIX + "Application " + getAppId());
+            for (String attr : Arrays.asList(ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VENDOR, ATTR_IMPLEMENTATION_URL)) {
+                if (hasAttribute(attr))
+                    System.out.println(LOG_PREFIX + getAttribute(attr));
+            }
+        }
         System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
     }
 
