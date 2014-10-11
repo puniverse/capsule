@@ -170,7 +170,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_LOG_LEVEL = "Capsule-Log-Level";
 
     private static final Set<String> NON_MODAL_ATTRS = unmodifiableSet(new HashSet<String>(Arrays.asList(
-            new String[]{ATTR_APP_NAME, ATTR_APP_VERSION}
+            ATTR_APP_NAME, ATTR_APP_VERSION
     )));
 
     // outgoing
