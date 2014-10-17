@@ -60,7 +60,7 @@ subprojects {
             exclude group: 'com.google.guava', module: 'guava'
             exclude group: 'junit', module: '*'
         }
-        testCompile 'org.mockito:mockito-all:1.9.5'
+        testCompile 'org.mockito:mockito-all:1.10.8'
         testCompile('com.google.jimfs:jimfs:1.0') {
             exclude group: 'com.google.guava', module: 'guava'
         }
