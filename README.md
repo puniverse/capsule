@@ -121,6 +121,8 @@ Instead of specifying the dependencies and (optionally) the repositories directl
 
 In order to support Maven dependencies, we needed to include all of Capsule's classes in the capsule JAR rather than just the `Capsule` class. This will add about 1.5MB to the (compressed) JAR, but will save a lot more by not embedding all the dependencies.
 
+Apart from the *thin* and *fat* extremes, Capsule supports anything in between: it is possible to embed some dependencies while declaring others in the manifest (or `pom.xml`) and letting Capsule retrieve them upon first run. Please note that whenever a capsule needs to retrieve even just some Maven artifacts, its JAR needs to include all of Capsule's classes.
+
 Finally, a capsule may not contain any of the application's classes/JARs at all. The capsule's manifest can contain these two attributes:
 
     Main-Class: Capsule
