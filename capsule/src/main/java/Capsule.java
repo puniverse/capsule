@@ -986,7 +986,7 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * @return {@code true} if this capsule requires an app cache; {@code false} otherwise. 
+     * @return {@code true} if this capsule requires an app cache; {@code false} otherwise.
      */
     protected boolean needsAppCache() {
         if (hasRenamedNativeDependencies())
@@ -1398,7 +1398,7 @@ public class Capsule implements Runnable {
                     + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
         return libraryPath;
     }
-    
+
     /**
      * Returns the default native library path for the Java platform the application uses
      */
