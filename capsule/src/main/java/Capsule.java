@@ -32,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
@@ -2314,15 +2315,30 @@ public class Capsule implements Runnable {
         return filename.substring(0, index);
     }
 
-    // visible for testing
-    static void delete(Path file) throws IOException {
-        if (Files.isDirectory(file)) {
-            try (DirectoryStream<Path> ds = Files.newDirectoryStream(file)) {
+    /**
+     * Deletes the given file or directory (even if nonempty).
+     */
+    protected static void delete(Path path) throws IOException {
+        if (Files.isDirectory(path)) {
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(path)) {
                 for (Path f : ds)
                     delete(f);
             }
         }
-        Files.delete(file);
+        Files.delete(path);
+    }
+
+    /**
+     * Copies the source file or directory (recursively) to the target location. 
+     */
+    protected static void copy(Path source, Path target) throws IOException {
+        Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING);
+        if (Files.isDirectory(source)) {
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(source)) {
+                for (Path f : ds)
+                    copy(f, target.resolve(f.getFileName()));
+            }
+        }
     }
 
     private static void ensureExecutable(Path file) {
