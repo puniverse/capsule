@@ -984,7 +984,10 @@ public class Capsule implements Runnable {
         time("ensureExtracted", start);
     }
 
-    private boolean needsAppCache() {
+    /**
+     * @return {@code true} if this capsule requires an app cache; {@code false} otherwise. 
+     */
+    protected boolean needsAppCache() {
         if (hasRenamedNativeDependencies())
             return true;
 //        if (hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
