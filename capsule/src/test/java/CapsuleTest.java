@@ -98,9 +98,9 @@ public class CapsuleTest {
         assertEquals("com.acme.Foo", getProperty(pb, "capsule.app"));
         assertEquals("com.acme.Foo", getEnv(pb, "CAPSULE_APP"));
         assertEquals(appCache, path(getProperty(pb, "capsule.dir")));
-        assertEquals(path("capsule.jar"), path(getProperty(pb, "capsule.jar")));
+        assertEquals(absolutePath("capsule.jar"), path(getProperty(pb, "capsule.jar")));
         assertEquals(appCache, path(getEnv(pb, "CAPSULE_DIR")));
-        assertEquals(path("capsule.jar"), path(getEnv(pb, "CAPSULE_JAR")));
+        assertEquals(absolutePath("capsule.jar"), path(getEnv(pb, "CAPSULE_JAR")));
 
         assertEquals(list("com.acme.Foo", "hi", "there"), getMainAndArgs(pb));
 
@@ -122,7 +122,7 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(appCache.resolve("q").resolve("w").resolve("x.txt")));
         assertTrue(Files.isRegularFile(appCache.resolve("d").resolve("f").resolve("y.txt")));
 
-        ASSERT.that(getClassPath(pb)).has().item(path("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache);
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         ASSERT.that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
@@ -280,7 +280,7 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("d.jar")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("e.txt")));
 
-        ASSERT.that(getClassPath(pb)).has().item(path("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache);
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
@@ -588,7 +588,7 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCache.resolve("lib")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib").resolve("a.jar")));
 
-        ASSERT.that(getClassPath(pb)).has().noneOf(path("capsule.jar"));
+        ASSERT.that(getClassPath(pb)).has().noneOf(absolutePath("capsule.jar"));
         ASSERT.that(getClassPath(pb)).has().allOf(
                 appCache,
                 appCache.resolve("foo.jar"),
@@ -759,7 +759,7 @@ public class CapsuleTest {
         assertEquals(list(appCache.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"),
                 pb.command());
 
-        assertEquals(getEnv(pb, "CLASSPATH"), path("capsule.jar") + PS + appCache + PS + appCache.resolve("foo.jar") + PS + barPath);
+        assertEquals(getEnv(pb, "CLASSPATH"), absolutePath("capsule.jar") + PS + appCache + PS + appCache.resolve("foo.jar") + PS + barPath);
     }
 
     @Test
@@ -775,7 +775,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
 
-        Path capsuleJar = path("capsule.jar");
+        Path capsuleJar = absolutePath("capsule.jar");
         jar.write(capsuleJar);
 
         Capsule.newCapsule(capsuleJar, cache).prepareForLaunch(cmdLine, args);
@@ -793,7 +793,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
 
-        Path capsuleJar = path("capsule.jar");
+        Path capsuleJar = absolutePath("capsule.jar");
         jar.write(capsuleJar);
         Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
 
@@ -920,7 +920,7 @@ public class CapsuleTest {
                 path("lib").resolve("a.jar").toAbsolutePath(),
                 path("lib").resolve("b.jar").toAbsolutePath());
         ASSERT.that(getClassPath(pb)).has().noneOf(
-                path("capsule.jar"),
+                absolutePath("capsule.jar"),
                 appCache.resolve("lib").resolve("a.jar"),
                 appCache.resolve("lib").resolve("b.jar"));
 
@@ -1090,7 +1090,7 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, null);
         capsule.prepareForLaunch(null, null);
 
-        String cj = path("capsule.jar").toString();
+        String cj = absolutePath("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId();
 
@@ -1109,7 +1109,7 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, null);
         capsule.prepareForLaunch(null, null);
 
-        String cj = path("capsule.jar").toString();
+        String cj = absolutePath("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId();
 
@@ -1219,6 +1219,10 @@ public class CapsuleTest {
 
     private Path path(String first, String... more) {
         return fs.getPath(first, more);
+    }
+
+    private Path absolutePath(String first, String... more) {
+        return fs.getPath(first, more).toAbsolutePath();
     }
 
     private InputStream toInputStream(Model model) {

@@ -255,13 +255,13 @@ public class Capsule implements Runnable {
             args = unmodifiableList(args);
 
             if (capsule.isFactoryCapsule() && !capsule.isEmptyCapsule()) // not a custom capsule
-                System.exit(runMain(capsule.jarFile, args));
+                System.exit(runMain(capsule.getJarFile(), args));
 
             if (runActions(capsule, args))
                 return;
 
             if (capsule.isEmptyCapsule())
-                throw new RuntimeException("USAGE: java -jar " + capsule.jarFile + " PATH_OR_MAVEN_COORDINATES\n" + capsule.jarFile + " is an empty capsule.");
+                throw new RuntimeException("USAGE: java -jar " + capsule.getJarFile() + " PATH_OR_MAVEN_COORDINATES\n" + capsule.getJarFile() + " is an empty capsule.");
 
             System.exit(capsule.launch(args));
         } catch (Throwable t) {
@@ -362,7 +362,7 @@ public class Capsule implements Runnable {
         Objects.requireNonNull(cacheDir, "cacheDir can't be null");
 
         this.cacheDir = initCacheDir(cacheDir);
-        this.jarFile = jarFile;
+        this.jarFile = toAbsolutePath(jarFile);
 
         try (JarInputStream jis = openJarInputStream(jarFile)) {
             this.manifest = jis.getManifest();
@@ -393,7 +393,7 @@ public class Capsule implements Runnable {
     }
 
     final Capsule setTarget(Path jar) {
-        jar = jar.normalize().toAbsolutePath();
+        jar = toAbsolutePath(jar);
         if (appId != null)
             throw new IllegalStateException("Capsule is finalized");
         if (!isEmptyCapsule())
@@ -463,6 +463,13 @@ public class Capsule implements Runnable {
         }
         log(LOG_DEBUG, "Factory (unchanged) capsule");
         return true;
+    }
+
+    /**
+     * Whether or not this is an empty capsule
+     */
+    protected final boolean isWrapperCapsule() {
+        return wrapper;
     }
 
     /**
@@ -600,7 +607,7 @@ public class Capsule implements Runnable {
         }
         clearContext();
 
-        log(LOG_VERBOSE, join(pb.command(), " "));
+        log(LOG_VERBOSE, join(pb.command(), " ") + (pb.directory() != null ? " (Running in " + pb.directory() + ")" : ""));
 
         if (isTrampoline()) {
             if (hasAttribute(ATTR_ENV))
@@ -719,7 +726,7 @@ public class Capsule implements Runnable {
         final List<String> command = pb.command();
         command.addAll(buildArgs(args));
 
-        buildEnvironmentVariables(pb.environment());
+        buildEnvironmentVariables(pb);
 
         return pb;
     }
@@ -785,12 +792,19 @@ public class Capsule implements Runnable {
         return args1;
     }
 
+    private void buildEnvironmentVariables(ProcessBuilder pb) {
+        Map<String, String> env = new HashMap<>(pb.environment());
+        env = buildEnvironmentVariables(env);
+        pb.environment().clear();
+        pb.environment().putAll(env);
+    }
+
     /**
      * Returns a map of environment variables (property-value pairs).
      *
      * @param env the current environment
      */
-    protected void buildEnvironmentVariables(Map<String, String> env) {
+    protected Map<String, String> buildEnvironmentVariables(Map<String, String> env) {
         final List<String> jarEnv = getListAttribute(ATTR_ENV);
         if (jarEnv != null) {
             for (String e : jarEnv) {
@@ -812,10 +826,11 @@ public class Capsule implements Runnable {
         }
         if (appId != null) {
             if (appCache != null)
-                env.put(VAR_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-            env.put(VAR_CAPSULE_JAR, jarFile.toString());
+                env.put(VAR_CAPSULE_DIR, processOutgoingPath(appCache));
+            env.put(VAR_CAPSULE_JAR, processOutgoingPath(jarFile));
             env.put(VAR_CAPSULE_APP, appId);
         }
+        return env;
     }
 
     private static boolean isTrampoline() {
@@ -935,7 +950,7 @@ public class Capsule implements Runnable {
     /////////// App Cache ///////////////////////////////////
     private Path getAppCacheDir() throws IOException {
         assert appId != null;
-        Path appDir = cacheDir.resolve(APP_CACHE_NAME).resolve(appId);
+        Path appDir = toAbsolutePath(cacheDir.resolve(APP_CACHE_NAME).resolve(appId));
         try {
             if (!Files.exists(appDir))
                 Files.createDirectory(appDir);
@@ -947,6 +962,8 @@ public class Capsule implements Runnable {
 
     private void ensureAppCacheIfNecessary() throws IOException {
         if (appCache != null)
+            return;
+        if (appId == null)
             return;
 
         this.appCache = needsAppCache() ? getAppCacheDir() : null;
@@ -970,8 +987,6 @@ public class Capsule implements Runnable {
     private boolean needsAppCache() {
         if (hasRenamedNativeDependencies())
             return true;
-        if (appId == null)
-            return false;
 //        if (hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
 //            return false;
         return shouldExtract();
@@ -1070,12 +1085,13 @@ public class Capsule implements Runnable {
         return hasAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
     }
 
-    private String getScript() {
-        return getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
+    private Path getScript() {
+        final String s = getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
+        return s != null ? sanitize(appCache.resolve(s.replace('/', FILE_SEPARATOR_CHAR))) : null;
     }
 
     private boolean buildScriptProcess(ProcessBuilder pb) {
-        final String script = getScript();
+        final Path script = getScript();
         if (script == null)
             return false;
 
@@ -1089,9 +1105,8 @@ public class Capsule implements Runnable {
         resolveNativeDependencies();
         pb.environment().put(VAR_CLASSPATH, compileClassPath(classPath));
 
-        final Path scriptPath = sanitize(appCache.resolve(script));
-        ensureExecutable(scriptPath);
-        pb.command().add(scriptPath.toString());
+        ensureExecutable(script);
+        pb.command().add(processOutgoingPath(script));
         return true;
     }
 
@@ -1108,7 +1123,7 @@ public class Capsule implements Runnable {
     private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine, List<String> args) {
         final List<String> command = pb.command();
 
-        command.add(getJavaExecutable().toString());
+        command.add(processOutgoingPath(getJavaExecutable()));
 
         command.addAll(buildJVMArgs(cmdLine));
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
@@ -1117,8 +1132,7 @@ public class Capsule implements Runnable {
         addOption(command, "-Xbootclasspath/p:", compileClassPath(buildBootClassPathP()));
         addOption(command, "-Xbootclasspath/a:", compileClassPath(buildBootClassPathA()));
 
-        for (String jagent : nullToEmpty(buildJavaAgents()))
-            command.add("-javaagent:" + jagent);
+        command.addAll(compileJavaAgents(buildJavaAgents()));
 
         final List<Path> classPath = buildClassPath();
         final String mainClass = getMainClass(classPath);
@@ -1178,8 +1192,15 @@ public class Capsule implements Runnable {
         return command;
     }
 
-    private static String compileClassPath(List<Path> cp) {
-        return join(cp, PATH_SEPARATOR);
+    private String compileClassPath(List<Path> cp) {
+        return join(processOutgoingPath(cp), PATH_SEPARATOR);
+    }
+
+    private List<String> compileJavaAgents(Map<Path, String> jagents) {
+        final List<String> command = new ArrayList<>();
+        for (Map.Entry<Path, String> jagent : nullToEmpty(jagents).entrySet())
+            command.add("-javaagent:" + processOutgoingPath(jagent.getKey()) + (jagent.getValue().isEmpty() ? "" : ("=" + jagent.getValue())));
+        return command;
     }
 
     private static void addOption(List<String> cmdLine, String prefix, String value) {
@@ -1337,8 +1358,8 @@ public class Capsule implements Runnable {
         // Capsule properties
         if (appId != null) {
             if (appCache != null)
-                systemProperties.put(PROP_CAPSULE_DIR, appCache.toAbsolutePath().toString());
-            systemProperties.put(PROP_CAPSULE_JAR, jarFile.toString());
+                systemProperties.put(PROP_CAPSULE_DIR, processOutgoingPath(appCache));
+            systemProperties.put(PROP_CAPSULE_JAR, processOutgoingPath(jarFile));
             systemProperties.put(PROP_CAPSULE_APP, appId);
         }
 
@@ -1357,8 +1378,11 @@ public class Capsule implements Runnable {
 
     //<editor-fold desc="Native Dependencies">
     /////////// Native Dependencies ///////////////////////////////////
-    private List<Path> buildNativeLibraryPath() {
-        final List<Path> libraryPath = new ArrayList<Path>(toPath(Arrays.asList(systemProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR))));
+    /**
+     * Compiles and returns the application's native library as a list of paths.
+     */
+    protected List<Path> buildNativeLibraryPath() {
+        final List<Path> libraryPath = new ArrayList<Path>(getPlatformNativeLibraryPath());
 
         resolveNativeDependencies();
         if (appCache != null) {
@@ -1369,6 +1393,13 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
                     + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
         return libraryPath;
+    }
+    
+    /**
+     * Returns the default native library path for the Java platform the application uses
+     */
+    protected List<Path> getPlatformNativeLibraryPath() {
+        return toPath(Arrays.asList(systemProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR)));
     }
 
     private void resolveNativeDependencies() {
@@ -1499,18 +1530,23 @@ public class Capsule implements Runnable {
         return a;
     }
 
-    private List<String> buildJavaAgents() {
+    /**
+     * Returns all Java agents that will be launched with the application.
+     *
+     * @return A map from the path to each agent to a string containing the agent arguments (or an empty string if none).
+     */
+    protected Map<Path, String> buildJavaAgents() {
         final long start = clock();
         final Map<String, String> agents0 = getMapAttribute(ATTR_JAVA_AGENTS, "");
         if (agents0 == null)
             return null;
-        final List<String> agents = new ArrayList<String>(agents0.size());
+        final Map<Path, String> agents = new LinkedHashMap<>(agents0.size());
         for (Map.Entry<String, String> agent : agents0.entrySet()) {
             final String agentJar = agent.getKey();
             final String agentOptions = agent.getValue();
             try {
                 final Path agentPath = first(getPath(agent.getKey()));
-                agents.add(agentPath + ((agentOptions != null && !agentOptions.isEmpty()) ? "=" + agentOptions : ""));
+                agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? "=" + agentOptions : ""));
             } catch (IllegalStateException e) {
                 if (appCache == null)
                     throw new RuntimeException("Cannot run the embedded Java agent " + agentJar + " when the " + ATTR_EXTRACT + " attribute is set to false");
@@ -1718,11 +1754,11 @@ public class Capsule implements Runnable {
         ((DependencyManager) dependencyManager).setRepos(repositories, getAttribute(ATTR_ALLOW_SNAPSHOTS, false));
     }
 
-    private Path getLocalRepo() {
+    protected Path getLocalRepo() {
         Path localRepo = cacheDir.resolve(DEPS_CACHE_NAME);
         final String local = expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO));
         if (local != null)
-            localRepo = !local.isEmpty() ? Paths.get(local) : null;
+            localRepo = !local.isEmpty() ? toAbsolutePath(Paths.get(local)) : null;
         return localRepo;
     }
 
@@ -1906,7 +1942,7 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Parses an attribute's value string into a map.
+     * Parses an attribute's value string into an ordered map.
      * The key-value pairs comprising string must be whitespace-separated, with each pair written as <i>key</i>=<i>value</i>.
      *
      * @param value        the attribute's value
@@ -1919,14 +1955,14 @@ public class Capsule implements Runnable {
     /**
      * Combines collection elements into a string that can be used as the value of an attribute.
      */
-    protected static final String toStringValue(Collection<String> list) {
+    protected static final String toStringValue(Collection<?> list) {
         return join(list, " ");
     }
 
     /**
      * Combines map elements into a string that can be used as the value of an attribute.
      */
-    protected static final String toStringValue(Map<String, String> map) {
+    protected static final String toStringValue(Map<?, ?> map) {
         return join(map, '=', " ");
     }
 
@@ -2007,8 +2043,7 @@ public class Capsule implements Runnable {
         }
 
         if (appCache == null)
-            throw new IllegalStateException(
-                    (isDependency(p) ? "Dependency manager not found. Cannot resolve" : "Capsule not extracted. Cannot obtain path") + " " + p);
+            throw new IllegalStateException((isDependency(p) ? "Dependency manager not found. Cannot resolve" : "Capsule not extracted. Cannot obtain path") + " " + p);
         if (isDependency(p)) {
             Path f = appCache.resolve(dependencyToLocalJar(true, p));
             if (Files.isRegularFile(f))
@@ -2033,6 +2068,28 @@ public class Capsule implements Runnable {
         final List<Path> res = new ArrayList<Path>(ps.size());
         for (String p : ps)
             res.addAll(getPath(p));
+        return res;
+    }
+
+    /**
+     * Every path emitted by the capsule to the app's command line, system properties or environment variables is
+     * first passed through this method. Custom capsules that relocate files should override it.
+     *
+     * @param p the path
+     * @return the processed path
+     */
+    protected String processOutgoingPath(Path p) {
+        if (p == null)
+            return null;
+        return toAbsolutePath(p).toString();
+    }
+
+    private List<String> processOutgoingPath(List<Path> ps) {
+        if (ps == null)
+            return null;
+        final List<String> res = new ArrayList<>(ps.size());
+        for (Path p : ps)
+            res.add(processOutgoingPath(p));
         return res;
     }
     //</editor-fold>
@@ -2686,7 +2743,7 @@ public class Capsule implements Runnable {
     static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
         if (map == null)
             return null;
-        Map<String, String> m = new HashMap<>();
+        Map<String, String> m = new LinkedHashMap<>();
         for (String entry : Capsule.split(map, separator)) {
             final String key = getBefore(entry, kvSeparator);
             String value = getAfter(entry, kvSeparator);
@@ -2715,11 +2772,11 @@ public class Capsule implements Runnable {
         return sb.toString();
     }
 
-    final static String join(Map<String, String> map, char kvSeparator, String separator) {
+    final static String join(Map<?, ?> map, char kvSeparator, String separator) {
         if (map == null)
             return null;
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : map.entrySet())
+        for (Map.Entry<?, ?> entry : map.entrySet())
             sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
         sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
