@@ -72,7 +72,7 @@ public class MyCapsule extends Capsule {
     }
 
     @Override
-    protected String buildAppId() {
+    protected String[] buildAppId() {
         return super.buildAppId();
     }
 

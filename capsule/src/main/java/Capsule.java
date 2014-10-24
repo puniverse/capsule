@@ -328,6 +328,8 @@ public class Capsule implements Runnable {
     private /*final*/ Path jarFile;  // never null
     private final Manifest manifest; // never null
     private /*final*/ String appId;  // null iff wrapper capsule wrapping a non-capsule JAR
+    private /*final*/ String appName;     // null iff wrapper capsule wrapping a non-capsule JAR
+    private /*final*/ String appVersion;  // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
     private /*final*/ Object pom;    // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
     private final int logLevel;
@@ -433,7 +435,12 @@ public class Capsule implements Runnable {
 
     private void finalizeCapsule(boolean setId) {
         validateManifest();
-        this.appId = setId ? buildAppId() : null;
+        final String[] nameAndVersion = setId ? buildAppId() : null;
+        if (nameAndVersion != null) {
+            this.appName = nameAndVersion[0];
+            this.appVersion = nameAndVersion[1];
+            this.appId = appName + (appVersion != null ? "_" + appVersion : "");
+        }
         this.mode = chooseMode1();
         clearContext();
     }
@@ -492,6 +499,20 @@ public class Capsule implements Runnable {
      */
     protected final Path getJarFile() {
         return jarFile;
+    }
+
+    /**
+     * The app's name
+     */
+    protected final String getAppName() {
+        return appName;
+    }
+
+    /**
+     * The app's version or {@code null} if unversioned.
+     */
+    protected final String getAppVersion() {
+        return appVersion;
     }
     //</editor-fold>
 
@@ -843,37 +864,51 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="App ID">
     /////////// App ID ///////////////////////////////////
     /**
-     * Computes and returns application's ID
+     * Computes and returns application's ID.
+     *
+     * @return An array of exactly two strings, the first being the application's name, and the second, its version (or {@code null} if no version).
      */
-    protected String buildAppId() {
-        String appName = systemProperty(PROP_APP_ID);
-        if (appName == null)
-            appName = getAttribute(ATTR_APP_NAME);
+    protected String[] buildAppId() {
+        String name;
+        String version = null;
 
-        if (appName == null) {
+        name = systemProperty(PROP_APP_ID);
+        if (name == null)
+            name = getAttribute(ATTR_APP_NAME);
+
+        if (name == null) {
             final String appArtifact = getAttribute(ATTR_APP_ARTIFACT);
             if (appArtifact != null && isDependency(appArtifact)) {
                 if (hasModalAttribute(ATTR_APP_ARTIFACT))
                     throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_ARTIFACT + " is defined in a modal section of the manifest. "
                             + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
-                return getAppArtifactId(getAppArtifactSpecificVersion(appArtifact));
+                final String[] nameAndVersion = getAppArtifactId(getAppArtifactSpecificVersion(appArtifact));
+                name = nameAndVersion[0];
+                version = nameAndVersion[1];
             }
         }
-        if (appName == null) {
-            if (pom != null)
-                return getPomAppName();
-            appName = getAttribute(ATTR_APP_CLASS);
-            if (appName != null && hasModalAttribute(ATTR_APP_CLASS))
+        if (name == null) {
+            if (pom != null) {
+                final String[] nameAndVersion = getPomAppNameAndVersion();
+                name = nameAndVersion[0];
+                version = nameAndVersion[1];
+            }
+        }
+        if (name == null) {
+            name = getAttribute(ATTR_APP_CLASS);
+            if (name != null && hasModalAttribute(ATTR_APP_CLASS))
                 throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_CLASS + " is defined in a modal section of the manifest. "
                         + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
         }
-        if (appName == null) {
+        if (name == null) {
             throw new IllegalArgumentException("Capsule jar " + jarFile + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
                     + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
         }
 
-        final String version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
-        return appName + (version != null ? "_" + version : "");
+        if (version == null)
+            version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
+
+        return new String[]{name, version};
     }
 
     /**
@@ -883,16 +918,15 @@ public class Capsule implements Runnable {
         return appId;
     }
 
-    private static String getAppArtifactId(String coords) {
+    private static String[] getAppArtifactId(String coords) {
         if (coords == null)
             return null;
         final String[] cs = coords.split(":");
-        if (cs.length < 2)
+        if (cs.length < 3)
             throw new IllegalArgumentException("Illegal main artifact coordinates: " + coords);
-        String id = cs[0] + "_" + cs[1];
-        if (cs.length > 2)
-            id += "_" + cs[2];
-        return id;
+        String name = cs[0] + "_" + cs[1];
+        String version = cs[2];
+        return new String[]{name, version};
     }
     //</editor-fold>
 
@@ -1722,9 +1756,9 @@ public class Capsule implements Runnable {
         return ((PomReader) pom).getDependencies();
     }
 
-    private String getPomAppName() {
+    private String[] getPomAppNameAndVersion() {
         final PomReader pr = (PomReader) pom;
-        return pr.getGroupId() + "_" + pr.getArtifactId() + "_" + pr.getVersion();
+        return new String[]{pr.getGroupId() + "_" + pr.getArtifactId(), pr.getVersion()};
     }
     //</editor-fold>
 
