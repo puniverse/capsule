@@ -602,6 +602,10 @@ public class Capsule implements Runnable {
         try {
             final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
             pb = prepareForLaunch(jvmArgs, args);
+            if (pb == null) {
+                log(LOG_VERBOSE, "Nothing to run");
+                return 0;
+            }
         } catch (Throwable t) {
             cleanup();
             throw t;
@@ -647,14 +651,15 @@ public class Capsule implements Runnable {
 
         log(LOG_VERBOSE, "Launching app " + appId + (mode != null ? " in mode " + mode : ""));
         try {
-            ProcessBuilder pb = null;
+            final ProcessBuilder pb;
             try {
                 ensureExtractedIfNecessary();
 
                 pb = prelaunch(nullToEmpty(args));
+                markCache1();
                 return pb;
             } finally {
-                markCache(pb != null);
+                unlockAppCache();
                 time("prepareForLaunch", start);
             }
         } catch (IOException e) {
@@ -719,16 +724,12 @@ public class Capsule implements Runnable {
      * For more elaborate manipulation of the Capsule's launched process, consider overriding {@link #buildProcess() buildProcess}.
      *
      * @param args the application command-line arguments
-     * @return a configured {@code ProcessBuilder} (must never return {@code null})
+     * @return a configured {@code ProcessBuilder} (if {@code null}, the launch will be aborted).
      */
     protected ProcessBuilder prelaunch(List<String> args) {
         final ProcessBuilder pb = buildProcess();
-
-        final List<String> command = pb.command();
-        command.addAll(buildArgs(args));
-
         buildEnvironmentVariables(pb);
-
+        pb.command().addAll(buildArgs(args));
         return pb;
     }
 
@@ -745,7 +746,7 @@ public class Capsule implements Runnable {
      * If all you want is to configure the returned {@link ProcessBuilder}, for example to set IO stream redirection,
      * you should override {@link #prelaunch(List) prelaunch}.
      *
-     * @return a {@code ProcessBuilder}
+     * @return a {@code ProcessBuilder} (must never be {@code null}).
      */
     protected ProcessBuilder buildProcess() {
         if (jvmArgs_ == null)
@@ -1017,10 +1018,10 @@ public class Capsule implements Runnable {
     }
 
     private boolean isAppCacheUpToDate1() throws IOException {
-        boolean res = isAppCacheUpToDate();
+        boolean res = testAppCacheUpToDate();
         if (!res) {
             lockAppCache();
-            res = isAppCacheUpToDate();
+            res = testAppCacheUpToDate();
             if (res)
                 unlockAppCache();
         }
@@ -1033,7 +1034,7 @@ public class Capsule implements Runnable {
      * The app cache directory is obtained by calling {@link #getAppCache() getAppCache}.
      * This creates a file in the app cache, whose timestamp is compared with the capsule's JAR timestamp.
      */
-    protected boolean isAppCacheUpToDate() throws IOException {
+    protected boolean testAppCacheUpToDate() throws IOException {
         if (systemPropertyEmptyOrTrue(PROP_RESET))
             return false;
 
@@ -1043,6 +1044,14 @@ public class Capsule implements Runnable {
         FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
         FileTime jarTime = Files.getLastModifiedTime(jarFile);
         return extractedTime.compareTo(jarTime) >= 0;
+    }
+
+    /**
+     * Whether the app cache is up to date.
+     * This is the result returned from {@link #testAppCacheUpToDate() }.
+     */
+    protected final boolean isAppCacheUpToDate() {
+        return cacheUpToDate;
     }
 
     /**
@@ -1058,12 +1067,18 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void markCache(boolean success) throws IOException {
+    private void markCache1() throws IOException {
         if (appCache == null || cacheUpToDate)
             return;
-        if (success)
-            Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
-        unlockAppCache();
+        markCache();
+    }
+
+    /**
+     * Called after a successful completion of launch preparation if an app cache is used
+     * to write persistent information to the cache denoting the successful preparation.
+     */
+    protected void markCache() throws IOException {
+        Files.createFile(appCache.resolve(TIMESTAMP_FILE_NAME));
     }
 
     private void lockAppCache() throws IOException {
@@ -2329,7 +2344,7 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Copies the source file or directory (recursively) to the target location. 
+     * Copies the source file or directory (recursively) to the target location.
      */
     protected static void copy(Path source, Path target) throws IOException {
         Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING);
