@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -71,6 +72,8 @@ import static java.util.Collections.*;
  * Overridable (non-final) methods <b>must never</b> be called directly by custom capsule code, except by their overrides.
  * <p>
  * Final methods implement various utility or accessors, which may be freely used by custom capsules.
+ * <p>
+ * For command line option handling, see {@link #registerOption(String, String, String) registerOption}.
  *
  * @author pron
  */
@@ -101,14 +104,14 @@ public class Capsule implements Runnable {
     private static final String PROP_TREE = "capsule.tree";
     private static final String PROP_RESOLVE = "capsule.resolve";
     private static final String PROP_MODES = "capsule.modes";
+    private static final String PROP_PRINT_JRES = "capsule.jvms";
+    private static final String PROP_HELP = "capsule.help";
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
+    private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_RESET = "capsule.reset";
     private static final String PROP_LOG_LEVEL = "capsule.log";
-    private static final String PROP_APP_ID = "capsule.app.id";
-    private static final String PROP_PRINT_JRES = "capsule.jvms";
     private static final String PROP_CAPSULE_JAVA_HOME = "capsule.java.home";
     private static final String PROP_CAPSULE_JAVA_CMD = "capsule.java.cmd";
-    private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_USE_LOCAL_REPO = "capsule.local";
     private static final String PROP_JVM_ARGS = "capsule.jvm.args";
     private static final String PROP_NO_DEP_MANAGER = "capsule.no_dep_manager";
@@ -191,6 +194,7 @@ public class Capsule implements Runnable {
     private static final String PROP_CAPSULE_APP_PID = "capsule.app.pid";
 
     // misc
+    private static final String CAPSULE_PROP_PREFIX = "capsule.";
     private static final String CACHE_DEFAULT_NAME = "capsule";
     private static final String DEPS_CACHE_NAME = "deps";
     private static final String APP_CACHE_NAME = "apps";
@@ -222,26 +226,44 @@ public class Capsule implements Runnable {
     protected static final int LOG_VERBOSE = 2;
     protected static final int LOG_DEBUG = 3;
     private static final int PROFILE = propertyDefined(PROP_PROFILE) ? LOG_QUIET : LOG_DEBUG;
+
+    // options
+    private static final int OPTION_METHOD = 0;
+    private static final int OPTION_DEFAULT = 1;
+    private static final int OPTION_DESC = 2;
     //</editor-fold>
 
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
     private static Capsule CAPSULE;
-    private static final Map<String, String> ACTIONS = new LinkedHashMap<>();
+    private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>();
 
     static {
-        registerAction(PROP_VERSION, "printVersion");
-        registerAction(PROP_MODES, "printModes");
-        registerAction(PROP_TREE, "printDependencyTree");
-        registerAction(PROP_RESOLVE, "resolve");
-        registerAction(PROP_PRINT_JRES, "printJVMs");
+        registerOption(PROP_VERSION, "printVersion", "false", "Prints the capsule and application version");
+        registerOption(PROP_MODES, "printModes", "false", "Prints all available capsule modes");
+        registerOption(PROP_TREE, "printDependencyTree", "false", "Prints the capsule's dependency tree");
+        registerOption(PROP_RESOLVE, "resolve", "false", "Downloads all un-cached dependencies.");
+        registerOption(PROP_PRINT_JRES, "printJVMs", "false", "Prints a list of all JVM installations found.");
+        registerOption(PROP_HELP, "printUsage", "false", "Prints this help message.");
+        registerOption(PROP_MODE, null, null, "Picks the capsule mode to run.");
+        registerOption(PROP_RESET, null, "false", "Resets the capsule cache before launching."
+                + " This causes the capsule to be re-extracted, and other possibly cached files to be recreated");
+        registerOption(PROP_LOG_LEVEL, null, "quiet", "Picks a log level. Must be one of none, quiet, verbose, or debug");
+        registerOption(PROP_CAPSULE_JAVA_HOME, null, null, "Sets the location of the Java home (JVM installation directory) to use.");
+        registerOption(PROP_CAPSULE_JAVA_CMD, null, null, "Sets the path to the Java executable to use.");
+        registerOption(PROP_USE_LOCAL_REPO, null, null, "Sets the path of the local Maven repository to use.");
+        registerOption(PROP_JVM_ARGS, null, null, "Sets additional JVM arguments to use when running the application.");
     }
 
     final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
             final Capsule capsule = newCapsule(findOwnJarFile(), getCacheDir());
-            if (capsule.isEmptyCapsule() && !args.isEmpty())
-                capsule.setTarget(args.remove(0));
+            clearContext();
+            if (capsule.isEmptyCapsule() && !args.isEmpty()) {
+                processCmdLineOptions(args);
+                if (!args.isEmpty())
+                    capsule.setTarget(args.remove(0));
+            }
             CAPSULE = capsule;
         }
         return CAPSULE;
@@ -250,8 +272,10 @@ public class Capsule implements Runnable {
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args0) {
         List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
+        Capsule capsule = null;
         try {
-            final Capsule capsule = myCapsule(args);
+            processOptions();
+            capsule = myCapsule(args);
 
             args = unmodifiableList(args);
 
@@ -260,9 +284,6 @@ public class Capsule implements Runnable {
 
             if (runActions(capsule, args))
                 return;
-
-            if (capsule.isEmptyCapsule())
-                throw new RuntimeException("USAGE: java -jar " + capsule.getJarFile() + " PATH_OR_MAVEN_COORDINATES\n" + capsule.getJarFile() + " is an empty capsule.");
 
             System.exit(capsule.launch(args));
         } catch (Throwable t) {
@@ -274,6 +295,8 @@ public class Capsule implements Runnable {
                 t.printStackTrace(System.err);
             } else
                 System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
+            if (t instanceof IllegalArgumentException && capsule != null)
+                capsule.printUsage(args);
             System.exit(1);
         }
     }
@@ -291,22 +314,79 @@ public class Capsule implements Runnable {
         }
     }
 
+    //<editor-fold defaultstate="collapsed" desc="Command Line">
+    /////////// Command Line ///////////////////////////////////
     /**
-     * Registers a top-level capsule *action* (like print dependency tree or list JVMs).
+     * Registers a capsule command-line option. Must be called in the custom capsule class's static initializer.
+     * <p>
+     * Capsule options are system properties beginning with the prefix ".capsule", normally passed to the capsule as -D flags on the command line.
+     * <p>
+     * Options can be top-level *actions* (like print dependency tree or list JVMs), in which case the {@code methodName} argument must
+     * be the name of a method used to launch the action instead of launching the capsule.
+     * <p>
+     * Options can have a default value, which will be automatically assigned to the system property if undefined. The default values
+     * {@code "true"} and {@code "false"} are treated specially. If one of them is the assigned default value, and the system property
+     * is defined with with a value of the empty string, then it will be re-assigned the value {@code "true"}.
+     * <p>
+     * <b>Simple Command Line Options for Wrapper Capsules</b><br>
+     * When the capsule serves as a wrapper (i.e. it's an empty capsule used to launch an executable artifact or another capsule)
+     * then the options can also be passed to the capsule as simple command line options (arguments starting with a hyphen),
+     * with the "capsule." prefix removed, and every '.' character replaced with a '-'.
+     * <p>
+     * These command line arguments will automatically be converted to system properties, which will take their value from the argument
+     * following the option (i.e. {@code -option value}), <i>unless</i> the option is given one of the special default values
+     * {@code "true"} or {@code "false"}, in which case it is treated as a flag with no arguments (note that an option with the default
+     * value {@code "true"} will therefore not be able to be turned off if simple options are used).
      *
-     * @param propertyName the name of the system property that,if defined, will cause the action to be run.
-     * @param methodName   the method which will run the action. The method must accept a single {@code args} parameter of type {@code List<String>}.
+     * @param optionName   the name of the system property for the option; must begin with {@code "capsule."}.
+     * @param methodName   if non-null, then the option is a top-level action (like print dependency tree or list JVMs),
+     *                     and this is the method which will run the action.
+     *                     The method must accept a single {@code args} parameter of type {@code List<String>}.
+     * @param defaultValue the option's default value ({@code "true"} and {@code "false"} are specially treated; see above).
      */
-    protected static final void registerAction(String propertyName, String methodName) {
-        ACTIONS.put(propertyName, methodName);
+    protected static final void registerOption(String optionName, String methodName, String defaultValue, String description) {
+        if (!optionName.startsWith(CAPSULE_PROP_PREFIX))
+            throw new IllegalArgumentException("Option name must start with " + CAPSULE_PROP_PREFIX + " but was " + optionName);
+        OPTIONS.put(optionName, new String[]{methodName, defaultValue, description});
+    }
+
+    private static boolean optionTakesArguments(String propertyName) {
+        final String defaultValue = OPTIONS.get(propertyName)[OPTION_DEFAULT];
+        return !("false".equals(defaultValue) || "true".equals(defaultValue));
+    }
+
+    private static void processOptions() {
+        for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
+            final String option = entry.getKey();
+            if (System.getProperty(option) == null && entry.getValue()[OPTION_DEFAULT] != null)
+                System.setProperty(option, entry.getValue()[OPTION_DEFAULT]);
+            else if (optionTakesArguments(option) && "".equals(System.getProperty(option)))
+                System.setProperty(option, "true");
+        }
+    }
+
+    private static void processCmdLineOptions(List<String> args) {
+        while (!args.isEmpty()) {
+            if (!args.get(0).startsWith("-"))
+                break;
+            final String arg = args.remove(0);
+            final String option = simpleToOption(arg);
+            if (option == null)
+                throw new IllegalArgumentException("Unrecognized option: " + arg);
+            if (optionTakesArguments(option))
+                System.setProperty(option, args.remove(0));
+            else
+                System.setProperty(option, "");
+        }
+        processOptions();
     }
 
     private static boolean runActions(Capsule capsule, List<String> args) {
         try {
             boolean found = false;
-            for (Map.Entry<String, String> entry : ACTIONS.entrySet()) {
-                if (propertyDefined(entry.getKey())) {
-                    getMethod(capsule.getClass(), entry.getValue(), List.class).invoke(capsule, args);
+            for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
+                if (entry.getValue()[OPTION_METHOD] != null && systemPropertyEmptyOrTrue(entry.getKey())) {
+                    getMethod(capsule.getClass(), entry.getValue()[0], List.class).invoke(capsule, args);
                     found = true;
                 }
             }
@@ -317,6 +397,25 @@ public class Capsule implements Runnable {
             throw new AssertionError(e);
         }
     }
+
+    private static String optionToSimple(String option) {
+        return "-" + camelCaseToDashed(option.substring(CAPSULE_PROP_PREFIX.length())).replace('.', '-');
+    }
+
+    private static String simpleToOption(String simple) {
+        if ("-h".equals(simple))
+            return PROP_HELP;
+        for (String option : OPTIONS.keySet()) {
+            if (simple.equals(optionToSimple(option)))
+                return option;
+        }
+        return null;
+    }
+
+    private static String camelCaseToDashed(String camel) {
+        return camel.replaceAll("([A-Z][a-z]+)", "-$1").toLowerCase();
+    }
+    //</editor-fold>
     //</editor-fold>
 
     private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
@@ -385,10 +484,10 @@ public class Capsule implements Runnable {
 
         if (!wrapper)
             finalizeCapsule(true);
+        clearContext();
     }
 
     final Capsule setTarget(String capsuleArtifact) {
-        clearContext();
         final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
         if (jar == null)
             throw new RuntimeException(capsuleArtifact + " not found.");
@@ -545,6 +644,22 @@ public class Capsule implements Runnable {
         }
         return null;
     }
+
+    private static boolean isExecutable(Path path) {
+        if (!Files.isExecutable(path))
+            return false;
+        try (Reader reader = new InputStreamReader(Files.newInputStream(path))) {
+            int c = reader.read();
+            if (c < 0 || (char) c != '#')
+                return false;
+            c = reader.read();
+            if (c < 0 || (char) c != '!')
+                return false;
+            return true;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Main Operations">
@@ -561,6 +676,7 @@ public class Capsule implements Runnable {
     }
 
     void printModes(List<String> args) {
+        verifyNonEmpty("Cannot print modes of a wrapper capsule.");
         System.out.println(LOG_PREFIX + "Application " + getAppId());
         System.out.println("Available modes:");
         final Set<String> modes = getModes();
@@ -587,7 +703,53 @@ public class Capsule implements Runnable {
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (systemProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
+    void printUsage(List<String> args) {
+        final Path myJar = findOwnJarFile();
+        final boolean executable = isExecutable(myJar);
+
+        final StringBuilder usage = new StringBuilder();
+        if (!executable)
+            usage.append("java ");
+        if (wrapper) {
+            if (!executable)
+                usage.append("-jar ");
+            usage.append(myJar).append(' ');
+        }
+        usage.append("<options> ");
+        if (wrapper)
+            usage.append("<path or Maven coords of application JAR/capsule>");
+        else
+            usage.append(myJar);
+        System.err.println("USAGE: " + usage);
+
+        System.err.println("Options:");
+        final boolean simple = wrapper;
+        for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
+            if (entry.getValue()[OPTION_DESC] != null) {
+                final String option = entry.getKey();
+                final String defaultValue = entry.getValue()[OPTION_DEFAULT];
+                if (simple && !optionTakesArguments(option) && defaultValue.equals("true"))
+                    continue;
+                StringBuilder sb = new StringBuilder();
+                sb.append(simple ? optionToSimple(option) : option);
+
+                if (optionTakesArguments(option) || defaultValue.equals("true")) {
+                    sb.append(simple ? ' ' : '=').append("<value>");
+                    if (defaultValue != null)
+                        sb.append(" (default: ").append(defaultValue).append(")");
+                }
+                sb.append(" - ").append(entry.getValue()[OPTION_DESC]);
+
+                System.err.println("  " + sb);
+            }
+        }
+
+        if (!wrapper && !executable)
+            usage.append("-jar ");
+    }
+
     void printDependencyTree(List<String> args) {
+        verifyNonEmpty("Cannot print dependencies of a wrapper capsule.");
         System.out.println("Dependencies for " + getAppId());
         if (dependencyManager == null)
             System.out.println("No dependencies declared.");
@@ -607,6 +769,7 @@ public class Capsule implements Runnable {
     }
 
     void resolve(List<String> args) throws IOException, InterruptedException {
+        verifyNonEmpty("Cannot resolve a wrapper capsule.");
         ensureExtractedIfNecessary();
         resolveDependency(getAttribute(ATTR_APP_ARTIFACT), "jar");
         resolveDependencies(getDependencies(), "jar");
@@ -619,6 +782,7 @@ public class Capsule implements Runnable {
     }
 
     private int launch(List<String> args) throws IOException, InterruptedException {
+        verifyNonEmpty("Cannot launch a wrapper capsule.");
         final ProcessBuilder pb;
         try {
             final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
@@ -659,6 +823,11 @@ public class Capsule implements Runnable {
         }
 
         return child != null ? child.exitValue() : 0;
+    }
+
+    private void verifyNonEmpty(String message) {
+        if (isEmptyCapsule())
+            throw new IllegalArgumentException(message);
     }
     //</editor-fold>
 
@@ -869,10 +1038,10 @@ public class Capsule implements Runnable {
      * @return An array of exactly two strings, the first being the application's name, and the second, its version (or {@code null} if no version).
      */
     protected String[] buildAppId() {
-        String name;
+        String name = null;
         String version = null;
 
-        name = systemProperty(PROP_APP_ID);
+        // name = systemProperty(PROP_APP_ID);
         if (name == null)
             name = getAttribute(ATTR_APP_NAME);
 
@@ -1377,7 +1546,7 @@ public class Capsule implements Runnable {
 
         // command line overrides everything
         for (String option : cmdLine) {
-            if (option.startsWith("-D"))
+            if (option.startsWith("-D") && !OPTIONS.containsKey(option.substring(2)))
                 addSystemProperty(option.substring(2), systemProperties);
         }
 
@@ -3107,6 +3276,9 @@ public class Capsule implements Runnable {
     }
 
     private static void setContext(String type, String key, String value) {
+//        System.err.println("setContext: " + type + " " + key + " " + value);
+//        Thread.dumpStack();
+
         contextType_ = type;
         contextKey_ = key;
         contextValue_ = value;
