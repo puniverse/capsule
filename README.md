@@ -198,7 +198,7 @@ The `Application-Name` and `Application-Version` attributes (see the next sectio
 
 The application ID is used to find the capsule's application cache, where the capsule's contents will be extracted if necessary. If the manifest has an `Application-Name`, it will be the application's ID, combined with the `Application-Version` attribute, if found. If there is no `Application-Name` attribute, and a `pom.xml` file is found in the JAR's root, the ID will be formed by joining the POM's groupId, artifactId, and version properties. If there is no POM file, the `Application-Class` attribute will serve as the application name.
 
-The application's ID can be overridden by the `capsule.app.id` system property, if defined when launching the capsule, as in `java -Dcapsule.app.id=my_old_app -jar app.jar`
+When authoring a capsule, please ensure a unique ID by setting `Application-Name` to a domain-qualified name (e.g. `acme.best_app`).
 
 ### Selecting the Java Runtime
 
@@ -420,7 +420,6 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `capsule.log`: can be set to 'none'/'quiet' (default)/'verbose'/'debug'
 * `capsule.jvm.args`: specifies JVM arguments for the capsule's app process.
 * `capsule.reset`: if set, forces re-extraction of the capsule, where applies, and/or re-downloading of SNAPSHOT dependencies
-* `capsule.app.id`: sets the value of the application ID (see user guide)
 * `capsule.java.home`: forces the capsule to use the given path to a Java installation when launching the application.
 * `capsule.java.cmd`: firces the capsule to use the give executable to launch the JVM.
 * `capsule.offline`: if defined (without a value) or set to `true`, Capsule will not attempt to contact online repositories for dependencies
