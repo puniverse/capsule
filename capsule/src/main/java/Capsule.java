@@ -787,7 +787,7 @@ public class Capsule implements Runnable {
         try {
             final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
             pb = prepareForLaunch(jvmArgs, args);
-            if (pb == null) {
+            if (pb == null) { // can be null if prelaunch has been overridden by a subclass
                 log(LOG_VERBOSE, "Nothing to run");
                 return 0;
             }
