@@ -271,11 +271,10 @@ public class Capsule implements Runnable {
 
     @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
     public static final void main(String[] args0) {
+        List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         Capsule capsule = null;
         try {
-            List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
             processOptions();
-            
             capsule = myCapsule(args);
 
             args = unmodifiableList(args);
