@@ -239,16 +239,16 @@ public class Capsule implements Runnable {
     private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>();
 
     static {
-        registerOption(PROP_VERSION, "printVersion", "false", "Prints the capsule and application version");
-        registerOption(PROP_MODES, "printModes", "false", "Prints all available capsule modes");
-        registerOption(PROP_TREE, "printDependencyTree", "false", "Prints the capsule's dependency tree");
+        registerOption(PROP_VERSION, "printVersion", "false", "Prints the capsule and application versions.");
+        registerOption(PROP_MODES, "printModes", "false", "Prints all available capsule modes.");
+        registerOption(PROP_TREE, "printDependencyTree", "false", "Prints the capsule's dependency tree.");
         registerOption(PROP_RESOLVE, "resolve", "false", "Downloads all un-cached dependencies.");
         registerOption(PROP_PRINT_JRES, "printJVMs", "false", "Prints a list of all JVM installations found.");
         registerOption(PROP_HELP, "printUsage", "false", "Prints this help message.");
         registerOption(PROP_MODE, null, null, "Picks the capsule mode to run.");
         registerOption(PROP_RESET, null, "false", "Resets the capsule cache before launching."
-                + " This causes the capsule to be re-extracted, and other possibly cached files to be recreated");
-        registerOption(PROP_LOG_LEVEL, null, "quiet", "Picks a log level. Must be one of none, quiet, verbose, or debug");
+                + " The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
+        registerOption(PROP_LOG_LEVEL, null, "quiet", "Picks a log level. Must be one of none, quiet, verbose, or debug.");
         registerOption(PROP_CAPSULE_JAVA_HOME, null, null, "Sets the location of the Java home (JVM installation directory) to use.");
         registerOption(PROP_CAPSULE_JAVA_CMD, null, null, "Sets the path to the Java executable to use.");
         registerOption(PROP_USE_LOCAL_REPO, null, null, "Sets the path of the local Maven repository to use.");
@@ -373,10 +373,12 @@ public class Capsule implements Runnable {
             final String option = simpleToOption(arg);
             if (option == null)
                 throw new IllegalArgumentException("Unrecognized option: " + arg);
-            if (optionTakesArguments(option))
-                System.setProperty(option, args.remove(0));
-            else
-                System.setProperty(option, "");
+            if (System.getProperty(option) != null) { // -D wins over simple flags
+                if (optionTakesArguments(option))
+                    System.setProperty(option, args.remove(0));
+                else
+                    System.setProperty(option, "");
+            }
         }
         processOptions();
     }
@@ -421,23 +423,23 @@ public class Capsule implements Runnable {
     private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
 
     // fields marked /*final*/ are effectively final after finalizeCapsule
-    private final Path cacheDir;     // never null
-    private final Object dependencyManager;
+    private final Path cacheDir;         // never null
     private final boolean wrapper;
-    private /*final*/ Path jarFile;  // never null
-    private final Manifest manifest; // never null
-    private /*final*/ String appId;  // null iff wrapper capsule wrapping a non-capsule JAR
-    private /*final*/ String appName;     // null iff wrapper capsule wrapping a non-capsule JAR
-    private /*final*/ String appVersion;  // null iff wrapper capsule wrapping a non-capsule JAR
+    private final Manifest manifest;     // never null
+    private /*final*/ Path jarFile;      // never null
+    private /*final*/ String appId;      // null iff wrapper capsule wrapping a non-capsule JAR
+    private /*final*/ String appName;    // null iff wrapper capsule wrapping a non-capsule JAR
+    private /*final*/ String appVersion; // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
-    private /*final*/ Object pom;    // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
-    private final int logLevel;
+    private /*final*/ Object pom;        // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
+    private /*final*/ Object dependencyManager;
+    private /*final*/ int logLevel;
 
-    private Path appCache;           // non-null iff capsule is extracted
+    private Path appCache;               // non-null iff capsule is extracted
     private boolean cacheUpToDate;
     private FileLock appCacheLock;
 
-    // very limited state
+    // Some very limited state
     private List<String> jvmArgs_;
     private List<String> args_;
     private Path pathingJar;
@@ -454,6 +456,9 @@ public class Capsule implements Runnable {
      */
     /**
      * Constructs a capsule from the given JAR file.
+     * <p>
+     * This constructor or that of a subclass must not make use of any registered capsule options,
+     * as they may not have been properly pre-processed yet.
      *
      * @param jarFile  the path to the JAR file
      * @param cacheDir the path to the (shared) Capsule cache directory
@@ -466,21 +471,20 @@ public class Capsule implements Runnable {
         this.cacheDir = initCacheDir(cacheDir);
         this.jarFile = toAbsolutePath(jarFile);
 
+        final long start = System.nanoTime(); // can't use clock before log level is set
         try (JarInputStream jis = openJarInputStream(jarFile)) {
             this.manifest = jis.getManifest();
             if (manifest == null)
                 throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
-            this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader(jis) : null;
+            this.pom = createPomReader(jis);
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
 
-        this.logLevel = chooseLogLevel();
         this.wrapper = isEmptyCapsule();
-        this.dependencyManager = DEPENDENCY_MANAGER != DEFAULT ? DEPENDENCY_MANAGER : tryCreateDependencyManager();
 
-        if (this.dependencyManager != null)
-            setDependencyRepositories(getRepositories());
+        this.logLevel = chooseLogLevel(); // temporary, just for the sake of "time". will be overridden in finalizeCapsule
+        time("Read JAR in constructor", start);
 
         if (!wrapper)
             finalizeCapsule(true);
@@ -488,6 +492,7 @@ public class Capsule implements Runnable {
     }
 
     final Capsule setTarget(String capsuleArtifact) {
+        initDependencyManager();
         final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
         if (jar == null)
             throw new RuntimeException(capsuleArtifact + " not found.");
@@ -505,6 +510,7 @@ public class Capsule implements Runnable {
 
         final Manifest man;
         boolean isCapsule = false;
+        final long start = clock();
         try (JarInputStream jis = openJarInputStream(jar)) {
             man = jis.getManifest();
             if (man == null || man.getMainAttributes().getValue(ATTR_MAIN_CLASS) == null)
@@ -513,11 +519,12 @@ public class Capsule implements Runnable {
                 if (entry.getName().equals(Capsule.class.getName() + ".class"))
                     isCapsule = true;
                 else if (entry.getName().equals(POM_FILE))
-                    this.pom = !hasAttribute(ATTR_DEPENDENCIES) ? createPomReader0(jis) : null;
+                    this.pom = createPomReader0(jis);
             }
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jar, e);
         }
+        time("Read JAR in setTarget", start);
 
         if (!isCapsule)
             manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT, jar.toString());
@@ -525,7 +532,7 @@ public class Capsule implements Runnable {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             this.jarFile = jar;
             merge(manifest, man);
-            if (this.dependencyManager != null)
+            if (dependencyManager != null)
                 setDependencyRepositories(getRepositories());
         }
         finalizeCapsule(isCapsule);
@@ -534,6 +541,8 @@ public class Capsule implements Runnable {
 
     private void finalizeCapsule(boolean setId) {
         validateManifest();
+        this.logLevel = chooseLogLevel();
+        initDependencyManager();
         final String[] nameAndVersion = setId ? buildAppId() : null;
         if (nameAndVersion != null) {
             this.appName = nameAndVersion[0];
@@ -542,6 +551,14 @@ public class Capsule implements Runnable {
         }
         this.mode = chooseMode1();
         clearContext();
+    }
+
+    private void initDependencyManager() {
+        if (dependencyManager == null) {
+            this.dependencyManager = DEPENDENCY_MANAGER != DEFAULT ? DEPENDENCY_MANAGER : tryCreateDependencyManager();
+            if (dependencyManager != null)
+                setDependencyRepositories(getRepositories());
+        }
     }
 
     private boolean isEmptyCapsule() {
@@ -704,7 +721,7 @@ public class Capsule implements Runnable {
     }
 
     void printUsage(List<String> args) {
-        final Path myJar = findOwnJarFile();
+        final Path myJar = toFriendlyPath(findOwnJarFile());
         final boolean executable = isExecutable(myJar);
 
         final StringBuilder usage = new StringBuilder();
@@ -2389,6 +2406,15 @@ public class Capsule implements Runnable {
 //            return str;
 //        else
         return str.startsWith("~/") ? str.replace("~", System.getProperty(PROP_USER_HOME)) : str;
+    }
+
+    private static Path toFriendlyPath(Path p) {
+        if (p.isAbsolute()) {
+            Path rel = p.getFileSystem().getPath("").toAbsolutePath().relativize(p);
+            if (rel.normalize().equals(rel))
+                return rel;
+        }
+        return p;
     }
     //</editor-fold>
 

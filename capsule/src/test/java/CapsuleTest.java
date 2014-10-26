@@ -945,7 +945,7 @@ public class CapsuleTest {
         Path fooPath = path("foo-1.0.jar");
         app.write(fooPath);
 
-        Capsule capsule = newCapsule(wrapper, null).setTarget(fooPath);
+        newCapsule(wrapper, null).setTarget(fooPath);
     }
     //</editor-fold>
 
