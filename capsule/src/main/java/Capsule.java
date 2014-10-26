@@ -648,7 +648,7 @@ public class Capsule implements Runnable {
     private static boolean isExecutable(Path path) {
         if (!Files.isExecutable(path))
             return false;
-        try (Reader reader = new InputStreamReader(Files.newInputStream(path))) {
+        try (Reader reader = new InputStreamReader(Files.newInputStream(path), "UTF-8")) {
             int c = reader.read();
             if (c < 0 || (char) c != '#')
                 return false;
@@ -1038,12 +1038,10 @@ public class Capsule implements Runnable {
      * @return An array of exactly two strings, the first being the application's name, and the second, its version (or {@code null} if no version).
      */
     protected String[] buildAppId() {
-        String name = null;
+        String name;
         String version = null;
 
-        // name = systemProperty(PROP_APP_ID);
-        if (name == null)
-            name = getAttribute(ATTR_APP_NAME);
+        name = getAttribute(ATTR_APP_NAME);
 
         if (name == null) {
             final String appArtifact = getAttribute(ATTR_APP_ARTIFACT);
