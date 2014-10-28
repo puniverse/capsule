@@ -307,6 +307,8 @@ public class Capsule implements Runnable {
         }
     }
 
+    //<editor-fold defaultstate="collapsed" desc="Run Other Capsule">
+    /////////// Run Other Capsule ///////////////////////////////////
     private static boolean isWrapperFactoryCapsule(Capsule capsule) {
         return capsule.isFactoryCapsule() && capsule.isWrapperCapsule() && capsule.getJarFile() != null;
     }
@@ -336,10 +338,11 @@ public class Capsule implements Runnable {
                 e.printStackTrace();
                 return 1;
             }
-        } catch (ReflectiveOperationException|MalformedURLException e) {
+        } catch (ReflectiveOperationException | MalformedURLException e) {
             throw new RuntimeException(e);
         }
     }
+    //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Command Line">
     /////////// Command Line ///////////////////////////////////
