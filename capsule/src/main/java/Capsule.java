@@ -299,9 +299,9 @@ public class Capsule implements Runnable {
                 t.printStackTrace(System.err);
             } else
                 System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
-            if (t instanceof IllegalArgumentException && capsule != null)
-                capsule.printUsage(args);
-            System.exit(1);
+            if (t instanceof IllegalArgumentException)
+                printUsage(capsule != null ? capsule.isWrapperCapsule() : true, args);
+            return 1;
         }
     }
 
@@ -729,26 +729,30 @@ public class Capsule implements Runnable {
     }
 
     void printUsage(List<String> args) {
+        printUsage(wrapper, args);
+    }
+
+    static void printUsage(boolean simple, List<String> args) {
         final Path myJar = toFriendlyPath(findOwnJarFile());
         final boolean executable = isExecutable(myJar);
 
         final StringBuilder usage = new StringBuilder();
         if (!executable)
             usage.append("java ");
-        if (wrapper) {
+        if (simple) {
             if (!executable)
                 usage.append("-jar ");
             usage.append(myJar).append(' ');
         }
         usage.append("<options> ");
-        if (wrapper)
+        if (simple)
             usage.append("<path or Maven coords of application JAR/capsule>");
         else
             usage.append(myJar);
         System.err.println("USAGE: " + usage);
 
         System.err.println("Options:");
-        final boolean simple = wrapper;
+
         for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
             if (entry.getValue()[OPTION_DESC] != null) {
                 final String option = entry.getKey();
@@ -769,7 +773,7 @@ public class Capsule implements Runnable {
             }
         }
 
-        if (!wrapper && !executable)
+        if (!simple && !executable)
             usage.append("-jar ");
     }
 
