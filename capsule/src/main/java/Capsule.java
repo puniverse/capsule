@@ -283,8 +283,10 @@ public class Capsule implements Runnable {
 
             args = unmodifiableList(args);
 
-            if (capsule.isFactoryCapsule() && !capsule.isEmptyCapsule()) // not a custom capsule
-                System.exit(runMain(capsule.getJarFile(), args));
+            if (isWrapperFactoryCapsule(capsule)) {
+                capsule = null; // help gc
+                return runOtherCapsule(args);
+            }
 
             if (runActions(capsule, args))
                 return 0;
@@ -305,16 +307,37 @@ public class Capsule implements Runnable {
         }
     }
 
+    private static boolean isWrapperFactoryCapsule(Capsule capsule) {
+        return capsule.isFactoryCapsule() && capsule.isWrapperCapsule() && capsule.getJarFile() != null;
+    }
+
+    private static int runOtherCapsule(List<String> args) {
+        final Path jar = CAPSULE.getJarFile();
+        CAPSULE = null; // help gc
+        return runMain(jar, args);
+    }
+
     @SuppressWarnings("CallToPrintStackTrace")
     private static int runMain(Path jar, List<String> args) {
+        final String mainClass;
         try {
-            new URLClassLoader(new URL[]{jar.toUri().toURL()}, null)
-                    .loadClass(getMainClass(jar))
-                    .getMethod("main", String[].class).invoke(null, (Object) args.toArray(new String[0]));
-            return 0;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return 1;
+            mainClass = getMainClass(jar);
+            if (mainClass == null)
+                throw new IllegalArgumentException("JAR file " + jar + " is not an executable (does not have a main class)");
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException(jar + " does not exist or does appear to be a valid JAR", e);
+        }
+        try {
+            final Method main = new URLClassLoader(new URL[]{jar.toUri().toURL()}, null).loadClass(mainClass).getMethod("main", String[].class);
+            try {
+                main.invoke(null, (Object) args.toArray(new String[0]));
+                return 0;
+            } catch (Exception e) {
+                e.printStackTrace();
+                return 1;
+            }
+        } catch (ReflectiveOperationException|MalformedURLException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -496,23 +519,46 @@ public class Capsule implements Runnable {
 
         if (!wrapper)
             finalizeCapsule(true);
+        else if (isFactoryCapsule())
+            this.jarFile = null; // an empty factory capsule is marked this way.
         clearContext();
     }
 
-    final Capsule setTarget(String capsuleArtifact) {
-        initDependencyManager();
-        final Path jar = isDependency(capsuleArtifact) ? firstOrNull(resolveDependency(capsuleArtifact, "jar")) : Paths.get(capsuleArtifact);
-        if (jar == null)
-            throw new RuntimeException(capsuleArtifact + " not found.");
-        return setTarget(jar);
-    }
-
-    final Capsule setTarget(Path jar) {
-        jar = toAbsolutePath(jar);
+    private void verifyCanCallSetTarget() {
         if (appId != null)
             throw new IllegalStateException("Capsule is finalized");
         if (!isEmptyCapsule())
             throw new IllegalStateException("Capsule " + jarFile + " isn't empty");
+    }
+
+    final Capsule setTarget(String target) {
+        verifyCanCallSetTarget();
+
+        Path jar;
+        if (isDependency(target)) {
+            initDependencyManager();
+            jar = toAbsolutePath(firstOrNull(resolveDependency(target, "jar")));
+        } else
+            jar = toAbsolutePath(Paths.get(target));
+
+        if (jar == null)
+            throw new RuntimeException(target + " not found.");
+        if (jar.equals(jarFile)) // catch simple loops
+            throw new RuntimeException("Capsule wrapping loop detected with capsule " + jarFile);
+
+        if (isFactoryCapsule()) {
+            this.jarFile = jar;
+            return this;
+        } else
+            return setTarget(jar);
+    }
+
+    // called directly by tests
+    final Capsule setTarget(Path jar) {
+        verifyCanCallSetTarget();
+
+        jar = toAbsolutePath(jar);
+
         if (jar.equals(jarFile)) // catch simple loops
             throw new RuntimeException("Capsule wrapping loop detected with capsule " + jarFile);
 
@@ -523,6 +569,7 @@ public class Capsule implements Runnable {
             man = jis.getManifest();
             if (man == null || man.getMainAttributes().getValue(ATTR_MAIN_CLASS) == null)
                 throw new IllegalArgumentException(jar + " is not a capsule or an executable JAR");
+
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
                 if (entry.getName().equals(Capsule.class.getName() + ".class"))
                     isCapsule = true;
@@ -538,6 +585,7 @@ public class Capsule implements Runnable {
             manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT, jar.toString());
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
+
             this.jarFile = jar;
             merge(manifest, man);
             if (dependencyManager != null)
@@ -551,14 +599,17 @@ public class Capsule implements Runnable {
         validateManifest();
         this.logLevel = chooseLogLevel();
         initDependencyManager();
-        final String[] nameAndVersion = setId ? buildAppId() : null;
-        if (nameAndVersion != null) {
-            this.appName = nameAndVersion[0];
-            this.appVersion = nameAndVersion[1];
-            this.appId = appName + (appVersion != null ? "_" + appVersion : "");
-        }
+        if (setId)
+            initAppId();
         this.mode = chooseMode1();
         clearContext();
+    }
+
+    private void initAppId() {
+        final String[] nameAndVersion = buildAppId();
+        this.appName = nameAndVersion[0];
+        this.appVersion = nameAndVersion[1];
+        this.appId = appName + (appVersion != null ? "_" + appVersion : "");
     }
 
     private void initDependencyManager() {
@@ -2390,6 +2441,8 @@ public class Capsule implements Runnable {
     }
 
     private static Path toAbsolutePath(Path p) {
+        if (p == null)
+            return null;
         return p.normalize().toAbsolutePath();
     }
 

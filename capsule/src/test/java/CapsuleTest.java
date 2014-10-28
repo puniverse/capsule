@@ -1190,7 +1190,7 @@ public class CapsuleTest {
         }
     }
 
-    private Capsule setTargetCapsule(Capsule capsule, Path jar) {
+    private Capsule setTarget(Capsule capsule, Path jar) {
         try {
             accessible(Capsule.class.getDeclaredMethod("setTarget", Path.class)).invoke(capsule, jar);
             return capsule;
