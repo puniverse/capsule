@@ -1637,9 +1637,11 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Returns the default native library path for the Java platform the application uses
+     * Returns the default native library path for the Java platform the application uses.
      */
     protected List<Path> getPlatformNativeLibraryPath() {
+        // WARNING: this assumes the platform running the app (say a different Java home), has the same
+        // java.library.path. If that's wrong, this could be a bug.
         return toPath(Arrays.asList(systemProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR)));
     }
 
