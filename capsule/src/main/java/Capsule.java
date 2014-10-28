@@ -421,6 +421,10 @@ public class Capsule implements Runnable {
     private static String camelCaseToDashed(String camel) {
         return camel.replaceAll("([A-Z][a-z]+)", "-$1").toLowerCase();
     }
+
+    private static boolean isCapsuleOption(String propertyName) {
+        return propertyName.startsWith(CAPSULE_PROP_PREFIX); // OPTIONS.containsKey(propertyName);
+    }
     //</editor-fold>
     //</editor-fold>
 
@@ -1565,7 +1569,7 @@ public class Capsule implements Runnable {
 
         // command line overrides everything
         for (String option : cmdLine) {
-            if (option.startsWith("-D") && !OPTIONS.containsKey(option.substring(2)))
+            if (option.startsWith("-D") && !isCapsuleOption(option.substring(2)))
                 addSystemProperty(option.substring(2), systemProperties);
         }
 
