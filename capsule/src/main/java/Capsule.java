@@ -269,8 +269,12 @@ public class Capsule implements Runnable {
         return CAPSULE;
     }
 
-    @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace"})
-    public static final void main(String[] args0) {
+    public static final void main(String[] args) {
+        System.exit(main0(args));
+    }
+
+    @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace", "UnusedAssignment"})
+    private static int main0(String[] args0) {
         List<String> args = new ArrayList<>(Arrays.asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         Capsule capsule = null;
         try {
@@ -283,9 +287,9 @@ public class Capsule implements Runnable {
                 System.exit(runMain(capsule.getJarFile(), args));
 
             if (runActions(capsule, args))
-                return;
+                return 0;
 
-            System.exit(capsule.launch(args));
+            return capsule.launch(args);
         } catch (Throwable t) {
             System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
             if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
