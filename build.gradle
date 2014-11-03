@@ -221,7 +221,7 @@ project (':capsule') {
         compile('org.apache.maven:maven-settings-builder:3.2.3') {
             exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
         }
-        compile('org.codehaus.plexus:plexus-container-default:1.5.5') {
+        compile('org.codehaus.plexus:plexus-container-default:1.6') {
             exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
             exclude group: 'com.google.collections', module: 'google-collections'
             exclude group: 'commons-logging', module: '*'
