@@ -874,7 +874,7 @@ public class Capsule implements Runnable {
                 log(LOG_VERBOSE, "Nothing to run");
                 return 0;
             }
-        } catch (Throwable t) {
+        } catch (Exception t) {
             cleanup();
             throw t;
         }
@@ -963,14 +963,14 @@ public class Capsule implements Runnable {
         try {
             if (child != null)
                 child.destroy();
-        } catch (Throwable t) {
+        } catch (Exception t) {
             t.printStackTrace();
         }
 
         try {
             if (pathingJar != null)
                 Files.delete(pathingJar);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             t.printStackTrace();
         }
     }
@@ -2199,10 +2199,8 @@ public class Capsule implements Runnable {
      */
     protected final boolean hasAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
-        if (mode != null && !NON_MODAL_ATTRS.contains(attr)) {
-            if (manifest.getAttributes(mode).containsKey(key))
-                return true;
-        }
+        if (mode != null && !NON_MODAL_ATTRS.contains(attr) && manifest.getAttributes(mode).containsKey(key))
+            return true;
         return manifest.getMainAttributes().containsKey(key);
     }
 
@@ -2781,10 +2779,8 @@ public class Capsule implements Runnable {
                     }
                 }
                 Map<String, Path> homes = getJavaHomes(homesDir);
-                if (homes != null) {
-                    if (isWindows())
-                        homes = windowsJavaHomesHeuristics(homesDir, homes);
-                }
+                if (homes != null && isWindows())
+                    homes = windowsJavaHomesHeuristics(homesDir, homes);
                 JAVA_HOMES = homes;
             } catch (IOException e) {
                 throw new RuntimeException(e);
