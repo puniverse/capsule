@@ -40,7 +40,6 @@ subprojects {
     }
 
     configurations {
-        provided
         javancss
     }
 
@@ -66,12 +65,6 @@ subprojects {
         }
         testCompile 'org.jooq:joor:0.9.4'
         javancss 'org.codehaus.javancss:javancss:33.54'
-    }
-
-    sourceSets {
-        main.compileClasspath = main.compileClasspath + configurations.provided
-        test.compileClasspath = test.compileClasspath + configurations.provided
-        test.runtimeClasspath = test.runtimeClasspath + configurations.provided
     }
 
     test {
