@@ -7,12 +7,14 @@ buildscript {
         classpath 'com.github.jengelman.gradle.plugins:shadow:0.8'
         classpath 'net.sf.proguard:proguard-gradle:5.0'
         classpath 'net.saliman:gradle-cobertura-plugin:2.2.4'
+        classpath 'info.solidsoft.gradle.pitest:gradle-pitest-plugin:1.1.1'
     }
 }
 
 subprojects {
     apply plugin: 'java'
     apply plugin: 'cobertura'
+    apply plugin: 'info.solidsoft.pitest'
 
     sourceCompatibility = '1.7'
     targetCompatibility = '1.7'
@@ -82,6 +84,11 @@ subprojects {
                 }
             }
         }
+    }
+
+    pitest {
+        targetClasses = ['Capsule', 'capsule.*', 'co.paralleluniverse.*']
+        targetTests = ['CapsuleTest', 'capsule.*', 'co.paralleluniverse.*']
     }
 
     task run(type: JavaExec, dependsOn:[testClasses]) {
