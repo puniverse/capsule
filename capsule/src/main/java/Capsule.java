@@ -680,6 +680,13 @@ public class Capsule implements Runnable {
     }
 
     /**
+     * The app's ID.
+     */
+    protected final String getAppId() {
+        return appId;
+    }
+
+    /**
      * The app's name
      */
     protected final String getAppName() {
@@ -1159,13 +1166,6 @@ public class Capsule implements Runnable {
             version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
 
         return new String[]{name, version};
-    }
-
-    /**
-     * Returns the app's ID.
-     */
-    protected final String getAppId() {
-        return appId;
     }
 
     private static String[] getAppArtifactId(String coords) {
@@ -2059,7 +2059,10 @@ public class Capsule implements Runnable {
         ((DependencyManager) dependencyManager).setRepos(repositories, getAttribute(ATTR_ALLOW_SNAPSHOTS, false));
     }
 
-    protected Path getLocalRepo() {
+    /**
+     * Returns the path to the local dependency repository.
+     */
+    protected final Path getLocalRepo() {
         Path localRepo = cacheDir.resolve(DEPS_CACHE_NAME);
         final String local = expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO));
         if (local != null)
@@ -3041,10 +3044,10 @@ public class Capsule implements Runnable {
             str = str.replace("$" + VAR_CAPSULE_APP, appId);
         else if (str.contains("$" + VAR_CAPSULE_APP))
             throw new IllegalStateException("Cannot use $" + VAR_CAPSULE_APP + " variable in an empty capsule. (in: " + str + ")");
-        
+
         str = str.replace("$" + VAR_CAPSULE_JAR, processOutgoingPath(jarFile));
         final String jhome = processOutgoingPath(getJavaHome());
-        
+
         if (jhome != null)
             str = str.replace("$" + VAR_JAVA_HOME, jhome);
         str = str.replace('/', FILE_SEPARATOR_CHAR);
