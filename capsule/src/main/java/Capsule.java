@@ -266,7 +266,7 @@ public class Capsule implements Runnable {
                 if (!args.isEmpty())
                     capsule.setTarget(args.remove(0));
             }
-            CAPSULE = capsule;
+            CAPSULE = capsule.oc;
         }
         return CAPSULE;
     }
@@ -403,7 +403,7 @@ public class Capsule implements Runnable {
             if (!args.get(0).startsWith("-"))
                 break;
             final String arg = args.remove(0);
-            
+
             String optarg = null;
             if (arg.contains("="))
                 optarg = getAfter(arg, '=');
@@ -474,8 +474,8 @@ public class Capsule implements Runnable {
     private static Map<String, Path> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
 
     // fields marked /*final*/ are effectively final after finalizeCapsule
-    private /*final*/ Capsule oc;    // first in chain
-    private /*final*/ Capsule cc;    // last in chain
+    private /*final*/ Capsule oc;  // first in chain
+    private /*final*/ Capsule cc;  // last in chain
     private /*final*/ Capsule sup; // previous in chain
     private /*final*/ Capsule _ct; // a temp var
 
@@ -528,8 +528,8 @@ public class Capsule implements Runnable {
         Objects.requireNonNull(jarFile, "jarFile can't be null");
         Objects.requireNonNull(cacheDir, "cacheDir can't be null");
 
-        this.cc = this;
         this.oc = this;
+        this.cc = this;
         this.sup = null;
 
         this.cacheDir = initCacheDir(cacheDir);
@@ -566,6 +566,7 @@ public class Capsule implements Runnable {
      */
     @SuppressWarnings("LeakingThisInConstructor")
     protected Capsule(Capsule pred) {
+        this.oc = this;
         this.cc = this;
         setPred(pred);
 
@@ -579,7 +580,11 @@ public class Capsule implements Runnable {
         if (pred != null) {
             this.oc = pred.oc;
             this.sup = pred;
-            pred.cc = this.cc;
+            for (Capsule c = cc; c != this; c = c.sup)
+                c.oc = oc;
+
+            for (Capsule c = pred; c != null; c = c.sup)
+                c.cc = cc;
         }
     }
 
@@ -642,7 +647,7 @@ public class Capsule implements Runnable {
             manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT, jar.toString());
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
-
+            oc.jarFile = jar;
             final Capsule wrapped = newCapsule(newClassLoader(MY_CLASSLOADER, jar), jar, cacheDir);
             setPred(wrapped);
             oc.dependencyManager = dependencyManager;
@@ -669,8 +674,6 @@ public class Capsule implements Runnable {
         for (String caplet : caplets) {
             if (isDependency(caplet))
                 deps.add(caplet);
-            else
-                caplets.add(caplet);
         }
 
         ClassLoader cl = MY_CLASSLOADER;
@@ -683,13 +686,13 @@ public class Capsule implements Runnable {
         }
 
         int i = 0;
-        Capsule c = this;
+        Capsule pred = this;
         for (String caplet : caplets) {
             if (isDependency(caplet)) {
-                c = newCapsule(cl, jars.get(i), c);
+                pred = newCapsule(cl, jars.get(i), pred);
                 i++;
             } else
-                c = newCapsule(cl, caplet, c);
+                pred = newCapsule(cl, caplet, pred);
         }
     }
 
@@ -1901,8 +1904,7 @@ public class Capsule implements Runnable {
 
         assert getAppCache() != null;
         if (!cacheUpToDate) {
-            if (isLogging(LOG_DEBUG))
-                System.err.println("Copying native libs to " + getAppCache());
+            log(LOG_DEBUG, "Copying native libs to " + getAppCache());
             try {
                 for (int i = 0; i < deps.size(); i++) {
                     final Path lib = resolved.get(i);
@@ -2075,8 +2077,7 @@ public class Capsule implements Runnable {
         if (oc.javaHome_ == null) {
             final Path jhome = chooseJavaHome();
             oc.javaHome_ = jhome != null ? jhome : Paths.get(systemProperty(PROP_JAVA_HOME));
-            log(LOG_VERBOSE, "Using JVM: " + javaHome_);
-
+            log(LOG_VERBOSE, "Using JVM: " + oc.javaHome_);
         }
         return oc.javaHome_;
     }
@@ -3259,10 +3260,9 @@ public class Capsule implements Runnable {
             str = str.replace("$" + VAR_CAPSULE_APP, getAppId());
         else if (str.contains("$" + VAR_CAPSULE_APP))
             throw new IllegalStateException("Cannot use $" + VAR_CAPSULE_APP + " variable in an empty capsule. (in: " + str + ")");
-
         str = str.replace("$" + VAR_CAPSULE_JAR, processOutgoingPath(getJarFile()));
-        final String jhome = processOutgoingPath(getJavaHome());
 
+        final String jhome = processOutgoingPath(getJavaHome());
         if (jhome != null)
             str = str.replace("$" + VAR_JAVA_HOME, jhome);
         str = str.replace('/', FILE_SEPARATOR_CHAR);
