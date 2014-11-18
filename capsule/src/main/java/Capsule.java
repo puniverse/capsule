@@ -420,7 +420,7 @@ public class Capsule implements Runnable {
             boolean found = false;
             for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
                 if (entry.getValue()[OPTION_METHOD] != null && systemPropertyEmptyOrTrue(entry.getKey())) {
-                    getMethod(capsule.getClass(), entry.getValue()[0], List.class).invoke(capsule, args);
+                    getMethod(capsule, entry.getValue()[0], List.class).invoke(capsule, args);
                     found = true;
                 }
             }
@@ -3396,6 +3396,15 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Reflection Utils">
     /////////// Reflection Utils ///////////////////////////////////
+    private static Method getMethod(Capsule capsule, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
+        for (Capsule c = capsule.cc; c != null; c = c.sup) {
+            final Method m;
+            if ((m = getMethod(capsule.getClass(), name, parameterTypes)) != null)
+                return m;
+        }
+        return null;
+    }
+
     private static Method getMethod(Class<?> clazz, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
         try {
             return accessible(clazz.getDeclaredMethod(name, parameterTypes));
