@@ -262,7 +262,7 @@ public class Capsule implements Runnable {
             final Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile(), getCacheDir());
             clearContext();
             if (capsule.isEmptyCapsule() && !args.isEmpty()) {
-                processCmdLineOptions(args);
+                processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
                 if (!args.isEmpty())
                     capsule.setTarget(args.remove(0));
             }
@@ -398,20 +398,34 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static void processCmdLineOptions(List<String> args) {
+    private static void processCmdLineOptions(List<String> args, List<String> jvmArgs) {
         while (!args.isEmpty()) {
             if (!args.get(0).startsWith("-"))
                 break;
             final String arg = args.remove(0);
-            final String option = simpleToOption(arg);
+            
+            String optarg = null;
+            if (arg.contains("="))
+                optarg = getAfter(arg, '=');
+
+            final String option = simpleToOption(getBefore(arg, '='));
             if (option == null)
                 throw new IllegalArgumentException("Unrecognized option: " + arg);
-            if (System.getProperty(option) != null) { // -D wins over simple flags
-                if (optionTakesArguments(option))
-                    System.setProperty(option, args.remove(0));
-                else
-                    System.setProperty(option, "");
+
+            // -D wins over simple flags
+            boolean overridden = false;
+            for (String x : jvmArgs) {
+                if (x.equals("-D" + option) || x.startsWith("-D" + option + "=")) {
+                    overridden = true;
+                    break;
+                }
             }
+
+            if (optarg == null)
+                optarg = optionTakesArguments(option) ? args.remove(0) : "";
+
+            if (!overridden)
+                System.setProperty(option, optarg);
         }
         processOptions();
     }
