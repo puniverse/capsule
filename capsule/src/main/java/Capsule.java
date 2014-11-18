@@ -3747,7 +3747,21 @@ public class Capsule implements Runnable {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        sb.append(getClass().getName()).append('[');
+        sb.append(getClass().getName());
+        if (isLogging(LOG_DEBUG))
+            sb.append('@').append(Integer.toHexString(System.identityHashCode(this)));
+        if (cc != oc) {
+            sb.append('(');
+            for (Capsule c = cc; c != null; c = c.sup) {
+                sb.append(c.getClass().getName());
+                if (isLogging(LOG_DEBUG))
+                    sb.append('@').append(Integer.toHexString(System.identityHashCode(c)));
+                sb.append(" ");
+            }
+            sb.delete(sb.length() - 1, sb.length());
+            sb.append(')');
+        }
+        sb.append('[');
         sb.append(getJarFile());
         if (getAppId() != null) {
             sb.append(", ").append(getAppId());
