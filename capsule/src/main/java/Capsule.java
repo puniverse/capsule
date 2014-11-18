@@ -62,16 +62,16 @@ import static java.util.Collections.*;
 /**
  * An application capsule.
  * <p>
- * This API is to be used by custom capsules to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
+ * This API is to be used by caplets (custom capsules) to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
  * <p>
- * All non-final protected methods may be overridden by custom capsules. These methods will usually be called once, but they must be idempotent,
+ * All non-final protected methods may be overridden by caplets. These methods will usually be called once, but they must be idempotent,
  * i.e. if called numerous times they must always return the same value, and produce the same effect as if called once.
  * <br>
  * Overridden methods need not be thread-safe, and are guaranteed to be called by a single thread at a time.
  * <br>
- * Overridable (non-final) methods <b>must never</b> be called directly by custom capsule code, except by their overrides.
+ * Overridable (non-final) methods <b>must never</b> be called directly by caplet code, except by their overrides.
  * <p>
- * Final methods implement various utility or accessors, which may be freely used by custom capsules.
+ * Final methods implement various utility or accessors, which may be freely used by caplets.
  * <p>
  * For command line option handling, see {@link #registerOption(String, String, String) registerOption}.
  *
@@ -349,7 +349,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Command Line">
     /////////// Command Line ///////////////////////////////////
     /**
-     * Registers a capsule command-line option. Must be called in the custom capsule class's static initializer.
+     * Registers a capsule command-line option. Must be called in the caplet's static initializer.
      * <p>
      * Capsule options are system properties beginning with the prefix ".capsule", normally passed to the capsule as -D flags on the command line.
      * <p>
@@ -496,7 +496,11 @@ public class Capsule implements Runnable {
      * The constructors and methods in this section may be reflectively called by CapsuleLauncher
      */
     /**
-     * Constructs a capsule from the given JAR file.
+     * Constructs a capsule.
+     * <p>
+     * This constructor is used by a caplet that will be listed in the manifest's {@code Main-Class} attribute.
+     * <b>Caplets are encouraged to "override" the {@link #Capsule(Capsule) other constructor} so that they may be listed
+     * in the {@code Caplets} attribute.</b>
      * <p>
      * This constructor or that of a subclass must not make use of any registered capsule options,
      * as they may not have been properly pre-processed yet.
@@ -539,6 +543,12 @@ public class Capsule implements Runnable {
         clearContext();
     }
 
+    /**
+     * Caplets that will be listed on the manifest's {@code Caplets} attribute must use this constructor.
+     * Caplets are required to have a constructor with the same signature as this constructor, and pass their arguments to up to this constructor.
+     *
+     * @param pred The capsule preceding this one in the chain (caplets must not access the passed capsule in their constructor).
+     */
     @SuppressWarnings("LeakingThisInConstructor")
     protected Capsule(Capsule pred) {
         this.cc = this;
@@ -1073,7 +1083,7 @@ public class Capsule implements Runnable {
     /**
      * Returns a configured {@link ProcessBuilder} that is later used to launch the capsule.
      * The ProcessBuilder's IO redirection is left in its default settings.
-     * Custom capsules may override this method to display a message prior to launch, or to configure the process's IO streams.
+     * Caplets may override this method to display a message prior to launch, or to configure the process's IO streams.
      * For more elaborate manipulation of the Capsule's launched process, consider overriding {@link #buildProcess() buildProcess}.
      *
      * @param args the application command-line arguments
@@ -2561,7 +2571,7 @@ public class Capsule implements Runnable {
 
     /**
      * Every path emitted by the capsule to the app's command line, system properties or environment variables is
-     * first passed through this method. Custom capsules that relocate files should override it.
+     * first passed through this method. Caplets that relocate files should override it.
      *
      * @param p the path
      * @return the processed path
