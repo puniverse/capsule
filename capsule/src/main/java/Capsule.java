@@ -390,8 +390,9 @@ public class Capsule implements Runnable {
     private static void processOptions() {
         for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
             final String option = entry.getKey();
-            if (System.getProperty(option) == null && entry.getValue()[OPTION_DEFAULT] != null)
-                System.setProperty(option, entry.getValue()[OPTION_DEFAULT]);
+            final String defval = entry.getValue()[OPTION_DEFAULT];
+            if (System.getProperty(option) == null && defval != null && !defval.equals("false")) // the last condition is for backwards compatibility
+                System.setProperty(option, defval);
             else if (optionTakesArguments(option) && "".equals(System.getProperty(option)))
                 System.setProperty(option, "true");
         }
