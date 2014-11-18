@@ -3374,10 +3374,12 @@ public class Capsule implements Runnable {
         }
         return c;
     }
-    
+
     private static <M extends Map<K, V>, K, V> M putAllIfAbsent(M m, Map<K, V> m1) {
-        for (Map.Entry<K, V> entry : m1.entrySet())
-            m.putIfAbsent(entry.getKey(), entry.getValue());
+        for (Map.Entry<K, V> entry : m1.entrySet()) {
+            if (!m.containsKey(entry.getKey()))
+                m.put(entry.getKey(), entry.getValue());
+        }
         return m;
     }
     //</editor-fold>
