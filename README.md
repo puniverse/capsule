@@ -34,7 +34,7 @@ or:
 
     co.paralleluniverse:capsule:0.10.0
 
-On Maven Central.
+on Maven Central.
 
 ### Building Capsule
 
