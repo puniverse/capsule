@@ -1,4 +1,4 @@
-# *Capsule*<br/>Dead-Simple Packaging and Deployment for JVM Apps
+# *Capsule*<br/>Dead-Simple Packaging and Deployment for JVM Applications
 [![Build Status](http://img.shields.io/travis/puniverse/capsule.svg?style=flat)](https://travis-ci.org/puniverse/capsule) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030) [![Version](http://img.shields.io/badge/version-0.9.0-blue.svg?style=flat)](https://github.com/puniverse/capsule/releases) [![License](http://img.shields.io/badge/license-EPL-blue.svg?style=flat)](https://www.eclipse.org/legal/epl-v10.html)
 
 
