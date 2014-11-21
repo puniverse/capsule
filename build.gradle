@@ -200,18 +200,20 @@ subprojects {
 }
 
 project (':capsule') {
+    ext.aetherVer = '1.0.1.v20141111'
+    
     configurations {
         all*.exclude group: 'org.eclipse.sisu', module: '*'
         all*.exclude group: 'commons-codec', module: '*'
     }
 
     dependencies {
-        compile 'org.eclipse.aether:aether-api:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-util:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-impl:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-connector-basic:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-transport-file:1.0.0.v20140518'
-        compile('org.eclipse.aether:aether-transport-http:1.0.0.v20140518') {
+        compile "org.eclipse.aether:aether-api:$aetherVer"
+        compile "org.eclipse.aether:aether-util:$aetherVer"
+        compile "org.eclipse.aether:aether-impl:$aetherVer"
+        compile "org.eclipse.aether:aether-connector-basic:$aetherVer"
+        compile "org.eclipse.aether:aether-transport-file:$aetherVer"
+        compile("org.eclipse.aether:aether-transport-http:$aetherVer") {
             exclude group: 'org.slf4j', module: 'slf4j-api'
         }
         compile('org.apache.maven:maven-aether-provider:3.2.3') {
