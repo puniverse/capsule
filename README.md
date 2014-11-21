@@ -32,7 +32,7 @@ With Capsule, you just distribute a single JAR and run it.
 
 or:
 
-    co.paralleluniverse:capsule:0.9.0
+    co.paralleluniverse:capsule:0.10.0
 
 On Maven Central.
 
@@ -313,13 +313,29 @@ The `Security-Policy` attribute specifies a Java [security policy file](http://d
 
 If any of these three properties is set, a security manager will be in effect when the application runs. If the `Security-Manager` attribute is not set, the default security manager will be used.
 
-### Custom Capsules
+### Caplets
 
-You can customize many of the capsule's inner workings by creating a *custom capsule*. A custom capsule is a subclass of `Capsule` that overrides some of its overridable methods. To use your custom capsule, include its class in the root of the capsule JAR, and simply indicate it is the JAR's main class in the mainfest, like so:
+You can customize many of the capsule's inner workings by creating a Caplet -- *custom capsule*. A caplet is a subclass of `Capsule` that overrides some of its overridable methods.
 
-    Main-Class: MyCustomCapsule
+To apply the caplets to the capsule you list them, in the order they're to be applied, in the `Caplets` manifest attribute. You can either embed a caplet in your capsule, in which case list its class name in the `Caplet` attribute, or declare it as an external Maven dependency and list it's artifact coordinates.
 
 Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html) for specific documentation on custom capsules.
+
+### Empty Capsules and Capsule Wrapping
+
+A capsule that contains no application (i.e., it's manifest has no `Application-Class`, `Application`, `Application-Name` etc.) is known as an *empty capsule*. Most caplets and, in fact, the Capsule project itself, are shipped as binaries which are essentially empty capsules. While you cannot run an empty capsule on its own, empty capsules can serve -- unmodified -- as *capsule wrappers* that wrap other capsules, or even un-capsuled applications.
+
+Suppose `capsule.jar` is an empty capsule. We can use it to launch an application stored in a Maven repository like so:
+
+    java -jar capsule.jar com.acme:coolapp
+
+Or, if the application is stored in a local JAR:
+
+    java -jar capsule.jar coolapp.jar
+
+In both cases, the only requirement from `coolapp` is that it has a main class declared in its manifest.
+
+If coolapp is a capsule rather than a simple application, then our empty capsule will be used as a caplet which will be applied to the wrapped capsule.
 
 ### "Really Executable" Capsules
 
@@ -364,6 +380,10 @@ While this model works well enough in most scenarios, sometimes it is desirable 
 
 The [capsule-util](http://puniverse.github.io/capsule/capsule-util/javadoc/) sub-project contains classes to create and interact with capsule's at runtime. See the Javadocs [here](http://puniverse.github.io/capsule/capsule-util/javadoc/).
 
+### capsule-build
+
+The [capsule-build](http://puniverse.github.io/capsule/capsule-build/javadoc/) sub-project contains utilities used by build-tool plugins that create capsules. See the Javadocs [here](http://puniverse.github.io/capsule/capsule-build/javadoc/).
+
 ## Reference
 
 ### Manifest Attributes
@@ -403,6 +423,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Native-Dependencies-Win`: a list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Native-Dependencies-Mac`: a list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Capsule-Log-Level`: sets the default log level for the Capsule launcher (which can be overridden with `-Dcapsule.log`); can be one of: `NONE`, `QUIET` (the default), `VERBOSE`, or `DEBUG`.
+* `Caplets`: a list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed.
 
 ### Manifest Variables
 
