@@ -78,7 +78,7 @@ import static java.util.Collections.*;
  * @author pron
  */
 public class Capsule implements Runnable {
-    protected static final String VERSION = "0.10.0";
+    protected static final String VERSION = "0.10.1";
     /*
      * This class follows some STRICT RULES:
      *
