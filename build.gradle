@@ -33,6 +33,8 @@ subprojects {
     ext.scmConnection   = "https://github.com/puniverse/capsule.git"
     ext.distDir         = "$buildDir/dist"
     ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+    
+    ext.aetherVer = '1.0.1.v20141111'
 
     // User and Password are taken from ~/.gradle/gradle.properties
     if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePassword")) {
@@ -119,9 +121,9 @@ subprojects {
         from javadoc.destinationDir
     }
 
-//    tasks.withType(JavaCompile) {
-//        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-//    }
+    //    tasks.withType(JavaCompile) {
+    //        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
+    //    }
 
     task javancss(dependsOn: 'classes') << {
         ant {
@@ -199,9 +201,7 @@ subprojects {
     defaultTasks 'build'
 }
 
-project (':capsule') {
-    ext.aetherVer = '1.0.1.v20141111'
-    
+project (':capsule') {    
     configurations {
         all*.exclude group: 'org.eclipse.sisu', module: '*'
         all*.exclude group: 'commons-codec', module: '*'
@@ -340,10 +340,10 @@ project (':capsule-container') {
 }
 
 project (':capsule-build') {
-	dependencies {
-		compile 'org.eclipse.aether:aether-api:1.0.0.v20140518'
-		compile project(':capsule')
-	}
+    dependencies {
+        compile "org.eclipse.aether:aether-api:$aetherVer"
+        compile project(':capsule')
+    }
 }
 
 task wrapper(type: Wrapper) {
