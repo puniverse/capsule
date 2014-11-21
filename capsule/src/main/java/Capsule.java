@@ -787,6 +787,13 @@ public class Capsule implements Runnable {
     protected final String getAppVersion() {
         return oc.appVersion;
     }
+
+    /**
+     * Capsule's log level
+     */
+    protected final int getLogLevel() {
+        return oc.logLevel;
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
@@ -988,19 +995,19 @@ public class Capsule implements Runnable {
             if (!isInheritIoBug())
                 pb.inheritIO();
 
-            this.child = pb.start();
+            oc.child = pb.start();
 
             if (isInheritIoBug())
                 pipeIoStreams();
 
-            final int pid = getPid(child);
+            final int pid = getPid(oc.child);
             if (pid > 0)
                 System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
 
-            child.waitFor();
+            oc.child.waitFor();
         }
 
-        return child != null ? child.exitValue() : 0;
+        return oc.child != null ? oc.child.exitValue() : 0;
     }
 
     private void verifyNonEmpty(String message) {
@@ -2688,7 +2695,7 @@ public class Capsule implements Runnable {
 //        if (isWindows())
 //            return str;
 //        else
-        return str.startsWith("~/") ? str.replace("~", System.getProperty(PROP_USER_HOME)) : str;
+        return str.startsWith("~/") ? str.replace("~", systemProperty(PROP_USER_HOME)) : str;
     }
 
     private static Path toFriendlyPath(Path p) {
@@ -2987,7 +2994,7 @@ public class Capsule implements Runnable {
         if (JAVA_HOMES == null) {
             try {
                 Path homesDir = null;
-                for (Path d = Paths.get(System.getProperty(PROP_JAVA_HOME)); d != null; d = d.getParent()) {
+                for (Path d = Paths.get(systemProperty(PROP_JAVA_HOME)); d != null; d = d.getParent()) {
                     if (isJavaDir(d.getFileName().toString()) != null) {
                         homesDir = d.getParent();
                         break;
@@ -3053,7 +3060,9 @@ public class Capsule implements Runnable {
             if (fileName.endsWith(".jdk") || fileName.endsWith(".jre"))
                 fileName = fileName.substring(0, fileName.length() - 4);
             return shortJavaVersion(fileName);
-        } else
+        } else if (fileName.startsWith("java-") && fileName.contains("-openjdk"))
+            return shortJavaVersion(fileName.substring("java-".length(), fileName.indexOf("-openjdk")));
+        else
             return null;
     }
 
