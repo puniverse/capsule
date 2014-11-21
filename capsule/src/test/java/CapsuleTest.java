@@ -58,6 +58,7 @@ public class CapsuleTest {
     private final FileSystem fs = Jimfs.newFileSystem();
     private final Path cache = fs.getPath("/cache");
     private final Path tmp = fs.getPath("/tmp");
+    private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
 
     @Before
     public void setUp() throws Exception {
@@ -778,7 +779,7 @@ public class CapsuleTest {
         Path capsuleJar = absolutePath("capsule.jar");
         jar.write(capsuleJar);
 
-        Capsule.newCapsule(capsuleJar, cache).prepareForLaunch(cmdLine, args);
+        Capsule.newCapsule(MY_CLASSLOADER, capsuleJar, cache).prepareForLaunch(cmdLine, args);
     }
 
     @Test
@@ -795,7 +796,7 @@ public class CapsuleTest {
 
         Path capsuleJar = absolutePath("capsule.jar");
         jar.write(capsuleJar);
-        Capsule capsule = Capsule.newCapsule(capsuleJar, cache);
+        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar, cache);
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
@@ -875,7 +876,7 @@ public class CapsuleTest {
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"));
 
-        assertEquals("555111", getProperty(pb, "p1")); // <- MyCapsule.merge
+        assertEquals("555", getProperty(pb, "p1"));
     }
 
     @Test
@@ -995,6 +996,7 @@ public class CapsuleTest {
         assertEquals("1.7.0_51", Capsule.isJavaDir("jdk1.7.0_51.jdk"));
         assertEquals("1.7.0", Capsule.isJavaDir("1.7.0.jdk"));
         assertEquals("1.8.0", Capsule.isJavaDir("jdk1.8.0.jdk"));
+        assertEquals("1.7.0", Capsule.isJavaDir("java-7-openjdk-amd64"));
     }
 
     @Test
