@@ -55,9 +55,9 @@ Gradle:
 
   * https://github.com/danthegoodman/gradle-capsule-plugin
 
-### What's Missing/TODO (contributions happily accepted!)
+Leiningen:
 
-* Leiningen plugins for easy creation of capsules.
+  * https://github.com/circlespainter/lein-capsule
 
 ## Usage Examples
 
