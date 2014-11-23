@@ -8,8 +8,9 @@ Capsule is a dead-easy deployment package for standalone JVM applications. Capsu
 
 * Have your JAR automatically choose an appropriate JVM version, set JVM flags, and add an embedded JAR to the boot class path.
 * Distribute your application as an "executable WAR": it can be deployed to a servlet container *or*, if executed directly, it will automatically download Jetty and deploy itself into the embedded container.
-* Distribute a Clojure application wihtout embedding Clojure itself in the capsule, and have Clojure downloaded the first time the capsule is launched. The Clojure runtime will be cached shared among all Clojure capsules so it will only be downloaded once.
+* Distribute a Clojure application without embedding Clojure itself in the capsule, and have Clojure downloaded the first time the capsule is launched. The Clojure runtime will be cached shared among all Clojure capsules so it will only be downloaded once.
 * Distribute an Avatar.js application as a JAR containing only JavaScript files, and have Avatar (including its required native libraries) downloaded automatically the first time the application is launched. The Avatar runtime will be cached for later use and shared among other Avatar capules.
+* Use a caplet to turn any capsule into a Docker image or to launch it inside a Linux Container.
 
 ### How Capsule Works
 
@@ -328,9 +329,15 @@ To apply the caplets to the capsule you list them, in the order they're to be ap
 
 Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html) for specific documentation on custom capsules.
 
+Some experimental and very-much-unfunished, yet interesting, caplets are:
+
+* [capsule-docker]() - Turns a capsule into a [Docker]() image.
+* [capsule-osv]() - Builds an OSv image for any capsule.
+* [capsule-shield]() - Runs a capsule inside a [Linux Container]().
+
 ### Empty Capsules and Capsule Wrapping
 
-A capsule that contains no application (i.e., it's manifest has no `Application-Class`, `Application`, `Application-Name` etc.) is known as an *empty capsule*. Most caplets and, in fact, the Capsule project itself, are shipped as binaries which are essentially empty capsules. While you cannot run an empty capsule on its own, empty capsules can serve -- unmodified -- as *capsule wrappers* that wrap other capsules, or even un-capsuled applications.
+A capsule that contains no application (i.e., it's manifest has no `Application-Class`, `Application`, `Application-Name` etc.) is known as an *empty capsule*. Most caplets and, in fact, the Capsule project itself, are shipped as binaries which are essentially empty capsules. While you cannot run an empty capsule on its own, empty capsules can serve -- unmodified -- as *capsule wrappers* that wrap other capsules, or even un-capsuled applications. This is most useful when the empty, wrapper, capsule employs caplets to provide some special behavior to the wrapped capsule or application.
 
 Suppose `capsule.jar` is an empty capsule. We can use it to launch an application stored in a Maven repository like so:
 
@@ -485,6 +492,7 @@ These values can also be accessed with `$VARNAME` in any capsule manifest attrib
 
 * [capsule](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html)
 * [capsule-util](http://puniverse.github.io/capsule/capsule-util/javadoc/)
+* [capsule-build](http://puniverse.github.io/capsule/capsule-build/javadoc/)
 * [capsule-container](http://puniverse.github.io/capsule/capsule-container/javadoc/)
 
 ## License
