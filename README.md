@@ -7,6 +7,7 @@ Capsule is a dead-easy deployment package for standalone JVM applications. Capsu
 ### Cool Stuff You Can Do with Capsules
 
 * Have your JAR automatically choose an appropriate JVM version, set JVM flags, and add an embedded JAR to the boot class path.
+* Embded any required native libraries directly in the JAR, and Capsule automatically makes sure your application finds them.
 * Distribute your application as an "executable WAR": it can be deployed to a servlet container *or*, if executed directly, it will automatically download Jetty and deploy itself into the embedded container.
 * Distribute a Clojure application without embedding Clojure itself in the capsule, and have Clojure downloaded the first time the capsule is launched. The Clojure runtime will be cached shared among all Clojure capsules so it will only be downloaded once.
 * Distribute an Avatar.js application as a JAR containing only JavaScript files, and have Avatar (including its required native libraries) downloaded automatically the first time the application is launched. The Avatar runtime will be cached for later use and shared among other Avatar capules.
