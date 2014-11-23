@@ -7,11 +7,13 @@ git checkout gh-pages || exit $?
 rm -rf capsule/javadoc
 rm -rf capsule-util/javadoc
 rm -rf capsule-container/javadoc
+rm -rf capsule-build/javadoc
 
 # Replace them with new files and commit them:
 cp -pr capsule/build/docs/javadoc/ capsule/javadoc
 cp -pr capsule-util/build/docs/javadoc/ capsule-util/javadoc
 cp -pr capsule-container/build/docs/javadoc/ capsule-container/javadoc
+cp -pr capsule-build/build/docs/javadoc/ capsule-build/javadoc
 
 git add -A \
 && git commit -a -m "generated javadoc"
