@@ -4,6 +4,8 @@
 
 Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single JAR file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It can automatically download Maven dependencies when the program is first launched if you choose not to embed them in the capsule, and it can even automatically download a new version of your application when it is published to a Maven repository.
 
+In short, a capsule is a self-contained JAR that knows everything there is to know about how to run your application the way it's meant to run.
+
 ### Cool Stuff You Can Do with Capsules
 
 * Have your JAR automatically choose an appropriate JVM version, set JVM flags, and add an embedded JAR to the boot class path.
