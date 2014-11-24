@@ -4,21 +4,25 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.1.1'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.1'
         classpath 'net.sf.proguard:proguard-gradle:5.0'
+        classpath 'net.saliman:gradle-cobertura-plugin:2.2.4'
+        classpath 'info.solidsoft.gradle.pitest:gradle-pitest-plugin:1.1.1'
     }
 }
 
 subprojects {
     apply plugin: 'java'
-
+    apply plugin: 'cobertura'
+    apply plugin: 'info.solidsoft.pitest'
+    
     sourceCompatibility = '1.7'
     targetCompatibility = '1.7'
 
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group               = "co.paralleluniverse"
-    version             = "0.9.0-SNAPSHOT"
+    version             = "0.10.1-SNAPSHOT"
     status              = "integration"
     description         = "Simple Java deployment"
     ext.url             = "https://github.com/puniverse/capsule"
@@ -29,6 +33,8 @@ subprojects {
     ext.scmConnection   = "https://github.com/puniverse/capsule.git"
     ext.distDir         = "$buildDir/dist"
     ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+    
+    ext.aetherVer = '1.0.1.v20141111'
 
     // User and Password are taken from ~/.gradle/gradle.properties
     if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePassword")) {
@@ -38,39 +44,33 @@ subprojects {
     }
 
     configurations {
-        provided
         javancss
     }
 
-    configurations.all {
-        resolutionStrategy {
-            failOnVersionConflict()
-        }
-    }
-    
+    //    configurations.all {
+    //        resolutionStrategy {
+    //            failOnVersionConflict()
+    //        }
+    //    }
+
     repositories {
         mavenCentral()
     }
-    
+
     dependencies {
         testCompile 'junit:junit:4.11'
         testCompile('org.truth0:truth:0.23') {
             exclude group: 'com.google.guava', module: 'guava'
             exclude group: 'junit', module: '*'
         }
-        testCompile 'org.mockito:mockito-all:1.9.5'
+        testCompile 'org.mockito:mockito-all:1.10.8'
         testCompile('com.google.jimfs:jimfs:1.0') {
             exclude group: 'com.google.guava', module: 'guava'
         }
+        testCompile 'org.jooq:joor:0.9.4'
         javancss 'org.codehaus.javancss:javancss:33.54'
     }
 
-    sourceSets {
-        main.compileClasspath = main.compileClasspath + configurations.provided
-        test.compileClasspath = test.compileClasspath + configurations.provided
-        test.runtimeClasspath = test.runtimeClasspath + configurations.provided
-    }
-    
     test {
         systemProperty "java.protocol.handler.pkgs", "co.paralleluniverse.filesystem"
 
@@ -88,6 +88,11 @@ subprojects {
         }
     }
 
+    pitest {
+        targetClasses = ['Capsule', 'capsule.*', 'co.paralleluniverse.*']
+        targetTests = ['CapsuleTest', 'capsule.*', 'co.paralleluniverse.*']
+    }
+
     task run(type: JavaExec, dependsOn:[testClasses]) {
         classpath = sourceSets.main.runtimeClasspath
         if(project.hasProperty('mainClass')){
@@ -102,10 +107,10 @@ subprojects {
         classpath += sourceSets.test.runtimeClasspath
     }
 
-    configure (javadoc) {
+    javadoc {
         options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
     }
-    
+
     task sourcesJar(type: Jar, dependsOn: classes) {
         classifier = 'sources'
         from sourceSets.main.allSource
@@ -117,9 +122,9 @@ subprojects {
     }
 
     //    tasks.withType(JavaCompile) {
-    //        options.compilerArgs << "-Xlint:unchecked"
+    //        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
     //    }
-        
+
     task javancss(dependsOn: 'classes') << {
         ant {
             logging.level = LogLevel.INFO
@@ -196,21 +201,21 @@ subprojects {
     defaultTasks 'build'
 }
 
-project (':capsule') {
+project (':capsule') {   
     apply plugin: 'com.github.johnrengelman.shadow'
-
+    
     configurations {
         all*.exclude group: 'org.eclipse.sisu', module: '*'
         all*.exclude group: 'commons-codec', module: '*'
     }
 
     dependencies {
-        compile 'org.eclipse.aether:aether-api:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-util:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-impl:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-connector-basic:1.0.0.v20140518'
-        compile 'org.eclipse.aether:aether-transport-file:1.0.0.v20140518'
-        compile('org.eclipse.aether:aether-transport-http:1.0.0.v20140518') {
+        compile "org.eclipse.aether:aether-api:$aetherVer"
+        compile "org.eclipse.aether:aether-util:$aetherVer"
+        compile "org.eclipse.aether:aether-impl:$aetherVer"
+        compile "org.eclipse.aether:aether-connector-basic:$aetherVer"
+        compile "org.eclipse.aether:aether-transport-file:$aetherVer"
+        compile("org.eclipse.aether:aether-transport-http:$aetherVer") {
             exclude group: 'org.slf4j', module: 'slf4j-api'
         }
         compile('org.apache.maven:maven-aether-provider:3.2.3') {
@@ -220,18 +225,18 @@ project (':capsule') {
         compile('org.apache.maven:maven-settings-builder:3.2.3') {
             exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
         }
-        compile('org.codehaus.plexus:plexus-container-default:1.5.5') {
+        compile('org.codehaus.plexus:plexus-container-default:1.6') {
             exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
             exclude group: 'com.google.collections', module: 'google-collections'
             exclude group: 'commons-logging', module: '*'
             exclude group: 'junit', module: '*'
         }
-        runtime 'com.google.guava:guava:17.0' // necessary -- unfortunately -- for maven-aether-provider
+        runtime 'com.google.guava:guava:18.0' // necessary -- unfortunately -- for maven-aether-provider
 
         runtime 'org.slf4j:slf4j-nop:1.7.7'
 
-        compile 'io.takari.aether:takari-local-repository:0.10.3'
-        compile('io.takari:takari-filemanager:0.8.1') {
+        compile 'io.takari.aether:takari-local-repository:0.10.4'
+        compile('io.takari:takari-filemanager:0.8.2') {
             exclude group: 'org.slf4j', module: '*'
         }
 
@@ -257,8 +262,8 @@ project (':capsule') {
         exclude 'io/takari/aether/localrepo/**'
         exclude 'javax/inject/**'
         exclude 'org/apache/log4j/lf5/**'
-        exclude '**/version.properties'
         exclude 'org/apache/log4j/xml/log4j.dtd'
+        exclude '**/version.properties'
 
         relocate 'org.', 'capsule.org.'
         relocate 'io.', 'capsule.io.'
@@ -274,7 +279,7 @@ project (':capsule') {
         injars jar
         outjars "$buildDir/libs/${project.name}-${version}-shrunk.jar"
         libraryjars "${System.getProperty('java.home')}/lib/rt.jar"
-        keep 'class Capsule { public protected private *; }'
+        keep 'class Capsule { *; }'
         keepclassmembers 'enum * {**[] $VALUES;public static **[] values();public static ** valueOf(java.lang.String);}'
         dontoptimize
         dontobfuscate
@@ -314,11 +319,10 @@ project (':capsule-util') {
         runtime project(':capsule')
         compile files("${System.getProperty('java.home')}/../lib/tools.jar")
     }
-    
-    configure (javadoc) {
-        excludes = [ \
-        "co/paralleluniverse/common/**",
-        "co/paralleluniverse/filesystem/**"
+
+    javadoc {
+        excludes = ["co/paralleluniverse/common/**",
+                    "co/paralleluniverse/filesystem/**"
         ]
     }
 }
@@ -326,11 +330,18 @@ project (':capsule-util') {
 project (':capsule-container') {
     dependencies {
         compile project(':capsule-util')
+        compile files("${System.getProperty('java.home')}/../lib/tools.jar")
         compile 'com.betfair.net.java.opendmk:core:1.0-b02'
-        // testCompile files("${System.getProperty('java.home')}/../lib/tools.jar")
+    }
+}
+
+project (':capsule-build') {
+    dependencies {
+        compile "org.eclipse.aether:aether-api:$aetherVer"
+        compile project(':capsule')
     }
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '2.0'
+    gradleVersion = '2.1'
 }
