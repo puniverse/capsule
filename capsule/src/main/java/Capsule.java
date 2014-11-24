@@ -300,7 +300,7 @@ public class Capsule implements Runnable {
                 System.err.print(" while processing " + reportContext());
             if (getLogLevel(System.getProperty(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
                 System.err.println();
-                t.printStackTrace(System.err);
+                deshadow(t).printStackTrace(System.err);
             } else
                 System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
             if (t instanceof IllegalArgumentException)
@@ -337,7 +337,7 @@ public class Capsule implements Runnable {
                 main.invoke(null, (Object) args.toArray(new String[0]));
                 return 0;
             } catch (Exception e) {
-                e.printStackTrace();
+                deshadow(e).printStackTrace();
                 return 1;
             }
         } catch (ReflectiveOperationException e) {
@@ -1074,7 +1074,7 @@ public class Capsule implements Runnable {
                 oc.child.destroy();
             oc.child = null;
         } catch (Exception t) {
-            t.printStackTrace();
+            deshadow(t).printStackTrace();
         }
 
         try {
@@ -1082,7 +1082,7 @@ public class Capsule implements Runnable {
                 Files.delete(oc.pathingJar);
             oc.pathingJar = null;
         } catch (Exception t) {
-            t.printStackTrace();
+            deshadow(t).printStackTrace();
         }
     }
 
@@ -3507,6 +3507,25 @@ public class Capsule implements Runnable {
 
     private static boolean isThrownByCapsule(Exception e) {
         return e.getStackTrace() != null && e.getStackTrace().length > 0 && e.getStackTrace()[0].getClassName().equals(Capsule.class.getName());
+    }
+
+    private static Throwable deshadow(Throwable t) {
+        final StackTraceElement[] st = t.getStackTrace();
+        for (int i = 0; i < st.length; i++)
+            st[i] = new StackTraceElement(deshadow(st[i].getClassName()), st[i].getMethodName(), st[i].getFileName(), st[i].getLineNumber());
+        t.setStackTrace(st);
+        
+        if (t.getCause() != null)
+            deshadow(t.getCause());
+        return t;
+    }
+
+    private static String deshadow(String className) {
+        if (className == null)
+            return null;
+        if (className.startsWith("capsule.") && className.lastIndexOf('.') > "capsule.".length())
+            return className.substring("capsule.".length());
+        return className;
     }
 
     /**
