@@ -2050,8 +2050,8 @@ public class Capsule implements Runnable {
                 final Path agentPath = first(getPath(agent.getKey()));
                 agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? "=" + agentOptions : ""));
             } catch (IllegalStateException e) {
-                if (getAppCache() == null)
-                    throw new RuntimeException("Cannot run the embedded Java agent " + agentJar + " when the " + ATTR_EXTRACT + " attribute is set to false");
+                if (getAppCache() == null && isThrownByCapsule(e))
+                    throw new RuntimeException("Cannot run the embedded Java agent " + agentJar + " when the " + ATTR_EXTRACT + " attribute is set to false", e);
                 throw e;
             }
         }
@@ -3503,6 +3503,10 @@ public class Capsule implements Runnable {
         if (value == null)
             return false;
         return value.isEmpty() || Boolean.parseBoolean(value);
+    }
+
+    private static boolean isThrownByCapsule(Exception e) {
+        return e.getStackTrace() != null && e.getStackTrace().length > 0 && e.getStackTrace()[0].getClassName().equals(Capsule.class.getName());
     }
 
     /**
