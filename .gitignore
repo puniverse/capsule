@@ -13,3 +13,4 @@ _site/
 .gradle/
 .nb-gradle-properties
 .bdb/
+Gemfile.lock
