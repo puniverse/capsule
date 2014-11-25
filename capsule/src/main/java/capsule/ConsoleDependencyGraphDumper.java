@@ -107,12 +107,11 @@ public final class ConsoleDependencyGraphDumper implements DependencyVisitor {
         final DependencyNode winner = (DependencyNode) node.getData().get(ConflictResolver.NODE_DATA_WINNER);
         if (winner != null && !ArtifactIdUtils.equalsId(a, winner.getArtifact())) {
             Artifact w = winner.getArtifact();
-            buffer.append(" (conflicts with ");
+            buffer.append(" -> ");
             if (ArtifactIdUtils.toVersionlessId(a).equals(ArtifactIdUtils.toVersionlessId(w)))
                 buffer.append(w.getVersion());
             else
                 buffer.append(w);
-            buffer.append(")");
         }
         return buffer.toString();
     }
