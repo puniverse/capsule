@@ -3602,7 +3602,7 @@ public class Capsule implements Runnable {
     }
 
     private int chooseLogLevel0() {
-        String level = System.getProperty(PROP_LOG_LEVEL);
+        String level = systemProperty(PROP_LOG_LEVEL);
         if (level == null && oc.manifest != null)
             level = getAttribute(ATTR_LOG_LEVEL);
         int lvl = getLogLevel(level);
