@@ -100,20 +100,20 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
-    private static final String PROP_VERSION = "capsule.version";
-    private static final String PROP_TREE = "capsule.tree";
-    private static final String PROP_RESOLVE = "capsule.resolve";
-    private static final String PROP_MODES = "capsule.modes";
-    private static final String PROP_PRINT_JRES = "capsule.jvms";
-    private static final String PROP_HELP = "capsule.help";
+    private static final String PROP_VERSION = registerOption("capsule.version", "printVersion", "false", "Prints the capsule and application versions.");
+    private static final String PROP_TREE = registerOption("capsule.tree", "printDependencyTree", "false", "Prints the capsule's dependency tree.");
+    private static final String PROP_RESOLVE = registerOption("capsule.resolve", "resolve", "false", "Downloads all un-cached dependencies.");
+    private static final String PROP_MODES = registerOption("capsule.modes", "printModes", "false", "Prints all available capsule modes.");
+    private static final String PROP_PRINT_JRES = registerOption("capsule.jvms", "printJVMs", "false", "Prints a list of all JVM installations found.");
+    private static final String PROP_HELP = registerOption("capsule.help", "printUsage", "false", "Prints this help message.");
+    private static final String PROP_MODE = registerOption("capsule.mode", null, null, "Picks the capsule mode to run.");
+    private static final String PROP_RESET = registerOption("capsule.reset", null, "false", "Resets the capsule cache before launching. The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
+    private static final String PROP_LOG_LEVEL = registerOption("capsule.log", null, "quiet", "Picks a log level. Must be one of none, quiet, verbose, or debug.");
+    private static final String PROP_CAPSULE_JAVA_HOME = registerOption("capsule.java.home", null, null, "Sets the location of the Java home (JVM installation directory) to use; If \'current\' forces the use of the JVM that launched the capsule.");
+    private static final String PROP_CAPSULE_JAVA_CMD = registerOption("capsule.java.cmd", null, null, "Sets the path to the Java executable to use.");
+    private static final String PROP_USE_LOCAL_REPO = registerOption("capsule.local", null, null, "Sets the path of the local Maven repository to use.");
+    private static final String PROP_JVM_ARGS = registerOption("capsule.jvm.args", null, null, "Sets additional JVM arguments to use when running the application.");
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
-    private static final String PROP_MODE = "capsule.mode";
-    private static final String PROP_RESET = "capsule.reset";
-    private static final String PROP_LOG_LEVEL = "capsule.log";
-    private static final String PROP_CAPSULE_JAVA_HOME = "capsule.java.home";
-    private static final String PROP_CAPSULE_JAVA_CMD = "capsule.java.cmd";
-    private static final String PROP_USE_LOCAL_REPO = "capsule.local";
-    private static final String PROP_JVM_ARGS = "capsule.jvm.args";
     private static final String PROP_NO_DEP_MANAGER = "capsule.no_dep_manager";
     private static final String PROP_PROFILE = "capsule.profile";
 
@@ -239,23 +239,7 @@ public class Capsule implements Runnable {
     /////////// Main ///////////////////////////////////
     private static Capsule CAPSULE;
     private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>();
-
-    static {
-        registerOption(PROP_VERSION, "printVersion", "false", "Prints the capsule and application versions.");
-        registerOption(PROP_MODES, "printModes", "false", "Prints all available capsule modes.");
-        registerOption(PROP_TREE, "printDependencyTree", "false", "Prints the capsule's dependency tree.");
-        registerOption(PROP_RESOLVE, "resolve", "false", "Downloads all un-cached dependencies.");
-        registerOption(PROP_PRINT_JRES, "printJVMs", "false", "Prints a list of all JVM installations found.");
-        registerOption(PROP_HELP, "printUsage", "false", "Prints this help message.");
-        registerOption(PROP_MODE, null, null, "Picks the capsule mode to run.");
-        registerOption(PROP_RESET, null, "false", "Resets the capsule cache before launching."
-                + " The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
-        registerOption(PROP_LOG_LEVEL, null, "quiet", "Picks a log level. Must be one of none, quiet, verbose, or debug.");
-        registerOption(PROP_CAPSULE_JAVA_HOME, null, null, "Sets the location of the Java home (JVM installation directory) to use.");
-        registerOption(PROP_CAPSULE_JAVA_CMD, null, null, "Sets the path to the Java executable to use.");
-        registerOption(PROP_USE_LOCAL_REPO, null, null, "Sets the path of the local Maven repository to use.");
-        registerOption(PROP_JVM_ARGS, null, null, "Sets additional JVM arguments to use when running the application.");
-    }
+    private static final Map<String, Object[]> ATTRIBUTES = new LinkedHashMap<>();
 
     final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
@@ -376,10 +360,13 @@ public class Capsule implements Runnable {
      *                     The method must accept a single {@code args} parameter of type {@code List<String>}.
      * @param defaultValue the option's default value ({@code "true"} and {@code "false"} are specially treated; see above).
      */
-    protected static final void registerOption(String optionName, String methodName, String defaultValue, String description) {
+    protected static final String registerOption(String optionName, String methodName, String defaultValue, String description) {
         if (!optionName.startsWith(CAPSULE_PROP_PREFIX))
             throw new IllegalArgumentException("Option name must start with " + CAPSULE_PROP_PREFIX + " but was " + optionName);
-        OPTIONS.put(optionName, new String[]{methodName, defaultValue, description});
+        if (OPTIONS.put(optionName, new String[]{methodName, defaultValue, description}) != null)
+            throw new IllegalStateException("Option " + optionName + " has already been registered");
+        return optionName;
+    }
     }
 
     private static boolean optionTakesArguments(String propertyName) {
