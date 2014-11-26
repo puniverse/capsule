@@ -100,6 +100,8 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
+    private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>();
+
     private static final String PROP_VERSION = registerOption("capsule.version", "printVersion", "false", "Prints the capsule and application versions.");
     private static final String PROP_TREE = registerOption("capsule.tree", "printDependencyTree", "false", "Prints the capsule's dependency tree.");
     private static final String PROP_RESOLVE = registerOption("capsule.resolve", "resolve", "false", "Downloads all un-cached dependencies.");
@@ -238,7 +240,6 @@ public class Capsule implements Runnable {
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
     private static Capsule CAPSULE;
-    private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>();
 
     final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
