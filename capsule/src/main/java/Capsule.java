@@ -100,6 +100,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
+    private static final long START = System.nanoTime();
     private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>();
 
     private static final String PROP_VERSION = registerOption("capsule.version", "printVersion", "false", "Prints the capsule and application versions.");
@@ -535,6 +536,7 @@ public class Capsule implements Runnable {
         this.wrapper = isEmptyCapsule();
 
         oc.logLevel = chooseLogLevel(); // temporary, just for the sake of "time". will be overridden in finalizeCapsule
+        time("Load class", START, start);
         time("Read JAR in constructor", start);
 
         if (!wrapper)
@@ -552,6 +554,7 @@ public class Capsule implements Runnable {
      */
     @SuppressWarnings("LeakingThisInConstructor")
     protected Capsule(Capsule pred) {
+        time("Load class", START);
         this.oc = this;
         this.cc = this;
         setPred(pred);
@@ -968,6 +971,7 @@ public class Capsule implements Runnable {
         }
         clearContext();
 
+        time("Total", START);
         log(LOG_VERBOSE, join(pb.command(), " ") + (pb.directory() != null ? " (Running in " + pb.directory() + ")" : ""));
 
         if (isTrampoline()) {
@@ -3683,8 +3687,12 @@ public class Capsule implements Runnable {
     }
 
     private void time(String op, long start) {
+        time(op, start, isLogging(PROFILE) ? System.nanoTime() : 0);
+    }
+
+    private void time(String op, long start, long stop) {
         if (isLogging(PROFILE))
-            log(PROFILE, "PROFILE " + op + " " + ((System.nanoTime() - start) / 1_000_000) + "ms");
+            log(PROFILE, "PROFILE " + op + " " + ((stop - start) / 1_000_000) + "ms");
     }
     //</editor-fold>
 
