@@ -3475,7 +3475,7 @@ public class Capsule implements Runnable {
      * Same as {@link System#getProperty(java.lang.String) System.getProperty(propName)} but sets context for error reporting.
      */
     protected static final String systemProperty(String propName) {
-        final String val = System.getProperty(propName);
+        final String val = propName != null ? System.getProperty(propName) : null;
         setContext("system property", propName, val);
         return val;
     }
@@ -3484,7 +3484,7 @@ public class Capsule implements Runnable {
      * Same as {@link System#getenv(java.lang.String) System.getenv(envName)} but sets context for error reporting.
      */
     private static String getenv(String envName) {
-        final String val = System.getenv(envName);
+        final String val = envName != null ? System.getenv(envName) : null;
         setContext("environment variable", envName, val);
         return val;
     }
