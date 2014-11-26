@@ -2087,21 +2087,25 @@ public class Capsule implements Runnable {
 
     private Path chooseJavaHome0() {
         final long start = clock();
-        Path jhome = emptyToNull(systemProperty(PROP_CAPSULE_JAVA_HOME)) != null ? Paths.get(systemProperty(PROP_CAPSULE_JAVA_HOME)) : null;
-        if (jhome == null && !isMatchingJavaVersion(systemProperty(PROP_JAVA_VERSION))) {
-            final boolean jdk = getAttribute(ATTR_JDK_REQUIRED, false);
+        final String propJHome = emptyToNull(systemProperty(PROP_CAPSULE_JAVA_HOME));
+        Path jhome = null;
+        if (!"current".equals(propJHome)) {
+            jhome = propJHome != null ? Paths.get(propJHome) : null;
+            if (jhome == null && !isMatchingJavaVersion(systemProperty(PROP_JAVA_VERSION))) {
+                final boolean jdk = getAttribute(ATTR_JDK_REQUIRED, false);
 
-            jhome = findJavaHome(jdk);
-            if (isLogging(LOG_VERBOSE))
-                log(LOG_VERBOSE, "Finding JVM: " + ((System.nanoTime() - start) / 1_000_000) + "ms");
+                jhome = findJavaHome(jdk);
+                if (isLogging(LOG_VERBOSE))
+                    log(LOG_VERBOSE, "Finding JVM: " + ((System.nanoTime() - start) / 1_000_000) + "ms");
 
-            if (jhome == null) {
-                throw new RuntimeException("Could not find Java installation for requested version "
-                        + '[' + "Min. Java version: " + getAttribute(ATTR_MIN_JAVA_VERSION)
-                        + " JavaVersion: " + getAttribute(ATTR_JAVA_VERSION)
-                        + " Min. update version: " + getAttribute(ATTR_MIN_UPDATE_VERSION) + ']'
-                        + " (JDK required: " + jdk + ")"
-                        + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
+                if (jhome == null) {
+                    throw new RuntimeException("Could not find Java installation for requested version "
+                            + '[' + "Min. Java version: " + getAttribute(ATTR_MIN_JAVA_VERSION)
+                            + " JavaVersion: " + getAttribute(ATTR_JAVA_VERSION)
+                            + " Min. update version: " + getAttribute(ATTR_MIN_UPDATE_VERSION) + ']'
+                            + " (JDK required: " + jdk + ")"
+                            + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
+                }
             }
         }
         time("chooseJavaHome", start);
