@@ -239,7 +239,6 @@ public class Capsule implements Runnable {
     /////////// Main ///////////////////////////////////
     private static Capsule CAPSULE;
     private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>();
-    private static final Map<String, Object[]> ATTRIBUTES = new LinkedHashMap<>();
 
     final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
@@ -366,7 +365,6 @@ public class Capsule implements Runnable {
         if (OPTIONS.put(optionName, new String[]{methodName, defaultValue, description}) != null)
             throw new IllegalStateException("Option " + optionName + " has already been registered");
         return optionName;
-    }
     }
 
     private static boolean optionTakesArguments(String propertyName) {
@@ -2412,10 +2410,12 @@ public class Capsule implements Runnable {
 
     protected final String getAttribute0(String attr) {
         String value = null;
-        if (getMode() != null && !NON_MODAL_ATTRS.contains(attr))
-            value = getAttributes(manifest, getMode()).getValue(attr);
-        if (value == null)
-            value = manifest.getMainAttributes().getValue(attr);
+        if (manifest != null) {
+            if (getMode() != null && allowsModal(attr))
+                value = getAttributes(manifest, getMode()).getValue(attr);
+            if (value == null)
+                value = manifest.getMainAttributes().getValue(attr);
+        }
         setContext("attribute", attr, value);
         return value;
     }
@@ -3505,7 +3505,7 @@ public class Capsule implements Runnable {
         for (int i = 0; i < st.length; i++)
             st[i] = new StackTraceElement(deshadow(st[i].getClassName()), st[i].getMethodName(), st[i].getFileName(), st[i].getLineNumber());
         t.setStackTrace(st);
-        
+
         if (t.getCause() != null)
             deshadow(t.getCause());
         return t;
