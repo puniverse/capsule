@@ -2326,8 +2326,8 @@ public class Capsule implements Runnable {
 
     private void validateNonModalAttributes() {
         for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
-            for (String attr : NON_MODAL_ATTRS) {
-                if (entry.getValue().containsKey(new Attributes.Name(attr)))
+            for (Object attr : entry.getValue().keySet()) {
+                if (!allowsModal(attr.toString()))
                     throw new IllegalStateException("Manifest section " + entry.getKey() + " contains non-modal attribute " + attr);
             }
         }
@@ -2383,7 +2383,7 @@ public class Capsule implements Runnable {
         if (!isLegalModeName(mode))
             throw new IllegalArgumentException(mode + " is an illegal mode name");
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (c.manifest.getAttributes(mode) != null)
+            if (c.manifest != null && c.manifest.getAttributes(mode) != null)
                 return c.manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
         }
         return null;
@@ -2397,10 +2397,12 @@ public class Capsule implements Runnable {
     protected final String getAttribute(String attr) {
         String value = null;
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (oc.getMode() != null && !NON_MODAL_ATTRS.contains(attr))
-                value = getAttributes(oc.manifest, getMode()).getValue(attr);
-            if (value == null)
-                value = oc.manifest.getMainAttributes().getValue(attr);
+            if (c.manifest != null) {
+                if (oc.getMode() != null && allowsModal(attr))
+                    value = getAttributes(c.manifest, getMode()).getValue(attr);
+                if (value == null)
+                    value = c.manifest.getMainAttributes().getValue(attr);
+            }
             if (value != null)
                 break;
         }
@@ -2428,12 +2430,18 @@ public class Capsule implements Runnable {
     protected final boolean hasAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (oc.getMode() != null && !NON_MODAL_ATTRS.contains(attr) && getAttributes(c.manifest, oc.getMode()).containsKey(key))
-                return true;
-            if (c.manifest.getMainAttributes().containsKey(key))
-                return true;
+            if (c.manifest != null) {
+                if (oc.getMode() != null && allowsModal(attr) && getAttributes(c.manifest, oc.getMode()).containsKey(key))
+                    return true;
+                if (c.manifest.getMainAttributes().containsKey(key))
+                    return true;
+            }
         }
         return false;
+    }
+
+    private boolean allowsModal(String attr) {
+        return !NON_MODAL_ATTRS.contains(attr);
     }
 
     private boolean getAttribute(String attr, boolean defaultValue) {
