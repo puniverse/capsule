@@ -1425,7 +1425,7 @@ public class Capsule implements Runnable {
     }
 
     private boolean shouldExtract() {
-        return getAttribute(ATTR_EXTRACT, true);
+        return Boolean.parseBoolean(getAttribute(ATTR_EXTRACT));
     }
 
     private void resetAppCache() throws IOException {
@@ -1690,7 +1690,7 @@ public class Capsule implements Runnable {
 
         // the capsule jar
         if (!isWrapperOfNonCapsule()) {
-            if (getAttribute(ATTR_CAPSULE_IN_CLASS_PATH, true))
+            if (Boolean.parseBoolean(getAttribute(ATTR_CAPSULE_IN_CLASS_PATH)))
                 classPath.add(getJarFile());
             else if (getAppCache() == null)
                 throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
@@ -2116,7 +2116,7 @@ public class Capsule implements Runnable {
         if (!"current".equals(propJHome)) {
             jhome = propJHome != null ? Paths.get(propJHome) : null;
             if (jhome == null && !isMatchingJavaVersion(systemProperty(PROP_JAVA_VERSION))) {
-                final boolean jdk = getAttribute(ATTR_JDK_REQUIRED, false);
+                final boolean jdk = Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
 
                 jhome = findJavaHome(jdk);
                 if (isLogging(LOG_VERBOSE))
@@ -2271,7 +2271,7 @@ public class Capsule implements Runnable {
 
     private void setDependencyRepositories(List<String> repositories) {
         verifyDependencyManager();
-        ((DependencyManager) oc.dependencyManager).setRepos(repositories, getAttribute(ATTR_ALLOW_SNAPSHOTS, false));
+        ((DependencyManager) oc.dependencyManager).setRepos(repositories, Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS)));
     }
 
     /**
@@ -2421,18 +2421,25 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final String getAttribute(String attr) {
+        final Object[] conf = ATTRIBS.get(attr);
         String value = null;
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (c.manifest != null) {
-                if (oc.getMode() != null && allowsModal(attr))
-                    value = getAttributes(c.manifest, getMode()).getValue(attr);
-                if (value == null)
-                    value = c.manifest.getMainAttributes().getValue(attr);
+        if (conf != null && conf[ATTRIB_PROP] != null)
+            value = systemProperty((String) conf[ATTRIB_PROP]);
+        if (value == null) {
+            for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
+                if (c.manifest != null) {
+                    if (oc.getMode() != null && allowsModal(attr))
+                        value = getAttributes(c.manifest, getMode()).getValue(attr);
+                    if (value == null)
+                        value = c.manifest.getMainAttributes().getValue(attr);
+                }
+                if (value != null)
+                    break;
             }
-            if (value != null)
-                break;
         }
         setContext("attribute", attr, value);
+        if (conf != null & value == null)
+            value = (String) conf[ATTRIB_DEFAULT];
         return value;
     }
 
@@ -2471,11 +2478,6 @@ public class Capsule implements Runnable {
         return vals != null ? (Boolean) vals[ATTRIB_MODAL] : true;
     }
 
-    private boolean getAttribute(String attr, boolean defaultValue) {
-        final String val = getAttribute(attr);
-        return val != null ? Boolean.parseBoolean(val) : defaultValue;
-    }
-
     /**
      * Returns the value of the given attribute (with consideration to the capsule's mode) as a list.
      * The items comprising attribute's value must be whitespace-separated.
@@ -2485,9 +2487,12 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final List<String> getListAttribute(String attr) {
-        final List<String> res = new ArrayList<>();
+        final Object[] conf = ATTRIBS.get(attr);
+        List<String> res = new ArrayList<>();
         for (Capsule c = cc; c != null; c = getSuperManifest(c))
             res.addAll(nullToEmpty(parse(c.getAttribute0(attr))));
+        if (conf != null && res.isEmpty())
+            res = parse((String) conf[ATTRIB_DEFAULT]);
         return emptyToNull(res);
     }
 
@@ -2501,9 +2506,12 @@ public class Capsule implements Runnable {
      * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
-        final Map<String, String> res = new HashMap<>();
+        final Object[] conf = ATTRIBS.get(attr);
+        Map<String, String> res = new HashMap<>();
         for (Capsule c = cc; c != null; c = getSuperManifest(c))
             putAllIfAbsent(res, nullToEmpty(parse(c.getAttribute0(attr), defaultValue)));
+        if (conf != null && res.isEmpty())
+            res = parse((String) conf[ATTRIB_DEFAULT], defaultValue);
         return emptyToNull(res);
     }
 
