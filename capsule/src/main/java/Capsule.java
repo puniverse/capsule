@@ -2233,16 +2233,10 @@ public class Capsule implements Runnable {
     /////////// Dependency Manager ///////////////////////////////////
     private List<String> getRepositories() {
         final List<String> repos = new ArrayList<String>();
-
         addAll(repos, Capsule.split(getenv(ENV_CAPSULE_REPOS), "[,\\s]\\s*"));
         addAll(repos, getListAttribute(ATTR_REPOSITORIES));
-
-        if (pom != null) {
-            for (String repo : nullToEmpty(getPomRepositories())) {
-                if (!repos.contains(repo))
-                    repos.add(repo);
-            }
-        }
+        if (pom != null)
+            addAllIfNotContained(repos, nullToEmpty(getPomRepositories()));
 
         return !repos.isEmpty() ? unmodifiableList(repos) : null;
     }
