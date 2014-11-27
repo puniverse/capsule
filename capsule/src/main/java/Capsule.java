@@ -669,12 +669,12 @@ public class Capsule implements Runnable {
     private void finalizeCapsule(boolean setId) {
         validateManifest();
         oc.logLevel = chooseLogLevel();
-        if (setId)
-            initAppId();
         oc.mode = chooseMode1();
         initDependencyManager();
         if (oc.dependencyManager != null)
             setDependencyRepositories(getRepositories());
+        if (setId)
+            initAppId();
         clearContext();
     }
 

@@ -107,7 +107,6 @@ public final class DependencyManagerImpl implements DependencyManager {
         this.settings = UserSettings.getInstance();
         this.system = newRepositorySystem();
         this.session = newRepositorySession(system, localRepo);
-        setRepos(null, false);
     }
 
     @Override
