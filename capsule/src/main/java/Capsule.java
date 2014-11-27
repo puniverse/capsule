@@ -154,7 +154,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_SECURITY_POLICY = registerAttribute("Security-Policy", null, true, null, "A security policy file, relative to the capsule root, that will be used as the security policy");
     private static final String ATTR_SECURITY_POLICY_A = registerAttribute("Security-Policy-A", null, true, null, "A security policy file, relative to the capsule root, that will be appended to the default security policy");
     private static final String ATTR_JAVA_AGENTS = registerAttribute("Java-Agents", null, true, null, "A list of Java agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency");
-    private static final String ATTR_REPOSITORIES = registerAttribute("Repositories", null, true, null, "A list of Maven repositories, each formatted as URL or NAME(URL)");
+    private static final String ATTR_REPOSITORIES = registerAttribute("Repositories", "central", true, null, "A list of Maven repositories, each formatted as URL or NAME(URL)");
     private static final String ATTR_ALLOW_SNAPSHOTS = registerAttribute("Allow-Snapshots", "false", true, null, "Whether or not SNAPSHOT dependencies are allowed");
     private static final String ATTR_DEPENDENCIES = registerAttribute("Dependencies", null, true, null, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
     private static final String ATTR_NATIVE_DEPENDENCIES_LINUX = registerAttribute("Native-Dependencies-Linux", null, true, null, "A list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
@@ -2234,13 +2234,8 @@ public class Capsule implements Runnable {
     private List<String> getRepositories() {
         final List<String> repos = new ArrayList<String>();
 
-        final List<String> envRepos = Capsule.split(getenv(ENV_CAPSULE_REPOS), "[,\\s]\\s*");
-        final List<String> attrRepos = getListAttribute(ATTR_REPOSITORIES);
-
-        if (envRepos != null)
-            repos.addAll(envRepos);
-        if (attrRepos != null)
-            repos.addAll(attrRepos);
+        addAll(repos, Capsule.split(getenv(ENV_CAPSULE_REPOS), "[,\\s]\\s*"));
+        addAll(repos, getListAttribute(ATTR_REPOSITORIES));
 
         if (pom != null) {
             for (String repo : nullToEmpty(getPomRepositories())) {
@@ -3434,6 +3429,12 @@ public class Capsule implements Runnable {
         if (c == null || c.isEmpty())
             return null;
         return c.get(0);
+    }
+
+    private static <C extends Collection<T>, T> C addAll(C c, Collection<T> c1) {
+        if (c1 != null)
+            c.addAll(c1);
+        return c;
     }
 
     private static <C extends Collection<T>, T> C addAllIfNotContained(C c, Collection<T> c1) {
