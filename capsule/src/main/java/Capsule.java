@@ -101,17 +101,23 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
     private static final long START = System.nanoTime();
-    private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>();
+    private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>(20);
+    private static final Map<String, Object[]> ATTRIBS = new LinkedHashMap<>(60);
 
-    private static final String PROP_VERSION = registerOption("capsule.version", "printVersion", "false", "Prints the capsule and application versions.");
-    private static final String PROP_TREE = registerOption("capsule.tree", "printDependencyTree", "false", "Prints the capsule's dependency tree.");
-    private static final String PROP_RESOLVE = registerOption("capsule.resolve", "resolve", "false", "Downloads all un-cached dependencies.");
-    private static final String PROP_MODES = registerOption("capsule.modes", "printModes", "false", "Prints all available capsule modes.");
-    private static final String PROP_PRINT_JRES = registerOption("capsule.jvms", "printJVMs", "false", "Prints a list of all JVM installations found.");
-    private static final String PROP_HELP = registerOption("capsule.help", "printUsage", "false", "Prints this help message.");
+    private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
+    private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
+    private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
+    private static final String ENV_CAPSULE_LOCAL_REPO = "CAPSULE_LOCAL_REPO";
+
+    private static final String PROP_VERSION = registerOption("capsule.version", "false", "printVersion", "Prints the capsule and application versions.");
+    private static final String PROP_TREE = registerOption("capsule.tree", "false", "printDependencyTree", "Prints the capsule's dependency tree.");
+    private static final String PROP_RESOLVE = registerOption("capsule.resolve", "false", "resolve", "Downloads all un-cached dependencies.");
+    private static final String PROP_MODES = registerOption("capsule.modes", "false", "printModes", "Prints all available capsule modes.");
+    private static final String PROP_PRINT_JRES = registerOption("capsule.jvms", "false", "printJVMs", "Prints a list of all JVM installations found.");
+    private static final String PROP_HELP = registerOption("capsule.help", "false", "printUsage", "Prints this help message.");
     private static final String PROP_MODE = registerOption("capsule.mode", null, null, "Picks the capsule mode to run.");
-    private static final String PROP_RESET = registerOption("capsule.reset", null, "false", "Resets the capsule cache before launching. The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
-    private static final String PROP_LOG_LEVEL = registerOption("capsule.log", null, "quiet", "Picks a log level. Must be one of none, quiet, verbose, or debug.");
+    private static final String PROP_RESET = registerOption("capsule.reset", "false", null, "Resets the capsule cache before launching. The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
+    private static final String PROP_LOG_LEVEL = registerOption("capsule.log", "quiet", null, "Picks a log level. Must be one of none, quiet, verbose, or debug.");
     private static final String PROP_CAPSULE_JAVA_HOME = registerOption("capsule.java.home", null, null, "Sets the location of the Java home (JVM installation directory) to use; If \'current\' forces the use of the JVM that launched the capsule.");
     private static final String PROP_CAPSULE_JAVA_CMD = registerOption("capsule.java.cmd", null, null, "Sets the path to the Java executable to use.");
     private static final String PROP_USE_LOCAL_REPO = registerOption("capsule.local", null, null, "Sets the path of the local Maven repository to use.");
@@ -120,69 +126,41 @@ public class Capsule implements Runnable {
     private static final String PROP_NO_DEP_MANAGER = "capsule.no_dep_manager";
     private static final String PROP_PROFILE = "capsule.profile";
 
-    private static final String PROP_JAVA_VERSION = "java.version";
-    private static final String PROP_JAVA_HOME = "java.home";
-    private static final String PROP_OS_NAME = "os.name";
-    private static final String PROP_USER_HOME = "user.home";
-    private static final String PROP_JAVA_LIBRARY_PATH = "java.library.path";
-    private static final String PROP_FILE_SEPARATOR = "file.separator";
-    private static final String PROP_PATH_SEPARATOR = "path.separator";
-    private static final String PROP_JAVA_SECURITY_POLICY = "java.security.policy";
-    private static final String PROP_JAVA_SECURITY_MANAGER = "java.security.manager";
-    private static final String PROP_TMP_DIR = "java.io.tmpdir";
-
-    private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
-    private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
-    private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
-    private static final String ENV_CAPSULE_LOCAL_REPO = "CAPSULE_LOCAL_REPO";
-
-    private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
-    private static final String ATTR_CLASS_PATH = "Class-Path";
-    private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
-    private static final String ATTR_IMPLEMENTATION_TITLE = "Implementation-Title";
-    private static final String ATTR_IMPLEMENTATION_VENDOR = "Implementation-Vendor";
-    private static final String ATTR_IMPLEMENTATION_URL = "Implementation-URL";
-
-    private static final String ATTR_APP_NAME = "Application-Name";
-    private static final String ATTR_APP_VERSION = "Application-Version";
-    private static final String ATTR_MODE_DESC = "Description";
-    private static final String ATTR_CAPLETS = "Caplets";
-    private static final String ATTR_APP_CLASS = "Application-Class";
-    private static final String ATTR_APP_ARTIFACT = "Application";
-    private static final String ATTR_UNIX_SCRIPT = "Unix-Script";
-    private static final String ATTR_WINDOWS_SCRIPT = "Windows-Script";
-    private static final String ATTR_EXTRACT = "Extract-Capsule";
-    private static final String ATTR_MIN_JAVA_VERSION = "Min-Java-Version";
-    private static final String ATTR_JAVA_VERSION = "Java-Version";
-    private static final String ATTR_MIN_UPDATE_VERSION = "Min-Update-Version";
-    private static final String ATTR_JDK_REQUIRED = "JDK-Required";
-    private static final String ATTR_JVM_ARGS = "JVM-Args";
-    private static final String ATTR_ARGS = "Args";
-    private static final String ATTR_ENV = "Environment-Variables";
-    private static final String ATTR_SYSTEM_PROPERTIES = "System-Properties";
-    private static final String ATTR_APP_CLASS_PATH = "App-Class-Path";
-    private static final String ATTR_CAPSULE_IN_CLASS_PATH = "Capsule-In-Class-Path";
-    private static final String ATTR_BOOT_CLASS_PATH = "Boot-Class-Path";
-    private static final String ATTR_BOOT_CLASS_PATH_A = "Boot-Class-Path-A";
-    private static final String ATTR_BOOT_CLASS_PATH_P = "Boot-Class-Path-P";
-    private static final String ATTR_LIBRARY_PATH_A = "Library-Path-A";
-    private static final String ATTR_LIBRARY_PATH_P = "Library-Path-P";
-    private static final String ATTR_SECURITY_MANAGER = "Security-Manager";
-    private static final String ATTR_SECURITY_POLICY = "Security-Policy";
-    private static final String ATTR_SECURITY_POLICY_A = "Security-Policy-A";
-    private static final String ATTR_JAVA_AGENTS = "Java-Agents";
-    private static final String ATTR_REPOSITORIES = "Repositories";
-    private static final String ATTR_ALLOW_SNAPSHOTS = "Allow-Snapshots";
-    private static final String ATTR_DEPENDENCIES = "Dependencies";
-    private static final String ATTR_NATIVE_DEPENDENCIES_LINUX = "Native-Dependencies-Linux";
-    private static final String ATTR_NATIVE_DEPENDENCIES_WIN = "Native-Dependencies-Win";
-    private static final String ATTR_NATIVE_DEPENDENCIES_MAC = "Native-Dependencies-Mac";
-    private static final String ATTR_MAIN_CLASS = "Main-Class";
-    private static final String ATTR_LOG_LEVEL = "Capsule-Log-Level";
-
-    private static final Set<String> NON_MODAL_ATTRS = unmodifiableSet(new HashSet<String>(Arrays.asList(
-            ATTR_APP_NAME, ATTR_APP_VERSION
-    )));
+    private static final String ATTR_APP_NAME = registerAttribute("Application-Name", null, false, null, "The application's name");
+    private static final String ATTR_APP_VERSION = registerAttribute("Application-Version", null, false, null, "The application's version string");
+    private static final String ATTR_CAPLETS = registerAttribute("Caplets", null, false, null, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
+    private static final String ATTR_MODE_DESC = registerAttribute("Description", null, true, null, "Contains the description of its respective mode");
+    private static final String ATTR_APP_CLASS = registerAttribute("Application-Class", null, true, null, "The main application class");
+    private static final String ATTR_APP_ARTIFACT = registerAttribute("Application", null, true, null, "The Maven coordinates of the application's main JAR or the path of the main JAR within the capsule");
+    private static final String ATTR_UNIX_SCRIPT = registerAttribute("Unix-Script", null, true, null, "A startup script to be run *instead* of `Application-Class` on Unix/Linux/Mac OS, given as a path relative to the capsule's root");
+    private static final String ATTR_WINDOWS_SCRIPT = registerAttribute("Windows-Script", null, true, null, "A startup script to be run *instead* of `Application-Class` on Windows, given as a path relative to the capsule's root");
+    private static final String ATTR_EXTRACT = registerAttribute("Extract-Capsule", "true", true, null, "Whether or not the capsule JAR will be extracted to the filesystem");
+    private static final String ATTR_MIN_JAVA_VERSION = registerAttribute("Min-Java-Version", null, true, null, "The lowest Java version required to run the application");
+    private static final String ATTR_JAVA_VERSION = registerAttribute("Java-Version", null, true, null, "The highest version of the Java installation required to run the application");
+    private static final String ATTR_MIN_UPDATE_VERSION = registerAttribute("Min-Update-Version", null, true, null, "A space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required");
+    private static final String ATTR_JDK_REQUIRED = registerAttribute("JDK-Required", "false", true, null, "Whether or not a JDK is required to launch the application");
+    private static final String ATTR_JVM_ARGS = registerAttribute("JVM-Args", null, true, null, "A list of JVM arguments that will be used to launch the application's Java process");
+    private static final String ATTR_ARGS = registerAttribute("Args", null, true, null, "A list of command line arguments to be passed to the application; the UNIX shell-style special variables (`$*`, `$1`, `$2`, ...) can refer to the actual arguments passed on the capsule's command line; if no special var is used, the listed values will be prepended to the supplied arguments (i.e., as if `$*` had been listed last).");
+    private static final String ATTR_ENV = registerAttribute("Environment-Variables", null, true, null, "A list of environment variables that will be put in the applications environment; formatted \"var=value\" or \"var\"");
+    private static final String ATTR_SYSTEM_PROPERTIES = registerAttribute("System-Properties", null, true, null, "A list of system properties that will be defined in the applications JVM; formatted \"prop=value\" or \"prop\"");
+    private static final String ATTR_APP_CLASS_PATH = registerAttribute("App-Class-Path", null, true, null, "A list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed");
+    private static final String ATTR_CAPSULE_IN_CLASS_PATH = registerAttribute("Capsule-In-Class-Path", "true", true, null, "Whether or not the capsule JAR itself is on the application's classpath");
+    private static final String ATTR_BOOT_CLASS_PATH = registerAttribute("Boot-Class-Path", null, true, null, "A list of JARs, dependencies, and/or directories, relative to the capsule root, that will be used as the application's boot classpath");
+    private static final String ATTR_BOOT_CLASS_PATH_A = registerAttribute("Boot-Class-Path-A", null, true, null, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath");
+    private static final String ATTR_BOOT_CLASS_PATH_P = registerAttribute("Boot-Class-Path-P", null, true, null, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be prepended to the applications default boot classpath");
+    private static final String ATTR_LIBRARY_PATH_A = registerAttribute("Library-Path-A", null, true, null, "A list of JARs and/or directories, relative to the capsule root, to be appended to the default native library path");
+    private static final String ATTR_LIBRARY_PATH_P = registerAttribute("Library-Path-P", null, true, null, "a list of JARs and/or directories, relative to the capsule root, to be prepended to the default native library path");
+    private static final String ATTR_SECURITY_MANAGER = registerAttribute("Security-Manager", null, true, null, "The name of a class that will serve as the application's security-manager");
+    private static final String ATTR_SECURITY_POLICY = registerAttribute("Security-Policy", null, true, null, "A security policy file, relative to the capsule root, that will be used as the security policy");
+    private static final String ATTR_SECURITY_POLICY_A = registerAttribute("Security-Policy-A", null, true, null, "A security policy file, relative to the capsule root, that will be appended to the default security policy");
+    private static final String ATTR_JAVA_AGENTS = registerAttribute("Java-Agents", null, true, null, "A list of Java agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency");
+    private static final String ATTR_REPOSITORIES = registerAttribute("Repositories", null, true, null, "A list of Maven repositories, each formatted as URL or NAME(URL)");
+    private static final String ATTR_ALLOW_SNAPSHOTS = registerAttribute("Allow-Snapshots", "false", true, null, "Whether or not SNAPSHOT dependencies are allowed");
+    private static final String ATTR_DEPENDENCIES = registerAttribute("Dependencies", null, true, null, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
+    private static final String ATTR_NATIVE_DEPENDENCIES_LINUX = registerAttribute("Native-Dependencies-Linux", null, true, null, "A list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
+    private static final String ATTR_NATIVE_DEPENDENCIES_WIN = registerAttribute("Native-Dependencies-Win", null, true, null, "A list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
+    private static final String ATTR_NATIVE_DEPENDENCIES_MAC = registerAttribute("Native-Dependencies-Mac", null, true, null, "A list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
+    private static final String ATTR_LOG_LEVEL = registerAttribute("Capsule-Log-Level", null, false, PROP_LOG_LEVEL, "The capsule's default log level");
 
     // outgoing
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
@@ -196,6 +174,26 @@ public class Capsule implements Runnable {
     private static final String PROP_CAPSULE_APP = "capsule.app";
 
     private static final String PROP_CAPSULE_APP_PID = "capsule.app.pid";
+
+    // standard values
+    private static final String PROP_JAVA_VERSION = "java.version";
+    private static final String PROP_JAVA_HOME = "java.home";
+    private static final String PROP_OS_NAME = "os.name";
+    private static final String PROP_USER_HOME = "user.home";
+    private static final String PROP_JAVA_LIBRARY_PATH = "java.library.path";
+    private static final String PROP_FILE_SEPARATOR = "file.separator";
+    private static final String PROP_PATH_SEPARATOR = "path.separator";
+    private static final String PROP_JAVA_SECURITY_POLICY = "java.security.policy";
+    private static final String PROP_JAVA_SECURITY_MANAGER = "java.security.manager";
+    private static final String PROP_TMP_DIR = "java.io.tmpdir";
+
+    private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
+    private static final String ATTR_MAIN_CLASS = "Main-Class";
+    private static final String ATTR_CLASS_PATH = "Class-Path";
+    private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
+    private static final String ATTR_IMPLEMENTATION_TITLE = "Implementation-Title";
+    private static final String ATTR_IMPLEMENTATION_VENDOR = "Implementation-Vendor";
+    private static final String ATTR_IMPLEMENTATION_URL = "Implementation-URL";
 
     // misc
     private static final String CAPSULE_PROP_PREFIX = "capsule.";
@@ -233,9 +231,15 @@ public class Capsule implements Runnable {
     private static final int PROFILE = propertyDefined(PROP_PROFILE) ? LOG_QUIET : LOG_DEBUG;
 
     // options
-    private static final int OPTION_METHOD = 0;
-    private static final int OPTION_DEFAULT = 1;
+    private static final int OPTION_DEFAULT = 0;
+    private static final int OPTION_METHOD = 1;
     private static final int OPTION_DESC = 2;
+
+    // attributes
+    private static final int ATTRIB_DEFAULT = 0;
+    private static final int ATTRIB_MODAL = 1;
+    private static final int ATTRIB_PROP = 2;
+    private static final int ATTRIB_DESC = 3;
     //</editor-fold>
 
     //<editor-fold desc="Main">
@@ -334,7 +338,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Command Line">
     /////////// Command Line ///////////////////////////////////
     /**
-     * Registers a capsule command-line option. Must be called in the caplet's static initializer.
+     * Registers a capsule command-line option. Must be called during the caplet's static initialization.
      * <p>
      * Capsule options are system properties beginning with the prefix ".capsule", normally passed to the capsule as -D flags on the command line.
      * <p>
@@ -355,18 +359,35 @@ public class Capsule implements Runnable {
      * {@code "true"} or {@code "false"}, in which case it is treated as a flag with no arguments (note that an option with the default
      * value {@code "true"} will therefore not be able to be turned off if simple options are used).
      *
+     * @param defaultValue the option's default value ({@code "true"} and {@code "false"} are specially treated; see above).
      * @param optionName   the name of the system property for the option; must begin with {@code "capsule."}.
      * @param methodName   if non-null, then the option is a top-level action (like print dependency tree or list JVMs),
      *                     and this is the method which will run the action.
      *                     The method must accept a single {@code args} parameter of type {@code List<String>}.
-     * @param defaultValue the option's default value ({@code "true"} and {@code "false"} are specially treated; see above).
+     * @return the option's name
      */
-    protected static final String registerOption(String optionName, String methodName, String defaultValue, String description) {
+    protected static final String registerOption(String optionName, String defaultValue, String methodName, String description) {
         if (!optionName.startsWith(CAPSULE_PROP_PREFIX))
             throw new IllegalArgumentException("Option name must start with " + CAPSULE_PROP_PREFIX + " but was " + optionName);
-        if (OPTIONS.put(optionName, new String[]{methodName, defaultValue, description}) != null)
+        if (OPTIONS.put(optionName, new String[]{defaultValue, methodName, description}) != null)
             throw new IllegalStateException("Option " + optionName + " has already been registered");
         return optionName;
+    }
+
+    /**
+     * Registers a manifest attribute. Must be called during the caplet's static initialization.
+     *
+     * @param attrName       the attribute's name
+     * @param defaultValue   the attribute's default value (or {@code null} for none)
+     * @param allowModal     whether the attribute is modal (i.e. can be specified per mode); if {@code false}, then the attribute is only allowed in the manifest's main section.
+     * @param overridingProp the name of the system property that overrides the attribute (or {@code null} for none)
+     * @param description    a description of the attribute
+     * @return the attribute's name
+     */
+    protected static final String registerAttribute(String attrName, String defaultValue, boolean allowModal, String overridingProp, String description) {
+        if (ATTRIBS.put(attrName, new Object[]{defaultValue, allowModal, overridingProp, description}) != null)
+            throw new IllegalStateException("Attribute " + attrName + " has already been registered");
+        return attrName;
     }
 
     private static boolean optionTakesArguments(String propertyName) {
@@ -640,8 +661,6 @@ public class Capsule implements Runnable {
             final Capsule wrapped = newCapsule(newClassLoader(MY_CLASSLOADER, jar), jar, cacheDir);
             setPred(wrapped);
             oc.dependencyManager = dependencyManager;
-            if (oc.dependencyManager != null)
-                setDependencyRepositories(getRepositories());
         }
         finalizeCapsule(isCapsule);
         return this;
@@ -650,10 +669,12 @@ public class Capsule implements Runnable {
     private void finalizeCapsule(boolean setId) {
         validateManifest();
         oc.logLevel = chooseLogLevel();
-        initDependencyManager();
         if (setId)
             initAppId();
         oc.mode = chooseMode1();
+        initDependencyManager();
+        if (oc.dependencyManager != null)
+            setDependencyRepositories(getRepositories());
         clearContext();
     }
 
@@ -2446,7 +2467,8 @@ public class Capsule implements Runnable {
     }
 
     private boolean allowsModal(String attr) {
-        return !NON_MODAL_ATTRS.contains(attr);
+        final Object[] vals = ATTRIBS.get(attr);
+        return vals != null ? (Boolean) vals[ATTRIB_MODAL] : true;
     }
 
     private boolean getAttribute(String attr, boolean defaultValue) {
