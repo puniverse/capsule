@@ -248,7 +248,7 @@ Capsule's cache is found, by default, at `~/.capsule/` on Unix/Linux/Mac OS mach
 
 The capsule can specify external dependencies as coordinates in Maven repositories. One way of specifying dependencies, is placing the app's `pom.xml` file in the capsule JAR's root. Another is specifying the dependencies and repositories in the capsule's manifest.
 
-By default, Capsule will look for dependencies on Maven Central. If other repositories are needed (or if you don't want to access Maven Central), the `Repositories` attribute is a space-separated list of Maven repository URLs. The repositories will be searched in the order they are listed. If the `Repositories` attribute is found in the manifest, then Maven Central will not be searched.
+By default, Capsule will look for dependencies on Maven Central. If other repositories are needed (or if you don't want to access Maven Central), the `Repositories` attribute is a space-separated list of Maven repositories formatted as `URL` or `NAME(URL)`. The repositories will be searched in the order they are listed. If the `Repositories` attribute is found in the manifest, then Maven Central will not be searched.
 
 Instead of specifying explicit URLs, the following well-known repository names can be listed in the `Repositories` attribute:
 
@@ -433,10 +433,10 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Security-Policy`: a security policy file, relative to the capsule root, that will be used as the security policy
 * `Security-Policy-A`: a security policy file, relative to the capsule root, that will be appended to the default security policy
 * `Java-Agents`: a list of Java agents used by the application; formatted `agent` or `agent=arg1,arg2...`, where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency
-* `Repositories`: a list of Maven repository URLs
+* `Repositories`: a list of Maven repositories formatted as `URL` or `NAME(URL)`
 * `Dependencies`: a list of Maven dependencies given as `groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]`
 * `Allow-Snapshots`: If `true`, allows for SNAPSHOT dependencies (default: `false`)
-* `Native-Dependencies-Linux`: a list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be Windows and copied into the application's cache directory.
+* `Native-Dependencies-Linux`: a list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Native-Dependencies-Win`: a list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Native-Dependencies-Mac`: a list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Capsule-Log-Level`: sets the default log level for the Capsule launcher (which can be overridden with `-Dcapsule.log`); can be one of: `NONE`, `QUIET` (the default), `VERBOSE`, or `DEBUG`.
