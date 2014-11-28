@@ -370,8 +370,15 @@ public class Capsule implements Runnable {
     protected static final String registerOption(String optionName, String defaultValue, String methodName, String description) {
         if (!optionName.startsWith(CAPSULE_PROP_PREFIX))
             throw new IllegalArgumentException("Option name must start with " + CAPSULE_PROP_PREFIX + " but was " + optionName);
-        if (OPTIONS.put(optionName, new String[]{defaultValue, methodName, description}) != null)
-            throw new IllegalStateException("Option " + optionName + " has already been registered");
+        final String[] conf = new String[]{defaultValue, methodName, description};
+        final String[] old = OPTIONS.get(optionName);
+        if (old != null) {
+            for (int i = 0; i < conf.length - 1; i++) { // don't compare description
+                if (!Objects.equals(conf[i], old[i]))
+                    throw new IllegalStateException("Option " + optionName + " has a conflicting registration: " + Arrays.toString(old));
+            }
+        }
+        OPTIONS.put(optionName, conf);
         return optionName;
     }
 
@@ -386,8 +393,15 @@ public class Capsule implements Runnable {
      * @return the attribute's name
      */
     protected static final String registerAttribute(String attrName, String defaultValue, boolean allowModal, String overridingProp, String description) {
-        if (ATTRIBS.put(attrName, new Object[]{defaultValue, allowModal, overridingProp, description}) != null)
-            throw new IllegalStateException("Attribute " + attrName + " has already been registered");
+        final Object[] conf = new Object[]{defaultValue, allowModal, overridingProp, description};
+        final Object[] old = ATTRIBS.get(attrName);
+        if (old != null) {
+            for (int i = 0; i < conf.length - 1; i++) { // don't compare description
+                if (!Objects.equals(conf[i], old[i]))
+                    throw new IllegalStateException("Attribute " + attrName + " has a conflicting registration: " + Arrays.toString(old));
+            }
+        }
+        ATTRIBS.put(attrName, conf);
         return attrName;
     }
 
