@@ -382,29 +382,6 @@ public class Capsule implements Runnable {
         return optionName;
     }
 
-    /**
-     * Registers a manifest attribute. Must be called during the caplet's static initialization.
-     *
-     * @param attrName       the attribute's name
-     * @param defaultValue   the attribute's default value (or {@code null} for none)
-     * @param allowModal     whether the attribute is modal (i.e. can be specified per mode); if {@code false}, then the attribute is only allowed in the manifest's main section.
-     * @param overridingProp the name of the system property that overrides the attribute (or {@code null} for none)
-     * @param description    a description of the attribute
-     * @return the attribute's name
-     */
-    protected static final String registerAttribute(String attrName, String defaultValue, boolean allowModal, String overridingProp, String description) {
-        final Object[] conf = new Object[]{defaultValue, allowModal, overridingProp, description};
-        final Object[] old = ATTRIBS.get(attrName);
-        if (old != null) {
-            for (int i = 0; i < conf.length - 1; i++) { // don't compare description
-                if (!Objects.equals(conf[i], old[i]))
-                    throw new IllegalStateException("Attribute " + attrName + " has a conflicting registration: " + Arrays.toString(old));
-            }
-        }
-        ATTRIBS.put(attrName, conf);
-        return attrName;
-    }
-
     private static boolean optionTakesArguments(String propertyName) {
         final String defaultValue = OPTIONS.get(propertyName)[OPTION_DEFAULT];
         return !("false".equals(defaultValue) || "true".equals(defaultValue));
@@ -2335,6 +2312,29 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Attributes">
     /////////// Attributes ///////////////////////////////////
+    /**
+     * Registers a manifest attribute. Must be called during the caplet's static initialization.
+     *
+     * @param attrName       the attribute's name
+     * @param defaultValue   the attribute's default value (or {@code null} for none)
+     * @param allowModal     whether the attribute is modal (i.e. can be specified per mode); if {@code false}, then the attribute is only allowed in the manifest's main section.
+     * @param overridingProp the name of the system property that overrides the attribute (or {@code null} for none)
+     * @param description    a description of the attribute
+     * @return the attribute's name
+     */
+    protected static final String registerAttribute(String attrName, String defaultValue, boolean allowModal, String overridingProp, String description) {
+        final Object[] conf = new Object[]{defaultValue, allowModal, overridingProp, description};
+        final Object[] old = ATTRIBS.get(attrName);
+        if (old != null) {
+            for (int i = 0; i < conf.length - 1; i++) { // don't compare description
+                if (!Objects.equals(conf[i], old[i]))
+                    throw new IllegalStateException("Attribute " + attrName + " has a conflicting registration: " + Arrays.toString(old));
+            }
+        }
+        ATTRIBS.put(attrName, conf);
+        return attrName;
+    }
+
     /*
      * The methods in this section are the only ones accessing the manifest. Therefore other means of
      * setting attributes can be added by changing these methods alone.
