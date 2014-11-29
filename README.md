@@ -440,7 +440,6 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Native-Dependencies-Win`: a list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Native-Dependencies-Mac`: a list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact. The artifacts will be downloaded and copied into the application's cache directory.
 * `Capsule-Log-Level`: sets the default log level for the Capsule launcher (which can be overridden with `-Dcapsule.log`); can be one of: `NONE`, `QUIET` (the default), `VERBOSE`, or `DEBUG`.
-* `Icon`: the path of the application's icon file(s), with no suffix, relative to the capsule root
 * `Caplets`: a list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed.
 
 ### Manifest Variables

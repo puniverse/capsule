@@ -162,7 +162,6 @@ public class Capsule implements Runnable {
     private static final String ATTR_NATIVE_DEPENDENCIES_WIN = ATTRIBUTE("Native-Dependencies-Win", null, true, "A list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
     private static final String ATTR_NATIVE_DEPENDENCIES_MAC = ATTRIBUTE("Native-Dependencies-Mac", null, true, "A list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
     private static final String ATTR_LOG_LEVEL = ATTRIBUTE("Capsule-Log-Level", null, false, "The capsule's default log level");
-    private static final String ATTR_ICON = ATTRIBUTE("Icon", null, true, "The path of the application's icon file(s), with no suffix, relative to the capsule root");
 
     // outgoing
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
