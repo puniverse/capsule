@@ -19,12 +19,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositoryException;
+import org.eclipse.aether.RepositoryListener;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.artifact.Artifact;
@@ -45,6 +47,7 @@ import org.eclipse.aether.resolution.VersionRangeRequest;
 import org.eclipse.aether.resolution.VersionRangeResult;
 import org.eclipse.aether.resolution.VersionRequest;
 import org.eclipse.aether.resolution.VersionResult;
+import org.eclipse.aether.transfer.TransferListener;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
 import org.eclipse.aether.version.Version;
@@ -169,8 +172,16 @@ public final class DependencyManagerImpl implements DependencyManager {
 
         if (logLevel > LOG_NONE) {
             final PrintStream out = prefixStream(System.err, LOG_PREFIX);
-            s.setTransferListener(new ConsoleTransferListener(isLogging(LOG_VERBOSE), out));
-            s.setRepositoryListener(new ConsoleRepositoryListener(isLogging(LOG_VERBOSE), out));
+
+            for (TransferListener tl : ServiceLoader.load(TransferListener.class))
+                s.setTransferListener(tl);
+            if (s.getTransferListener() == null)
+                s.setTransferListener(new ConsoleTransferListener(isLogging(LOG_VERBOSE), out));
+
+            for (RepositoryListener rl : ServiceLoader.load(RepositoryListener.class))
+                s.setRepositoryListener(rl);
+            if (s.getRepositoryListener() == null)
+                s.setRepositoryListener(new ConsoleRepositoryListener(isLogging(LOG_VERBOSE), out));
         }
 
         return s;
@@ -372,7 +383,7 @@ public final class DependencyManagerImpl implements DependencyManager {
         return s.isEmpty() ? null : s;
     }
     //</editor-fold>
-    
+
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
     private boolean isLogging(int level) {
