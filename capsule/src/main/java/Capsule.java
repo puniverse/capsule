@@ -1,8 +1,8 @@
 /*
  * Capsule
  * Copyright (c) 2014, Parallel Universe Software Co. and Contributors. All rights reserved.
- * 
- * This program and the accompanying materials are licensed under the terms 
+ *
+ * This program and the accompanying materials are licensed under the terms
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
@@ -487,7 +487,7 @@ public class Capsule implements Runnable {
     private /*final*/ String appName;    // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String appVersion; // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
-    private /*final*/ Object pom;        // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES 
+    private /*final*/ Object pom;        // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES
     private /*final*/ Object dependencyManager;
     private /*final*/ int logLevel;
 
