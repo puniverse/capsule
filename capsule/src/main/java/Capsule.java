@@ -1365,9 +1365,16 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="App Cache">
     /////////// App Cache ///////////////////////////////////
-    private Path getAppCacheDir() throws IOException {
+    /**
+     * Returns the path of the application cache (this is the directory where the capsule is extracted if necessary).
+     */
+    protected Path getAppCacheDir() {
         assert getAppId() != null;
-        Path appDir = toAbsolutePath(oc.cacheDir.resolve(APP_CACHE_NAME).resolve(getAppId()));
+        return toAbsolutePath(oc.cacheDir.resolve(APP_CACHE_NAME).resolve(getAppId()));
+    }
+
+    private Path getOrCreateAppCacheDir() throws IOException {
+        Path appDir = getAppCacheDir();
         try {
             if (!Files.exists(appDir))
                 Files.createDirectory(appDir);
@@ -1383,7 +1390,7 @@ public class Capsule implements Runnable {
         if (getAppId() == null)
             return;
 
-        oc.appCache = needsAppCache() ? getAppCacheDir() : null;
+        oc.appCache = needsAppCache() ? getOrCreateAppCacheDir() : null;
         this.cacheUpToDate = getAppCache() != null ? isAppCacheUpToDate1() : false;
     }
 
@@ -2315,10 +2322,10 @@ public class Capsule implements Runnable {
     /**
      * Registers a manifest attribute. Must be called during the caplet's static initialization.
      *
-     * @param attrName       the attribute's name
-     * @param defaultValue   the attribute's default value (or {@code null} for none)
-     * @param allowModal     whether the attribute is modal (i.e. can be specified per mode); if {@code false}, then the attribute is only allowed in the manifest's main section.
-     * @param description    a description of the attribute
+     * @param attrName     the attribute's name
+     * @param defaultValue the attribute's default value (or {@code null} for none)
+     * @param allowModal   whether the attribute is modal (i.e. can be specified per mode); if {@code false}, then the attribute is only allowed in the manifest's main section.
+     * @param description  a description of the attribute
      * @return the attribute's name
      */
     protected static final String ATTRIBUTE(String attrName, String defaultValue, boolean allowModal, String description) {
