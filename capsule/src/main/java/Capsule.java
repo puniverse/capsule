@@ -570,7 +570,7 @@ public class Capsule implements Runnable {
         time("Load class", START);
         this.oc = this;
         this.cc = this;
-        setPred(pred);
+        insertAfter(pred);
 
         // copy final dields
         this.cacheDir = pred.cacheDir;
@@ -578,15 +578,53 @@ public class Capsule implements Runnable {
         this.manifest = pred.manifest;
     }
 
-    private void setPred(Capsule pred) {
+    /**
+     * Inserts this caplet into the chain.
+     *
+     * @param pred the caplet after which this one is to be inserted
+     */
+    protected final void insertAfter(Capsule pred) {
+        // we allow insertions, removals and moves
         if (pred != null) {
-            this.oc = pred.oc;
+            if (sup != null)
+                insertAfter(null);
             this.sup = pred;
+            this.oc = sup.oc;
             for (Capsule c = cc; c != this; c = c.sup)
                 c.oc = oc;
+            if (sup.cc == sup) { // I'm last
+                for (Capsule c = sup; c != null; c = c.sup)
+                    c.cc = cc;
+            } else { // I'm in the middle
+                for (Capsule c = sup.cc; c != sup; c = c.sup) {
+                    if (c.sup == sup)
+                        c.sup = cc;
+                }
+                for (Capsule c = cc; c != this; c = c.sup)
+                    c.cc = sup.cc;
+                this.cc = sup.cc;
+            }
+        } else { // remove
+            if (sup == null) // I'm first
+                throw new IllegalStateException("Can't remove first caplet");
 
-            for (Capsule c = pred; c != null; c = c.sup)
-                c.cc = cc;
+            Capsule succ = null;
+            for (Capsule c = cc; c != this; c = c.sup) {
+                if (c.sup == this) {
+                    c.sup = sup;
+                    succ = c;
+                }
+            }
+            if (sup == null) { // I'm first -- never really happens because of exception above
+                for (Capsule c = cc; c != null; c = c.sup)
+                    c.oc = succ;
+            } else if (sup.cc == this) { // I'm last
+                for (Capsule c = sup; c != null; c = c.sup)
+                    c.cc = sup;
+            }
+            this.sup = null;
+            this.oc = this;
+            this.cc = this;
         }
     }
 
@@ -651,7 +689,7 @@ public class Capsule implements Runnable {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             oc.jarFile = jar;
             final Capsule wrapped = newCapsule(newClassLoader(MY_CLASSLOADER, jar), jar, cacheDir);
-            setPred(wrapped);
+            insertAfter(wrapped);
             oc.dependencyManager = dependencyManager;
         }
         finalizeCapsule(isCapsule);
@@ -3891,7 +3929,7 @@ public class Capsule implements Runnable {
 
     static Capsule newCapsule(ClassLoader cl, Path jarFile, Capsule pred) {
         Capsule c = newCapsule(cl, jarFile, pred.cacheDir);
-        c.setPred(pred);
+        c.insertAfter(pred);
         return c;
     }
 
