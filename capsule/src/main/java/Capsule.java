@@ -584,10 +584,9 @@ public class Capsule implements Runnable {
      * @param pred the caplet after which this one is to be inserted
      */
     protected final void insertAfter(Capsule pred) {
-        // we allow insertions, removals and moves
         if (pred != null) {
             if (sup != null)
-                insertAfter(null);
+                throw new IllegalStateException("Caplet " + this + " is already in the chain (after " + sup + ")");
             this.sup = pred;
             this.oc = sup.oc;
             for (Capsule c = cc; c != this; c = c.sup)
@@ -604,27 +603,6 @@ public class Capsule implements Runnable {
                     c.cc = sup.cc;
                 this.cc = sup.cc;
             }
-        } else { // remove
-            if (sup == null) // I'm first
-                throw new IllegalStateException("Can't remove first caplet");
-
-            Capsule succ = null;
-            for (Capsule c = cc; c != this; c = c.sup) {
-                if (c.sup == this) {
-                    c.sup = sup;
-                    succ = c;
-                }
-            }
-            if (sup == null) { // I'm first -- never really happens because of exception above
-                for (Capsule c = cc; c != null; c = c.sup)
-                    c.oc = succ;
-            } else if (sup.cc == this) { // I'm last
-                for (Capsule c = sup; c != null; c = c.sup)
-                    c.cc = sup;
-            }
-            this.sup = null;
-            this.oc = this;
-            this.cc = this;
         }
     }
 
