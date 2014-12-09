@@ -334,9 +334,9 @@ Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/ja
 
 Some experimental and very-much-unfunished, yet interesting, caplets are:
 
-* [capsule-docker](https://github.com/puniverse/capsule-docker) - Turns a capsule into a [Docker]() image.
-* [capsule-osv](https://github.com/puniverse/capsule-osv) - Builds an OSv image for any capsule.
-* [capsule-shield](https://github.com/puniverse/capsule-shield) - Runs a capsule inside a [Linux Container]().
+* [capsule-docker](https://github.com/puniverse/capsule-docker) - Turns a capsule into a [Docker](https://www.docker.com/) image.
+* [capsule-osv](https://github.com/puniverse/capsule-osv) - Builds an [OSv](http://osv.io/) image for any capsule.
+* [capsule-shield](https://github.com/puniverse/capsule-shield) - Runs a capsule inside a [Linux Container](https://linuxcontainers.org/).
 
 ### Empty Capsules and Capsule Wrapping
 
