@@ -2,7 +2,7 @@
 [![Build Status](http://img.shields.io/travis/puniverse/capsule.svg?style=flat)](https://travis-ci.org/puniverse/capsule) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030) [![Version](https://img.shields.io/maven-central/v/co.paralleluniverse/capsule.svg?style=flat)](https://github.com/puniverse/capsule/releases) [![License](http://img.shields.io/badge/license-EPL-blue.svg?style=flat)](https://www.eclipse.org/legal/epl-v10.html)
 
 
-Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single JAR file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and Java agents. It can automatically download Maven dependencies when the program is first launched if you choose not to embed them in the capsule, and it can even automatically download a new version of your application when it is published to a Maven repository.
+Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single JAR file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and agents. It can automatically download Maven dependencies when the program is first launched if you choose not to embed them in the capsule, and it can even automatically download a new version of your application when it is published to a Maven repository.
 
 In short, a capsule is a self-contained JAR that knows everything there is to know about how to run your application the way it's meant to run.
 
@@ -294,7 +294,7 @@ If the capsule is launched with a `-Xbootclasspath` option, it will override any
 
 The `Library-Path-A` manifest attribute can list JARs or directories (relative to the capsule's root) that will be appended to the application's native library path. Similarly, `Library-Path-P`, can be used to prepend JARs or directories to the default native library path.
 
-### JVM Arguments, System Properties, Environment Variables and Java Agents
+### JVM Arguments, System Properties, Environment Variables and Agents
 
 The `JVM-Args` manifest attribute can contain a space-separated list of JVM argument that will be used to launch the application. Any JVM arguments supplied during the capsule's launch, will override those in the manifest. For example, if the `JVM-Args` attribute contains `-Xmx500m`, and the capsule is launched with `java -Xmx800m -jar app.jar`, then the application will be launched with the `-Xmx800m` JVM argument.
 
@@ -307,6 +307,8 @@ The `System-Properties` manifest attribute can contain a space-separated list of
 The `Environment-Variables` manifest attribute, is, just like `System-Properties`, a space-separated list of `var=value` pairs (or just `var` for an empty value). The specified values do not overwrite those already defined in the environment, unless they are listed as `var:=value` rather than `var=value`.
 
 The `Java-Agents` attribute can contain a space-separated list with the names of JARs containing Java agents. The agents are listed as `agent=params` or just `agent`, where `agent` is either the path of a JAR embedded in the capsule, relative to the capsule JAR's root, or the coordinates of a Maven dependency.
+
+Similarly, the `Native-Agents` attribute may contain a list of native JVMTI agents to be used by the application. The formatting is the same as that for `Java-Agents`, except that `agent` is the path to the native library -- minus the extension -- relative to the capsule root. Unlike in the case of `Java-Agents`, listing Maven dependencies is not allowed, but the same result can be achieved by listing the depndencies in the `Native-Dependencies-...` attributes and then referring to the library file's name in the `Native-Agents` attribute.
 
 Remember that values listed in all these configuration values can contain the `$CAPSULE_DIR` and `$CAPSULE_JAR` variables, discussed in the *Capsule's Cache* section.
 
@@ -433,6 +435,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Security-Policy`: a security policy file, relative to the capsule root, that will be used as the security policy
 * `Security-Policy-A`: a security policy file, relative to the capsule root, that will be appended to the default security policy
 * `Java-Agents`: a list of Java agents used by the application; formatted `agent` or `agent=arg1,arg2...`, where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency
+* `Native-Agents`: a list of native JVMTI agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a native library, without the platform-specific suffix, relative to the capsule root; the native library file(s) can be embedded in the capsule or listed as Maven native dependencies using the Native-Dependencies-... attributes.
 * `Repositories`: a list of Maven repositories formatted as `URL` or `NAME(URL)`
 * `Dependencies`: a list of Maven dependencies given as `groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]`
 * `Allow-Snapshots`: If `true`, allows for SNAPSHOT dependencies (default: `false`)

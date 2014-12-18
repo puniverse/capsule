@@ -155,6 +155,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_SECURITY_POLICY = ATTRIBUTE("Security-Policy", null, true, "A security policy file, relative to the capsule root, that will be used as the security policy");
     private static final String ATTR_SECURITY_POLICY_A = ATTRIBUTE("Security-Policy-A", null, true, "A security policy file, relative to the capsule root, that will be appended to the default security policy");
     private static final String ATTR_JAVA_AGENTS = ATTRIBUTE("Java-Agents", null, true, "A list of Java agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency");
+    private static final String ATTR_NATIVE_AGENTS = ATTRIBUTE("Native-Agents", null, true, "A list of native JVMTI agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a native library, without the platform-specific suffix, relative to the capsule root. The native library file(s) can be embedded in the capsule or listed as Maven native dependencies using the Native-Dependencies-... attributes.");
     private static final String ATTR_REPOSITORIES = ATTRIBUTE("Repositories", "central", true, "A list of Maven repositories, each formatted as URL or NAME(URL)");
     private static final String ATTR_ALLOW_SNAPSHOTS = ATTRIBUTE("Allow-Snapshots", "false", true, "Whether or not SNAPSHOT dependencies are allowed");
     private static final String ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
@@ -1611,7 +1612,8 @@ public class Capsule implements Runnable {
         addOption(command, "-Xbootclasspath/p:", compileClassPath(buildBootClassPathP()));
         addOption(command, "-Xbootclasspath/a:", compileClassPath(buildBootClassPathA()));
 
-        command.addAll(compileJavaAgents(buildJavaAgents()));
+        command.addAll(compileAgents("-javaagent:", buildJavaAgents()));
+        command.addAll(compileAgents("-agentpath:", buildNativeAgents()));
 
         final List<Path> classPath = buildClassPath();
         final String mainClass = getMainClass(classPath);
@@ -1679,10 +1681,10 @@ public class Capsule implements Runnable {
         return join(processOutgoingPath(cp), PATH_SEPARATOR);
     }
 
-    private List<String> compileJavaAgents(Map<Path, String> jagents) {
+    private List<String> compileAgents(String clo, Map<Path, String> agents) {
         final List<String> command = new ArrayList<>();
-        for (Map.Entry<Path, String> jagent : nullToEmpty(jagents).entrySet())
-            command.add("-javaagent:" + processOutgoingPath(jagent.getKey()) + (jagent.getValue().isEmpty() ? "" : ("=" + jagent.getValue())));
+        for (Map.Entry<Path, String> agent : nullToEmpty(agents).entrySet())
+            command.add(clo + processOutgoingPath(agent.getKey()) + (agent.getValue().isEmpty() ? "" : ("=" + agent.getValue())));
         return command;
     }
 
@@ -2060,28 +2062,37 @@ public class Capsule implements Runnable {
      * @return A map from the path to each agent to a string containing the agent arguments (or an empty string if none).
      */
     protected Map<Path, String> buildJavaAgents() {
-        return (_ct = getCallTarget()) != null ? _ct.buildJavaAgents() : buildJavaAgents0();
+        return (_ct = getCallTarget()) != null ? _ct.buildJavaAgents() : buildAgents0(true);
     }
 
-    private Map<Path, String> buildJavaAgents0() {
+    /**
+     * Returns all native agents that will be launched with the application.
+     *
+     * @return A map from the path to each agent to a string containing the agent arguments (or an empty string if none).
+     */
+    protected Map<Path, String> buildNativeAgents() {
+        return (_ct = getCallTarget()) != null ? _ct.buildNativeAgents() : buildAgents0(false);
+    }
+
+    private Map<Path, String> buildAgents0(boolean java) {
         final long start = clock();
-        final Map<String, String> agents0 = getMapAttribute(ATTR_JAVA_AGENTS, "");
+        final Map<String, String> agents0 = getMapAttribute(java ? ATTR_JAVA_AGENTS : ATTR_NATIVE_AGENTS, "");
         if (agents0 == null)
             return null;
         final Map<Path, String> agents = new LinkedHashMap<>(agents0.size());
         for (Map.Entry<String, String> agent : agents0.entrySet()) {
-            final String agentJar = agent.getKey();
+            final String agentName = agent.getKey();
             final String agentOptions = agent.getValue();
             try {
-                final Path agentPath = first(getPath(agent.getKey()));
+                final Path agentPath = first(getPath(agent.getKey() + (java ? "" : ("." + getNativeLibExtension()))));
                 agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? "=" + agentOptions : ""));
             } catch (IllegalStateException e) {
                 if (getAppCache() == null && isThrownByCapsule(e))
-                    throw new RuntimeException("Cannot run the embedded Java agent " + agentJar + " when the " + ATTR_EXTRACT + " attribute is set to false", e);
+                    throw new RuntimeException("Cannot run the embedded agent " + agentName + " when the " + ATTR_EXTRACT + " attribute is set to false", e);
                 throw e;
             }
         }
-        time("buildJavaAgents", start);
+        time("buildAgents (" + (java ? "java" : "native") + ")", start);
         return agents;
     }
 
@@ -2797,7 +2808,10 @@ public class Capsule implements Runnable {
                 || System.getProperty(PROP_OS_NAME).toLowerCase().contains("aix");
     }
 
-    private String getNativeLibExtension() {
+    /**
+     * The suffix of a native library on this OS.
+     */
+    private static String getNativeLibExtension() {
         if (isWindows())
             return "dll";
         if (isMac())
