@@ -2084,8 +2084,8 @@ public class Capsule implements Runnable {
             final String agentName = agent.getKey();
             final String agentOptions = agent.getValue();
             try {
-                final Path agentPath = first(getPath(agent.getKey() + (java ? "" : ("." + getNativeLibExtension()))));
-                agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? "=" + agentOptions : ""));
+                final Path agentPath = first(getPath(agentName + (java ? "" : ("." + getNativeLibExtension()))));
+                agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? agentOptions : ""));
             } catch (IllegalStateException e) {
                 if (getAppCache() == null && isThrownByCapsule(e))
                     throw new RuntimeException("Cannot run the embedded agent " + agentName + " when the " + ATTR_EXTRACT + " attribute is set to false", e);

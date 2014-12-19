@@ -638,6 +638,33 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testAgents() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Java-Agents", "ja1.jar ja2.jar=a=1,b=2 com.acme:bar=x=hi")
+                .setAttribute("Native-Agents", "na1=c=3,d=4 na2")
+                .addEntry("foo.jar", emptyInputStream());
+
+        DependencyManager dm = mock(DependencyManager.class);
+        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
+        when(dm.resolveDependency("com.acme:bar", "jar")).thenReturn(list(barPath));
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, dm);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+        ASSERT.that(getJvmArgs(pb)).has().allOf("-javaagent:" + appCache.resolve("ja1.jar"));
+        ASSERT.that(getJvmArgs(pb)).has().item("-javaagent:" + appCache.resolve("ja2.jar") + "=a=1,b=2");
+        ASSERT.that(getJvmArgs(pb)).has().item("-javaagent:" + barPath + "=x=hi");
+        ASSERT.that(getJvmArgs(pb)).has().item("-agentpath:" + appCache.resolve("na1." + Capsule.getNativeLibExtension()) + "=c=3,d=4");
+        ASSERT.that(getJvmArgs(pb)).has().item("-agentpath:" + appCache.resolve("na2." + Capsule.getNativeLibExtension()));
+    }
+
+    @Test
     public void testMode() throws Exception {
         System.setProperty("capsule.mode", "ModeX");
         try {
@@ -1203,7 +1230,7 @@ public class CapsuleTest {
 
     private Path sanitize(Path dir, Path p) {
         try {
-            return (Path)accessible(Capsule.class.getDeclaredMethod("sanitize", Path.class, Path.class)).invoke(null, dir, p);
+            return (Path) accessible(Capsule.class.getDeclaredMethod("sanitize", Path.class, Path.class)).invoke(null, dir, p);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
