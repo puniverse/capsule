@@ -2811,7 +2811,7 @@ public class Capsule implements Runnable {
     /**
      * The suffix of a native library on this OS.
      */
-    private static String getNativeLibExtension() {
+    protected static final String getNativeLibExtension() {
         if (isWindows())
             return "dll";
         if (isMac())
