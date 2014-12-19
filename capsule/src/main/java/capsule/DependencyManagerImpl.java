@@ -19,14 +19,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositoryException;
-import org.eclipse.aether.RepositoryListener;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.artifact.Artifact;
@@ -47,7 +45,6 @@ import org.eclipse.aether.resolution.VersionRangeRequest;
 import org.eclipse.aether.resolution.VersionRangeResult;
 import org.eclipse.aether.resolution.VersionRequest;
 import org.eclipse.aether.resolution.VersionResult;
-import org.eclipse.aether.transfer.TransferListener;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
 import org.eclipse.aether.version.Version;
@@ -55,7 +52,7 @@ import org.eclipse.aether.version.Version;
 /**
  * Uses Aether as the Maven dependency manager.
  */
-public final class DependencyManagerImpl implements DependencyManager {
+public class DependencyManagerImpl implements DependencyManager {
     /*
      * see http://git.eclipse.org/c/aether/aether-ant.git/tree/src/main/java/org/eclipse/aether/internal/ant/AntRepoSys.java
      */
@@ -88,14 +85,15 @@ public final class DependencyManagerImpl implements DependencyManager {
 
     private final boolean forceRefresh;
     private final boolean offline;
-    private final RepositorySystem system;
-    private final RepositorySystemSession session;
+    protected final RepositorySystem system;
+    protected final RepositorySystemSession session;
     private List<RemoteRepository> repos;
     private final int logLevel;
     private final UserSettings settings;
 
     //<editor-fold desc="Construction and Setup">
     /////////// Construction and Setup ///////////////////////////////////
+    @SuppressWarnings("OverridableMethodCallInConstructor")
     public DependencyManagerImpl(Path localRepoPath, boolean forceRefresh, int logLevel) {
         this.logLevel = logLevel;
         this.forceRefresh = forceRefresh;
@@ -113,13 +111,16 @@ public final class DependencyManagerImpl implements DependencyManager {
     }
 
     @Override
-    public void setRepos(List<String> repos, boolean allowSnapshots) {
+    public final void setRepos(List<String> repos, boolean allowSnapshots) {
         if (repos == null)
             repos = Arrays.asList("central");
 
         final List<RemoteRepository> rs = new ArrayList<RemoteRepository>();
         for (String r : repos) {
-            RemoteRepository repo = createRepo(r, allowSnapshots);
+            RepositoryPolicy releasePolicy = maketReleasePolicy(r);
+            RepositoryPolicy snapshotPolicy = allowSnapshots ? maketSnapshotPolicy(r) : new RepositoryPolicy(false, null, null);
+
+            RemoteRepository repo = createRepo(r, releasePolicy, snapshotPolicy);
             if (!rs.contains(repo))
                 rs.add(repo);
         }
@@ -128,6 +129,14 @@ public final class DependencyManagerImpl implements DependencyManager {
             this.repos = rs;
             log(LOG_VERBOSE, "Dependency manager repositories: " + this.repos);
         }
+    }
+
+    protected RepositoryPolicy maketReleasePolicy(String repo) {
+        return new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
+    }
+
+    protected RepositoryPolicy maketSnapshotPolicy(String repo) {
+        return maketReleasePolicy(repo);
     }
 
     private static RepositorySystem newRepositorySystem() {
@@ -154,7 +163,7 @@ public final class DependencyManagerImpl implements DependencyManager {
         return locator.getService(RepositorySystem.class);
     }
 
-    private RepositorySystemSession newRepositorySession(RepositorySystem system, LocalRepository localRepo) {
+    protected RepositorySystemSession newRepositorySession(RepositorySystem system, LocalRepository localRepo) {
         final DefaultRepositorySystemSession s = MavenRepositorySystemUtils.newSession();
 
         s.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, propertyOrEnv(PROP_CONNECT_TIMEOUT, ENV_CONNECT_TIMEOUT));
@@ -172,16 +181,8 @@ public final class DependencyManagerImpl implements DependencyManager {
 
         if (logLevel > LOG_NONE) {
             final PrintStream out = prefixStream(System.err, LOG_PREFIX);
-
-            for (TransferListener tl : ServiceLoader.load(TransferListener.class))
-                s.setTransferListener(tl);
-            if (s.getTransferListener() == null)
-                s.setTransferListener(new ConsoleTransferListener(isLogging(LOG_VERBOSE), out));
-
-            for (RepositoryListener rl : ServiceLoader.load(RepositoryListener.class))
-                s.setRepositoryListener(rl);
-            if (s.getRepositoryListener() == null)
-                s.setRepositoryListener(new ConsoleRepositoryListener(isLogging(LOG_VERBOSE), out));
+            s.setTransferListener(new ConsoleTransferListener(isLogging(LOG_VERBOSE), out));
+            s.setRepositoryListener(new ConsoleRepositoryListener(isLogging(LOG_VERBOSE), out));
         }
 
         return s;
@@ -195,12 +196,12 @@ public final class DependencyManagerImpl implements DependencyManager {
     }
 
     @Override
-    public void printDependencyTree(List<String> coords, String type, PrintStream out) {
+    public final void printDependencyTree(List<String> coords, String type, PrintStream out) {
         printDependencyTree(collect().setDependencies(toDependencies(coords, type)), out);
     }
 
     @Override
-    public void printDependencyTree(String coords, String type, PrintStream out) {
+    public final void printDependencyTree(String coords, String type, PrintStream out) {
         printDependencyTree(collect().setRoot(toDependency(coords, type)), out);
     }
 
@@ -214,16 +215,16 @@ public final class DependencyManagerImpl implements DependencyManager {
     }
 
     @Override
-    public List<Path> resolveDependencies(List<String> coords, String type) {
+    public final List<Path> resolveDependencies(List<String> coords, String type) {
         return resolve(collect().setDependencies(toDependencies(coords, type)));
     }
 
     @Override
-    public List<Path> resolveDependency(String coords, String type) {
+    public final List<Path> resolveDependency(String coords, String type) {
         return resolve(collect().setRoot(toDependency(coords, type))); // resolveDependencies(Collections.singletonList(coords), type);
     }
 
-    private List<Path> resolve(CollectRequest collectRequest) {
+    protected List<Path> resolve(CollectRequest collectRequest) {
         try {
             final DependencyRequest dependencyRequest = new DependencyRequest(collectRequest, null);
             final List<ArtifactResult> artifactResults = system.resolveDependencies(session, dependencyRequest).getArtifactResults();
@@ -238,11 +239,11 @@ public final class DependencyManagerImpl implements DependencyManager {
     }
 
     @Override
-    public String getLatestVersion(String coords, String type) {
+    public final String getLatestVersion(String coords, String type) {
         return artifactToCoords(getLatestVersion0(coords, type));
     }
 
-    private Artifact getLatestVersion0(String coords, String type) {
+    protected Artifact getLatestVersion0(String coords, String type) {
         try {
             final Artifact artifact = coordsToArtifact(coords, type);
             final String version;
@@ -271,12 +272,11 @@ public final class DependencyManagerImpl implements DependencyManager {
 
     //<editor-fold defaultstate="collapsed" desc="Parsing">
     /////////// Parsing ///////////////////////////////////
-    // visible for testing
-    static Dependency toDependency(String coords, String type) {
+    protected final static Dependency toDependency(String coords, String type) {
         return new Dependency(coordsToArtifact(coords, type), JavaScopes.RUNTIME, false, getExclusions(coords));
     }
 
-    private static List<Dependency> toDependencies(List<String> coords, String type) {
+    protected final static List<Dependency> toDependencies(List<String> coords, String type) {
         final List<Dependency> deps = new ArrayList<Dependency>(coords.size());
         for (String c : coords)
             deps.add(toDependency(c, type));
@@ -328,7 +328,7 @@ public final class DependencyManagerImpl implements DependencyManager {
     private static final Pattern PAT_REPO = Pattern.compile("(?<id>[^(]+)(\\((?<url>[^\\)]+)\\))?");
 
     // visible for testing
-    static RemoteRepository createRepo(String repo, boolean allowSnapshots) {
+    static RemoteRepository createRepo(String repo, RepositoryPolicy releasePolicy, RepositoryPolicy snapshotPolicy) {
         final Matcher m = PAT_REPO.matcher(repo);
         if (!m.matches())
             throw new IllegalArgumentException("Could not parse repository: " + repo);
@@ -336,12 +336,9 @@ public final class DependencyManagerImpl implements DependencyManager {
         String id = m.group("id");
         String url = m.group("url");
         if (url == null && WELL_KNOWN_REPOS.containsKey(id))
-            return createRepo(WELL_KNOWN_REPOS.get(id), allowSnapshots);
+            return createRepo(WELL_KNOWN_REPOS.get(id), releasePolicy, snapshotPolicy);
         if (url == null)
             url = id;
-
-        RepositoryPolicy releasePolicy = new RepositoryPolicy(true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
-        RepositoryPolicy snapshotPolicy = allowSnapshots ? releasePolicy : new RepositoryPolicy(false, null, null);
 
         if (url.startsWith("file:")) {
             releasePolicy = new RepositoryPolicy(releasePolicy.isEnabled(), releasePolicy.getUpdatePolicy(), RepositoryPolicy.CHECKSUM_POLICY_IGNORE);
@@ -386,11 +383,11 @@ public final class DependencyManagerImpl implements DependencyManager {
 
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
-    private boolean isLogging(int level) {
+    protected final boolean isLogging(int level) {
         return level <= logLevel;
     }
 
-    private void log(int level, String str) {
+    protected final void log(int level, String str) {
         if (isLogging(level))
             System.err.println(LOG_PREFIX + str);
     }
