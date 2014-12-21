@@ -6,6 +6,7 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
+
 import capsule.DependencyManagerImpl;
 import capsule.DependencyManager;
 import capsule.PomReader;
@@ -528,6 +529,7 @@ public class Capsule implements Runnable {
     protected Capsule(Path jarFile, Path cacheDir) {
         Objects.requireNonNull(jarFile, "jarFile can't be null");
         Objects.requireNonNull(cacheDir, "cacheDir can't be null");
+        clearContext();
 
         this.oc = this;
         this.cc = this;
@@ -569,6 +571,7 @@ public class Capsule implements Runnable {
     @SuppressWarnings("LeakingThisInConstructor")
     protected Capsule(Capsule pred) {
         time("Load class", START);
+        clearContext();
         this.oc = this;
         this.cc = this;
         insertAfter(pred);
