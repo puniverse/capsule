@@ -172,26 +172,26 @@ public final class JarClassLoader extends FlexibleClassLoader {
         }
     }
 
-    private static int[] ZIP_HEADER = new int[]{'\n', 'P', 'K', 0x03, 0x04};
+    private static final int[] ZIP_HEADER = new int[]{'P', 'K', 0x03, 0x04};
 
     private static InputStream skipToZipStart(InputStream is) throws IOException {
         if (!is.markSupported())
             is = new BufferedInputStream(is);
-        int state = 1;
+        int state = 0;
         for (;;) {
-            if (state == 1)
+            if (state == 0)
                 is.mark(ZIP_HEADER.length);
             final int b = is.read();
             if (b < 0)
                 throw new IllegalArgumentException("Not a JAR/ZIP file");
-            if (b == ZIP_HEADER[state]) {
+            if (state >=0 && b == ZIP_HEADER[state]) {
                 state++;
                 if (state == ZIP_HEADER.length)
                     break;
             } else {
-                state = 0;
-                if (b == ZIP_HEADER[state]) // consecutive '\n'
-                    state++;
+                state = -1;
+                if (b == '\n' || b == 0) // start matching on \n and \0
+                    state = 0;
             }
         }
         is.reset();
