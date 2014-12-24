@@ -216,11 +216,11 @@ project (':capsule') {
         compile("org.eclipse.aether:aether-transport-http:$aetherVer") {
             exclude group: 'org.slf4j', module: 'slf4j-api'
         }
-        compile('org.apache.maven:maven-aether-provider:3.2.3') {
+        compile('org.apache.maven:maven-aether-provider:3.2.5') {
             exclude group: 'org.eclipse.aether', module: '*'
         }
-        compile 'org.apache.maven:maven-model:3.2.3'
-        compile('org.apache.maven:maven-settings-builder:3.2.3') {
+        compile 'org.apache.maven:maven-model:3.2.5'
+        compile('org.apache.maven:maven-settings-builder:3.2.5') {
             exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
         }
         compile('org.codehaus.plexus:plexus-container-default:1.6') {
@@ -231,10 +231,10 @@ project (':capsule') {
         }
         runtime 'com.google.guava:guava:18.0' // necessary -- unfortunately -- for maven-aether-provider
 
-        runtime 'org.slf4j:slf4j-nop:1.7.7'
+        runtime 'org.slf4j:slf4j-nop:1.7.9'
 
-        compile 'io.takari.aether:takari-local-repository:0.10.4'
-        compile('io.takari:takari-filemanager:0.8.2') {
+        compile 'io.takari.aether:takari-local-repository:0.11.0'
+        compile('io.takari:takari-filemanager:0.8.3') {
             exclude group: 'org.slf4j', module: '*'
         }
 
