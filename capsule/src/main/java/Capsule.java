@@ -286,18 +286,25 @@ public class Capsule implements Runnable {
 
             return capsule.launch(args);
         } catch (Throwable t) {
-            System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
-            if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
-                System.err.print(" while processing " + reportContext());
-            if (getLogLevel(System.getProperty(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
-                System.err.println();
-                deshadow(t).printStackTrace(System.err);
-            } else
-                System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
-            if (t instanceof IllegalArgumentException)
-                printUsage(capsule != null ? capsule.isWrapperCapsule() : true, args);
+            if (capsule != null)
+                capsule.onError(t);
+            else
+                printError(t, capsule);
             return 1;
         }
+    }
+
+    private static void printError(Throwable t, Capsule capsule) {
+        System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
+        if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
+            System.err.print(" while processing " + reportContext());
+        if (getLogLevel(systemProperty0(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
+            System.err.println();
+            deshadow(t).printStackTrace(System.err);
+        } else
+            System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
+        if (t instanceof IllegalArgumentException)
+            printUsage(capsule != null ? capsule.isWrapperCapsule() : true);
     }
 
     //<editor-fold defaultstate="collapsed" desc="Run Other Capsule">
@@ -906,11 +913,11 @@ public class Capsule implements Runnable {
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (systemProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
-    void printUsage(List<String> args) {
-        printUsage(wrapper, args);
+    void printUsage() {
+        printUsage(wrapper);
     }
 
-    static void printUsage(boolean simple, List<String> args) {
+    static void printUsage(boolean simple) {
         final Path myJar = toFriendlyPath(findOwnJarFile());
         final boolean executable = isExecutable(myJar);
 
@@ -3783,6 +3790,13 @@ public class Capsule implements Runnable {
     private void time(String op, long start, long stop) {
         if (isLogging(PROFILE))
             log(PROFILE, "PROFILE " + op + " " + ((stop - start) / 1_000_000) + "ms");
+    }
+
+    /**
+     * Called when an unhandled exception is thrown, to display error information to the user before shutting down.
+     */
+    protected void onError(Throwable t) {
+        printError(t, this);
     }
     //</editor-fold>
 
