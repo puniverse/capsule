@@ -87,18 +87,16 @@ public class Capsule implements Runnable {
      *
      * 1. IT MUST COMPILE TO A SINGLE CLASS FILE (so it must not contain nested or inner classes).
      * 2. IT MUST ONLY REFERENCE CLASSES IN THE JDK AND THOSE IN THE capsule PACKAGE, TAKING INTO ACCOUNT THAT THE LATTER MAY NOT EXIST AT RUNTIME.
-     * 3. CAPSULES WITH NO DECLARED DEPENDENCIES MUST LAUNCH WITHOUT REQUIRING ANY CLASSES BUT THIS AND THE JDK.
-     * 4. ALL METHODS MUST BE PURE OR, AT LEAST, IDEMPOTENT (with the exception of the launch method, and, of course, the constructor).
+     * 3. ALL METHODS MUST BE PURE OR, AT LEAST, IDEMPOTENT (with the exception of the launch method, and the constructor).
      *
-     * Rules #1 and #3 ensure that fat capsules will work with only Capsule.class included in the JAR. Rule #2 helps enforcing rules #1 and #3.
-     * Rule #4 ensures methods can be called in any order (after construction completes), and makes maintenance and evolution of Capsule simpler.
-     *
+     * Rules #1 and #2 ensure that fat capsules will work with only Capsule.class included in the JAR. Rule #2 helps enforcing rules #1 and #3.
+     * Rule #3 ensures methods can be called in any order (after construction completes), and makes maintenance and evolution of Capsule simpler.
      * This class contains several strange hacks to compy with rule #1.
      *
      * Also, the code is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      *
-     * We do a lot of data transformations that could benefited from Java 8's lambdas+streams, but we want Capsule to support Java 7.
+     * We do a lot of data transformations that could benefit from Java 8's lambdas+streams, but we want Capsule to support Java 7.
      */
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
@@ -305,7 +303,7 @@ public class Capsule implements Runnable {
     private static void printError(Throwable t, Capsule capsule) {
         System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
         if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
-            System.err.print(" while processing " + reportContext());
+            System.err.print(" while processing " + getContext());
         if (getLogLevel(systemProperty0(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
             System.err.println();
             deshadow(t).printStackTrace(System.err);
@@ -3665,11 +3663,7 @@ public class Capsule implements Runnable {
     }
 
     private static String deshadow(String className) {
-        if (className == null)
-            return null;
-        if (className.startsWith("capsule.") && className.lastIndexOf('.') > "capsule.".length())
-            return className.substring("capsule.".length());
-        return className;
+        return (className != null && className.startsWith("capsule.") && className.lastIndexOf('.') > "capsule.".length()) ? className.substring("capsule.".length()) : className;
     }
 
     /**
@@ -3818,7 +3812,7 @@ public class Capsule implements Runnable {
         contextValue_ = value != null ? value.toString() : null;
     }
 
-    private static String reportContext() {
+    private static String getContext() {
         return contextType_ + " " + contextKey_ + ": " + contextValue_;
     }
 
