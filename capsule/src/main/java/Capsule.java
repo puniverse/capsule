@@ -135,8 +135,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_MODE_DESC = ATTRIBUTE("Description", null, true, "Contains the description of its respective mode");
     private static final String ATTR_APP_CLASS = ATTRIBUTE("Application-Class", null, true, "The main application class");
     private static final String ATTR_APP_ARTIFACT = ATTRIBUTE("Application", null, true, "The Maven coordinates of the application's main JAR or the path of the main JAR within the capsule");
-    private static final String ATTR_UNIX_SCRIPT = ATTRIBUTE("Unix-Script", null, true, "A startup script to be run *instead* of `Application-Class` on Unix/Linux/Mac OS, given as a path relative to the capsule's root");
-    private static final String ATTR_WINDOWS_SCRIPT = ATTRIBUTE("Windows-Script", null, true, "A startup script to be run *instead* of `Application-Class` on Windows, given as a path relative to the capsule's root");
+    private static final String ATTR_SCRIPT = ATTRIBUTE("Application-Script", null, true, "A startup script to be run *instead* of `Application-Class`, given as a path relative to the capsule's root");
     private static final String ATTR_EXTRACT = ATTRIBUTE("Extract-Capsule", "true", true, "Whether or not the capsule JAR will be extracted to the filesystem");
     private static final String ATTR_MIN_JAVA_VERSION = ATTRIBUTE("Min-Java-Version", null, true, "The lowest Java version required to run the application");
     private static final String ATTR_JAVA_VERSION = ATTRIBUTE("Java-Version", null, true, "The highest version of the Java installation required to run the application");
@@ -161,9 +160,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_REPOSITORIES = ATTRIBUTE("Repositories", "central", true, "A list of Maven repositories, each formatted as URL or NAME(URL)");
     private static final String ATTR_ALLOW_SNAPSHOTS = ATTRIBUTE("Allow-Snapshots", "false", true, "Whether or not SNAPSHOT dependencies are allowed");
     private static final String ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
-    private static final String ATTR_NATIVE_DEPENDENCIES_LINUX = ATTRIBUTE("Native-Dependencies-Linux", null, true, "A list of Maven dependencies consisting of `.so` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
-    private static final String ATTR_NATIVE_DEPENDENCIES_WIN = ATTRIBUTE("Native-Dependencies-Win", null, true, "A list of Maven dependencies consisting of `.dll` artifacts for Linux; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
-    private static final String ATTR_NATIVE_DEPENDENCIES_MAC = ATTRIBUTE("Native-Dependencies-Mac", null, true, "A list of Maven dependencies consisting of `.dylib` artifacts for Mac OS X; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
+    private static final String ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
     private static final String ATTR_LOG_LEVEL = ATTRIBUTE("Capsule-Log-Level", null, false, "The capsule's default log level");
 
     // outgoing
@@ -751,7 +748,7 @@ public class Capsule implements Runnable {
     }
 
     private boolean isEmptyCapsule() {
-        return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasScript();
+        return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasAttribute(ATTR_SCRIPT);
     }
     //</editor-fold>
 
@@ -1583,12 +1580,8 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Script Process">
     /////////// Script Process ///////////////////////////////////
-    private boolean hasScript() {
-        return hasAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
-    }
-
     private Path getScript() {
-        final String s = getAttribute(isWindows() ? ATTR_WINDOWS_SCRIPT : ATTR_UNIX_SCRIPT);
+        final String s = getAttribute(ATTR_SCRIPT);
         return s != null ? sanitize(getAppCache().resolve(s.replace('/', FILE_SEPARATOR_CHAR))) : null;
     }
 
@@ -1992,13 +1985,7 @@ public class Capsule implements Runnable {
     }
 
     private List<String> getNativeDependencies0() {
-        if (isWindows())
-            return getListAttribute(ATTR_NATIVE_DEPENDENCIES_WIN);
-        if (isMac())
-            return getListAttribute(ATTR_NATIVE_DEPENDENCIES_MAC);
-        if (isUnix())
-            return getListAttribute(ATTR_NATIVE_DEPENDENCIES_LINUX);
-        return null;
+        return getListAttribute(ATTR_NATIVE_DEPENDENCIES);
     }
 
     private boolean hasRenamedNativeDependencies() {
