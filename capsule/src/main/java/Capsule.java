@@ -211,20 +211,16 @@ public class Capsule implements Runnable {
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
     private static final Object DEFAULT = new Object();
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
-    private static final Set<String> COMMON_ATTRIBUTES = unmodifiableSet(new HashSet<String>(Arrays.asList(
-            ATTR_MANIFEST_VERSION, ATTR_MAIN_CLASS,
-            "Created-By", "Signature-Version", "Sealed", "Magic",
+    private static final Set<String> COMMON_ATTRIBUTES = immutableSet(
+            ATTR_MANIFEST_VERSION, ATTR_MAIN_CLASS, "Created-By", "Signature-Version", "Sealed", "Magic",
             ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VERSION, ATTR_IMPLEMENTATION_VENDOR, "Implementation-Vendor-Id", ATTR_IMPLEMENTATION_URL,
-            "Specification-Title", "Specification-Version", "Specification-Vendor"
-    )));
+            "Specification-Title", "Specification-Version", "Specification-Vendor");
 
     private static final String OS_WINDOWS = "Windows";
     private static final String OS_LINUX = "Linux";
     private static final String OS_MACOS = "MacOS";
 
-    private static final Set<String> PLATFORMS = unmodifiableSet(new HashSet<String>(Arrays.asList(
-            OS_WINDOWS, OS_LINUX, OS_MACOS
-    )));
+    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_LINUX, OS_MACOS);
     private static final String PLATFORM = getOS();
 
     @SuppressWarnings("FieldMayBeFinal")
@@ -682,8 +678,7 @@ public class Capsule implements Runnable {
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             oc.jarFile = jar;
-            final Capsule wrapped = newCapsule(newClassLoader(MY_CLASSLOADER, jar), jar, cacheDir);
-            insertAfter(wrapped);
+            insertAfter(newCapsule(newClassLoader(MY_CLASSLOADER, jar), jar, cacheDir));
             oc.dependencyManager = dependencyManager;
         }
         finalizeCapsule(isCapsule);
@@ -1927,8 +1922,7 @@ public class Capsule implements Runnable {
     }
 
     private List<Path> getPlatformNativeLibraryPath0() {
-        // WARNING: this assumes the platform running the app (say a different Java home), has the same
-        // java.library.path. If that's wrong, this could be a bug.
+        // WARNING: this assumes the platform running the app (say a different Java home), has the same java.library.path.
         return toPath(Arrays.asList(systemProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR)));
     }
 
@@ -2230,9 +2224,7 @@ public class Capsule implements Runnable {
     private Object createPomReader(ZipInputStream zis) throws IOException {
         try {
             final InputStream is = getEntry(zis, POM_FILE);
-            if (is == null)
-                return null;
-            return createPomReader0(is);
+            return is != null ? createPomReader0(is) : null;
         } catch (IOException e) {
             throw new IOException("Could not read " + POM_FILE, e);
         }
@@ -2291,14 +2283,14 @@ public class Capsule implements Runnable {
         return new DependencyManagerImpl(localRepo, reset, logLevel);
     }
 
-    private void verifyDependencyManager() {
+    private Object verifyDependencyManager() {
         if (oc.dependencyManager == null)
             throw new RuntimeException("Capsule " + getJarFile() + " uses dependencies, while the necessary dependency management classes are not found in the capsule JAR");
+        return oc.dependencyManager;
     }
 
     private void setDependencyRepositories(List<String> repositories) {
-        verifyDependencyManager();
-        ((DependencyManager) oc.dependencyManager).setRepos(repositories, Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS)));
+        ((DependencyManager) verifyDependencyManager()).setRepos(repositories, Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS)));
     }
 
     /**
@@ -2313,23 +2305,20 @@ public class Capsule implements Runnable {
     }
 
     private void printDependencyTree(String root, String type) {
-        verifyDependencyManager();
-        ((DependencyManager) oc.dependencyManager).printDependencyTree(root, type, System.out);
+        ((DependencyManager) verifyDependencyManager()).printDependencyTree(root, type, System.out);
     }
 
     private void printDependencyTree(List<String> dependencies, String type) {
         if (dependencies == null)
             return;
-        verifyDependencyManager();
-        ((DependencyManager) oc.dependencyManager).printDependencyTree(dependencies, type, System.out);
+        ((DependencyManager) verifyDependencyManager()).printDependencyTree(dependencies, type, System.out);
     }
 
     private List<Path> resolveDependencies(List<String> dependencies, String type) {
         if (dependencies == null)
             return null;
-        verifyDependencyManager();
         final long start = clock();
-        final List<Path> res = ((DependencyManager) oc.dependencyManager).resolveDependencies(dependencies, type);
+        final List<Path> res = ((DependencyManager) verifyDependencyManager()).resolveDependencies(dependencies, type);
         time("resolveDependencies", start);
         return res;
     }
@@ -2337,9 +2326,8 @@ public class Capsule implements Runnable {
     private List<Path> resolveDependency(String coords, String type) {
         if (coords == null)
             return null;
-        verifyDependencyManager();
         final long start = clock();
-        final List<Path> res = ((DependencyManager) oc.dependencyManager).resolveDependency(coords, type);
+        final List<Path> res = ((DependencyManager) verifyDependencyManager()).resolveDependency(coords, type);
         time("resolveDependency " + coords, start);
         return res;
     }
@@ -2351,8 +2339,7 @@ public class Capsule implements Runnable {
     private String getArtifactLatestVersion(String coords, String type) {
         if (coords == null)
             return null;
-        verifyDependencyManager();
-        return ((DependencyManager) oc.dependencyManager).getLatestVersion(coords, type);
+        return ((DependencyManager) verifyDependencyManager()).getLatestVersion(coords, type);
     }
     //</editor-fold>
 
@@ -2482,16 +2469,6 @@ public class Capsule implements Runnable {
         return false;
     }
 
-    protected final List<String> getAttribute0(String attr) {
-        final List<String> values = new ArrayList<>();
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            String value = c.getAttribute00(attr);
-            if (value != null)
-                values.add(value);
-        }
-        return values;
-    }
-
     protected final boolean hasAttribute0(String attr, Attributes.Name key) {
         if (manifest != null) {
             if (getMode() != null && allowsModal(attr)
@@ -2501,6 +2478,16 @@ public class Capsule implements Runnable {
                 return true;
         }
         return false;
+    }
+
+    protected final List<String> getAttribute0(String attr) {
+        final List<String> values = new ArrayList<>();
+        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
+            String value = c.getAttribute00(attr);
+            if (value != null)
+                values.add(value);
+        }
+        return values;
     }
 
     protected final String getAttribute00(String attr) {
@@ -2650,12 +2637,11 @@ public class Capsule implements Runnable {
     }
 
     private String dependencyToLocalJar(boolean withGroupId, String p) {
-        String[] coords = p.split(":");
+        final String[] coords = p.split(":");
         StringBuilder sb = new StringBuilder();
         if (withGroupId)
             sb.append(coords[0]).append('-');
-        sb.append(coords[1]).append('-');
-        sb.append(coords[2]);
+        sb.append(coords[1]).append('-').append(coords[2]);
         if (coords.length > 3)
             sb.append('-').append(coords[3]);
         sb.append(".jar");
@@ -3555,6 +3541,10 @@ public class Capsule implements Runnable {
                 m.put(entry.getKey(), entry.getValue());
         }
         return m;
+    }
+
+    private static <T> Set<T> immutableSet(T... elems) {
+        return unmodifiableSet(new HashSet<T>(Arrays.asList(elems)));
     }
     //</editor-fold>
 
