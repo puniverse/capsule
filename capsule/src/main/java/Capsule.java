@@ -2497,7 +2497,28 @@ public class Capsule implements Runnable {
         return false;
     }
 
-    protected final String getAttribute0(String attr) {
+    protected final List<String> getAttribute0(String attr) {
+        final List<String> values = new ArrayList<>();
+        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
+            String value = c.getAttribute00(attr);
+            if (value != null)
+                values.add(value);
+        }
+        return values;
+    }
+
+    protected final boolean hasAttribute0(String attr, Attributes.Name key) {
+        if (manifest != null) {
+            if (getMode() != null && allowsModal(attr)
+                    && (getAttributes(manifest, getMode()).containsKey(key) || getAttributes(manifest, getMode() + "-" + PLATFORM).containsKey(key)))
+                return true;
+            if (manifest.getMainAttributes().containsKey(key) || getAttributes(manifest, PLATFORM).containsKey(key))
+                return true;
+        }
+        return false;
+    }
+
+    protected final String getAttribute00(String attr) {
         String value = null;
         if (manifest != null) {
             if (getMode() != null && allowsModal(attr)) {
@@ -2510,19 +2531,7 @@ public class Capsule implements Runnable {
             if (value == null)
                 value = manifest.getMainAttributes().getValue(attr);
         }
-        setContext("attribute", attr, value);
         return value;
-    }
-
-    protected final boolean hasAttribute0(String attr, Attributes.Name key) {
-        if (manifest != null) {
-            if (getMode() != null && allowsModal(attr)
-                    && (getAttributes(manifest, getMode()).containsKey(key) || getAttributes(manifest, getMode() + "-" + PLATFORM).containsKey(key)))
-                return true;
-            if (manifest.getMainAttributes().containsKey(key) || getAttributes(manifest, PLATFORM).containsKey(key))
-                return true;
-        }
-        return false;
     }
 
     /**
@@ -2547,15 +2556,12 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final String getAttribute(String attr) {
-        String value = null;
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            value = c.getAttribute0(attr);
-            if (value != null)
-                break;
-        }
+        final List<String> values = getAttribute0(attr);
+        String value = !values.isEmpty() ? values.get(0) : null;
         final Object[] conf;
         if (value == null && (conf = ATTRIBS.get(attr)) != null)
             value = (String) conf[ATTRIB_DEFAULT];
+        setContext("attribute", attr, value);
         return value;
     }
 
@@ -2577,11 +2583,12 @@ public class Capsule implements Runnable {
      */
     protected final List<String> getListAttribute(String attr) {
         List<String> res = new ArrayList<>();
-        for (Capsule c = cc; c != null; c = getSuperManifest(c))
-            res.addAll(nullToEmpty(parse(c.getAttribute0(attr))));
+        for (String value : getAttribute0(attr))
+            res.addAll(nullToEmpty(parse(value)));
         final Object[] conf;
         if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT]);
+        setContext("attribute", attr, res);
         return emptyToNull(res);
     }
 
@@ -2599,11 +2606,12 @@ public class Capsule implements Runnable {
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
         Map<String, String> res = new HashMap<>();
-        for (Capsule c = cc; c != null; c = getSuperManifest(c))
-            putAllIfAbsent(res, nullToEmpty(parse(c.getAttribute0(attr), defaultValue)));
+        for (String value : getAttribute0(attr))
+            putAllIfAbsent(res, nullToEmpty(parse(value, defaultValue)));
         final Object[] conf;
         if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT], defaultValue);
+        setContext("attribute", attr, res);
         return emptyToNull(res);
     }
 
@@ -3814,13 +3822,13 @@ public class Capsule implements Runnable {
         setContext(null, null, null);
     }
 
-    private static void setContext(String type, String key, String value) {
+    private static void setContext(String type, String key, Object value) {
 //        System.err.println("setContext: " + type + " " + key + " " + value);
 //        Thread.dumpStack();
 
         contextType_ = type;
         contextKey_ = key;
-        contextValue_ = value;
+        contextValue_ = value != null ? value.toString() : null;
     }
 
     private static String reportContext() {
