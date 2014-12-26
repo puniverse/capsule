@@ -9,6 +9,7 @@
 package co.paralleluniverse.capsule;
 
 import co.paralleluniverse.common.JarClassLoader;
+import co.paralleluniverse.common.JarInputStream;
 import java.io.IOException;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
@@ -21,10 +22,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.jar.JarInputStream;
+import java.util.Properties;
 import java.util.jar.Manifest;
 
 /**
@@ -36,73 +36,137 @@ public final class CapsuleLauncher {
     private static final String CAPSULE_CLASS_NAME = "Capsule";
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
+    private static final String PROP_MODE = "capsule.mode";
     private static final String PROP_USER_HOME = "user.home";
     private static final String PROP_OS_NAME = "os.name";
     private static final String CACHE_DEFAULT_NAME = "capsule";
 
+    private final Path jarFile;
+    private final Class capsuleClass;
+    private final Properties properties;
+    private Map<String, Path> javaHomes;
+
+    public CapsuleLauncher(Path jarFile) throws IOException {
+        this(jarFile, null);
+    }
+
+    public CapsuleLauncher(Path jarFile, Properties properties) throws IOException {
+        this.jarFile = jarFile;
+        this.properties = properties != null ? properties : new Properties(System.getProperties());
+        this.capsuleClass = loadCapsuleClass(jarFile);
+        setProperties(capsuleClass, this.properties);
+    }
+
     /**
-     * Creates a new capsule
+     * Sets the Java homes that will be used by the capsules created by {@code newCapsule}.
      *
-     * @param jarFile  the capsule JAR
-     * @param cacheDir the directory to use as cache
-     * @return the capsule.
+     * @param javaHomes a map from Java version strings to their respective JVM installation paths
+     * @return {@code this}
      */
-    public static Capsule newCapsule(Path jarFile, Path cacheDir) {
-        return newCapsule(jarFile, null, cacheDir, null);
+    public CapsuleLauncher setJavaHomes(Map<String, Path> javaHomes) {
+        this.javaHomes = javaHomes;
+        return this;
+    }
+
+    /**
+     * Sets a property for the capsules created by {@code newCapsule}
+     *
+     * @param property the name of the property
+     * @param value    the property's value
+     * @return {@code this}
+     */
+    public CapsuleLauncher setProperty(String property, String value) {
+        properties.setProperty(property, value);
+        return this;
+    }
+
+    /**
+     * Creates a new capsule.
+     */
+    public Capsule newCapsule() {
+        return newCapsule(null, null, null);
     }
 
     /**
      * Creates a new capsule
      *
-     * @param jarFile    the capsule JAR
-     * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
-     *                   or {@code null} if no wrapped capsule is wanted
-     * @param cacheDir   the directory to use as cache
+     * @param mode the capsule mode
      * @return the capsule.
      */
-    public static Capsule newCapsule(Path jarFile, Path wrappedJar, Path cacheDir) {
-        return newCapsule(jarFile, wrappedJar, cacheDir, null);
+    public Capsule newCapsule(String mode) {
+        return newCapsule(mode, null, null);
     }
 
     /**
      * Creates a new capsule
      *
-     * @param jarFile    the capsule JAR
      * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
      *                   or {@code null} if no wrapped capsule is wanted
-     * @param cacheDir   the directory to use as cache
-     * @param javaHomes  a map from Java version strings to their respective JVM installation paths
      * @return the capsule.
      */
-    public static Capsule newCapsule(Path jarFile, Path wrappedJar, Path cacheDir, Map<String, Path> javaHomes) {
+    public Capsule newCapsule(Path wrappedJar) {
+        return newCapsule(null, wrappedJar, null);
+    }
+
+    /**
+     * Creates a new capsule
+     *
+     * @param mode       the capsule mode
+     * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
+     *                   or {@code null} if no wrapped capsule is wanted
+     * @return the capsule.
+     */
+    public Capsule newCapsule(String mode, Path wrappedJar) {
+        return newCapsule(mode, wrappedJar, null);
+    }
+
+    /**
+     * Creates a new capsule
+     *
+     * @param mode       the capsule mode, or {@code null} for the default mode
+     * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
+     *                   or {@code null} if no wrapped capsule is wanted
+     * @param cacheDir   the directory to use as cache, or {@code null} for the default location
+     * @return the capsule.
+     */
+    public Capsule newCapsule(String mode, Path wrappedJar, Path cacheDir) {
+        if (javaHomes != null)
+            setJavaHomes(capsuleClass, javaHomes);
+
+        if (cacheDir == null)
+            cacheDir = getDefaultCacheDir();
+
+        final String oldMode = properties.getProperty(PROP_MODE);
         try {
-            final Manifest mf;
-            try (JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
-                mf = jis.getManifest();
-            }
+            properties.setProperty(PROP_MODE, mode);
 
-            final ClassLoader cl = new JarClassLoader(jarFile, true);
-            final Class<?> clazz = loadCapsuleClass(mf, cl);
-            if (clazz == null)
-                throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
-
-            if (javaHomes != null)
-                setJavaHomes(clazz, javaHomes);
-
-            final Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class, Path.class));
+            final Constructor<?> ctor = accessible(capsuleClass.getDeclaredConstructor(Path.class, Path.class));
             final Object capsule = ctor.newInstance(jarFile, cacheDir);
 
             if (wrappedJar != null) {
-                final Method setTarget = accessible(clazz.getDeclaredMethod("setTarget", Path.class));
+                final Method setTarget = accessible(capsuleClass.getDeclaredMethod("setTarget", Path.class));
                 setTarget.invoke(capsule, wrappedJar);
             }
 
             return wrap(capsule);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not create capsule instance.", e);
+        } finally {
+            properties.setProperty(PROP_MODE, oldMode);
         }
+    }
+
+    private static Class<?> loadCapsuleClass(Path jarFile) throws IOException {
+        final Manifest mf;
+        try (JarInputStream jis = new JarInputStream(Files.newInputStream(jarFile))) {
+            mf = jis.getManifest();
+        }
+
+        final ClassLoader cl = new JarClassLoader(jarFile, true);
+        final Class<?> clazz = loadCapsuleClass(mf, cl);
+        if (clazz == null)
+            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
+        return clazz;
     }
 
     private static Class<?> loadCapsuleClass(Manifest mf, ClassLoader cl) {
@@ -159,9 +223,6 @@ public final class CapsuleLauncher {
                     case "getVersion":
                         return get("VERSION");
 
-                    case "getModes":
-                        return Collections.emptySet();
-
                     default:
                         throw new UnsupportedOperationException("Capsule " + clazz + " does not support this operation");
                 }
@@ -189,7 +250,7 @@ public final class CapsuleLauncher {
      * @return a map from the version strings to their respective paths of the Java installations.
      */
     @SuppressWarnings("unchecked")
-    public static Map<String, Path> getJavaHomes() {
+    public static Map<String, Path> findJavaHomes() {
         try {
             return (Map<String, Path>) accessible(Class.forName(CAPSULE_CLASS_NAME).getDeclaredMethod("getJavaHomes")).invoke(null);
         } catch (ReflectiveOperationException e) {
@@ -202,6 +263,11 @@ public final class CapsuleLauncher {
         if (homes == null)
             return;
         set(null, homes, javaHomes);
+    }
+
+    private static void setProperties(Class<?> capsuleClass, Properties properties) {
+        final Field props = getField(capsuleClass, "PROPERTIES");
+        set(null, props, properties);
     }
 
     /**
@@ -318,7 +384,4 @@ public final class CapsuleLauncher {
         }
     }
     //</editor-fold>
-
-    private CapsuleLauncher() {
-    }
 }

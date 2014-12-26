@@ -38,7 +38,7 @@ public class Driver {
             for (Path f : ds) {
                 if (!Files.isDirectory(f) && f.getFileName().toString().endsWith(".jar")) {
                     System.out.println("Launching " + f);
-                    String id = container.launchCapsule(f, null, Arrays.asList("hi", Integer.toString(++i)));
+                    String id = container.launchCapsule(f, null, null, Arrays.asList("hi", Integer.toString(++i)));
                 }
             }
         }

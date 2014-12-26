@@ -60,7 +60,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     public CapsuleContainer(Path cacheDir) {
         this.cacheDir = cacheDir;
         this.mbean = registerMBean("co.paralleluniverse:type=CapsuleContainer", getMBeanInterface());
-        this.javaHomes = CapsuleLauncher.getJavaHomes();
+        this.javaHomes = CapsuleLauncher.findJavaHomes();
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
 
             @Override
@@ -109,12 +109,13 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
      * Launch and monitor a capsule.
      *
      * @param capsulePath the capsule file
+     * @param mode        the capsule mode ({@code null} for the default mode)
      * @param jvmArgs     the JVM arguments for the capsule
      * @param args        the arguments of the capsule's application
      * @return a unique process ID
      */
-    public String launchCapsule(Path capsulePath, List<String> jvmArgs, List<String> args) throws IOException {
-        final Capsule capsule = CapsuleLauncher.newCapsule(capsulePath, null, cacheDir, javaHomes);
+    public String launchCapsule(Path capsulePath, String mode, List<String> jvmArgs, List<String> args) throws IOException {
+        final Capsule capsule = new CapsuleLauncher(capsulePath).setJavaHomes(javaHomes).newCapsule(mode, null, cacheDir);
         return launchCapsule(capsule, jvmArgs, args);
     }
 
@@ -255,8 +256,8 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     /**
-     *
-     * @param id the process ID (as returned from {@link #launchCapsule(Path, List, List) launchCapsule}.
+     * 
+     * @param id the process ID (as returned from {@link #launchCapsule(Path, String, List, List) launchCapsule}.
      * @return the process
      */
     public final Process getProcess(String id) {
