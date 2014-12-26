@@ -452,7 +452,7 @@ public class Capsule implements Runnable {
             boolean found = false;
             for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
                 if (entry.getValue()[OPTION_METHOD] != null && systemPropertyEmptyOrTrue(entry.getKey())) {
-                    getMethod(capsule, entry.getValue()[0], List.class).invoke(capsule, args);
+                    getMethod(capsule, entry.getValue()[OPTION_METHOD], List.class).invoke(capsule, args);
                     found = true;
                 }
             }
