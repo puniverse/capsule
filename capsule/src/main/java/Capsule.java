@@ -2486,7 +2486,6 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final String getAttribute(String attr) {
-        final Object[] conf = ATTRIBS.get(attr);
         String value = null;
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
             if (c.manifest != null) {
@@ -2499,7 +2498,8 @@ public class Capsule implements Runnable {
                 break;
         }
         setContext("attribute", attr, value);
-        if (conf != null & value == null)
+        final Object[] conf;
+        if (value == null && (conf = ATTRIBS.get(attr)) != null)
             value = (String) conf[ATTRIB_DEFAULT];
         return value;
     }
@@ -2551,11 +2551,11 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final List<String> getListAttribute(String attr) {
-        final Object[] conf = ATTRIBS.get(attr);
         List<String> res = new ArrayList<>();
         for (Capsule c = cc; c != null; c = getSuperManifest(c))
             res.addAll(nullToEmpty(parse(c.getAttribute0(attr))));
-        if (conf != null && res.isEmpty())
+        final Object[] conf;
+        if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT]);
         return emptyToNull(res);
     }
@@ -2573,11 +2573,11 @@ public class Capsule implements Runnable {
      * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
-        final Object[] conf = ATTRIBS.get(attr);
         Map<String, String> res = new HashMap<>();
         for (Capsule c = cc; c != null; c = getSuperManifest(c))
             putAllIfAbsent(res, nullToEmpty(parse(c.getAttribute0(attr), defaultValue)));
-        if (conf != null && res.isEmpty())
+        final Object[] conf;
+        if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT], defaultValue);
         return emptyToNull(res);
     }
