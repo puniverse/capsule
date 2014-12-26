@@ -3894,28 +3894,6 @@ public class Capsule implements Runnable {
     }
 
     @Override
-    public final int hashCode() {
-        int hash = 3;
-        hash = 47 * hash + Objects.hashCode(this.getJarFile());
-        hash = 47 * hash + Objects.hashCode(this.getMode());
-        return hash;
-    }
-
-    @Override
-    public final boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        final Capsule other = (Capsule) obj;
-        if (!Objects.equals(this.jarFile, other.jarFile))
-            return false;
-        if (!Objects.equals(this.mode, other.mode))
-            return false;
-        return true;
-    }
-
-    @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
         sb.append(getClass().getName());
