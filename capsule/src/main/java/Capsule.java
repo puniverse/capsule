@@ -2449,9 +2449,9 @@ public class Capsule implements Runnable {
     protected final Set<String> getModes() {
         final Set<String> modes = new HashSet<>();
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            for (String section : c.manifest.getEntries().keySet()) {
-                if (isLegalModeName(section))
-                    modes.add(section);
+            for (Map.Entry<String, Attributes> entry : c.manifest.getEntries().entrySet()) {
+                if (isLegalModeName(entry.getKey()) && !isDigest(entry.getValue()))
+                    modes.add(entry.getKey());
             }
         }
         return unmodifiableSet(modes);
@@ -2468,6 +2468,14 @@ public class Capsule implements Runnable {
                 return c.manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
         }
         return null;
+    }
+
+    private static boolean isDigest(Attributes attrs) {
+        for (Object name : attrs.keySet()) {
+            if (!name.toString().endsWith("-Digest"))
+                return false;
+        }
+        return true;
     }
 
     /**
