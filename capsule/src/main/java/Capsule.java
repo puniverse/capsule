@@ -85,7 +85,7 @@ public class Capsule implements Runnable {
      * This class follows some STRICT RULES:
      *
      * 1. IT MUST COMPILE TO A SINGLE CLASS FILE (so it must not contain nested or inner classes).
-     * 2. IT MUST ONLY REFERENCE CLASSES IN THE JDK AND THOSE IN THE capsule PACKAGE.
+     * 2. IT MUST ONLY REFERENCE CLASSES IN THE JDK AND THOSE IN THE capsule PACKAGE, TAKING INTO ACCOUNT THAT THE LATTER MAY NOT EXIST AT RUNTIME.
      * 3. CAPSULES WITH NO DECLARED DEPENDENCIES MUST LAUNCH WITHOUT REQUIRING ANY CLASSES BUT THIS AND THE JDK.
      * 4. ALL METHODS MUST BE PURE OR, AT LEAST, IDEMPOTENT (with the exception of the launch method, and, of course, the constructor).
      *
@@ -534,9 +534,8 @@ public class Capsule implements Runnable {
      */
     @SuppressWarnings({"OverridableMethodCallInConstructor", "LeakingThisInConstructor"})
     protected Capsule(Path jarFile, Path cacheDir) {
-        Objects.requireNonNull(jarFile, "jarFile can't be null");
-        Objects.requireNonNull(cacheDir, "cacheDir can't be null");
         clearContext();
+        Objects.requireNonNull(jarFile, "jarFile can't be null");
 
         this.oc = this;
         this.cc = this;
@@ -1354,6 +1353,8 @@ public class Capsule implements Runnable {
     }
 
     private static Path initCacheDir(Path cache) {
+        if (cache == null)
+            return null;
         try {
             if (!Files.exists(cache))
                 Files.createDirectory(cache);
@@ -1675,9 +1676,7 @@ public class Capsule implements Runnable {
      * Finds the path to the executable that will be used to launch Java within the given {@code javaHome}.
      */
     protected static final Path getJavaExecutable(Path javaHome) {
-        final Path exec = getJavaExecutable0(javaHome);
-        assert exec.startsWith(javaHome);
-        return exec;
+        return getJavaExecutable0(javaHome);
     }
 
     private static List<String> compileSystemProperties(Map<String, String> ps) {
@@ -2881,7 +2880,7 @@ public class Capsule implements Runnable {
             final int b = is.read();
             if (b < 0)
                 throw new IllegalArgumentException("Not a JAR/ZIP file");
-            if (state >=0 && b == ZIP_HEADER[state]) {
+            if (state >= 0 && b == ZIP_HEADER[state]) {
                 state++;
                 if (state == ZIP_HEADER.length)
                     break;
