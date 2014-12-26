@@ -3622,7 +3622,7 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Same as {@link System#getenv(java.lang.String) System.getenv(envName)} but sets context for error reporting.
+     * Returns the value of an environment variable - should be used instead of {@link System#getenv(java.lang.String) System.getenv(envName)}.
      */
     private static String getenv(String envName) {
         final String val = envName != null ? System.getenv(envName) : null;
@@ -3740,10 +3740,7 @@ public class Capsule implements Runnable {
         String level = getProperty(PROP_LOG_LEVEL);
         if (level == null && oc.manifest != null)
             level = getAttribute(ATTR_LOG_LEVEL);
-        int lvl = getLogLevel(level);
-        if (lvl < 0)
-            throw new IllegalArgumentException("Unrecognized log level: " + level);
-        return lvl;
+        return getLogLevel(level);
     }
 
     private static int getLogLevel(String level) {
@@ -3760,12 +3757,12 @@ public class Capsule implements Runnable {
             case "ALL":
                 return LOG_DEBUG;
             default:
-                return -1;
+                throw new IllegalArgumentException("Unrecognized log level: " + level);
         }
     }
 
     /**
-     * Tests if the given log level is currently being logged
+     * Tests if the given log level is currently being logged.
      */
     protected final boolean isLogging(int level) {
         return level <= oc.logLevel;
