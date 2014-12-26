@@ -106,6 +106,15 @@ public class Jar {
     }
 
     /**
+     * Creates a copy
+     */
+    public Jar(Jar jar) {
+        this.jar = jar.jar;
+        this.jis = jar.jis;
+        this.manifest = new Manifest(jar.manifest);
+    }
+
+    /**
      * Returns the manifest of this JAR. Modifications to the manifest will be reflected in the written JAR, provided they are done
      * before any entries are added with {@code addEntry()}.
      */
@@ -535,6 +544,30 @@ public class Jar {
             throw new IllegalStateException("Entries have already been added, the JAR has been written or setOutputStream has already been called.");
         this.os = os;
         return this;
+    }
+
+    /**
+     * Same as {@link #setOutputStream(OutputStream) setOutputStream(Files.newOutputStream(out))}.
+     * If used, this method must be called before any entries have been added or the JAR written. Calling this method prevents this
+     * object from using an internal buffer to store the JAR, and therefore, none of the other {@code write} methods can be called.
+     *
+     * @param out the target file to which this JAR will be written.
+     * @return {@code this}
+     */
+    public Jar setOutput(Path out) throws IOException {
+        return setOutputStream(Files.newOutputStream(out));
+    }
+
+    /**
+     * Same as {@link #setOutputStream(OutputStream) setOutputStream(new FileOutputStream(out))}.
+     * If used, this method must be called before any entries have been added or the JAR written. Calling this method prevents this
+     * object from using an internal buffer to store the JAR, and therefore, none of the other {@code write} methods can be called.
+     *
+     * @param out the target file to which this JAR will be written.
+     * @return {@code this}
+     */
+    public Jar setOutput(File out) throws IOException {
+        return setOutputStream(new FileOutputStream(out));
     }
 
     private void beginWriting() throws IOException {
