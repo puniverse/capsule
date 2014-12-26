@@ -285,6 +285,7 @@ project (':capsule') {
         libraryjars "${System.getProperty('java.home')}/lib/rt.jar"
         keep 'class Capsule { *; }'
         keepclassmembers 'enum * {**[] $VALUES;public static **[] values();public static ** valueOf(java.lang.String);}'
+        keep 'class capsule.org.eclipse.aether.AbstractForwardingRepositorySystemSession { *; }'
         dontoptimize
         dontobfuscate
         dontwarn
