@@ -612,6 +612,34 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testPlatformSepcific() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Linux", "System-Properties", "bar baz=33 foo=y os=lin")
+                .setAttribute("MacOS", "System-Properties", "bar baz=33 foo=y os=mac")
+                .setAttribute("Windows", "System-Properties", "bar baz=33 foo=y os=win")
+                .addEntry("foo.jar", emptyInputStream());
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertEquals("x", getProperty(pb, "foo"));
+        assertEquals("", getProperty(pb, "bar"));
+        assertEquals("", getProperty(pb, "zzz"));
+        assertEquals("33", getProperty(pb, "baz"));
+
+        if (Capsule.isWindows())
+            assertEquals("win", getProperty(pb, "os"));
+        else if (Capsule.isUnix())
+            assertEquals("lin", getProperty(pb, "os"));
+        if (Capsule.isMac())
+            assertEquals("mac", getProperty(pb, "os"));
+    }
+
+    @Test
     public void testJVMArgs() throws Exception {
         props.setProperty("capsule.jvm.args", "-Xfoo500 -Xbar:120");
 
@@ -669,6 +697,9 @@ public class CapsuleTest {
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
                 .setAttribute("ModeX", "Description", "This is a secret mode")
+                .setAttribute("ModeX-Linux", "System-Properties", "bar baz=55 foo=w os=lin")
+                .setAttribute("ModeX-MacOS", "System-Properties", "bar baz=55 foo=w os=mac")
+                .setAttribute("ModeX-Windows", "System-Properties", "bar baz=55 foo=w os=win")
                 .addEntry("foo.jar", emptyInputStream());
 
         List<String> args = list("hi", "there");
@@ -684,6 +715,13 @@ public class CapsuleTest {
 
         assertEquals(new HashSet<String>(list("ModeX")), capsule.getModes());
         assertEquals("This is a secret mode", capsule.getModeDescription("ModeX"));
+
+        if (Capsule.isWindows())
+            assertEquals("win", getProperty(pb, "os"));
+        else if (Capsule.isUnix())
+            assertEquals("lin", getProperty(pb, "os"));
+        if (Capsule.isMac())
+            assertEquals("mac", getProperty(pb, "os"));
     }
 
     @Test(expected = Exception.class)

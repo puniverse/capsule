@@ -223,6 +223,15 @@ public class Capsule implements Runnable {
             "Specification-Title", "Specification-Version", "Specification-Vendor"
     )));
 
+    private static final String OS_WINDOWS = "Windows";
+    private static final String OS_LINUX = "Linux";
+    private static final String OS_MACOS = "MacOS";
+
+    private static final Set<String> PLATFORMS = unmodifiableSet(new HashSet<String>(Arrays.asList(
+            OS_WINDOWS, OS_LINUX, OS_MACOS
+    )));
+    private static final String PLATFORM = getOS();
+
     @SuppressWarnings("FieldMayBeFinal")
     private static Object DEPENDENCY_MANAGER = DEFAULT; // used only by tests
 
@@ -2395,7 +2404,7 @@ public class Capsule implements Runnable {
     }
 
     private static boolean isLegalModeName(String name) {
-        return !name.contains("/") && !name.endsWith(".class");
+        return !name.contains("/") && !name.endsWith(".class") && !name.endsWith(".jar") && !isOsSpecific(name);
     }
 
     private void validateManifest() {
@@ -2478,11 +2487,26 @@ public class Capsule implements Runnable {
         return true;
     }
 
+    private static boolean isOsSpecific(String section) {
+        if (PLATFORMS.contains(section))
+            return true;
+        for (String os : PLATFORMS) {
+            if (section.endsWith("-" + os))
+                return true;
+        }
+        return false;
+    }
+
     protected final String getAttribute0(String attr) {
         String value = null;
         if (manifest != null) {
-            if (getMode() != null && allowsModal(attr))
-                value = getAttributes(manifest, getMode()).getValue(attr);
+            if (getMode() != null && allowsModal(attr)) {
+                value = getAttributes(manifest, getMode() + "-" + PLATFORM).getValue(attr);
+                if (value == null)
+                    value = getAttributes(manifest, getMode()).getValue(attr);
+            }
+            if (value == null)
+                value = getAttributes(manifest, PLATFORM).getValue(attr);
             if (value == null)
                 value = manifest.getMainAttributes().getValue(attr);
         }
@@ -2492,9 +2516,10 @@ public class Capsule implements Runnable {
 
     protected final boolean hasAttribute0(String attr, Attributes.Name key) {
         if (manifest != null) {
-            if (getMode() != null && allowsModal(attr) && getAttributes(manifest, getMode()).containsKey(key))
+            if (getMode() != null && allowsModal(attr)
+                    && (getAttributes(manifest, getMode()).containsKey(key) || getAttributes(manifest, getMode() + "-" + PLATFORM).containsKey(key)))
                 return true;
-            if (manifest.getMainAttributes().containsKey(key))
+            if (manifest.getMainAttributes().containsKey(key) || getAttributes(manifest, PLATFORM).containsKey(key))
                 return true;
         }
         return false;
@@ -2620,7 +2645,7 @@ public class Capsule implements Runnable {
     private static final Attributes EMPTY_ATTRIBUTES = new Attributes();
 
     private Attributes getAttributes(Manifest manifest, String name) {
-        Attributes as = manifest.getAttributes(name);
+        final Attributes as = manifest.getAttributes(name);
         return as != null ? as : EMPTY_ATTRIBUTES;
     }
     //</editor-fold>
@@ -2832,6 +2857,17 @@ public class Capsule implements Runnable {
         return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux")
                 || System.getProperty(PROP_OS_NAME).toLowerCase().contains("solaris")
                 || System.getProperty(PROP_OS_NAME).toLowerCase().contains("aix");
+    }
+
+    private static String getOS() {
+        if (isWindows())
+            return OS_WINDOWS;
+        if (isMac())
+            return OS_MACOS;
+        if (isUnix())
+            return OS_LINUX;
+        else
+            throw new RuntimeException("Unrecognized OS: " + System.getProperty(PROP_OS_NAME));
     }
 
     /**
