@@ -2517,6 +2517,7 @@ public class Capsule implements Runnable {
                 value = getAttributes(manifest, PLATFORM).getValue(attr);
             if (value == null)
                 value = manifest.getMainAttributes().getValue(attr);
+            setContext("attribute of " + jarFile, attr, value);
         }
         return value;
     }
