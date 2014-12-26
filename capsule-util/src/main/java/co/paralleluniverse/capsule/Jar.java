@@ -184,7 +184,7 @@ public class Jar {
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
     public Jar setListAttribute(String section, String name, List<String> values) {
-        return setAttribute(name, section, join(values));
+        return setAttribute(section, name, join(values));
     }
 
     /**
@@ -211,7 +211,7 @@ public class Jar {
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
     public Jar setMapAttribute(String section, String name, Map<String, String> values) {
-        return setAttribute(name, section, join(values));
+        return setAttribute(section, name, join(values));
     }
 
     /**
