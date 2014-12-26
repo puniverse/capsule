@@ -97,6 +97,21 @@ public class Capsule implements Runnable {
      * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      *
      * We do a lot of data transformations that could benefit from Java 8's lambdas+streams, but we want Capsule to support Java 7.
+     *
+     * Caplet Hierarcy (or chain)
+     * --------------------------
+     *
+     * Capsule subclasses, i.e. caplets, may be arranged in a dynamic "inheritance" hierarchy, where each caplet modifies, or "subclasses" 
+     * the previous ones in the chain. 
+     * The first caplet in the chain (the highest in the hierarchy) is referenced by the 'oc' field, the last is referenced by 'cc', and
+     * the previous caplet, the "superclass" is referenced by 'sup':
+     *
+     *  ____          ____          ____          ____
+     * |    |   sup  |    |   sup  |    |   sup  |    |
+     * | OC | <----- |    | <----- |    | <----- | CC |
+     * |____|        |____|        |____|        |____|
+     *
+     * A wrapping capsule is inserted into the chain following the wrapped capsule.
      */
 
     //<editor-fold defaultstate="collapsed" desc="Constants">
@@ -3644,7 +3659,7 @@ public class Capsule implements Runnable {
     private static Throwable deshadow(Throwable t) {
         return deshadow("capsule", t);
     }
-    
+
     private static Throwable deshadow(String prefix, Throwable t) {
         prefix = prefix.endsWith(".") ? prefix : prefix + ".";
         final StackTraceElement[] st = t.getStackTrace();
