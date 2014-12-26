@@ -7,7 +7,6 @@
  */
 package co.paralleluniverse.common;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
@@ -20,10 +19,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 /**
  *
@@ -159,8 +156,7 @@ public final class JarClassLoader extends FlexibleClassLoader {
 
     private InputStream newInputStream() {
         try {
-            final InputStream is = buffer != null ? new ByteArrayInputStream(buffer) : Files.newInputStream(jarFile);
-            return skipToZipStart(is);
+            return buffer != null ? new ByteArrayInputStream(buffer) : Files.newInputStream(jarFile);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -170,31 +166,5 @@ public final class JarClassLoader extends FlexibleClassLoader {
         try (JarInputStream jis = new JarInputStream(is)) {
             return jis.getManifest();
         }
-    }
-
-    private static final int[] ZIP_HEADER = new int[]{'P', 'K', 0x03, 0x04};
-
-    private static InputStream skipToZipStart(InputStream is) throws IOException {
-        if (!is.markSupported())
-            is = new BufferedInputStream(is);
-        int state = 0;
-        for (;;) {
-            if (state == 0)
-                is.mark(ZIP_HEADER.length);
-            final int b = is.read();
-            if (b < 0)
-                throw new IllegalArgumentException("Not a JAR/ZIP file");
-            if (state >=0 && b == ZIP_HEADER[state]) {
-                state++;
-                if (state == ZIP_HEADER.length)
-                    break;
-            } else {
-                state = -1;
-                if (b == '\n' || b == 0) // start matching on \n and \0
-                    state = 0;
-            }
-        }
-        is.reset();
-        return is;
     }
 }
