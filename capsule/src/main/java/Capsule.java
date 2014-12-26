@@ -81,7 +81,7 @@ import java.util.Properties;
  * @author pron
  */
 public class Capsule implements Runnable {
-    protected static final String VERSION = "0.10.1";
+    protected static final String VERSION = "1.0";
     /*
      * This class follows some STRICT RULES:
      *
