@@ -59,6 +59,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import static java.util.Collections.*;
+import java.util.Properties;
 
 /**
  * An application capsule.
@@ -231,7 +232,7 @@ public class Capsule implements Runnable {
     protected static final int LOG_QUIET = 1;
     protected static final int LOG_VERBOSE = 2;
     protected static final int LOG_DEBUG = 3;
-    private static final int PROFILE = propertyDefined(PROP_PROFILE) ? LOG_QUIET : LOG_DEBUG;
+    private static final int PROFILE = Boolean.parseBoolean(System.getProperty(PROP_PROFILE, "false")) ? LOG_QUIET : LOG_DEBUG;
 
     // options
     private static final int OPTION_DEFAULT = 0;
@@ -246,6 +247,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
+    private static Properties PROPERTIES = System.getProperties();
     private static Capsule CAPSULE;
 
     final static Capsule myCapsule(List<String> args) {
@@ -400,10 +402,10 @@ public class Capsule implements Runnable {
         for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
             final String option = entry.getKey();
             final String defval = entry.getValue()[OPTION_DEFAULT];
-            if (System.getProperty(option) == null && defval != null && !defval.equals("false")) // the last condition is for backwards compatibility
-                System.setProperty(option, defval);
-            else if (optionTakesArguments(option) && "".equals(System.getProperty(option)))
-                System.setProperty(option, "true");
+            if (systemProperty0(option) == null && defval != null && !defval.equals("false")) // the last condition is for backwards compatibility
+                setProperty(option, defval);
+            else if (optionTakesArguments(option) && "".equals(systemProperty0(option)))
+                setProperty(option, "true");
         }
     }
 
@@ -1269,7 +1271,7 @@ public class Capsule implements Runnable {
     }
 
     private static boolean isTrampoline() {
-        return propertyDefined(PROP_TRAMPOLINE);
+        return systemPropertyEmptyOrTrue(PROP_TRAMPOLINE);
     }
     //</editor-fold>
 
@@ -3565,14 +3567,6 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Misc Utils">
     /////////// Misc Utils ///////////////////////////////////
-    private static boolean propertyDefined(String... props) {
-        for (String prop : props) {
-            if (System.getProperty(prop) != null)
-                return true;
-        }
-        return false;
-    }
-
     private static String propertyOrEnv(String propName, String envVar) {
         String val = systemProperty(propName);
         if (val == null)
@@ -3584,9 +3578,20 @@ public class Capsule implements Runnable {
      * Same as {@link System#getProperty(java.lang.String) System.getProperty(propName)} but sets context for error reporting.
      */
     protected static final String systemProperty(String propName) {
-        final String val = propName != null ? System.getProperty(propName) : null;
+        final String val = systemProperty0(propName);
         setContext("system property", propName, val);
         return val;
+    }
+
+    private static String systemProperty0(String propName) {
+        return propName != null ? PROPERTIES.getProperty(propName) : null;
+    }
+
+    /**
+     * Sets a system property.
+     */
+    protected static final void setProperty(String propName, String value) {
+        PROPERTIES.setProperty(propName, value);
     }
 
     /**
@@ -3599,7 +3604,7 @@ public class Capsule implements Runnable {
     }
 
     private static boolean systemPropertyEmptyOrTrue(String property) {
-        final String value = System.getProperty(property);
+        final String value = systemProperty(property);
         if (value == null)
             return false;
         return value.isEmpty() || Boolean.parseBoolean(value);

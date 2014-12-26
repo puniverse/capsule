@@ -6,6 +6,7 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
+
 import capsule.DependencyManager;
 import co.paralleluniverse.capsule.Jar;
 import com.google.common.jimfs.Jimfs;
@@ -33,6 +34,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.regex.Matcher;
@@ -60,9 +62,13 @@ public class CapsuleTest {
     private final Path tmp = fs.getPath("/tmp");
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
 
+    private Properties props;
+
     @Before
     public void setUp() throws Exception {
-        System.setProperty("capsule.no_dep_manager", "true");
+        props = new Properties(System.getProperties());
+        accessible(Capsule.class.getDeclaredField("PROPERTIES")).set(null, props);
+        props.setProperty("capsule.no_dep_manager", "true");
     }
 
     @After
@@ -161,74 +167,68 @@ public class CapsuleTest {
             assertTrue(capsule.isLogging(2));
             assertTrue(!capsule.isLogging(3));
 
-            System.setProperty("capsule.log", "none");
+            props.setProperty("capsule.log", "none");
             capsule = newCapsule(jar, null);
             assertTrue(capsule.isLogging(0));
             assertTrue(!capsule.isLogging(1));
 
-            System.setProperty("capsule.log", "quiet");
+            props.setProperty("capsule.log", "quiet");
             capsule = newCapsule(jar, null);
             assertTrue(capsule.isLogging(1));
             assertTrue(!capsule.isLogging(2));
 
-            System.setProperty("capsule.log", "");
+            props.setProperty("capsule.log", "");
             capsule = newCapsule(jar, null);
             assertTrue(capsule.isLogging(1));
             assertTrue(!capsule.isLogging(2));
 
-            System.setProperty("capsule.log", "verbose");
+            props.setProperty("capsule.log", "verbose");
             capsule = newCapsule(jar, null);
             assertTrue(capsule.isLogging(2));
             assertTrue(!capsule.isLogging(3));
 
-            System.setProperty("capsule.log", "debug");
+            props.setProperty("capsule.log", "debug");
             capsule = newCapsule(jar, null);
             assertTrue(capsule.isLogging(3));
         } finally {
-            System.setProperty("capsule.log", "");
+            props.setProperty("capsule.log", "");
         }
     }
 
     @Test
     public void testCapsuleJavaHome() throws Exception {
-        System.setProperty("capsule.java.home", "/my/java/home");
-        try {
-            Jar jar = newCapsuleJar()
-                    .setAttribute("Application-Class", "com.acme.Foo")
-                    .setAttribute("Extract-Capsule", "false")
-                    .addEntry("foo.jar", emptyInputStream());
+        props.setProperty("capsule.java.home", "/my/java/home");
 
-            List<String> args = list("hi", "there");
-            List<String> cmdLine = list();
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false")
+                .addEntry("foo.jar", emptyInputStream());
 
-            Capsule capsule = newCapsule(jar, null);
-            ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
 
-            assertEquals("/my/java/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""), pb.command().get(0));
-        } finally {
-            System.setProperty("capsule.java.home", "");
-        }
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertEquals("/my/java/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""), pb.command().get(0));
     }
 
     @Test
     public void testCapsuleJavaCmd() throws Exception {
-        System.setProperty("capsule.java.cmd", "/my/java/home/gogo");
-        try {
-            Jar jar = newCapsuleJar()
-                    .setAttribute("Application-Class", "com.acme.Foo")
-                    .setAttribute("Extract-Capsule", "false")
-                    .addEntry("foo.jar", emptyInputStream());
+        props.setProperty("capsule.java.cmd", "/my/java/home/gogo");
 
-            List<String> args = list("hi", "there");
-            List<String> cmdLine = list();
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false")
+                .addEntry("foo.jar", emptyInputStream());
 
-            Capsule capsule = newCapsule(jar, null);
-            ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
 
-            assertEquals("/my/java/home/gogo", pb.command().get(0));
-        } finally {
-            System.setProperty("capsule.java.cmd", "");
-        }
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertEquals("/my/java/home/gogo", pb.command().get(0));
     }
 
     @Test
@@ -319,35 +319,30 @@ public class CapsuleTest {
 
     @Test
     public void testNatives2() throws Exception {
-        final String orig = System.getProperty("java.library.path");
-        try {
-            Jar jar = newCapsuleJar()
-                    .setAttribute("Application-Class", "com.acme.Foo")
-                    .setListAttribute("Library-Path-A", list("lib/a.so"))
-                    .setListAttribute("Library-Path-P", list("lib/b.so"))
-                    .addEntry("foo.jar", emptyInputStream())
-                    .addEntry("lib/a.so", emptyInputStream())
-                    .addEntry("lib/b.so", emptyInputStream())
-                    .addEntry("lib/c.jar", emptyInputStream())
-                    .addEntry("lib/d.jar", emptyInputStream());
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("Library-Path-A", list("lib/a.so"))
+                .setListAttribute("Library-Path-P", list("lib/b.so"))
+                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("lib/a.so", emptyInputStream())
+                .addEntry("lib/b.so", emptyInputStream())
+                .addEntry("lib/c.jar", emptyInputStream())
+                .addEntry("lib/d.jar", emptyInputStream());
 
-            System.setProperty("java.library.path", "/foo/bar");
-            List<String> args = list("hi", "there");
-            List<String> cmdLine = list();
+        props.setProperty("java.library.path", "/foo/bar");
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
 
-            Capsule capsule = newCapsule(jar, null);
-            ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-            Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-            ASSERT.that(paths(getProperty(pb, "java.library.path"))).isEqualTo(list(
-                    appCache.resolve("lib").resolve("b.so"),
-                    path("/foo", "bar"),
-                    appCache.resolve("lib").resolve("a.so"),
-                    appCache));
-        } finally {
-            System.setProperty("java.library.path", orig);
-        }
+        ASSERT.that(paths(getProperty(pb, "java.library.path"))).isEqualTo(list(
+                appCache.resolve("lib").resolve("b.so"),
+                path("/foo", "bar"),
+                appCache.resolve("lib").resolve("a.so"),
+                appCache));
     }
 
     @Test
@@ -375,7 +370,7 @@ public class CapsuleTest {
         Files.createFile(bazMacPath);
         when(dm.resolveDependencies(list("com.acme:baz-macos:3.4"), "dylib")).thenReturn(list(bazMacPath));
 
-        System.setProperty("java.library.path", "/foo/bar");
+        props.setProperty("java.library.path", "/foo/bar");
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
@@ -618,7 +613,8 @@ public class CapsuleTest {
 
     @Test
     public void testJVMArgs() throws Exception {
-        System.setProperty("capsule.jvm.args", "-Xfoo500 -Xbar:120");
+        props.setProperty("capsule.jvm.args", "-Xfoo500 -Xbar:120");
+
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10 -Xfoo400")
@@ -666,31 +662,28 @@ public class CapsuleTest {
 
     @Test
     public void testMode() throws Exception {
-        System.setProperty("capsule.mode", "ModeX");
-        try {
-            Jar jar = newCapsuleJar()
-                    .setAttribute("Application-Class", "com.acme.Foo")
-                    .setAttribute("System-Properties", "bar baz=33 foo=y")
-                    .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
-                    .setAttribute("ModeX", "Description", "This is a secret mode")
-                    .addEntry("foo.jar", emptyInputStream());
+        props.setProperty("capsule.mode", "ModeX");
 
-            List<String> args = list("hi", "there");
-            List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
+                .setAttribute("ModeX", "Description", "This is a secret mode")
+                .addEntry("foo.jar", emptyInputStream());
 
-            Capsule capsule = newCapsule(jar, null);
-            ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
 
-            assertEquals("x", getProperty(pb, "foo"));
-            assertEquals("", getProperty(pb, "bar"));
-            assertEquals("", getProperty(pb, "zzz"));
-            assertEquals("55", getProperty(pb, "baz"));
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-            assertEquals(new HashSet<String>(list("ModeX")), capsule.getModes());
-            assertEquals("This is a secret mode", capsule.getModeDescription("ModeX"));
-        } finally {
-            System.setProperty("capsule.mode", "");
-        }
+        assertEquals("x", getProperty(pb, "foo"));
+        assertEquals("", getProperty(pb, "bar"));
+        assertEquals("", getProperty(pb, "zzz"));
+        assertEquals("55", getProperty(pb, "baz"));
+
+        assertEquals(new HashSet<String>(list("ModeX")), capsule.getModes());
+        assertEquals("This is a secret mode", capsule.getModeDescription("ModeX"));
     }
 
     @Test(expected = Exception.class)
