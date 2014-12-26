@@ -3642,18 +3642,22 @@ public class Capsule implements Runnable {
     }
 
     private static Throwable deshadow(Throwable t) {
+        return deshadow("capsule", t);
+    }
+    
+    private static Throwable deshadow(String prefix, Throwable t) {
+        prefix = prefix.endsWith(".") ? prefix : prefix + ".";
         final StackTraceElement[] st = t.getStackTrace();
-        for (int i = 0; i < st.length; i++)
-            st[i] = new StackTraceElement(deshadow(st[i].getClassName()), st[i].getMethodName(), st[i].getFileName(), st[i].getLineNumber());
+        for (int i = 0; i < st.length; i++) {
+            String className = st[i].getClassName();
+            className = (className != null && className.startsWith(prefix) && className.lastIndexOf('.') > prefix.length()) ? className.substring(prefix.length()) : className;
+            st[i] = new StackTraceElement(className, st[i].getMethodName(), st[i].getFileName(), st[i].getLineNumber());
+        }
         t.setStackTrace(st);
 
         if (t.getCause() != null)
-            deshadow(t.getCause());
+            deshadow(prefix, t.getCause());
         return t;
-    }
-
-    private static String deshadow(String className) {
-        return (className != null && className.startsWith("capsule.") && className.lastIndexOf('.') > "capsule.".length()) ? className.substring("capsule.".length()) : className;
     }
 
     /**
