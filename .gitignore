@@ -12,5 +12,4 @@ _site/
 /*/build/
 .gradle/
 .nb-gradle-properties
-.bdb/
 Gemfile.lock
