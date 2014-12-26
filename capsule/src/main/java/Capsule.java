@@ -300,7 +300,7 @@ public class Capsule implements Runnable {
         System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
         if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
             System.err.print(" while processing " + getContext());
-        if (getLogLevel(systemProperty0(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
+        if (getLogLevel(getProperty0(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
             System.err.println();
             deshadow(t).printStackTrace(System.err);
         } else
@@ -402,9 +402,9 @@ public class Capsule implements Runnable {
         for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
             final String option = entry.getKey();
             final String defval = entry.getValue()[OPTION_DEFAULT];
-            if (systemProperty0(option) == null && defval != null && !defval.equals("false")) // the last condition is for backwards compatibility
+            if (getProperty0(option) == null && defval != null && !defval.equals("false")) // the last condition is for backwards compatibility
                 setProperty(option, defval);
-            else if (optionTakesArguments(option) && "".equals(systemProperty0(option)))
+            else if (optionTakesArguments(option) && "".equals(getProperty0(option)))
                 setProperty(option, "true");
         }
     }
@@ -910,7 +910,7 @@ public class Capsule implements Runnable {
                 System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
         }
         final Path javaHome = chooseJavaHome();
-        System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (systemProperty(PROP_JAVA_HOME) + " (current)")));
+        System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
     void printUsage() {
@@ -1132,7 +1132,7 @@ public class Capsule implements Runnable {
     }
 
     private String chooseMode0() {
-        return emptyToNull(systemProperty(PROP_MODE));
+        return emptyToNull(getProperty(PROP_MODE));
     }
 
     /**
@@ -1369,7 +1369,7 @@ public class Capsule implements Runnable {
     }
 
     private static Path getCacheHome() {
-        final Path userHome = Paths.get(systemProperty(PROP_USER_HOME));
+        final Path userHome = Paths.get(getProperty(PROP_USER_HOME));
         if (!isWindows())
             return userHome;
 
@@ -1645,7 +1645,7 @@ public class Capsule implements Runnable {
             log(LOG_DEBUG, "Command line length: " + len);
             if (isTrampoline())
                 throw new RuntimeException("Command line too long and trampoline requested.");
-            oc.pathingJar = createPathingJar(Paths.get(systemProperty(PROP_TMP_DIR)), cp);
+            oc.pathingJar = createPathingJar(Paths.get(getProperty(PROP_TMP_DIR)), cp);
             log(LOG_VERBOSE, "Writing classpath: " + cp + " to pathing JAR: " + pathingJar);
             return singletonList(pathingJar);
         } else
@@ -1662,7 +1662,7 @@ public class Capsule implements Runnable {
     }
 
     private Path getJavaExecutable0() {
-        String javaCmd = emptyToNull(systemProperty(PROP_CAPSULE_JAVA_CMD));
+        String javaCmd = emptyToNull(getProperty(PROP_CAPSULE_JAVA_CMD));
         if (javaCmd != null)
             return path(javaCmd);
 
@@ -1923,7 +1923,7 @@ public class Capsule implements Runnable {
 
     private List<Path> getPlatformNativeLibraryPath0() {
         // WARNING: this assumes the platform running the app (say a different Java home), has the same java.library.path.
-        return toPath(Arrays.asList(systemProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR)));
+        return toPath(Arrays.asList(getProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR)));
     }
 
     private void resolveNativeDependencies() {
@@ -1998,7 +1998,7 @@ public class Capsule implements Runnable {
         for (String option : buildJVMArgs())
             addJvmArg(option, jvmArgs);
 
-        for (String option : nullToEmpty(Capsule.split(systemProperty(PROP_JVM_ARGS), " ")))
+        for (String option : nullToEmpty(Capsule.split(getProperty(PROP_JVM_ARGS), " ")))
             addJvmArg(option, jvmArgs);
 
         // command line overrides everything
@@ -2119,7 +2119,7 @@ public class Capsule implements Runnable {
     protected final Path getJavaHome() {
         if (oc.javaHome_ == null) {
             final Path jhome = chooseJavaHome();
-            oc.javaHome_ = jhome != null ? jhome : Paths.get(systemProperty(PROP_JAVA_HOME));
+            oc.javaHome_ = jhome != null ? jhome : Paths.get(getProperty(PROP_JAVA_HOME));
             log(LOG_VERBOSE, "Using JVM: " + oc.javaHome_);
         }
         return oc.javaHome_;
@@ -2136,11 +2136,11 @@ public class Capsule implements Runnable {
 
     private Path chooseJavaHome0() {
         final long start = clock();
-        final String propJHome = emptyToNull(systemProperty(PROP_CAPSULE_JAVA_HOME));
+        final String propJHome = emptyToNull(getProperty(PROP_CAPSULE_JAVA_HOME));
         Path jhome = null;
         if (!"current".equals(propJHome)) {
             jhome = propJHome != null ? Paths.get(propJHome) : null;
-            if (jhome == null && !isMatchingJavaVersion(systemProperty(PROP_JAVA_VERSION))) {
+            if (jhome == null && !isMatchingJavaVersion(getProperty(PROP_JAVA_VERSION))) {
                 final boolean jdk = Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
 
                 jhome = findJavaHome(jdk);
@@ -2800,7 +2800,7 @@ public class Capsule implements Runnable {
 //        if (isWindows())
 //            return str;
 //        else
-        return str.startsWith("~/") ? str.replace("~", systemProperty(PROP_USER_HOME)) : str;
+        return str.startsWith("~/") ? str.replace("~", getProperty(PROP_USER_HOME)) : str;
     }
 
     private static Path toFriendlyPath(Path p) {
@@ -3113,7 +3113,7 @@ public class Capsule implements Runnable {
         if (JAVA_HOMES == null) {
             try {
                 Path homesDir = null;
-                for (Path d = Paths.get(systemProperty(PROP_JAVA_HOME)); d != null; d = d.getParent()) {
+                for (Path d = Paths.get(getProperty(PROP_JAVA_HOME)); d != null; d = d.getParent()) {
                     if (isJavaDir(d.getFileName().toString()) != null) {
                         homesDir = d.getParent();
                         break;
@@ -3595,22 +3595,22 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Misc Utils">
     /////////// Misc Utils ///////////////////////////////////
     private static String propertyOrEnv(String propName, String envVar) {
-        String val = systemProperty(propName);
+        String val = getProperty(propName);
         if (val == null)
             val = emptyToNull(getenv(envVar));
         return val;
     }
 
     /**
-     * Same as {@link System#getProperty(java.lang.String) System.getProperty(propName)} but sets context for error reporting.
+     * Returns a system property - should be used instead of {@link System#getProperty(java.lang.String) System.getProperty(propName)}.
      */
-    protected static final String systemProperty(String propName) {
-        final String val = systemProperty0(propName);
+    protected static final String getProperty(String propName) {
+        final String val = getProperty0(propName);
         setContext("system property", propName, val);
         return val;
     }
 
-    private static String systemProperty0(String propName) {
+    private static String getProperty0(String propName) {
         return propName != null ? PROPERTIES.getProperty(propName) : null;
     }
 
@@ -3631,7 +3631,7 @@ public class Capsule implements Runnable {
     }
 
     private static boolean systemPropertyEmptyOrTrue(String property) {
-        final String value = systemProperty(property);
+        final String value = getProperty(property);
         if (value == null)
             return false;
         return value.isEmpty() || Boolean.parseBoolean(value);
@@ -3737,7 +3737,7 @@ public class Capsule implements Runnable {
     }
 
     private int chooseLogLevel0() {
-        String level = systemProperty(PROP_LOG_LEVEL);
+        String level = getProperty(PROP_LOG_LEVEL);
         if (level == null && oc.manifest != null)
             level = getAttribute(ATTR_LOG_LEVEL);
         int lvl = getLogLevel(level);
