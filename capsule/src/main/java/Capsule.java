@@ -2478,32 +2478,6 @@ public class Capsule implements Runnable {
         return true;
     }
 
-    /**
-     * Returns the value of the given manifest attribute with consideration to the capsule's mode.
-     * If the attribute is not defined, its default value will be returned
-     * (if set with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE()}).
-     *
-     * @param attr the attribute
-     */
-    protected final String getAttribute(String attr) {
-        String value = null;
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (c.manifest != null) {
-                if (oc.getMode() != null && allowsModal(attr))
-                    value = getAttributes(c.manifest, getMode()).getValue(attr);
-                if (value == null)
-                    value = c.manifest.getMainAttributes().getValue(attr);
-            }
-            if (value != null)
-                break;
-        }
-        setContext("attribute", attr, value);
-        final Object[] conf;
-        if (value == null && (conf = ATTRIBS.get(attr)) != null)
-            value = (String) conf[ATTRIB_DEFAULT];
-        return value;
-    }
-
     protected final String getAttribute0(String attr) {
         String value = null;
         if (manifest != null) {
@@ -2516,6 +2490,16 @@ public class Capsule implements Runnable {
         return value;
     }
 
+    protected final boolean hasAttribute0(String attr, Attributes.Name key) {
+        if (manifest != null) {
+            if (getMode() != null && allowsModal(attr) && getAttributes(manifest, getMode()).containsKey(key))
+                return true;
+            if (manifest.getMainAttributes().containsKey(key))
+                return true;
+        }
+        return false;
+    }
+
     /**
      * Tests whether the given attribute is found in the manifest.
      *
@@ -2524,14 +2508,30 @@ public class Capsule implements Runnable {
     protected final boolean hasAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (c.manifest != null) {
-                if (oc.getMode() != null && allowsModal(attr) && getAttributes(c.manifest, oc.getMode()).containsKey(key))
-                    return true;
-                if (c.manifest.getMainAttributes().containsKey(key))
-                    return true;
-            }
+            if (c.hasAttribute0(attr, key))
+                return true;
         }
         return false;
+    }
+
+    /**
+     * Returns the value of the given manifest attribute with consideration to the capsule's mode.
+     * If the attribute is not defined, its default value will be returned
+     * (if set with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE()}).
+     *
+     * @param attr the attribute
+     */
+    protected final String getAttribute(String attr) {
+        String value = null;
+        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
+            value = c.getAttribute0(attr);
+            if (value != null)
+                break;
+        }
+        final Object[] conf;
+        if (value == null && (conf = ATTRIBS.get(attr)) != null)
+            value = (String) conf[ATTRIB_DEFAULT];
+        return value;
     }
 
     private boolean allowsModal(String attr) {
