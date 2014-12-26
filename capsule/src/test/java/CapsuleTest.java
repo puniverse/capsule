@@ -16,7 +16,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -157,42 +159,38 @@ public class CapsuleTest {
 
     @Test
     public void testLogLevel() throws Exception {
-        try {
-            Jar jar = newCapsuleJar()
-                    .setAttribute("Application-Class", "com.acme.Foo")
-                    .setAttribute("Extract-Capsule", "false")
-                    .setAttribute("Capsule-Log-Level", "verbose");
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false")
+                .setAttribute("Capsule-Log-Level", "verbose");
 
-            Capsule capsule = newCapsule(jar, null);
-            assertTrue(capsule.isLogging(2));
-            assertTrue(!capsule.isLogging(3));
+        Capsule capsule = newCapsule(jar, null);
+        assertTrue(capsule.isLogging(2));
+        assertTrue(!capsule.isLogging(3));
 
-            props.setProperty("capsule.log", "none");
-            capsule = newCapsule(jar, null);
-            assertTrue(capsule.isLogging(0));
-            assertTrue(!capsule.isLogging(1));
+        props.setProperty("capsule.log", "none");
+        capsule = newCapsule(jar, null);
+        assertTrue(capsule.isLogging(0));
+        assertTrue(!capsule.isLogging(1));
 
-            props.setProperty("capsule.log", "quiet");
-            capsule = newCapsule(jar, null);
-            assertTrue(capsule.isLogging(1));
-            assertTrue(!capsule.isLogging(2));
+        props.setProperty("capsule.log", "quiet");
+        capsule = newCapsule(jar, null);
+        assertTrue(capsule.isLogging(1));
+        assertTrue(!capsule.isLogging(2));
 
-            props.setProperty("capsule.log", "");
-            capsule = newCapsule(jar, null);
-            assertTrue(capsule.isLogging(1));
-            assertTrue(!capsule.isLogging(2));
+        props.setProperty("capsule.log", "");
+        capsule = newCapsule(jar, null);
+        assertTrue(capsule.isLogging(1));
+        assertTrue(!capsule.isLogging(2));
 
-            props.setProperty("capsule.log", "verbose");
-            capsule = newCapsule(jar, null);
-            assertTrue(capsule.isLogging(2));
-            assertTrue(!capsule.isLogging(3));
+        props.setProperty("capsule.log", "verbose");
+        capsule = newCapsule(jar, null);
+        assertTrue(capsule.isLogging(2));
+        assertTrue(!capsule.isLogging(3));
 
-            props.setProperty("capsule.log", "debug");
-            capsule = newCapsule(jar, null);
-            assertTrue(capsule.isLogging(3));
-        } finally {
-            props.setProperty("capsule.log", "");
-        }
+        props.setProperty("capsule.log", "debug");
+        capsule = newCapsule(jar, null);
+        assertTrue(capsule.isLogging(3));
     }
 
     @Test
@@ -1233,6 +1231,7 @@ public class CapsuleTest {
             jar.write(capsuleJar);
             Class<?> clazz = Class.forName(jar.getAttribute("Main-Class"));
             accessible(Capsule.class.getDeclaredField("DEPENDENCY_MANAGER")).set(null, dependencyManager);
+            accessible(Capsule.class.getDeclaredField("PROFILE")).set(null, 10); // disable profiling even when log=debug
             Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class, Path.class));
             return (Capsule) ctor.newInstance(capsuleJar, cache);
         } catch (InvocationTargetException e) {
@@ -1461,6 +1460,20 @@ public class CapsuleTest {
     private static <T extends AccessibleObject> T accessible(T x) {
         if (!x.isAccessible())
             x.setAccessible(true);
+
+        if (x instanceof Field) {
+            Field field = (Field) x;
+            if ((field.getModifiers() & Modifier.FINAL) != 0) {
+                try {
+                    Field modifiersField = Field.class.getDeclaredField("modifiers");
+                    modifiersField.setAccessible(true);
+                    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+                } catch (ReflectiveOperationException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        }
+
         return x;
     }
 
