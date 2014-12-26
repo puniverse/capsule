@@ -3659,8 +3659,7 @@ public class Capsule implements Runnable {
     /**
      * Executes a command and returns its output as a list of lines.
      * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
-     * <br>
-     * Same as calling {@code exec(-1, cmd}}.
+     * <br>Same as calling {@code exec(-1, cmd}}.
      *
      * @param cmd the command
      * @return the lines output by the command
@@ -3685,8 +3684,7 @@ public class Capsule implements Runnable {
     /**
      * Executes a command and returns its output as a list of lines.
      * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
-     * <br>
-     * Same as calling {@code exec(-1, pb}}.
+     * <br>Same as calling {@code exec(-1, pb}}.
      *
      * @param pb the {@link ProcessBuilder} that will be used to launch the command
      * @return the lines output by the command
