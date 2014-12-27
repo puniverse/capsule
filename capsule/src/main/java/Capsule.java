@@ -2520,17 +2520,32 @@ public class Capsule implements Runnable {
         String value = null;
         if (manifest != null) {
             if (getMode() != null && allowsModal(attr)) {
-                value = getAttributes(manifest, getMode() + "-" + PLATFORM).getValue(attr);
                 if (value == null)
-                    value = getAttributes(manifest, getMode()).getValue(attr);
+                    value = getAttributes(manifest, getMode(), PLATFORM).getValue(attr);
+                if (value == null && isUnix())
+                    value = getAttributes(manifest, getMode(), OS_UNIX).getValue(attr);
+                if (value == null)
+                    value = getAttributes(manifest, getMode(), null).getValue(attr);
             }
             if (value == null)
-                value = getAttributes(manifest, PLATFORM).getValue(attr);
+                value = getAttributes(manifest, null, PLATFORM).getValue(attr);
+            if (value == null && isUnix())
+                value = getAttributes(manifest, null, OS_UNIX).getValue(attr);
             if (value == null)
-                value = manifest.getMainAttributes().getValue(attr);
+                value = getAttributes(manifest, null, null).getValue(attr);
             setContext("attribute of " + jarFile, attr, value);
         }
         return value;
+    }
+
+    private static Attributes getAttributes(Manifest manifest, String mode, String platform) {
+        if (emptyToNull(mode) == null && emptyToNull(platform) == null)
+            return manifest.getMainAttributes();
+        if (emptyToNull(mode) == null)
+            return getAttributes(manifest, platform);
+        if (emptyToNull(platform) == null)
+            return getAttributes(manifest, mode);
+        return getAttributes(manifest, mode + "-" + platform);
     }
 
     /**
