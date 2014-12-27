@@ -2402,11 +2402,11 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
                     + " Use " + ATTR_APP_CLASS_PATH + " and/or " + ATTR_DEPENDENCIES + " instead.");
         validateNonModalAttributes();
-        
+
         // validate section case-insensitivity
         final Set<String> sectionsLowercase = new HashSet<>();
-        for(String section : manifest.getEntries().keySet()) {
-            if(!sectionsLowercase.add(section.toLowerCase()))
+        for (String section : manifest.getEntries().keySet()) {
+            if (!sectionsLowercase.add(section.toLowerCase()))
                 throw new IllegalArgumentException("Manifest in JAR " + jarFile + " contains a case-insensitive duplicate of section " + section);
         }
     }
