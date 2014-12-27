@@ -231,12 +231,13 @@ public class Capsule implements Runnable {
             ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VERSION, ATTR_IMPLEMENTATION_VENDOR, "Implementation-Vendor-Id", ATTR_IMPLEMENTATION_URL,
             "Specification-Title", "Specification-Version", "Specification-Vendor");
 
-    private static final String OS_WINDOWS = "Windows";
-    private static final String OS_LINUX = "Linux";
-    private static final String OS_MACOS = "MacOS";
+    private static final String OS_WINDOWS = "windows";
+    private static final String OS_MACOS = "macos";
+    private static final String OS_LINUX = "linux";
+    private static final String OS_SOLARIS = "solaris";
+    private static final String OS_UNIX = "unix";
 
-    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_LINUX, OS_MACOS);
-    private static final String PLATFORM = getOS();
+    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_UNIX);
 
     @SuppressWarnings("FieldMayBeFinal")
     private static Object DEPENDENCY_MANAGER = DEFAULT; // used only by tests
@@ -263,6 +264,8 @@ public class Capsule implements Runnable {
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
     private static Properties PROPERTIES = System.getProperties();
+    private static final String OS = getProperty0(PROP_OS_NAME).toLowerCase();
+    private static final String PLATFORM = getOS();
     private static Capsule CAPSULE;
 
     final static Capsule myCapsule(List<String> args) {
@@ -2848,23 +2851,21 @@ public class Capsule implements Runnable {
      * Tests whether the current OS is Windows.
      */
     protected static final boolean isWindows() {
-        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
+        return OS.startsWith("windows");
     }
 
     /**
      * Tests whether the current OS is MacOS.
      */
     protected static final boolean isMac() {
-        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("mac");
+        return OS.startsWith("mac");
     }
 
     /**
      * Tests whether the current OS is UNIX/Linux.
      */
     protected static final boolean isUnix() {
-        return System.getProperty(PROP_OS_NAME).toLowerCase().contains("nux")
-                || System.getProperty(PROP_OS_NAME).toLowerCase().contains("solaris")
-                || System.getProperty(PROP_OS_NAME).toLowerCase().contains("aix");
+        return OS.contains("nux") || OS.contains("solaris") || OS.contains("aix");
     }
 
     private static String getOS() {
@@ -2872,6 +2873,8 @@ public class Capsule implements Runnable {
             return OS_WINDOWS;
         if (isMac())
             return OS_MACOS;
+        if (OS.contains("solaris"))
+            return OS_SOLARIS;
         if (isUnix())
             return OS_LINUX;
         else
