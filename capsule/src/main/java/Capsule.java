@@ -2475,7 +2475,7 @@ public class Capsule implements Runnable {
 
     private static boolean isDigest(Attributes attrs) {
         for (Object name : attrs.keySet()) {
-            if (!name.toString().endsWith("-Digest"))
+            if (!name.toString().toLowerCase().endsWith("-digest") && !name.toString().equalsIgnoreCase("Magic"))
                 return false;
         }
         return true;
