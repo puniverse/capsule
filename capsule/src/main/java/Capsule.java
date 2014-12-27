@@ -3106,10 +3106,9 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="JRE Installations">
     /////////// JRE Installations ///////////////////////////////////
     private static Map<String, Path> getJDKs(Map<String, Path> homes) {
-        Map<String, Path> jdks = new HashMap<>();
+        final Map<String, Path> jdks = new HashMap<>();
         for (Map.Entry<String, Path> entry : homes.entrySet()) {
-            Path home = entry.getValue();
-            if (isJDK(home))
+            if (isJDK(entry.getValue()))
                 jdks.put(entry.getKey(), entry.getValue());
         }
         return jdks.isEmpty() ? null : jdks;
@@ -3161,29 +3160,23 @@ public class Capsule implements Runnable {
     }
 
     private static Map<String, Path> getJavaHomes(Path dir) throws IOException {
-        if (dir == null)
-            return null;
-        if (!Files.isDirectory(dir))
+        if (dir == null || !Files.isDirectory(dir))
             return null;
         final Map<String, Path> dirs = new HashMap<String, Path>();
         try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
             for (Path f : fs) {
-                if (Files.isDirectory(f)) {
-                    String dirName = f.getFileName().toString();
-                    String ver = isJavaDir(dirName);
-                    if (ver != null) {
-                        Path home = searchJavaHomeInDir(f);
-                        if (home != null) {
-                            home = home.toAbsolutePath();
-                            if (parseJavaVersion(ver)[3] == 0)
-                                ver = getActualJavaVersion(home);
-                            dirs.put(ver, home);
-                        }
-                    }
+                String ver;
+                Path home;
+                if (Files.isDirectory(f) && (ver = isJavaDir(f.getFileName().toString())) != null
+                        && (home = searchJavaHomeInDir(f)) != null) {
+                    home = home.toAbsolutePath();
+                    if (parseJavaVersion(ver)[3] == 0)
+                        ver = getActualJavaVersion(home);
+                    dirs.put(ver, home);
                 }
             }
         }
-        return !dirs.isEmpty() ? dirs : null;
+        return emptyToNull(dirs);
     }
 
     // visible for testing
@@ -3207,7 +3200,7 @@ public class Capsule implements Runnable {
                 if (Files.isDirectory(f)) {
                     if (isJavaHome(f))
                         return f;
-                    Path home = searchJavaHomeInDir(f);
+                    final Path home = searchJavaHomeInDir(f);
                     if (home != null)
                         return home;
                 }
