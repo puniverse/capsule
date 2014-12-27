@@ -2399,6 +2399,13 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
                     + " Use " + ATTR_APP_CLASS_PATH + " and/or " + ATTR_DEPENDENCIES + " instead.");
         validateNonModalAttributes();
+        
+        // validate section case-insensitivity
+        final Set<String> sectionsLowercase = new HashSet<>();
+        for(String section : manifest.getEntries().keySet()) {
+            if(!sectionsLowercase.add(section.toLowerCase()))
+                throw new IllegalArgumentException("Manifest in JAR " + jarFile + " contains a case-insensitive duplicate of section " + section);
+        }
     }
 
     private void validateNonModalAttributes() {
@@ -2475,6 +2482,7 @@ public class Capsule implements Runnable {
     }
 
     private static boolean isOsSpecific(String section) {
+        section = section.toLowerCase();
         if (PLATFORMS.contains(section))
             return true;
         for (String os : PLATFORMS) {
@@ -2640,9 +2648,14 @@ public class Capsule implements Runnable {
 
     private static final Attributes EMPTY_ATTRIBUTES = new Attributes();
 
-    private Attributes getAttributes(Manifest manifest, String name) {
-        final Attributes as = manifest.getAttributes(name);
-        return as != null ? as : EMPTY_ATTRIBUTES;
+    private static Attributes getAttributes(Manifest manifest, String name) {
+//        Attributes as =  = manifest.getAttributes(name);
+//        return as != null ? as : EMPTY_ATTRIBUTES;
+        for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(name))
+                return entry.getValue();
+        }
+        return EMPTY_ATTRIBUTES;
     }
     //</editor-fold>
 
