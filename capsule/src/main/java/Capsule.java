@@ -2492,7 +2492,7 @@ public class Capsule implements Runnable {
         return false;
     }
 
-    protected final boolean hasAttribute0(String attr, Attributes.Name key) {
+    private boolean hasAttribute0(String attr, Attributes.Name key) {
         if (manifest != null) {
             if (getMode() != null && allowsModal(attr)
                     && (getAttributes(manifest, getMode()).containsKey(key) || getAttributes(manifest, getMode() + "-" + PLATFORM).containsKey(key)))
@@ -2503,7 +2503,7 @@ public class Capsule implements Runnable {
         return false;
     }
 
-    protected final List<String> getAttribute0(String attr) {
+    private List<String> getAttribute0(String attr) {
         final List<String> values = new ArrayList<>();
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
             String value = c.getAttribute00(attr);
@@ -2513,7 +2513,7 @@ public class Capsule implements Runnable {
         return values;
     }
 
-    protected final String getAttribute00(String attr) {
+    private String getAttribute00(String attr) {
         String value = null;
         if (manifest != null) {
             if (getMode() != null && allowsModal(attr)) {
