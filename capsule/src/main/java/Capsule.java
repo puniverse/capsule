@@ -236,8 +236,9 @@ public class Capsule implements Runnable {
     private static final String OS_LINUX = "linux";
     private static final String OS_SOLARIS = "solaris";
     private static final String OS_UNIX = "unix";
+    private static final String OS_POSIX = "posix";
 
-    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_UNIX);
+    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_UNIX, OS_POSIX);
 
     @SuppressWarnings("FieldMayBeFinal")
     private static Object DEPENDENCY_MANAGER = DEFAULT; // used only by tests
@@ -2519,22 +2520,25 @@ public class Capsule implements Runnable {
     private String getAttribute00(String attr) {
         String value = null;
         if (manifest != null) {
-            if (getMode() != null && allowsModal(attr)) {
-                if (value == null)
-                    value = getAttributes(manifest, getMode(), PLATFORM).getValue(attr);
-                if (value == null && isUnix())
-                    value = getAttributes(manifest, getMode(), OS_UNIX).getValue(attr);
-                if (value == null)
-                    value = getAttributes(manifest, getMode(), null).getValue(attr);
-            }
+            if (getMode() != null && allowsModal(attr))
+                value = getPlatformAttribute(getMode(), attr);
             if (value == null)
-                value = getAttributes(manifest, null, PLATFORM).getValue(attr);
-            if (value == null && isUnix())
-                value = getAttributes(manifest, null, OS_UNIX).getValue(attr);
-            if (value == null)
-                value = getAttributes(manifest, null, null).getValue(attr);
+                value = getPlatformAttribute(null, attr);
             setContext("attribute of " + jarFile, attr, value);
         }
+        return value;
+    }
+
+    private String getPlatformAttribute(String mode, String attr) {
+        String value = null;
+        if (value == null)
+            value = getAttributes(manifest, mode, PLATFORM).getValue(attr);
+        if (value == null && isUnix())
+            value = getAttributes(manifest, mode, OS_UNIX).getValue(attr);
+        if (value == null && (isUnix() || isMac()))
+            value = getAttributes(manifest, mode, OS_POSIX).getValue(attr);
+        if (value == null)
+            value = getAttributes(manifest, mode, null).getValue(attr);
         return value;
     }
 
