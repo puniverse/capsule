@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import static java.util.stream.Collectors.*;
 import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Exclusion;
 import org.apache.maven.model.Model;
@@ -1139,6 +1140,17 @@ public class CapsuleTest {
         assertTrue(!pathMatcher.matches(fs1.getPath(".java.exe")));
         assertTrue(!pathMatcher.matches(fs1.getPath("java.exe1")));
         assertTrue(!pathMatcher.matches(fs1.getPath("java.")));
+        
+        assertTrue(fs1.getPathMatcher("glob:*").matches(fs1.getPath("foo")));
+        assertTrue(fs1.getPathMatcher("glob:f*o").matches(fs1.getPath("foo")));
+        assertTrue(!fs1.getPathMatcher("glob:*k").matches(fs1.getPath("foo")));
+        assertTrue(!fs1.getPathMatcher("glob:*o").matches(fs1.getPath("a/foo")));
+        assertTrue(!fs1.getPathMatcher("glob:*").matches(fs1.getPath("a/foo")));
+        assertTrue(fs1.getPathMatcher("glob:**o").matches(fs1.getPath("a/foo")));
+        assertTrue(fs1.getPathMatcher("glob:**o").matches(fs1.getPath("a/b/foo")));
+        assertTrue(fs1.getPathMatcher("glob:a/*/*o").matches(fs1.getPath("a/b/foo")));
+        assertTrue(fs1.getPathMatcher("glob:a/b/**/foo").matches(fs1.getPath("a/b/c/foo")));
+        assertTrue(!fs1.getPathMatcher("glob:a/c/**/foo").matches(fs1.getPath("a/b/c/foo")));
     }
 
     @Test
@@ -1301,10 +1313,7 @@ public class CapsuleTest {
     }
 
     private List<Path> paths(String cp) {
-        final List<Path> res = new ArrayList<>();
-        for (String p : cp.split(":"))
-            res.add(path(p));
-        return res;
+        return Arrays.stream(cp.split(":")).map(p -> path(p)).collect(toList());
     }
 
     private List<Path> getClassPath(ProcessBuilder pb) {
@@ -1395,17 +1404,11 @@ public class CapsuleTest {
     }
 
     private List<Path> toPath(List<String> ps) {
-        final List<Path> pss = new ArrayList<Path>(ps.size());
-        for (String p : ps)
-            pss.add(path(p));
-        return pss;
+        return ps.stream().map(p -> path(p)).collect(toList());
     }
 
     private List<Path> toAbsolutePath(List<Path> ps) {
-        final List<Path> pss = new ArrayList<Path>(ps.size());
-        for (Path p : ps)
-            pss.add(p.toAbsolutePath().normalize());
-        return pss;
+        return ps.stream().map(p -> p.toAbsolutePath().normalize()).collect(toList());
     }
 
     private static String getBefore(String s, char separator) {

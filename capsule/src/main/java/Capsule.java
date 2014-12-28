@@ -58,8 +58,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import static java.util.Collections.*;
 import java.util.Properties;
+import static java.util.Collections.*;
+import static java.util.Arrays.*;
+import java.util.function.Function;
+import java.util.stream.Collector;
+import static java.util.stream.Collectors.*;
+import java.util.stream.Stream;
 
 /**
  * An application capsule.
@@ -95,8 +100,6 @@ public class Capsule implements Runnable {
      *
      * Also, the code is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
-     *
-     * We do a lot of data transformations that could benefit from Java 8's lambdas+streams, but we want Capsule to support Java 7.
      *
      * Caplet Hierarcy (or chain)
      * --------------------------
@@ -403,10 +406,8 @@ public class Capsule implements Runnable {
         final String[] conf = new String[]{defaultValue, methodName, description};
         final String[] old = OPTIONS.get(optionName);
         if (old != null) {
-            for (int i = 0; i < conf.length - 1; i++) { // don't compare description
-                if (!Objects.equals(conf[i], old[i]))
-                    throw new IllegalStateException("Option " + optionName + " has a conflicting registration: " + Arrays.toString(old));
-            }
+            if (asList(conf).subList(0, conf.length - 1).equals(asList(old).subList(0, conf.length - 1))) // don't compare description
+                throw new IllegalStateException("Option " + optionName + " has a conflicting registration: " + Arrays.toString(old));
         }
         OPTIONS.put(optionName, conf);
         return optionName;
@@ -418,14 +419,13 @@ public class Capsule implements Runnable {
     }
 
     private static void processOptions() {
-        for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
-            final String option = entry.getKey();
-            final String defval = entry.getValue()[OPTION_DEFAULT];
+        OPTIONS.forEach((option, info) -> {
+            final String defval = info[OPTION_DEFAULT];
             if (getProperty0(option) == null && defval != null && !defval.equals("false")) // the last condition is for backwards compatibility
                 setProperty(option, defval);
             else if (optionTakesArguments(option) && "".equals(getProperty0(option)))
                 setProperty(option, "true");
-        }
+        });
     }
 
     private static void processCmdLineOptions(List<String> args, List<String> jvmArgs) {
@@ -484,11 +484,7 @@ public class Capsule implements Runnable {
     private static String simpleToOption(String simple) {
         if ("-h".equals(simple))
             return PROP_HELP;
-        for (String option : OPTIONS.keySet()) {
-            if (simple.equals(optionToSimple(option)))
-                return option;
-        }
-        return null;
+        return OPTIONS.keySet().stream().filter(o -> simple.equals(optionToSimple(o))).findFirst().orElse(null);
     }
 
     private static String camelCaseToDashed(String camel) {
@@ -718,20 +714,11 @@ public class Capsule implements Runnable {
 
     private void loadCaplets() {
         final List<String> caplets = nullToEmpty(getListAttribute(ATTR_CAPLETS));
-        final List<String> deps = new ArrayList<>();
-        for (String caplet : caplets) {
-            if (isDependency(caplet))
-                deps.add(caplet);
-        }
-
-        ClassLoader cl = MY_CLASSLOADER;
-        List<Path> jars = emptyList();
-        if (!deps.isEmpty()) {
-            jars = resolveDependencies(deps, "jar");
-            if (jars.size() != deps.size())
-                throw new RuntimeException("One of the caplets " + deps + " resolves has transitive dependencies.");
-            cl = newClassLoader(cl, jars);
-        }
+        final List<String> deps = caplets.stream().filter(Capsule::isDependency).collect(toList());
+        final List<Path> jars = deps.isEmpty() ? emptyList() : resolveDependencies(deps, "jar");
+        if (jars.size() != deps.size())
+            throw new RuntimeException("One of the caplets " + deps + " resolves has transitive dependencies.");
+        final ClassLoader cl = jars.isEmpty() ? MY_CLASSLOADER : newClassLoader(MY_CLASSLOADER, jars);
 
         int i = 0;
         Capsule pred = this;
@@ -773,15 +760,11 @@ public class Capsule implements Runnable {
     private boolean isFactoryCapsule() {
         if (!getClass().equals(Capsule.class) || !wrapper)
             return false;
-        for (Object attr : manifest.getMainAttributes().keySet()) {
-            if (!isCommonAttribute(attr.toString()))
-                return false;
-        }
+        if (manifest.getMainAttributes().keySet().stream().anyMatch(attr -> !isCommonAttribute(attr.toString())))
+            return false;
         for (Attributes atts : manifest.getEntries().values()) {
-            for (Object attr : atts.keySet()) {
-                if (!isCommonAttribute(attr.toString()))
-                    return false;
-            }
+            if (atts.keySet().stream().anyMatch(attr -> !isCommonAttribute(attr.toString())))
+                return false;
         }
         log(LOG_DEBUG, "Factory (unchanged) capsule");
         return true;
@@ -896,10 +879,8 @@ public class Capsule implements Runnable {
     void printVersion(List<String> args) {
         if (getAppId() != null) {
             System.out.println(LOG_PREFIX + "Application " + getAppId());
-            for (String attr : Arrays.asList(ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VENDOR, ATTR_IMPLEMENTATION_URL)) {
-                if (hasAttribute(attr))
-                    System.out.println(LOG_PREFIX + getAttribute(attr));
-            }
+            asList(ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VENDOR, ATTR_IMPLEMENTATION_URL).stream()
+                    .filter(this::hasAttribute).map(this::getAttribute).forEach(value -> System.out.println(LOG_PREFIX + value));
         }
         System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
     }
@@ -925,8 +906,7 @@ public class Capsule implements Runnable {
             println("No detected Java installations");
         else {
             System.out.println(LOG_PREFIX + "Detected Java installations:");
-            for (Map.Entry<String, Path> j : jres.entrySet())
-                System.out.println(j.getKey() + (j.getKey().length() < 8 ? "\t\t" : "\t") + j.getValue());
+            jres.forEach((ver, path) -> System.out.println(ver + (ver.length() < 8 ? "\t\t" : "\t") + path));
         }
         final Path javaHome = chooseJavaHome();
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (getProperty(PROP_JAVA_HOME) + " (current)")));
@@ -1481,9 +1461,8 @@ public class Capsule implements Runnable {
             final Path lockFile = getAppCache().resolve(LOCK_FILE_NAME);
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(getAppCache())) {
                 for (Path f : ds) {
-                    if (lockFile.equals(f))
-                        continue;
-                    delete(f);
+                    if (!lockFile.equals(f))
+                        delete(f);
                 }
             }
         } catch (IOException e) {
@@ -1656,9 +1635,8 @@ public class Capsule implements Runnable {
         if (!isWindows())
             return cp; // why work hard if we know the problem only exists on Windows?
 
-        long len = extra + getStringsLength(cp) + cp.size();
-        for (List<?> list : args)
-            len += getStringsLength(list) + list.size();
+        final long len = extra + getStringsLength(cp) + cp.size()
+                + asList(args).stream().mapToLong(list -> getStringsLength(list) + list.size()).sum();
 
         if (len >= getMaxCommandLineLength()) {
             log(LOG_DEBUG, "Command line length: " + len);
@@ -1696,10 +1674,9 @@ public class Capsule implements Runnable {
     }
 
     private static List<String> compileSystemProperties(Map<String, String> ps) {
-        final List<String> command = new ArrayList<String>();
-        for (Map.Entry<String, String> entry : ps.entrySet())
-            command.add("-D" + entry.getKey() + (entry.getValue() != null && !entry.getValue().isEmpty() ? "=" + entry.getValue() : ""));
-        return command;
+        return ps.entrySet().stream()
+                .map(e -> "-D" + e.getKey() + (e.getValue() != null && !e.getValue().isEmpty() ? "=" + e.getValue() : ""))
+                .collect(toList());
     }
 
     private String compileClassPath(List<Path> cp) {
@@ -1707,10 +1684,9 @@ public class Capsule implements Runnable {
     }
 
     private List<String> compileAgents(String clo, Map<Path, String> agents) {
-        final List<String> command = new ArrayList<>();
-        for (Map.Entry<Path, String> agent : nullToEmpty(agents).entrySet())
-            command.add(clo + processOutgoingPath(agent.getKey()) + (agent.getValue().isEmpty() ? "" : ("=" + agent.getValue())));
-        return command;
+        return nullToEmpty(agents).entrySet().stream()
+                .map(agent -> clo + processOutgoingPath(agent.getKey()) + (agent.getValue().isEmpty() ? "" : ("=" + agent.getValue())))
+                .collect(toList());
     }
 
     private static void addOption(List<String> cmdLine, String prefix, String value) {
@@ -1802,14 +1778,8 @@ public class Capsule implements Runnable {
      * Compiles and returns the application's boot classpath as a list of paths.
      */
     private List<Path> buildBootClassPath(List<String> cmdLine) {
-        String option = null;
-        for (String o : cmdLine) {
-            if (o.startsWith("-Xbootclasspath:"))
-                option = o.substring("-Xbootclasspath:".length());
-        }
-        if (option != null)
-            return toPath(Arrays.asList(option.split(PATH_SEPARATOR)));
-        return buildBootClassPath();
+        return cmdLine.stream().filter(o -> o.startsWith("-Xbootclasspath:")).findFirst().map(o -> o.substring("-Xbootclasspath:".length()))
+                .map(option -> toPath(asList(option.split(PATH_SEPARATOR)))).orElse(buildBootClassPath());
     }
 
     /**
@@ -1853,10 +1823,8 @@ public class Capsule implements Runnable {
         final Map<String, String> systemProperties = buildSystemProperties();
 
         // command line overrides everything
-        for (String option : cmdLine) {
-            if (option.startsWith("-D") && !isCapsuleOption(option.substring(2)))
-                addSystemProperty(option.substring(2), systemProperties);
-        }
+        cmdLine.stream().filter(option -> (option.startsWith("-D") && !isCapsuleOption(option.substring(2))))
+                .forEach(option -> addSystemProperty(option.substring(2), systemProperties));
 
         return systemProperties;
     }
@@ -1872,8 +1840,7 @@ public class Capsule implements Runnable {
         final Map<String, String> systemProperties = new HashMap<String, String>();
 
         // attribute
-        for (Map.Entry<String, String> pv : nullToEmpty(getMapAttribute(ATTR_SYSTEM_PROPERTIES, "")).entrySet())
-            systemProperties.put(pv.getKey(), expand(pv.getValue()));
+        nullToEmpty(getMapAttribute(ATTR_SYSTEM_PROPERTIES, "")).forEach((k, v) -> systemProperties.put(k, expand(v)));
 
         // library path
         final List<Path> libraryPath = buildNativeLibraryPath();
@@ -1980,8 +1947,7 @@ public class Capsule implements Runnable {
         for (String depAndRename : depsAndRename) {
             String[] dna = depAndRename.split(",");
             deps.add(dna[0]);
-            if (renames != null)
-                renames.add(dna.length > 1 ? dna[1] : null);
+            renames.add(dna.length > 1 ? dna[1] : null);
         }
     }
 
@@ -2000,31 +1966,17 @@ public class Capsule implements Runnable {
     }
 
     private boolean hasRenamedNativeDependencies() {
-        final List<String> depsAndRename = getNativeDependencies();
-        if (depsAndRename == null)
-            return false;
-        for (String depAndRename : depsAndRename) {
-            if (depAndRename.contains(","))
-                return true;
-        }
-        return false;
+        return nullToEmpty(getNativeDependencies()).stream().anyMatch(x -> x.contains(","));
     }
     //</editor-fold>
 
     private List<String> buildJVMArgs(List<String> cmdLine) {
         final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
 
-        for (String option : buildJVMArgs())
-            addJvmArg(option, jvmArgs);
+        jvmArgs.putAll(buildJVMArgs().stream().collect(jvmArgs()));
+        jvmArgs.putAll(nullToEmpty(Capsule.split(getProperty(PROP_JVM_ARGS), " ")).stream().collect(jvmArgs()));
+        jvmArgs.putAll(cmdLine.stream().filter(opt -> !opt.startsWith("-D") && !opt.startsWith("-Xbootclasspath:")).collect(jvmArgs())); // command line overrides everything
 
-        for (String option : nullToEmpty(Capsule.split(getProperty(PROP_JVM_ARGS), " ")))
-            addJvmArg(option, jvmArgs);
-
-        // command line overrides everything
-        for (String option : cmdLine) {
-            if (!option.startsWith("-D") && !option.startsWith("-Xbootclasspath:"))
-                addJvmArg(option, jvmArgs);
-        }
         return new ArrayList<String>(jvmArgs.values());
     }
 
@@ -2036,19 +1988,12 @@ public class Capsule implements Runnable {
     }
 
     private List<String> buildJVMArgs0() {
-        final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
-
-        for (String a : nullToEmpty(getListAttribute(ATTR_JVM_ARGS))) {
-            a = a.trim();
-            if (!a.isEmpty() && !a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
-                addJvmArg(expand(a), jvmArgs);
-        }
-
-        return new ArrayList<String>(jvmArgs.values());
+        return new ArrayList<String>(nullToEmpty(getListAttribute(ATTR_JVM_ARGS)).stream().map(String::trim)
+                .filter(a -> !a.isEmpty() && !a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:")).collect(jvmArgs()).values());
     }
 
-    private static void addJvmArg(String a, Map<String, String> args) {
-        args.put(getJvmArgKey(a), a);
+    private static Collector<String, ?, Map<String, String>> jvmArgs() {
+        return toMap(Capsule::getJvmArgKey, Function.identity());
     }
 
     private static String getJvmArgKey(String a) {
@@ -2094,13 +2039,9 @@ public class Capsule implements Runnable {
 
     private Map<Path, String> buildAgents0(boolean java) {
         final long start = clock();
-        final Map<String, String> agents0 = getMapAttribute(java ? ATTR_JAVA_AGENTS : ATTR_NATIVE_AGENTS, "");
-        if (agents0 == null)
-            return null;
+        final Map<String, String> agents0 = nullToEmpty(getMapAttribute(java ? ATTR_JAVA_AGENTS : ATTR_NATIVE_AGENTS, ""));
         final Map<Path, String> agents = new LinkedHashMap<>(agents0.size());
-        for (Map.Entry<String, String> agent : agents0.entrySet()) {
-            final String agentName = agent.getKey();
-            final String agentOptions = agent.getValue();
+        agents0.forEach((agentName, agentOptions) -> {
             try {
                 final Path agentPath = first(getPath(agentName + (java ? "" : ("." + getNativeLibExtension()))));
                 agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? agentOptions : ""));
@@ -2109,9 +2050,9 @@ public class Capsule implements Runnable {
                     throw new RuntimeException("Cannot run the embedded agent " + agentName + " when the " + ATTR_EXTRACT + " attribute is set to false", e);
                 throw e;
             }
-        }
+        });
         time("buildAgents (" + (java ? "java" : "native") + ")", start);
-        return agents;
+        return emptyToNull(agents);
     }
 
     private String getMainClass(List<Path> classPath) {
@@ -2181,26 +2122,12 @@ public class Capsule implements Runnable {
     }
 
     private Path findJavaHome(boolean jdk) {
-        Map<String, Path> homes = getJavaHomes();
+        Map<String, Path> homes = nullToEmpty(getJavaHomes());
         if (jdk)
             homes = getJDKs(homes);
-        if (homes == null)
-            return null;
-        Path best = null;
-        String bestVersion = null;
-        for (Map.Entry<String, Path> e : homes.entrySet()) {
-            final String v = e.getKey();
-            log(LOG_DEBUG, "Trying JVM: " + e.getValue() + " (version " + e.getKey() + ")");
-            if (isMatchingJavaVersion(v)) {
-                log(LOG_DEBUG, "JVM " + e.getValue() + " (version " + e.getKey() + ") matches");
-                if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
-                    log(LOG_DEBUG, "JVM " + e.getValue() + " (version " + e.getKey() + ") is best so far");
-                    bestVersion = v;
-                    best = e.getValue();
-                }
-            }
-        }
-        return best;
+        // TODO: TEST!!!!!! XXXXXXX
+        return homes.entrySet().stream().filter(e -> isMatchingJavaVersion(e.getKey()))
+                .sorted((e1, e2) -> -compareVersions(e1.getKey(), e2.getKey())).map(e -> e.getValue()).findFirst().orElse(null);
     }
 
     private boolean isMatchingJavaVersion(String javaVersion) {
@@ -2226,11 +2153,8 @@ public class Capsule implements Runnable {
     }
 
     private int getMinUpdateFor(String version) {
-        final Map<String, String> m = getMapAttribute(ATTR_MIN_UPDATE_VERSION, null);
-        if (m == null)
-            return 0;
         final int[] ver = parseJavaVersion(version);
-        for (Map.Entry<String, String> entry : m.entrySet()) {
+        for (Map.Entry<String, String> entry : nullToEmpty(getMapAttribute(ATTR_MIN_UPDATE_VERSION, null)).entrySet()) {
             if (equals(ver, toInt(shortJavaVersion(entry.getKey()).split(SEPARATOR_DOT)), 3))
                 return Integer.parseInt(entry.getValue());
         }
@@ -2377,10 +2301,8 @@ public class Capsule implements Runnable {
         final Object[] conf = new Object[]{defaultValue, allowModal, description};
         final Object[] old = ATTRIBS.get(attrName);
         if (old != null) {
-            for (int i = 0; i < conf.length - 1; i++) { // don't compare description
-                if (!Objects.equals(conf[i], old[i]))
-                    throw new IllegalStateException("Attribute " + attrName + " has a conflicting registration: " + Arrays.toString(old));
-            }
+            if (asList(conf).subList(0, conf.length - 1).equals(asList(old).subList(0, conf.length - 1))) // don't compare description
+                throw new IllegalStateException("Attribute " + attrName + " has a conflicting registration: " + Arrays.toString(old));
         }
         ATTRIBS.put(attrName, conf);
         return attrName;
@@ -2413,12 +2335,12 @@ public class Capsule implements Runnable {
     }
 
     private void validateNonModalAttributes() {
-        for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
-            for (Object attr : entry.getValue().keySet()) {
+        manifest.getEntries().forEach((section, attrs) -> {
+            for (Object attr : attrs.keySet()) {
                 if (!allowsModal(attr.toString()))
-                    throw new IllegalStateException("Manifest section " + entry.getKey() + " contains non-modal attribute " + attr);
+                    throw new IllegalStateException("Manifest section " + section + " contains non-modal attribute " + attr);
             }
-        }
+        });
     }
 
     private Capsule getSuperManifest(Capsule c0) {
@@ -2432,10 +2354,8 @@ public class Capsule implements Runnable {
     private boolean hasModalAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            for (Map.Entry<String, Attributes> entry : c.manifest.getEntries().entrySet()) {
-                if (entry.getValue().containsKey(key))
-                    return true;
-            }
+            if (c.manifest.getEntries().entrySet().stream().anyMatch(e -> e.getValue().containsKey(key)))
+                return true;
         }
         return false;
     }
@@ -2456,10 +2376,8 @@ public class Capsule implements Runnable {
     protected final Set<String> getModes() {
         final Set<String> modes = new HashSet<>();
         for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            for (Map.Entry<String, Attributes> entry : c.manifest.getEntries().entrySet()) {
-                if (isLegalModeName(entry.getKey()) && !isDigest(entry.getValue()))
-                    modes.add(entry.getKey());
-            }
+            c.manifest.getEntries().entrySet().stream()
+                    .filter(e -> isLegalModeName(e.getKey()) && !isDigest(e.getValue())).map(Map.Entry::getKey).collect(into(modes));
         }
         return unmodifiableSet(modes);
     }
@@ -2478,22 +2396,13 @@ public class Capsule implements Runnable {
     }
 
     private static boolean isDigest(Attributes attrs) {
-        for (Object name : attrs.keySet()) {
-            if (!name.toString().toLowerCase().endsWith("-digest") && !name.toString().equalsIgnoreCase("Magic"))
-                return false;
-        }
-        return true;
+        return attrs.keySet().stream().map(Object::toString)
+                .allMatch(name -> name.toLowerCase().endsWith("-digest") || name.equalsIgnoreCase("Magic"));
     }
 
     private static boolean isOsSpecific(String section) {
-        section = section.toLowerCase();
-        if (PLATFORMS.contains(section))
-            return true;
-        for (String os : PLATFORMS) {
-            if (section.endsWith("-" + os))
-                return true;
-        }
-        return false;
+        String s = section.toLowerCase();
+        return PLATFORMS.contains(s) || PLATFORMS.stream().anyMatch(os -> s.endsWith("-" + os));
     }
 
     private boolean hasAttribute0(String attr, Attributes.Name key) {
@@ -2600,9 +2509,7 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final List<String> getListAttribute(String attr) {
-        List<String> res = new ArrayList<>();
-        for (String value : getAttribute0(attr))
-            res.addAll(nullToEmpty(parse(value)));
+        List<String> res = getAttribute0(attr).stream().flatMap(v -> nullToEmpty(parse(v)).stream()).collect(toList());
         final Object[] conf;
         if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT]);
@@ -2623,9 +2530,7 @@ public class Capsule implements Runnable {
      * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
-        Map<String, String> res = new HashMap<>();
-        for (String value : getAttribute0(attr))
-            putAllIfAbsent(res, nullToEmpty(parse(value, defaultValue)));
+        Map<String, String> res = getAttribute0(attr).stream().map(v -> nullToEmpty(parse(v, defaultValue))).collect(mergeMapsIfAbsent());
         final Object[] conf;
         if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT], defaultValue);
@@ -2673,11 +2578,8 @@ public class Capsule implements Runnable {
     private static Attributes getAttributes(Manifest manifest, String name) {
 //        Attributes as =  = manifest.getAttributes(name);
 //        return as != null ? as : EMPTY_ATTRIBUTES;
-        for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
-            if (entry.getKey().equalsIgnoreCase(name))
-                return entry.getValue();
-        }
-        return EMPTY_ATTRIBUTES;
+        return manifest.getEntries().entrySet().stream()
+                .filter(e -> e.getKey().equalsIgnoreCase(name)).map(Map.Entry::getValue).findFirst().orElse(EMPTY_ATTRIBUTES);
     }
     //</editor-fold>
 
@@ -2740,12 +2642,7 @@ public class Capsule implements Runnable {
      * {@link #getPath(String) getPath(String)} on each of the file descriptors in the given list.
      */
     private List<Path> getPath(List<String> ps) {
-        if (ps == null)
-            return null;
-        final List<Path> res = new ArrayList<Path>(ps.size());
-        for (String p : ps)
-            res.addAll(getPath(p));
-        return res;
+        return emptyToNull(nullToEmpty(ps).stream().flatMap(p -> getPath(p).stream()).collect(toList()));
     }
 
     /**
@@ -2760,18 +2657,11 @@ public class Capsule implements Runnable {
     }
 
     private String processOutgoingPath0(Path p) {
-        if (p == null)
-            return null;
-        return toAbsolutePath(p).toString();
+        return p != null ? toAbsolutePath(p).toString() : null;
     }
 
     private List<String> processOutgoingPath(List<Path> ps) {
-        if (ps == null)
-            return null;
-        final List<String> res = new ArrayList<>(ps.size());
-        for (Path p : ps)
-            res.add(processOutgoingPath(p));
-        return res;
+        return emptyToNull(nullToEmpty(ps).stream().map(this::processOutgoingPath).collect(toList()));
     }
     //</editor-fold>
 
@@ -2811,27 +2701,15 @@ public class Capsule implements Runnable {
     }
 
     private List<Path> toPath(List<String> ps) {
-        if (ps == null)
-            return null;
-        final List<Path> aps = new ArrayList<Path>(ps.size());
-        for (String p : ps)
-            aps.add(path(p));
-        return aps;
+        return emptyToNull(nullToEmpty(ps).stream().map(this::path).collect(toList()));
     }
 
     private static Path toAbsolutePath(Path p) {
-        if (p == null)
-            return null;
-        return p.normalize().toAbsolutePath();
+        return p != null ? p.normalize().toAbsolutePath() : null;
     }
 
     private static List<Path> sanitize(Path root, List<String> ps) {
-        if (ps == null)
-            return null;
-        final List<Path> aps = new ArrayList<Path>(ps.size());
-        for (String p : ps)
-            aps.add(sanitize(root, root.resolve(p)));
-        return aps;
+        return emptyToNull(nullToEmpty(ps).stream().map(p -> sanitize(root, root.resolve(p))).collect(toList()));
     }
 
     private static Path sanitize(Path dir, Path p) {
@@ -2861,6 +2739,14 @@ public class Capsule implements Runnable {
                 return rel;
         }
         return p;
+    }
+
+    private static URL toURL(Path p) {
+        try {
+            return p.toUri().toURL();
+        } catch (MalformedURLException e) {
+            throw new AssertionError(e);
+        }
     }
     //</editor-fold>
 
@@ -2975,12 +2861,10 @@ public class Capsule implements Runnable {
      */
     static Path createPathingJar(Path dir, List<Path> cp) {
         try {
-            dir = dir.toAbsolutePath();
-            final List<Path> paths = new ArrayList<>(cp.size());
-            for (Path p : cp) // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file URLs
-                paths.add(dir.relativize(p));
-
-            final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
+            final Path dir0 = dir.toAbsolutePath();
+            // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file URLs
+            final List<Path> paths = cp.stream().map(p -> dir0.relativize(p)).collect(toList());
+            final Path pathingJar = Files.createTempFile(dir0, "capsule_pathing_jar", ".jar");
             final Manifest man = new Manifest();
             man.getMainAttributes().putValue(ATTR_MANIFEST_VERSION, "1.0");
             man.getMainAttributes().putValue(ATTR_CLASS_PATH, join(paths, " "));
@@ -3059,6 +2943,10 @@ public class Capsule implements Runnable {
         }
     }
 
+    private static boolean isGlob(String s) {
+        return s.contains("*") || s.contains("?") || s.contains("{") || s.contains("[");
+    }
+
     /**
      * Returns the contents of a directory. <br>
      * Passing {@code null} as the glob pattern is the same as passing {@code "*"}
@@ -3067,74 +2955,15 @@ public class Capsule implements Runnable {
      * @param glob    the glob pattern to use to filter the entries, or {@code null} if all entries are to be returned
      * @param regular whether only regular files should be returned
      */
-    protected static final List<Path> listDir(Path dir, String glob, boolean regular) {
-        return listDir(dir, glob, false, regular, new ArrayList<Path>());
-    }
-
-    private static boolean isGlob(String s) {
-        return s.contains("*") || s.contains("?") || s.contains("{") || s.contains("[");
-    }
-
-    private static List<Path> listDir(Path dir, String glob, boolean recursive, boolean regularFile, List<Path> res) {
-        return listDir(dir, splitGlob(glob), recursive, regularFile, res);
-    }
-
-    private static List<String> splitGlob(String glob) { // splits glob pattern by directory
-        return glob != null ? Arrays.asList(glob.split(FILE_SEPARATOR_CHAR == '\\' ? "\\\\" : FILE_SEPARATOR)) : null;
-    }
-
     @SuppressWarnings("null")
-    private static List<Path> listDir(Path dir, List<String> globs, boolean recursive, boolean regularFile, List<Path> res) {
-        PathMatcher matcher = null;
-        if (globs != null) {
-            while (!globs.isEmpty() && "**".equals(globs.get(0))) {
-                recursive = true;
-                globs = globs.subList(1, globs.size());
-            }
-            if (!globs.isEmpty())
-                matcher = dir.getFileSystem().getPathMatcher("glob:" + globs.get(0));
-        }
-
-        final List<Path> ms = (matcher != null || recursive) ? new ArrayList<Path>() : res;
-        final List<Path> mds = matcher != null ? new ArrayList<Path>() : null;
-        final List<Path> rds = recursive ? new ArrayList<Path>() : null;
-
-        try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
-            for (Path f : fs) {
-                if (recursive && Files.isDirectory(f))
-                    rds.add(f);
-                if (matcher == null) {
-                    if (!regularFile || Files.isRegularFile(f))
-                        ms.add(f);
-                } else {
-                    if (matcher.matches(f.getFileName())) {
-                        if (globs.size() == 1 && (!regularFile || Files.isRegularFile(f)))
-                            ms.add(f);
-                        else if (Files.isDirectory(f))
-                            mds.add(f);
-                    }
-                }
-            }
+    protected static List<Path> listDir(Path dir, String glob, boolean regular) {
+        glob = glob != null ? glob : "*";
+        final PathMatcher matcher = dir.getFileSystem().getPathMatcher("glob:" + dir + dir.getFileSystem().getSeparator() + glob);
+        try (Stream<Path> fs = Files.find(dir, Integer.MAX_VALUE, (f, atts) -> matcher.matches(f) && (!regular || atts.isRegularFile()))) {
+            return fs.sorted().collect(toList());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        sort(ms); // sort to give same reults on all platforms (hopefully)
-        if (res != ms) {
-            res.addAll(ms);
-
-            recurse:
-            for (List<Path> ds : Arrays.asList(mds, rds)) {
-                if (ds == null)
-                    continue;
-                sort(ds);
-                final List<String> gls = (ds == mds ? globs.subList(1, globs.size()) : globs);
-                for (Path d : ds)
-                    listDir(d, gls, recursive, regularFile, res);
-            }
-        }
-
-        return res;
     }
     //</editor-fold>
 
@@ -3146,7 +2975,7 @@ public class Capsule implements Runnable {
             if (isJDK(entry.getValue()))
                 jdks.put(entry.getKey(), entry.getValue());
         }
-        return jdks.isEmpty() ? null : jdks;
+        return nullToEmpty(jdks);
     }
 
     private static boolean isJDK(Path javaHome) {
@@ -3399,12 +3228,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="String Expansion">
     /////////// String Expansion ///////////////////////////////////
     private List<String> expand(List<String> strs) {
-        if (strs == null)
-            return null;
-        final List<String> res = new ArrayList<String>(strs.size());
-        for (String s : strs)
-            res.add(expand(s));
-        return res;
+        return emptyToNull(nullToEmpty(strs).stream().map(this::expand).collect(toList()));
     }
 
     /**
@@ -3450,16 +3274,7 @@ public class Capsule implements Runnable {
     }
 
     static List<String> split(String str, String separator) {
-        if (str == null)
-            return null;
-        String[] es = str.split(separator);
-        final List<String> list = new ArrayList<>(es.length);
-        for (String e : es) {
-            e = e.trim();
-            if (!e.isEmpty())
-                list.add(e);
-        }
-        return list;
+        return str != null ? Arrays.stream(str.split(separator)).map(String::trim).filter(s -> !s.isEmpty()).collect(toList()) : null;
     }
 
     static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
@@ -3481,27 +3296,11 @@ public class Capsule implements Runnable {
     }
 
     final static String join(Collection<?> coll, String separator) {
-        if (coll == null)
-            return null;
-        if (coll.isEmpty())
-            return "";
-        StringBuilder sb = new StringBuilder();
-        for (Object e : coll) {
-            if (e != null)
-                sb.append(e).append(separator);
-        }
-        sb.delete(sb.length() - separator.length(), sb.length());
-        return sb.toString();
+        return coll != null ? coll.stream().map(Object::toString).collect(joining(separator)) : null;
     }
 
     final static String join(Map<?, ?> map, char kvSeparator, String separator) {
-        if (map == null)
-            return null;
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<?, ?> entry : map.entrySet())
-            sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
-        sb.delete(sb.length() - separator.length(), sb.length());
-        return sb.toString();
+        return map != null ? map.entrySet().stream().map(e -> "" + e.getKey() + kvSeparator + e.getValue()).collect(joining(separator)) : null;
     }
 
     private static String getBefore(String s, char separator) {
@@ -3519,12 +3318,7 @@ public class Capsule implements Runnable {
     }
 
     private static long getStringsLength(Collection<?> coll) {
-        if (coll == null)
-            return 0;
-        long len = 0;
-        for (Object o : coll)
-            len += o.toString().length();
-        return len;
+        return coll != null ? coll.stream().mapToInt(x -> x.toString().length()).sum() : 0;
     }
 
     private static String emptyToNull(String s) {
@@ -3590,6 +3384,24 @@ public class Capsule implements Runnable {
     private static <T> Set<T> immutableSet(T... elems) {
         return unmodifiableSet(new HashSet<T>(Arrays.asList(elems)));
     }
+
+    private static <T, C extends Collection<T>> Collector<T, C, C> into(C coll) {
+        return Collector.of(() -> coll, Collection::add, (left, right) -> {
+            left.addAll(right);
+            return left;
+        });
+    }
+
+    private static <K, V> Collector<Map<K, V>, ?, Map<K, V>> mergeMaps() {
+        return Collector.of(HashMap::new, Map::putAll, (left, right) -> {
+            left.putAll(right);
+            return left;
+        });
+    }
+
+    private static <K, V> Collector<Map<K, V>, ?, Map<K, V>> mergeMapsIfAbsent() {
+        return Collector.of(HashMap::new, Capsule::putAllIfAbsent, Capsule::putAllIfAbsent);
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Reflection Utils">
@@ -3621,14 +3433,7 @@ public class Capsule implements Runnable {
     }
 
     private static ClassLoader newClassLoader(ClassLoader parent, List<Path> ps) {
-        try {
-            final List<URL> urls = new ArrayList<>(ps.size());
-            for (Path p : ps)
-                urls.add(p.toUri().toURL());
-            return new URLClassLoader(urls.toArray(new URL[urls.size()]), parent);
-        } catch (MalformedURLException e) {
-            throw new AssertionError(e);
-        }
+        return new URLClassLoader(ps.stream().map(Capsule::toURL).toArray(URL[]::new), parent);
     }
 
     private static ClassLoader newClassLoader(ClassLoader parent, Path... ps) {
@@ -3751,16 +3556,10 @@ public class Capsule implements Runnable {
      * @return the lines output by the command
      */
     protected static List<String> exec(int numLines, ProcessBuilder pb) throws IOException {
-        final List<String> lines = new ArrayList<>();
         final Process p = pb.start();
-
+        final List<String> lines;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getErrorStream(), Charset.defaultCharset()))) {
-            for (int i = 0; numLines < 0 || i < numLines; i++) {
-                final String line = reader.readLine();
-                if (line == null)
-                    break;
-                lines.add(line);
-            }
+            lines = reader.lines().limit(numLines < 0 ? Long.MAX_VALUE : numLines).collect(toList());
         }
         try {
             if (numLines < 0 || lines.size() < numLines) {
@@ -4044,14 +3843,21 @@ public class Capsule implements Runnable {
             final StackTraceElement[] st = new Throwable().getStackTrace();
 
             assert st[1].getClassName().equals(Capsule.class.getName());
-            if (st.length < 3 || st[1].getLineNumber() <= 0 || st[2].getLineNumber() <= 0)
+            int caller2 = 2;
+            while (isStream(st[caller2].getClassName()))
+                caller2++;
+            if (st.length < 3 || st[1].getLineNumber() <= 0 || st[caller2].getLineNumber() <= 0)
                 throw new AssertionError("No debug information in Capsule class");
             // we return CC if the caller is also Capsule but not the same method (which would mean this is a sup.foo() call)
-            if (st[2].getClassName().equals(st[1].getClassName())
-                    && (!st[2].getMethodName().equals(st[1].getMethodName()) || Math.abs(st[2].getLineNumber() - st[1].getLineNumber()) > 3))
+            if (st[caller2].getClassName().equals(st[1].getClassName())
+                    && (!st[caller2].getMethodName().equals(st[1].getMethodName()) || Math.abs(st[caller2].getLineNumber() - st[1].getLineNumber()) > 3))
                 return cc;
         }
         return sup;
+    }
+
+    private static boolean isStream(String className) {
+        return className.startsWith("java.util.stream") || className.contains("$$Lambda") || className.contains("Spliterator");
     }
     //</editor-fold>
 }
