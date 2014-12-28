@@ -724,7 +724,7 @@ public class Capsule implements Runnable {
                 deps.add(caplet);
         }
 
-        final List<Path> jars = !deps.isEmpty() ? resolveDependencies(deps, "jar") : (List<Path>)Collections.EMPTY_LIST;
+        final List<Path> jars = !deps.isEmpty() ? resolveDependencies(deps, "jar") : Collections.EMPTY_LIST;
         if (jars.size() != deps.size())
             throw new RuntimeException("One of the caplets " + deps + " resolves has transitive dependencies.");
         final ClassLoader cl = jars.isEmpty() ? MY_CLASSLOADER : newClassLoader(MY_CLASSLOADER, jars);
