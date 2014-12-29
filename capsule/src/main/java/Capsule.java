@@ -132,7 +132,7 @@ public class Capsule implements Runnable {
     private static final String PROP_RESOLVE = OPTION("capsule.resolve", "false", "resolve", "Downloads all un-cached dependencies.");
     private static final String PROP_MODES = OPTION("capsule.modes", "false", "printModes", "Prints all available capsule modes.");
     private static final String PROP_PRINT_JRES = OPTION("capsule.jvms", "false", "printJVMs", "Prints a list of all JVM installations found.");
-    private static final String PROP_HELP = OPTION("capsule.help", "false", "printUsage", "Prints this help message.");
+    private static final String PROP_HELP = OPTION("capsule.help", "false", "printHelp", "Prints this help message.");
     private static final String PROP_MODE = OPTION("capsule.mode", null, null, "Picks the capsule mode to run.");
     private static final String PROP_RESET = OPTION("capsule.reset", "false", null, "Resets the capsule cache before launching. The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
     private static final String PROP_LOG_LEVEL = OPTION("capsule.log", "quiet", null, "Picks a log level. Must be one of none, quiet, verbose, or debug.");
@@ -327,7 +327,7 @@ public class Capsule implements Runnable {
         } else
             System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
         if (t instanceof IllegalArgumentException)
-            printUsage(capsule != null ? capsule.isWrapperCapsule() : true);
+            printHelp(capsule != null ? capsule.isWrapperCapsule() : true);
     }
 
     //<editor-fold defaultstate="collapsed" desc="Run Other Capsule">
@@ -929,10 +929,11 @@ public class Capsule implements Runnable {
     }
 
     void printUsage() {
-        printUsage(wrapper);
+        printHelp(wrapper);
     }
 
-    static void printUsage(boolean simple) {
+    static void printHelp(boolean simple) {
+        // USAGE:
         final Path myJar = toFriendlyPath(findOwnJarFile());
         final boolean executable = isExecutable(myJar);
 
@@ -953,7 +954,8 @@ public class Capsule implements Runnable {
             usage.append(myJar);
         System.err.println("USAGE: " + usage);
 
-        System.err.println("Options:");
+        // OPTIONS:
+        System.err.println("\nOptions:");
         for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
             if (entry.getValue()[OPTION_DESC] != null) {
                 final String option = entry.getKey();
