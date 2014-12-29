@@ -945,6 +945,8 @@ public class Capsule implements Runnable {
             usage.append(myJar).append(' ');
         }
         usage.append("<options> ");
+        if (!simple && !executable)
+            usage.append("-jar ");
         if (simple)
             usage.append("<path or Maven coords of application JAR/capsule>");
         else
@@ -952,7 +954,6 @@ public class Capsule implements Runnable {
         System.err.println("USAGE: " + usage);
 
         System.err.println("Options:");
-
         for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
             if (entry.getValue()[OPTION_DESC] != null) {
                 final String option = entry.getKey();
@@ -973,8 +974,6 @@ public class Capsule implements Runnable {
             }
         }
 
-        if (!simple && !executable)
-            usage.append("-jar ");
     }
 
     void printDependencyTree(List<String> args) {
