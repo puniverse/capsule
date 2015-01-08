@@ -61,7 +61,6 @@ import java.util.zip.ZipInputStream;
 import java.util.Properties;
 import static java.util.Collections.*;
 import static java.util.Arrays.asList;
-import java.util.Collections;
 
 /**
  * An application capsule.
@@ -609,41 +608,6 @@ public class Capsule implements Runnable {
         this.manifest = pred.manifest;
     }
 
-    /**
-     * Inserts this caplet into the chain.
-     *
-     * @param pred the caplet after which this one is to be inserted
-     */
-    protected final void insertAfter(Capsule pred) {
-        if (pred != null) {
-            if (sup != null)
-                throw new IllegalStateException("Caplet " + this + " is already in the chain (after " + sup + ")");
-            this.sup = pred;
-            this.oc = sup.oc;
-            for (Capsule c = cc; c != this; c = c.sup)
-                c.oc = oc;
-            if (sup.cc == sup) { // I'm last
-                for (Capsule c = sup; c != null; c = c.sup)
-                    c.cc = cc;
-            } else { // I'm in the middle
-                for (Capsule c = sup.cc; c != sup; c = c.sup) {
-                    if (c.sup == sup)
-                        c.sup = cc;
-                }
-                for (Capsule c = cc; c != this; c = c.sup)
-                    c.cc = sup.cc;
-                this.cc = sup.cc;
-            }
-        }
-    }
-
-    private void verifyCanCallSetTarget() {
-        if (getAppId() != null)
-            throw new IllegalStateException("Capsule is finalized");
-        if (!isEmptyCapsule())
-            throw new IllegalStateException("Capsule " + getJarFile() + " isn't empty");
-    }
-
     final Capsule setTarget(String target) {
         verifyCanCallSetTarget();
 
@@ -716,28 +680,16 @@ public class Capsule implements Runnable {
         clearContext();
     }
 
+    private void verifyCanCallSetTarget() {
+        if (getAppId() != null)
+            throw new IllegalStateException("Capsule is finalized");
+        if (!isEmptyCapsule())
+            throw new IllegalStateException("Capsule " + getJarFile() + " isn't empty");
+    }
+
     private void loadCaplets() {
-        final List<String> caplets = nullToEmpty(getListAttribute(ATTR_CAPLETS));
-        final List<String> deps = new ArrayList<>();
-        for (String caplet : caplets) {
-            if (isDependency(caplet))
-                deps.add(caplet);
-        }
-
-        final List<Path> jars = !deps.isEmpty() ? resolveDependencies(deps, "jar") : Collections.EMPTY_LIST;
-        if (jars.size() != deps.size())
-            throw new RuntimeException("One of the caplets " + deps + " resolves has transitive dependencies.");
-        final ClassLoader cl = jars.isEmpty() ? MY_CLASSLOADER : newClassLoader(MY_CLASSLOADER, jars);
-
-        int i = 0;
-        Capsule pred = this;
-        for (String caplet : caplets) {
-            if (isDependency(caplet)) {
-                pred = newCapsule(cl, jars.get(i), pred);
-                i++;
-            } else
-                pred = newCapsule(cl, caplet, pred);
-        }
+        for (String caplet : nullToEmpty(getListAttribute(ATTR_CAPLETS)))
+            loadCaplet(caplet, cc).insertAfter(cc);
     }
 
     private void initAppId() {
@@ -757,6 +709,78 @@ public class Capsule implements Runnable {
 
     private boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasAttribute(ATTR_SCRIPT);
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Caplet Chain">
+    /////////// Caplet Chain ///////////////////////////////////
+    protected final Capsule loadCaplet(String caplet, Capsule pred) {
+        if (isDependency(caplet)) {
+            final List<Path> jars = resolveDependency(caplet, "jar");
+            if (jars.size() != 1)
+                throw new RuntimeException("The caplet " + caplet + " has transitive dependencies.");
+            return newCapsule(newClassLoader(MY_CLASSLOADER, jars), jars.get(0), pred);
+        } else
+            return newCapsule(MY_CLASSLOADER, caplet, pred);
+    }
+
+    /**
+     * Inserts this caplet into the chain.
+     *
+     * @param pred the caplet after which this one is to be inserted
+     */
+    protected final void insertAfter(Capsule pred) {
+        if (pred != null) {
+            if (sup != null)
+                throw new IllegalStateException("Caplet " + this + " is already in the chain (after " + sup + ")");
+            this.sup = pred;
+            this.oc = sup.oc;
+            for (Capsule c = cc; c != this; c = c.sup)
+                c.oc = oc;
+            if (sup.cc == sup) { // I'm last
+                for (Capsule c = sup; c != null; c = c.sup)
+                    c.cc = cc;
+            } else { // I'm in the middle
+                for (Capsule c = sup.cc; c != sup; c = c.sup) {
+                    if (c.sup == sup)
+                        c.sup = cc;
+                }
+                for (Capsule c = cc; c != this; c = c.sup)
+                    c.cc = sup.cc;
+                this.cc = sup.cc;
+            }
+        }
+    }
+
+    @SuppressWarnings("AssertWithSideEffects")
+    private Capsule getCallTarget() {
+        /*
+         * Here we're implementing both the "invokevirtual" and "invokespecial".
+         * We want to somehow differentiate the case where the function is called directly -- and should, like invokevirtual, target cc, the
+         * last caplet in the hieracrchy -- from the case where the function is called with super.foo -- and should, like invokevirtual, 
+         * target sup, the previous caplet in the hierarchy.
+         */
+        if (sup == null && cc != this) {
+            final StackTraceElement[] st = new Throwable().getStackTrace();
+            if (st == null || st.length < 3)
+                throw new AssertionError("No debug information in Capsule class");
+
+            final int c1 = 1;
+            assert st[c1].getClassName().equals(Capsule.class.getName());
+
+            int c2 = 2;
+            while (isStream(st[c2].getClassName()))
+                c2++;
+
+            if (st[c1].getLineNumber() <= 0 || st[c2].getLineNumber() <= 0)
+                throw new AssertionError("No debug information in Capsule class");
+
+            // we return CC if the caller is also Capsule but not the same method (which would mean this is a sup.foo() call)
+            if (st[c2].getClassName().equals(st[c1].getClassName())
+                    && (!st[c2].getMethodName().equals(st[c1].getMethodName()) || Math.abs(st[c2].getLineNumber() - st[c1].getLineNumber()) > 3))
+                return cc;
+        }
+        return sup;
     }
     //</editor-fold>
 
@@ -3612,6 +3636,10 @@ public class Capsule implements Runnable {
     private static ClassLoader newClassLoader(ClassLoader parent, Path... ps) {
         return newClassLoader(parent, asList(ps));
     }
+
+    private static boolean isStream(String className) {
+        return className.startsWith("java.util.stream") || className.contains("$$Lambda") || className.contains("Spliterator");
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Misc Utils">
@@ -3980,9 +4008,7 @@ public class Capsule implements Runnable {
     }
 
     static Capsule newCapsule(ClassLoader cl, Path jarFile, Capsule pred) {
-        Capsule c = newCapsule(cl, jarFile, pred.cacheDir);
-        c.insertAfter(pred);
-        return c;
+        return newCapsule(cl, jarFile, pred.cacheDir);
     }
 
     static Capsule newCapsule(ClassLoader cl, String capsuleClass, Capsule pred) {
@@ -4014,22 +4040,6 @@ public class Capsule implements Runnable {
         if (clazz == null)
             return false;
         return Capsule.class.getName().equals(clazz.getName()) || isCapsuleClass(clazz.getSuperclass());
-    }
-
-    @SuppressWarnings("AssertWithSideEffects")
-    private Capsule getCallTarget() {
-        if (sup == null && cc != this) {
-            final StackTraceElement[] st = new Throwable().getStackTrace();
-
-            assert st[1].getClassName().equals(Capsule.class.getName());
-            if (st.length < 3 || st[1].getLineNumber() <= 0 || st[2].getLineNumber() <= 0)
-                throw new AssertionError("No debug information in Capsule class");
-            // we return CC if the caller is also Capsule but not the same method (which would mean this is a sup.foo() call)
-            if (st[2].getClassName().equals(st[1].getClassName())
-                    && (!st[2].getMethodName().equals(st[1].getMethodName()) || Math.abs(st[2].getLineNumber() - st[1].getLineNumber()) > 3))
-                return cc;
-        }
-        return sup;
     }
     //</editor-fold>
 }
