@@ -1000,6 +1000,23 @@ public class Capsule implements Runnable {
             }
         }
 
+        // ATTRIBUTES:
+        if (1 == 2) {
+            System.err.println("\nManifest Attributes:");
+            for (Map.Entry<String, Object[]> entry : ATTRIBS.entrySet()) {
+                if (entry.getValue()[ATTRIB_DESC] != null) {
+                    final String attrib = entry.getKey();
+                    final String defaultValue = toString(entry.getValue()[ATTRIB_DEFAULT]);
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(attrib);
+                    if (defaultValue != null)
+                        sb.append(" (default: ").append(defaultValue).append(")");
+                    sb.append(" - ").append(entry.getValue()[ATTRIB_DESC]);
+
+                    System.err.println("  " + sb);
+                }
+            }
+        }
     }
 
     void printDependencyTree(List<String> args) {
