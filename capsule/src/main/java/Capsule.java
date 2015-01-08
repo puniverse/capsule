@@ -2341,10 +2341,10 @@ public class Capsule implements Runnable {
      * Returns the path to the local dependency repository.
      */
     protected final Path getLocalRepo() {
-        Path localRepo = cacheDir.resolve(DEPS_CACHE_NAME);
-        final String local = expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO));
+        final String local = emptyToNull(expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO)));
         if (local != null)
-            localRepo = !local.isEmpty() ? toAbsolutePath(Paths.get(local)) : null;
+            return toAbsolutePath(Paths.get(local));
+        final Path localRepo = oc.cacheDir.resolve(DEPS_CACHE_NAME);
         return localRepo;
     }
 
