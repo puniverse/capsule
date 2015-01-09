@@ -4068,15 +4068,7 @@ public class Capsule implements Runnable {
     // visible for testing
     static Capsule newCapsule(ClassLoader cl, Path jarFile, Path cacheDir) {
         try {
-            final String mainClassName = getMainClass(jarFile);
-            if (mainClassName != null) {
-                final Class<?> clazz = cl.loadClass(mainClassName);
-                if (isCapsuleClass(clazz))
-                    return (Capsule) accessible(clazz.getDeclaredConstructor(Path.class, Path.class)).newInstance(jarFile, cacheDir);
-            }
-            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.", e);
+            return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Path.class, Path.class)).newInstance(jarFile, cacheDir);
         } catch (IncompatibleClassChangeError e) {
             throw new RuntimeException("Caplet " + jarFile + " is not compatible with this capsule (" + VERSION + ")");
         } catch (InvocationTargetException e) {
@@ -4087,13 +4079,37 @@ public class Capsule implements Runnable {
     }
 
     static Capsule newCapsule(ClassLoader cl, Path jarFile, Capsule pred) {
-        return newCapsule(cl, jarFile, pred.cacheDir);
+        try {
+            return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Capsule.class)).newInstance(pred);
+        } catch (IncompatibleClassChangeError e) {
+            throw new RuntimeException("Caplet " + jarFile + " is not compatible with this capsule (" + VERSION + ")");
+        } catch (InvocationTargetException e) {
+            throw rethrow(e.getTargetException());
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Could not instantiate capsule.", e);
+        }
+    }
+
+    static Class<? extends Capsule> loadCapsule(ClassLoader cl, Path jarFile) {
+        try {
+            final String mainClassName = getMainClass(jarFile);
+            if (mainClassName != null) {
+                final Class<?> clazz = cl.loadClass(mainClassName);
+                if (isCapsuleClass(clazz))
+                    return (Class<? extends Capsule>) clazz;
+            }
+            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.", e);
+        } catch (IncompatibleClassChangeError e) {
+            throw new RuntimeException("Caplet " + jarFile + " is not compatible with this capsule (" + VERSION + ")");
+        }
     }
 
     static Capsule newCapsule(ClassLoader cl, String capsuleClass, Capsule pred) {
         try {
-            final Class<?> clazz = cl.loadClass(capsuleClass);
-            return (Capsule) accessible(clazz.getDeclaredConstructor(Capsule.class)).newInstance(pred);
+            final Class<? extends Capsule> clazz = (Class<? extends Capsule>) cl.loadClass(capsuleClass);
+            return accessible(clazz.getDeclaredConstructor(Capsule.class)).newInstance(pred);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("Caplet " + capsuleClass + " not found.", e);
         } catch (IncompatibleClassChangeError e) {
