@@ -456,7 +456,7 @@ public class Capsule implements Runnable {
                 optarg = optionTakesArguments(option) ? args.remove(0) : "";
 
             if (!overridden)
-                System.setProperty(option, optarg);
+                setProperty(option, optarg);
         }
         processOptions();
     }
