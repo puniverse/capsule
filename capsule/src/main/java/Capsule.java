@@ -30,6 +30,8 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
@@ -2826,12 +2828,16 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Path Utils">
     /////////// Path Utils ///////////////////////////////////
+    private FileSystem getFileSystem() {
+        return oc.cacheDir != null ? oc.cacheDir.getFileSystem() : FileSystems.getDefault();
+    }
+
     private Path path(String p, String... more) {
-        return cacheDir.getFileSystem().getPath(p, more);
+        return getFileSystem().getPath(p, more);
     }
 
     private Path path(URI uri) {
-        return cacheDir.getFileSystem().provider().getPath(uri);
+        return getFileSystem().provider().getPath(uri);
     }
 
     private List<Path> toPath(List<String> ps) {
