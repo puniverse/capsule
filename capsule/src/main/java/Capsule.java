@@ -1409,14 +1409,21 @@ public class Capsule implements Runnable {
         if (cacheDirEnv != null)
             cache = Paths.get(cacheDirEnv);
         else {
-            final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
-            final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
-            cache = getCacheHome().resolve((isWindows() ? "" : ".") + cacheName);
+            final Path cacheHome = getCacheHome();
+            if (cacheHome == null)
+                return null;
+            cache = getCacheHome().resolve(getCacheName());
         }
         return cache;
     }
 
-    private static Path initCacheDir(Path cache) {
+    private static String getCacheName() {
+        final String cacheNameEnv = System.getenv(ENV_CACHE_NAME);
+        final String cacheName = cacheNameEnv != null ? cacheNameEnv : CACHE_DEFAULT_NAME;
+        return (isWindows() ? "" : ".") + cacheName;
+    }
+
+    private Path initCacheDir(Path cache) {
         if (cache == null)
             return null;
         try {
