@@ -361,7 +361,7 @@ public class Capsule implements Runnable {
                 return 1;
             }
         } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+            throw rethrow(e);
         }
     }
     //</editor-fold>
@@ -906,7 +906,7 @@ public class Capsule implements Runnable {
                 return false;
             return true;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw rethrow(e);
         }
     }
     //</editor-fold>
@@ -1125,7 +1125,7 @@ public class Capsule implements Runnable {
                 time("prepareForLaunch", start);
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw rethrow(e);
         }
     }
 
@@ -3070,7 +3070,7 @@ public class Capsule implements Runnable {
                 }
             } catch (UnsupportedOperationException e) {
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw rethrow(e);
             }
         }
     }
@@ -3124,7 +3124,7 @@ public class Capsule implements Runnable {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw rethrow(e);
         }
 
         sort(ms); // sort to give same reults on all platforms (hopefully)
@@ -3190,7 +3190,7 @@ public class Capsule implements Runnable {
                     homes = windowsJavaHomesHeuristics(homesDir, homes);
                 JAVA_HOMES = homes;
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw rethrow(e);
             }
         }
         return JAVA_HOMES;
@@ -3281,7 +3281,7 @@ public class Capsule implements Runnable {
 
             return version;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw rethrow(e);
         }
     }
     //</editor-fold>
@@ -3724,6 +3724,16 @@ public class Capsule implements Runnable {
         return t;
     }
 
+    private static RuntimeException rethrow(Throwable t) {
+        while (t instanceof InvocationTargetException)
+            t = ((InvocationTargetException) t).getTargetException();
+        if (t instanceof RuntimeException)
+            throw (RuntimeException) t;
+        if (t instanceof Error)
+            throw (Error) t;
+        throw new RuntimeException(t);
+    }
+
     /**
      * Executes a command and returns its output as a list of lines.
      * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
@@ -3790,7 +3800,7 @@ public class Capsule implements Runnable {
             }
             return lines;
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            throw rethrow(e);
         }
     }
     //</editor-fold>
@@ -4038,16 +4048,6 @@ public class Capsule implements Runnable {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not instantiate capsule " + capsuleClass, e);
         }
-    }
-
-    private static RuntimeException rethrow(Throwable t) {
-        while (t instanceof InvocationTargetException)
-            t = ((InvocationTargetException) t).getTargetException();
-        if (t instanceof RuntimeException)
-            throw (RuntimeException) t;
-        if (t instanceof Error)
-            throw (Error) t;
-        throw new RuntimeException(t);
     }
 
     private static boolean isCapsuleClass(Class<?> clazz) {
