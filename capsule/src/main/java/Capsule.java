@@ -1404,15 +1404,15 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Capsule Cache">
     /////////// Capsule Cache ///////////////////////////////////
     private static Path getCacheDir() {
-        final Path cache;
+        Path cache;
         final String cacheDirEnv = System.getenv(ENV_CACHE_DIR);
         if (cacheDirEnv != null)
             cache = Paths.get(cacheDirEnv);
         else {
-            final Path cacheHome = getCacheHome();
-            if (cacheHome == null)
-                return null;
-            cache = getCacheHome().resolve(getCacheName());
+            final String name = getCacheName();
+            cache = initCacheDir(getCacheHome().resolve(name));
+            if (cache == null)
+                cache = initCacheDir(getTempDir().resolve(name));
         }
         return cache;
     }
@@ -1423,7 +1423,7 @@ public class Capsule implements Runnable {
         return (isWindows() ? "" : ".") + cacheName;
     }
 
-    private Path initCacheDir(Path cache) {
+    private static Path initCacheDir(Path cache) {
         if (cache == null)
             return null;
         try {
@@ -1434,15 +1434,15 @@ public class Capsule implements Runnable {
 
             return cache;
         } catch (IOException e) {
-            log(LOG_VERBOSE, "Error initializing cache dir " + cache);
-            if(isLogging(LOG_VERBOSE))
-                e.printStackTrace(System.err);
+//            log(LOG_VERBOSE, "Error initializing cache dir " + cache);
+//            if(isLogging(LOG_VERBOSE))
+//                e.printStackTrace(System.err);
             return null; // throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
         }
     }
 
     private static Path getCacheHome() {
-        Path cacheHome;
+        final Path cacheHome;
 
         final Path userHome = Paths.get(getProperty(PROP_USER_HOME));
         if (!isWindows())
@@ -1466,10 +1466,15 @@ public class Capsule implements Runnable {
             cacheHome = localData;
         }
 
-        if (!Files.isWritable(cacheHome))
-            cacheHome = Paths.get(getProperty(PROP_TMP_DIR));
-
         return cacheHome;
+    }
+
+    private static Path getTempDir() {
+        try {
+            return Paths.get(getProperty(PROP_TMP_DIR));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private Path verifyCache() {
