@@ -1640,8 +1640,7 @@ public class Capsule implements Runnable {
             return false;
 
         if (getAppCache() == null)
-            throw new IllegalStateException("Cannot run the startup script " + script + " when the "
-                    + ATTR_EXTRACT + " attribute is set to false");
+            throw new IllegalStateException("Cannot run the startup script " + script + " when the " + ATTR_EXTRACT + " attribute is set to false");
 
         setJavaHomeEnv(pb, getJavaHome());
 
@@ -1772,8 +1771,7 @@ public class Capsule implements Runnable {
             if (Boolean.parseBoolean(getAttribute(ATTR_CAPSULE_IN_CLASS_PATH)))
                 classPath.add(getJarFile());
             else if (getAppCache() == null)
-                throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the "
-                        + ATTR_EXTRACT + " attribute is also set to false");
+                throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the " + ATTR_EXTRACT + " attribute is also set to false");
         }
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
@@ -1963,8 +1961,7 @@ public class Capsule implements Runnable {
             libraryPath.addAll(nullToEmpty(sanitize(getAppCache(), getListAttribute(ATTR_LIBRARY_PATH_A))));
             libraryPath.add(getAppCache());
         } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
-            throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A
-                    + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
+            throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
         return libraryPath;
     }
 
@@ -2743,7 +2740,7 @@ public class Capsule implements Runnable {
         }
 
         if (getAppCache() == null)
-            throw new IllegalStateException((isDependency(p) ? "Dependency manager not found. Cannot resolve" : "Capsule not extracted. Cannot obtain path") + " " + p);
+            throw new IllegalStateException((isDependency(p) ? "Dependency manager not found. Cannot resolve " : "Capsule not extracted. Cannot obtain path ") + p);
         if (isDependency(p)) {
             Path f = getAppCache().resolve(dependencyToLocalJar(true, p));
             if (Files.isRegularFile(f))
