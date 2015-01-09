@@ -9,6 +9,8 @@
 
 import capsule.DependencyManager;
 import co.paralleluniverse.capsule.Jar;
+import co.paralleluniverse.common.JarClassLoader;
+import co.paralleluniverse.common.PathClassLoader;
 import com.google.common.jimfs.Jimfs;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -63,6 +65,7 @@ public class CapsuleTest {
     private final Path cache = fs.getPath("/cache");
     private final Path tmp = fs.getPath("/tmp");
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
+    private static final boolean USE_JAR_CLASSLOADER = true;
 
     private Properties props;
 
@@ -1229,7 +1232,8 @@ public class CapsuleTest {
         try {
             Path capsuleJar = path("capsule.jar");
             jar.write(capsuleJar);
-            Class<?> clazz = Class.forName(jar.getAttribute("Main-Class"));
+            final String mainClass = jar.getAttribute("Main-Class");
+            Class<?> clazz = Capsule.class.getName().equals(mainClass) ? MyCapsule.class : Class.forName(mainClass);
             accessible(Capsule.class.getDeclaredField("DEPENDENCY_MANAGER")).set(null, dependencyManager);
             accessible(Capsule.class.getDeclaredField("PROFILE")).set(null, 10); // disable profiling even when log=debug
             Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class, Path.class));
@@ -1238,6 +1242,29 @@ public class CapsuleTest {
             throw new RuntimeException(e.getCause());
         } catch (Exception e) {
             throw new AssertionError(e);
+        }
+    }
+
+    private static class MyCapsule extends Capsule {
+        public MyCapsule(Path jarFile, Path cacheDir) {
+            super(jarFile, cacheDir);
+        }
+
+        public MyCapsule(Capsule pred) {
+            super(pred);
+        }
+
+        @Override
+        ClassLoader newClassLoader(ClassLoader parent, List<Path> ps) {
+            if (ps.size() != 1)
+                throw new AssertionError("Paths: " + ps);
+            try {
+                return USE_JAR_CLASSLOADER
+                        ? new JarClassLoader(ps.get(0), parent, false)
+                        : new PathClassLoader(ps.toArray(new Path[0]), parent);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

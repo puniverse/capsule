@@ -353,7 +353,7 @@ public class Capsule implements Runnable {
             throw new IllegalArgumentException(jar + " does not exist or does appear to be a valid JAR", e);
         }
         try {
-            final Method main = newClassLoader(null, jar).loadClass(mainClass).getMethod("main", String[].class);
+            final Method main = newClassLoader0(null, jar).loadClass(mainClass).getMethod("main", String[].class);
             try {
                 main.invoke(null, (Object) args.toArray(new String[0]));
                 return 0;
@@ -720,7 +720,7 @@ public class Capsule implements Runnable {
             final List<Path> jars = resolveDependency(caplet, "jar");
             if (jars.size() != 1)
                 throw new RuntimeException("The caplet " + caplet + " has transitive dependencies.");
-            return newCapsule(newClassLoader(MY_CLASSLOADER, jars), jars.get(0), pred);
+            return newCapsule(newClassLoader(MY_CLASSLOADER, jars.get(0)), jars.get(0), pred);
         } else
             return newCapsule(MY_CLASSLOADER, caplet, pred);
     }
@@ -3675,7 +3675,7 @@ public class Capsule implements Runnable {
         return obj;
     }
 
-    private static ClassLoader newClassLoader(ClassLoader parent, List<Path> ps) {
+    private static ClassLoader newClassLoader0(ClassLoader parent, List<Path> ps) {
         try {
             final List<URL> urls = new ArrayList<>(ps.size());
             for (Path p : ps)
@@ -3686,7 +3686,18 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static ClassLoader newClassLoader(ClassLoader parent, Path... ps) {
+    private static ClassLoader newClassLoader0(ClassLoader parent, Path... ps) {
+        return newClassLoader0(parent, asList(ps));
+    }
+
+    /**
+     * @deprecated marked deprecated to exclude from javadoc. Visible for testing
+     */
+    ClassLoader newClassLoader(ClassLoader parent, List<Path> ps) {
+        return newClassLoader0(parent, ps);
+    }
+
+    private ClassLoader newClassLoader(ClassLoader parent, Path... ps) {
         return newClassLoader(parent, asList(ps));
     }
 
