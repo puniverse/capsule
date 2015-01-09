@@ -290,7 +290,7 @@ public class Capsule implements Runnable {
         System.exit(main0(args));
     }
 
-    @SuppressWarnings({"BroadCatchBlock", "CallToPrintStackTrace", "UnusedAssignment"})
+    @SuppressWarnings({"BroadCatchBlock", "UnusedAssignment"})
     private static int main0(String[] args0) {
         List<String> args = new ArrayList<>(asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         Capsule capsule = null;
@@ -343,7 +343,6 @@ public class Capsule implements Runnable {
         return runMain(jar, args);
     }
 
-    @SuppressWarnings("CallToPrintStackTrace")
     private static int runMain(Path jar, List<String> args) {
         final String mainClass;
         try {
@@ -359,7 +358,7 @@ public class Capsule implements Runnable {
                 main.invoke(null, (Object) args.toArray(new String[0]));
                 return 0;
             } catch (Exception e) {
-                deshadow(e).printStackTrace();
+                deshadow(e).printStackTrace(System.err);
                 return 1;
             }
         } catch (ReflectiveOperationException e) {
@@ -1156,14 +1155,13 @@ public class Capsule implements Runnable {
             cleanup0();
     }
 
-    @SuppressWarnings("CallToPrintStackTrace")
     private void cleanup0() {
         try {
             if (oc.child != null)
                 oc.child.destroy();
             oc.child = null;
         } catch (Exception t) {
-            deshadow(t).printStackTrace();
+            deshadow(t).printStackTrace(System.err);
         }
 
         for (Path p : oc.tmpFiles) {
