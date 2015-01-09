@@ -1404,12 +1404,22 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule Cache">
     /////////// Capsule Cache ///////////////////////////////////
+    private Path getCache() {
+        if (cc.cacheDir == null)
+            throw new RuntimeException("Could not create the Capsule cache directory. Do you have write permissions to the home dir or to temp dir storage?");
+        return cc.cacheDir;
+    }
+
     private static Path getCacheDir() {
         Path cache;
         final String cacheDirEnv = System.getenv(ENV_CACHE_DIR);
-        if (cacheDirEnv != null)
-            cache = Paths.get(cacheDirEnv);
-        else {
+        if (cacheDirEnv != null) {
+            if (cacheDirEnv.equalsIgnoreCase(CACHE_NONE))
+                return null;
+            cache = initCacheDir(Paths.get(cacheDirEnv));
+            if (cache == null)
+                throw new RuntimeException("Could not initialize cache directory " + Paths.get(cacheDirEnv));
+        } else {
             final String name = getCacheName();
             cache = initCacheDir(getCacheHome().resolve(name));
             if (cache == null)
@@ -1477,12 +1487,6 @@ public class Capsule implements Runnable {
             return null;
         }
     }
-
-    private Path verifyCache() {
-        if (oc.cacheDir == null)
-            throw new RuntimeException("Could not create the Capsule cache directory. Do you have write permissions to the home dir or to temp dir storage?");
-        return oc.cacheDir;
-    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="App Cache">
@@ -1492,7 +1496,7 @@ public class Capsule implements Runnable {
      */
     protected Path getAppCacheDir() {
         assert getAppId() != null;
-        return toAbsolutePath(verifyCache().resolve(APP_CACHE_NAME).resolve(getAppId()));
+        return toAbsolutePath(getCache().resolve(APP_CACHE_NAME).resolve(getAppId()));
     }
 
     private Path getOrCreateAppCacheDir() throws IOException {
@@ -2377,7 +2381,7 @@ public class Capsule implements Runnable {
         final String local = emptyToNull(expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO)));
         if (local != null)
             return toAbsolutePath(Paths.get(local));
-        final Path localRepo = verifyCache().resolve(DEPS_CACHE_NAME);
+        final Path localRepo = getCache().resolve(DEPS_CACHE_NAME);
         return localRepo;
     }
 
@@ -2857,7 +2861,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Path Utils">
     /////////// Path Utils ///////////////////////////////////
     private FileSystem getFileSystem() {
-        return oc.cacheDir != null ? oc.cacheDir.getFileSystem() : FileSystems.getDefault();
+        return cc.cacheDir != null ? cc.cacheDir.getFileSystem() : FileSystems.getDefault();
     }
 
     private Path path(String p, String... more) {
