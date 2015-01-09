@@ -671,7 +671,7 @@ public class Capsule implements Runnable {
     }
 
     private void finalizeCapsule(boolean setId) {
-        validateManifest();
+        validateManifest(manifest);
         oc.logLevel = chooseLogLevel();
         oc.mode = chooseMode1();
         initDependencyManager();
@@ -2458,11 +2458,11 @@ public class Capsule implements Runnable {
         return !name.contains("/") && !name.endsWith(".class") && !name.endsWith(".jar") && !isOsSpecific(name);
     }
 
-    private void validateManifest() {
+    private void validateManifest(Manifest manifest) {
         if (manifest.getMainAttributes().getValue(ATTR_CLASS_PATH) != null)
             throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
                     + " Use " + ATTR_APP_CLASS_PATH + " and/or " + ATTR_DEPENDENCIES + " instead.");
-        validateNonModalAttributes();
+        validateNonModalAttributes(manifest);
 
         // validate section case-insensitivity
         final Set<String> sectionsLowercase = new HashSet<>();
@@ -2472,7 +2472,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void validateNonModalAttributes() {
+    private void validateNonModalAttributes(Manifest manifest) {
         for (Map.Entry<String, Attributes> entry : manifest.getEntries().entrySet()) {
             for (Object attr : entry.getValue().keySet()) {
                 if (!allowsModal(attr.toString()))
