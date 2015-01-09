@@ -84,7 +84,7 @@ import static java.util.Arrays.asList;
  * @author pron
  */
 public class Capsule implements Runnable {
-    protected static final String VERSION = "1.0";
+    public static final String VERSION = "1.0";
     /*
      * This class follows some STRICT RULES:
      *
@@ -218,16 +218,17 @@ public class Capsule implements Runnable {
     private static final String DEPS_CACHE_NAME = "deps";
     private static final String APP_CACHE_NAME = "apps";
     private static final String POM_FILE = "pom.xml";
-    private static final String SEPARATOR_DOT = "\\.";
     private static final String LOCK_FILE_NAME = ".lock";
     private static final String TIMESTAMP_FILE_NAME = ".extracted";
+    private static final String CACHE_NONE = "NONE";
+    private static final Object DEFAULT = new Object();
+    private static final String SEPARATOR_DOT = "\\.";
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final char FILE_SEPARATOR_CHAR = FILE_SEPARATOR.charAt(0);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path WINDOWS_PROGRAM_FILES_1 = Paths.get("C:", "Program Files");
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
-    private static final Object DEFAULT = new Object();
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
     private static final Set<String> COMMON_ATTRIBUTES = immutableSet(
             ATTR_MANIFEST_VERSION, ATTR_MAIN_CLASS, "Created-By", "Signature-Version", "Sealed", "Magic",
@@ -267,7 +268,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
-    private static Properties PROPERTIES = System.getProperties();
+    private static Properties PROPERTIES = System.getProperties(); // new Properties(System.getProperties());
     private static final String OS = getProperty0(PROP_OS_NAME).toLowerCase();
     private static final String PLATFORM = getOS();
     private static Capsule CAPSULE;
