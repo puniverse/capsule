@@ -527,7 +527,7 @@ public class Capsule implements Runnable {
     // Some very limited state
     private List<String> jvmArgs_;
     private List<String> args_;
-    private Path pathingJar;
+    private List<Path> tmpFiles = new ArrayList<>();
     private Process child;
     // Error reporting
     private static String contextType_;
@@ -1164,13 +1164,19 @@ public class Capsule implements Runnable {
             deshadow(t).printStackTrace();
         }
 
-        try {
-            if (oc.pathingJar != null)
-                Files.delete(oc.pathingJar);
-            oc.pathingJar = null;
-        } catch (Exception t) {
-            deshadow(t).printStackTrace();
+        for (Path p : oc.tmpFiles) {
+            try {
+                delete(p);
+            } catch (Exception t) {
+                log(LOG_VERBOSE, t.getMessage());
+            }
         }
+        oc.tmpFiles.clear();
+    }
+
+    protected final Path addTempFile(Path p) {
+        oc.tmpFiles.add(p);
+        return p;
     }
 
     private String chooseMode1() {
@@ -1700,7 +1706,7 @@ public class Capsule implements Runnable {
             log(LOG_DEBUG, "Command line length: " + len);
             if (isTrampoline())
                 throw new RuntimeException("Command line too long and trampoline requested.");
-            oc.pathingJar = createPathingJar(Paths.get(getProperty(PROP_TMP_DIR)), cp);
+            final Path pathingJar = addTempFile(createPathingJar(Paths.get(getProperty(PROP_TMP_DIR)), cp));
             log(LOG_VERBOSE, "Writing classpath: " + cp + " to pathing JAR: " + pathingJar);
             return singletonList(pathingJar);
         } else
