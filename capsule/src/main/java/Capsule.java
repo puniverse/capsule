@@ -1434,31 +1434,48 @@ public class Capsule implements Runnable {
 
             return cache;
         } catch (IOException e) {
-            throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
+            log(LOG_VERBOSE, "Error initializing cache dir " + cache);
+            if(isLogging(LOG_VERBOSE))
+                e.printStackTrace(System.err);
+            return null; // throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
         }
     }
 
     private static Path getCacheHome() {
+        Path cacheHome;
+
         final Path userHome = Paths.get(getProperty(PROP_USER_HOME));
         if (!isWindows())
-            return userHome;
-
-        Path localData;
-        final String localAppData = getenv("LOCALAPPDATA");
-        if (localAppData != null) {
-            localData = Paths.get(localAppData);
-            if (!Files.isDirectory(localData))
-                throw new RuntimeException("%LOCALAPPDATA% set to nonexistent directory " + localData);
-        } else {
-            localData = userHome.resolve(Paths.get("AppData", "Local"));
-            if (!Files.isDirectory(localData))
-                localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
-            if (!Files.isDirectory(localData))
-                throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
-                        + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
-                        + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
+            cacheHome = userHome;
+        else {
+            Path localData;
+            final String localAppData = getenv("LOCALAPPDATA");
+            if (localAppData != null) {
+                localData = Paths.get(localAppData);
+                if (!Files.isDirectory(localData))
+                    throw new RuntimeException("%LOCALAPPDATA% set to nonexistent directory " + localData);
+            } else {
+                localData = userHome.resolve(Paths.get("AppData", "Local"));
+                if (!Files.isDirectory(localData))
+                    localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
+                if (!Files.isDirectory(localData))
+                    throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
+                            + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
+                            + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
+            }
+            cacheHome = localData;
         }
-        return localData;
+
+        if (!Files.isWritable(cacheHome))
+            cacheHome = Paths.get(getProperty(PROP_TMP_DIR));
+
+        return cacheHome;
+    }
+
+    private Path verifyCache() {
+        if (oc.cacheDir == null)
+            throw new RuntimeException("Could not create the Capsule cache directory. Do you have write permissions to the home dir or to temp dir storage?");
+        return oc.cacheDir;
     }
     //</editor-fold>
 
@@ -1469,7 +1486,7 @@ public class Capsule implements Runnable {
      */
     protected Path getAppCacheDir() {
         assert getAppId() != null;
-        return toAbsolutePath(oc.cacheDir.resolve(APP_CACHE_NAME).resolve(getAppId()));
+        return toAbsolutePath(verifyCache().resolve(APP_CACHE_NAME).resolve(getAppId()));
     }
 
     private Path getOrCreateAppCacheDir() throws IOException {
@@ -2354,7 +2371,7 @@ public class Capsule implements Runnable {
         final String local = emptyToNull(expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO)));
         if (local != null)
             return toAbsolutePath(Paths.get(local));
-        final Path localRepo = oc.cacheDir.resolve(DEPS_CACHE_NAME);
+        final Path localRepo = verifyCache().resolve(DEPS_CACHE_NAME);
         return localRepo;
     }
 
