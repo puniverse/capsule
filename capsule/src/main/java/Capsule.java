@@ -95,7 +95,7 @@ public class Capsule implements Runnable {
      *
      * Rules #1 and #2 ensure that fat capsules will work with only Capsule.class included in the JAR. Rule #2 helps enforcing rules #1 and #3.
      * Rule #3 ensures methods can be called in any order (after construction completes), and makes maintenance and evolution of Capsule simpler.
-     * This class contains several strange hacks to compy with rule #1.
+     * This class contains several strange hacks to comply with rule #1.
      *
      * Also, the code is not meant to be the most efficient, but methods should be as independent and stateless as possible.
      * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
