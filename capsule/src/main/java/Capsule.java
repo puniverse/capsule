@@ -2364,14 +2364,14 @@ public class Capsule implements Runnable {
         return new DependencyManagerImpl(localRepo, reset, logLevel);
     }
 
-    private Object verifyDependencyManager() {
+    private Object getDependencyManager() {
         if (oc.dependencyManager == null)
             throw new RuntimeException("Capsule " + getJarFile() + " uses dependencies, while the necessary dependency management classes are not found in the capsule JAR");
         return oc.dependencyManager;
     }
 
     private void setDependencyRepositories(List<String> repositories) {
-        ((DependencyManager) verifyDependencyManager()).setRepos(repositories, Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS)));
+        ((DependencyManager) getDependencyManager()).setRepos(repositories, Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS)));
     }
 
     /**
@@ -2386,20 +2386,20 @@ public class Capsule implements Runnable {
     }
 
     private void printDependencyTree(String root, String type) {
-        ((DependencyManager) verifyDependencyManager()).printDependencyTree(root, type, System.out);
+        ((DependencyManager) getDependencyManager()).printDependencyTree(root, type, System.out);
     }
 
     private void printDependencyTree(List<String> dependencies, String type) {
         if (dependencies == null)
             return;
-        ((DependencyManager) verifyDependencyManager()).printDependencyTree(dependencies, type, System.out);
+        ((DependencyManager) getDependencyManager()).printDependencyTree(dependencies, type, System.out);
     }
 
     private List<Path> resolveDependencies(List<String> dependencies, String type) {
         if (dependencies == null)
             return null;
         final long start = clock();
-        final List<Path> res = ((DependencyManager) verifyDependencyManager()).resolveDependencies(dependencies, type);
+        final List<Path> res = ((DependencyManager) getDependencyManager()).resolveDependencies(dependencies, type);
         time("resolveDependencies", start);
         return res;
     }
@@ -2408,7 +2408,7 @@ public class Capsule implements Runnable {
         if (coords == null)
             return null;
         final long start = clock();
-        final List<Path> res = ((DependencyManager) verifyDependencyManager()).resolveDependency(coords, type);
+        final List<Path> res = ((DependencyManager) getDependencyManager()).resolveDependency(coords, type);
         time("resolveDependency " + coords, start);
         return res;
     }
@@ -2420,7 +2420,7 @@ public class Capsule implements Runnable {
     private String getArtifactLatestVersion(String coords, String type) {
         if (coords == null)
             return null;
-        return ((DependencyManager) verifyDependencyManager()).getLatestVersion(coords, type);
+        return ((DependencyManager) getDependencyManager()).getLatestVersion(coords, type);
     }
     //</editor-fold>
 
