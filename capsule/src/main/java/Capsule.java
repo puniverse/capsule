@@ -120,7 +120,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Constants">
     /////////// Constants ///////////////////////////////////
     private static final long START = System.nanoTime();
-    private static final Map<String, String[]> OPTIONS = new LinkedHashMap<>(20);
+    private static final Map<String, Object[]> OPTIONS = new LinkedHashMap<>(20);
     private static final Map<String, Object[]> ATTRIBS = new LinkedHashMap<>(60);
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
@@ -258,7 +258,8 @@ public class Capsule implements Runnable {
     // options
     private static final int OPTION_DEFAULT = 0;
     private static final int OPTION_METHOD = 1;
-    private static final int OPTION_DESC = 2;
+    private static final int OPTION_WRAPPER_ONLY = 2;
+    private static final int OPTION_DESC = 3;
 
     // attributes
     private static final int ATTRIB_DEFAULT = 0;
@@ -397,14 +398,15 @@ public class Capsule implements Runnable {
      * @param methodName   if non-null, then the option is a top-level action (like print dependency tree or list JVMs),
      *                     and this is the method which will run the action.
      *                     The method must accept a single {@code args} parameter of type {@code List<String>}.
+     * @param wrapperOnly  whether or not the option is available in wrapper capsules only
      * @param description  a description of the option.
      * @return the option's name
      */
-    protected static final String OPTION(String optionName, String defaultValue, String methodName, String description) {
+    protected static final String OPTION(String optionName, String defaultValue, String methodName, boolean wrapperOnly, String description) {
         if (!optionName.startsWith(CAPSULE_PROP_PREFIX))
             throw new IllegalArgumentException("Option name must start with " + CAPSULE_PROP_PREFIX + " but was " + optionName);
-        final String[] conf = new String[]{defaultValue, methodName, description};
-        final String[] old = OPTIONS.get(optionName);
+        final Object[] conf = new Object[]{defaultValue, methodName, wrapperOnly, description};
+        final Object[] old = OPTIONS.get(optionName);
         if (old != null) {
             if (asList(conf).subList(0, conf.length - 1).equals(asList(old).subList(0, conf.length - 1))) // don't compare description
                 throw new IllegalStateException("Option " + optionName + " has a conflicting registration: " + Arrays.toString(old));
@@ -413,15 +415,22 @@ public class Capsule implements Runnable {
         return optionName;
     }
 
+    /**
+     * Same as {@link #OPTION(String, String, String, boolean, String) OPTION(optionName, defaultValue, methodName, wrapperOnly, description)}.
+     */
+    protected static final String OPTION(String optionName, String defaultValue, String methodName, String description) {
+        return OPTION(optionName, defaultValue, methodName, false, description);
+    }
+
     private static boolean optionTakesArguments(String propertyName) {
-        final String defaultValue = OPTIONS.get(propertyName)[OPTION_DEFAULT];
+        final String defaultValue = (String) OPTIONS.get(propertyName)[OPTION_DEFAULT];
         return !("false".equals(defaultValue) || "true".equals(defaultValue));
     }
 
     private static void processOptions() {
-        for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
+        for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
             final String option = entry.getKey();
-            final String defval = entry.getValue()[OPTION_DEFAULT];
+            final String defval = (String) entry.getValue()[OPTION_DEFAULT];
             if (getProperty0(option) == null && defval != null && !defval.equals("false")) // the last condition is for backwards compatibility
                 setProperty(option, defval);
             else if (optionTakesArguments(option) && "".equals(getProperty0(option)))
@@ -464,9 +473,11 @@ public class Capsule implements Runnable {
     private static boolean runActions(Capsule capsule, List<String> args) {
         try {
             boolean found = false;
-            for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
+            for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
+                if (!capsule.isWrapperCapsule() && (Boolean) entry.getValue()[OPTION_WRAPPER_ONLY])
+                    continue;
                 if (entry.getValue()[OPTION_METHOD] != null && systemPropertyEmptyOrTrue(entry.getKey())) {
-                    getMethod(capsule, entry.getValue()[OPTION_METHOD], List.class).invoke(capsule, args);
+                    getMethod(capsule, (String) entry.getValue()[OPTION_METHOD], List.class).invoke(capsule, args);
                     found = true;
                 }
             }
@@ -982,10 +993,12 @@ public class Capsule implements Runnable {
 
         // OPTIONS:
         System.err.println("\nOptions:");
-        for (Map.Entry<String, String[]> entry : OPTIONS.entrySet()) {
+        for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
             if (entry.getValue()[OPTION_DESC] != null) {
+                if (!simple && (Boolean) entry.getValue()[OPTION_WRAPPER_ONLY])
+                    continue;
                 final String option = entry.getKey();
-                final String defaultValue = entry.getValue()[OPTION_DEFAULT];
+                final String defaultValue = (String) entry.getValue()[OPTION_DEFAULT];
                 if (simple && !optionTakesArguments(option) && defaultValue.equals("true"))
                     continue;
                 StringBuilder sb = new StringBuilder();
