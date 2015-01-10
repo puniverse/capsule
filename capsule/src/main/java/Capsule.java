@@ -213,7 +213,7 @@ public class Capsule implements Runnable {
     private static final String ATTR_IMPLEMENTATION_TITLE = "Implementation-Title";
     private static final String ATTR_IMPLEMENTATION_VENDOR = "Implementation-Vendor";
     private static final String ATTR_IMPLEMENTATION_URL = "Implementation-URL";
-    
+
     private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
     private static final char FILE_SEPARATOR_CHAR = FILE_SEPARATOR.charAt(0);
     private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
@@ -747,9 +747,16 @@ public class Capsule implements Runnable {
      * @param pred the caplet after which this one is to be inserted
      */
     protected final void insertAfter(Capsule pred) {
+        log(LOG_VERBOSE, "Applying caplet " + this.getClass().getName());
         if (pred != null) {
             if (sup != null)
                 throw new IllegalStateException("Caplet " + this + " is already in the chain (after " + sup + ")");
+            for (Capsule c = cc; c != null; c = c.sup) {
+                if (Objects.equals(c.getClass().getName(), this.getClass().getName())) {
+                    log(LOG_VERBOSE, "Caplet " + this.getClass().getName() + " has already been applied.");
+                    return;
+                }
+            }
             this.sup = pred;
             this.oc = sup.oc;
             for (Capsule c = cc; c != this; c = c.sup)
