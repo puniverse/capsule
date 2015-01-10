@@ -671,7 +671,7 @@ public class Capsule implements Runnable {
     }
 
     private void finalizeCapsule(boolean setId) {
-        validateManifest(manifest);
+        validateManifest(oc.manifest);
         oc.logLevel = chooseLogLevel();
         oc.mode = chooseMode1();
         initDependencyManager();
@@ -2567,19 +2567,9 @@ public class Capsule implements Runnable {
         return false;
     }
 
-    private List<String> getAttribute0(String attr) {
-        final List<String> values = new ArrayList<>();
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            String value = c.getAttribute00(attr);
-            if (value != null)
-                values.add(value);
-        }
-        return values;
-    }
-
-    private String getAttribute00(String attr) {
+    private String getAttribute0(String attr) {
         String value = null;
-        if (manifest != null) {
+        if (oc.manifest != null) {
             if (getMode() != null && allowsModal(attr))
                 value = getPlatformAttribute(getMode(), attr);
             if (value == null)
@@ -2634,8 +2624,7 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final String getAttribute(String attr) {
-        final List<String> values = getAttribute0(attr);
-        String value = !values.isEmpty() ? values.get(0) : null;
+        String value = getAttribute0(attr);
         final Object[] conf;
         if (value == null && (conf = ATTRIBS.get(attr)) != null)
             value = (String) conf[ATTRIB_DEFAULT];
@@ -2660,9 +2649,7 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final List<String> getListAttribute(String attr) {
-        List<String> res = new ArrayList<>();
-        for (String value : getAttribute0(attr))
-            res.addAll(nullToEmpty(parse(value)));
+        List<String> res = new ArrayList<>(nullToEmpty(parse(getAttribute0(attr))));
         final Object[] conf;
         if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT]);
@@ -2683,9 +2670,7 @@ public class Capsule implements Runnable {
      * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
-        Map<String, String> res = new HashMap<>();
-        for (String value : getAttribute0(attr))
-            putAllIfAbsent(res, nullToEmpty(parse(value, defaultValue)));
+        Map<String, String> res = new HashMap<>(nullToEmpty(parse(getAttribute0(attr), defaultValue)));
         final Object[] conf;
         if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT], defaultValue);

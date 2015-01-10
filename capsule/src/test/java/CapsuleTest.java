@@ -936,7 +936,7 @@ public class CapsuleTest {
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"));
 
-        assertEquals("555", getProperty(pb, "p1"));
+        assertEquals("111", getProperty(pb, "p1"));
     }
 
     @Test
