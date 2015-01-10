@@ -20,7 +20,8 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * Bypasses the check in ZipFileSystemProvider.newFileSystem that verifies that the given path is in the default FileSystem
+ * Bypasses the check in ZipFileSystemProvider.newFileSystem that verifies that the given path is in the default FileSystem.
+ * This is a JDK bug, fixed in JDK 8. See https://bugs.openjdk.java.net/browse/JDK-8004789
  */
 public final class ZipFS {
     private static final ZipFileSystemProvider ZIP_FILE_SYSTEM_PROVIDER = getZipFileSystemProvider();
