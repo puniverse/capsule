@@ -2898,33 +2898,45 @@ public class Capsule implements Runnable {
 
         try (final OutputStream os = Files.newOutputStream(outCapsule);
              final JarInputStream wr = openJarInputStream(wrapperCapsule);
-             final JarInputStream wd = copyJarPrefix(Files.newInputStream(wrappedCapsule), os);
-             final JarOutputStream out = new JarOutputStream(os, wd.getManifest())) {
+             final JarInputStream wd = copyJarPrefix(Files.newInputStream(wrappedCapsule), os);) {
 
-            final JarInputStream first = higherVersion >= 0 ? wr : wd;
-            final JarInputStream second = higherVersion < 0 ? wr : wd;
+            final String wrMainClass = wr.getManifest().getMainAttributes().getValue(ATTR_MAIN_CLASS);
+            if (!Capsule.class.getName().equals(wrMainClass))
+                throw new RuntimeException("Main class of wrapper capsule " + wrapperCapsule + " (" + wrMainClass + ") is not " + Capsule.class.getName() + ". Cannot merge.");
 
-            final Set<String> copied = new HashSet<>();
-            for (JarEntry entry; (entry = first.getNextJarEntry()) != null;) {
-                if (!entry.getName().equals(MANIFEST_NAME)) {
-                    out.putNextEntry(new JarEntry(entry));
-                    copy(first, out);
-                    out.closeEntry();
-                    copied.add(entry.getName());
+            final Manifest man = new Manifest(wd.getManifest());
+            final List<String> wrCaplets = nullToEmpty(parse(wd.getManifest().getMainAttributes().getValue(ATTR_CAPLETS)));
+            final ArrayList<String> caplets = new ArrayList<>(nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CAPLETS))));
+            addAllIfNotContained(caplets, wrCaplets);
+
+            man.getMainAttributes().putValue(ATTR_CAPLETS, join(caplets, " "));
+
+            try (final JarOutputStream out = new JarOutputStream(os, man)) {
+                final JarInputStream first = higherVersion >= 0 ? wr : wd;
+                final JarInputStream second = higherVersion < 0 ? wr : wd;
+
+                final Set<String> copied = new HashSet<>();
+                for (JarEntry entry; (entry = first.getNextJarEntry()) != null;) {
+                    if (!entry.getName().equals(MANIFEST_NAME)) {
+                        out.putNextEntry(new JarEntry(entry));
+                        copy(first, out);
+                        out.closeEntry();
+                        copied.add(entry.getName());
+                    }
                 }
-            }
-            for (JarEntry entry; (entry = second.getNextJarEntry()) != null;) {
-                if (!entry.getName().equals(MANIFEST_NAME) && !copied.contains(entry.getName())) {
-                    out.putNextEntry(new JarEntry(entry));
-                    copy(second, out);
-                    out.closeEntry();
+                for (JarEntry entry; (entry = second.getNextJarEntry()) != null;) {
+                    if (!entry.getName().equals(MANIFEST_NAME) && !copied.contains(entry.getName())) {
+                        out.putNextEntry(new JarEntry(entry));
+                        copy(second, out);
+                        out.closeEntry();
+                    }
                 }
+
+                // test capsule
+                newCapsule(newClassLoader(null, outCapsule), outCapsule, cacheDir);
+
+                return outCapsule;
             }
-
-            // test capsule
-            newCapsule(newClassLoader(null, outCapsule), outCapsule, cacheDir);
-
-            return outCapsule;
         } catch (Exception e) {
             try {
                 Files.delete(outCapsule);
