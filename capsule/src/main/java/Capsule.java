@@ -19,6 +19,7 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -133,6 +134,7 @@ public class Capsule implements Runnable {
     private static final String PROP_RESOLVE = OPTION("capsule.resolve", "false", "resolve", "Downloads all un-cached dependencies.");
     private static final String PROP_MODES = OPTION("capsule.modes", "false", "printModes", "Prints all available capsule modes.");
     private static final String PROP_PRINT_JRES = OPTION("capsule.jvms", "false", "printJVMs", "Prints a list of all JVM installations found.");
+    private static final String PROP_MERGE = OPTION("capsule.jvms", null, "mergeCapsules", true, "Merges a wrapper capsule with a wrapped capsule.");
     private static final String PROP_HELP = OPTION("capsule.help", "false", "printHelp", "Prints this help message.");
     private static final String PROP_MODE = OPTION("capsule.mode", null, null, "Picks the capsule mode to run.");
     private static final String PROP_RESET = OPTION("capsule.reset", "false", null, "Resets the capsule cache before launching. The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
@@ -211,6 +213,11 @@ public class Capsule implements Runnable {
     private static final String ATTR_IMPLEMENTATION_TITLE = "Implementation-Title";
     private static final String ATTR_IMPLEMENTATION_VENDOR = "Implementation-Vendor";
     private static final String ATTR_IMPLEMENTATION_URL = "Implementation-URL";
+    
+    private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
+    private static final char FILE_SEPARATOR_CHAR = FILE_SEPARATOR.charAt(0);
+    private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
+    private static final String MANIFEST_NAME = "META-INF/MANIFEST.MF";
 
     // misc
     private static final String CAPSULE_PROP_PREFIX = "capsule.";
@@ -223,9 +230,6 @@ public class Capsule implements Runnable {
     private static final String CACHE_NONE = "NONE";
     private static final Object DEFAULT = new Object();
     private static final String SEPARATOR_DOT = "\\.";
-    private static final String FILE_SEPARATOR = System.getProperty(PROP_FILE_SEPARATOR);
-    private static final char FILE_SEPARATOR_CHAR = FILE_SEPARATOR.charAt(0);
-    private static final String PATH_SEPARATOR = System.getProperty(PROP_PATH_SEPARATOR);
     private static final Path WINDOWS_PROGRAM_FILES_1 = Paths.get("C:", "Program Files");
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
@@ -967,6 +971,18 @@ public class Capsule implements Runnable {
 
     void printUsage() {
         printHelp(wrapper);
+    }
+
+    void mergeCapsules(List<String> args) {
+        if (!isWrapperCapsule())
+            throw new IllegalStateException("This is not a wrapper capsule");
+        try {
+            final Path outCapsule = path(getProperty(PROP_MERGE));
+            log(LOG_QUIET, "Merging " + jarFile + (!Objects.deepEquals(jarFile, cc.jarFile) ? " + " + cc.jarFile : "") + " -> " + outCapsule);
+            mergeCapsule(jarFile, cc.jarFile, outCapsule);
+        } catch (IOException e) {
+            throw new RuntimeException("Capsule merge failed.");
+        }
     }
 
     static void printHelp(boolean simple) {
@@ -2854,6 +2870,69 @@ public class Capsule implements Runnable {
             return false;
         return true;
     }
+
+    public Path mergeCapsule(Path wrapperCapsule, Path wrappedCapsule, Path outCapsule) throws IOException {
+        if (Objects.equals(wrapperCapsule, wrappedCapsule)) {
+            try {
+                Files.copy(wrappedCapsule, outCapsule);
+            } catch (Exception e) {
+                try {
+                    Files.delete(outCapsule);
+                } catch (IOException ex) {
+                }
+                throw e;
+            }
+        }
+        final String wrapperVersion = VERSION;
+        final String wrappedVersion;
+        try {
+            wrappedVersion = getCapsuleVersion(newClassLoader(null, wrapperCapsule).loadClass(Capsule.class.getName()));
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(wrapperCapsule + " is not a valid capsule");
+        }
+        if (wrappedVersion == null)
+            throw new RuntimeException(wrapperCapsule + " is not a valid capsule");
+        if (Integer.parseInt(getBefore(wrapperVersion, '.')) != Integer.parseInt(getBefore(wrappedVersion, '.')))
+            throw new RuntimeException("Incompatible Capsule versions: " + wrapperCapsule + " (" + wrapperVersion + "), " + wrappedCapsule + " (" + wrappedVersion + ")");
+        final int higherVersion = compareVersions(wrapperVersion, wrappedVersion);
+
+        try (final OutputStream os = Files.newOutputStream(outCapsule);
+             final JarInputStream wr = openJarInputStream(wrapperCapsule);
+             final JarInputStream wd = copyJarPrefix(Files.newInputStream(wrappedCapsule), os);
+             final JarOutputStream out = new JarOutputStream(os, wd.getManifest())) {
+
+            final JarInputStream first = higherVersion >= 0 ? wr : wd;
+            final JarInputStream second = higherVersion < 0 ? wr : wd;
+
+            final Set<String> copied = new HashSet<>();
+            for (JarEntry entry; (entry = first.getNextJarEntry()) != null;) {
+                if (!entry.getName().equals(MANIFEST_NAME)) {
+                    out.putNextEntry(new JarEntry(entry));
+                    copy(first, out);
+                    out.closeEntry();
+                    copied.add(entry.getName());
+                }
+            }
+            for (JarEntry entry; (entry = second.getNextJarEntry()) != null;) {
+                if (!entry.getName().equals(MANIFEST_NAME) && !copied.contains(entry.getName())) {
+                    out.putNextEntry(new JarEntry(entry));
+                    copy(second, out);
+                    out.closeEntry();
+                }
+            }
+
+            // test capsule
+            newCapsule(newClassLoader(null, outCapsule), outCapsule, cacheDir);
+
+            return outCapsule;
+        } catch (Exception e) {
+            try {
+                Files.delete(outCapsule);
+            } catch (IOException ex) {
+            }
+            throw e;
+        }
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Path Utils">
@@ -2981,7 +3060,11 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="JAR Utils">
     /////////// JAR Utils ///////////////////////////////////
     private static JarInputStream openJarInputStream(Path jar) throws IOException {
-        return new JarInputStream(skipToZipStart(Files.newInputStream(jar)));
+        return new JarInputStream(skipToZipStart(Files.newInputStream(jar), null));
+    }
+
+    private static JarInputStream copyJarPrefix(InputStream is, OutputStream os) throws IOException {
+        return new JarInputStream(skipToZipStart(is, null));
     }
 
     private static String getMainClass(Path jar) {
@@ -3004,7 +3087,7 @@ public class Capsule implements Runnable {
 
     private static final int[] ZIP_HEADER = new int[]{'P', 'K', 0x03, 0x04};
 
-    private static InputStream skipToZipStart(InputStream is) throws IOException {
+    private static InputStream skipToZipStart(InputStream is, OutputStream os) throws IOException {
         if (!is.markSupported())
             is = new BufferedInputStream(is);
         int state = 0;
@@ -3023,6 +3106,8 @@ public class Capsule implements Runnable {
                 if (b == '\n' || b == 0) // start matching on \n and \0
                     state = 0;
             }
+            if (os != null)
+                os.write(b);
         }
         is.reset();
         return is;
@@ -3115,6 +3200,17 @@ public class Capsule implements Runnable {
                 throw rethrow(e);
             }
         }
+    }
+
+    /**
+     * Copies the input stream to the output stream.
+     * Neither stream is closed when the method returns.
+     */
+    protected static void copy(InputStream is, OutputStream out) throws IOException {
+        final byte[] buffer = new byte[1024];
+        for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
+            out.write(buffer, 0, bytesRead);
+        out.flush();
     }
 
     /**
@@ -4123,6 +4219,19 @@ public class Capsule implements Runnable {
         if (clazz == null)
             return false;
         return Capsule.class.getName().equals(clazz.getName()) || isCapsuleClass(clazz.getSuperclass());
+    }
+
+    private static String getCapsuleVersion(Class<?> cls) {
+        while (cls != null && !cls.getName().equals(Capsule.class.getName()))
+            cls = cls.getSuperclass();
+        if (cls == null)
+            return null;
+        try {
+            final Field f = cls.getDeclaredField("VERSION");
+            return (String) f.get(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
     //</editor-fold>
 }
