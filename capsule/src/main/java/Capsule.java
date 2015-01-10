@@ -4075,7 +4075,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    static Class<? extends Capsule> loadCapsule(ClassLoader cl, Path jarFile) {
+    private static Class<? extends Capsule> loadCapsule(ClassLoader cl, Path jarFile) {
         try {
             final String mainClassName = getMainClass(jarFile);
             if (mainClassName != null) {
