@@ -63,7 +63,6 @@ public class CapsuleTest {
     private final Path cache = fs.getPath("/cache");
     private final Path tmp = fs.getPath("/tmp");
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
-    static final boolean USE_JAR_CLASSLOADER = true;
 
     private Properties props;
 

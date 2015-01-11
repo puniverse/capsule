@@ -14,10 +14,10 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- *
- * @author pron
+ * This capsule uses a class loader that is compatible with JimFS
  */
 public class TestCapsule extends Capsule {
+    static final boolean USE_JAR_CLASSLOADER = true;
 
     public TestCapsule(Path jarFile, Path cacheDir) {
         super(jarFile, cacheDir);
@@ -32,7 +32,7 @@ public class TestCapsule extends Capsule {
         if (ps.size() != 1)
             throw new AssertionError("Paths: " + ps);
         try {
-            return CapsuleTest.USE_JAR_CLASSLOADER
+            return USE_JAR_CLASSLOADER
                     ? new JarClassLoader(ps.get(0), parent, false)
                     : new PathClassLoader(ps.toArray(new Path[0]), parent);
         } catch (IOException e) {
