@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * A custom capsule example
  */
-public class MyCapsule extends Capsule {
+public class MyCapsule extends TestCapsule {
     public MyCapsule(Path jarFile, Path cacheDir) {
         super(jarFile, cacheDir);
     }
