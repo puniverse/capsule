@@ -665,8 +665,10 @@ public class Capsule implements Runnable {
                 throw new IllegalArgumentException(jar + " is not a capsule or an executable JAR");
 
             for (JarEntry entry; (entry = jis.getNextJarEntry()) != null;) {
-                if (entry.getName().equals(Capsule.class.getName() + ".class"))
+                if (entry.getName().equals(Capsule.class.getName() + ".class")) {
                     isCapsule = true;
+                    break;
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jar, e);
