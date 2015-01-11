@@ -2894,7 +2894,7 @@ public class Capsule implements Runnable {
 
         try (final OutputStream os = Files.newOutputStream(outCapsule);
              final JarInputStream wr = openJarInputStream(wrapperCapsule);
-             final JarInputStream wd = copyJarPrefix(Files.newInputStream(wrappedCapsule), os);) {
+             final JarInputStream wd = copyJarPrefix(Files.newInputStream(wrappedCapsule), os)) {
 
             final String wrMainClass = wr.getManifest().getMainAttributes().getValue(ATTR_MAIN_CLASS);
             if (!Capsule.class.getName().equals(wrMainClass))
