@@ -613,12 +613,13 @@ public class Capsule implements Runnable {
      */
     @SuppressWarnings("LeakingThisInConstructor")
     protected Capsule(Capsule pred) {
-        time("Load class", START);
-        clearContext();
         this.oc = this;
         this.cc = this;
-        insertAfter(pred);
 
+        time("Load class", START);
+        clearContext();
+
+        // insertAfter(pred);
         // copy final dields
         this.cacheDir = pred.cacheDir;
         this.wrapper = pred.wrapper;
@@ -750,13 +751,17 @@ public class Capsule implements Runnable {
      */
     protected final void insertAfter(Capsule pred) {
         log(LOG_VERBOSE, "Applying caplet " + this.getClass().getName());
+        if (sup == pred)
+            return;
         if (pred != null) {
             if (sup != null)
                 throw new IllegalStateException("Caplet " + this + " is already in the chain (after " + sup + ")");
-            for (Capsule c = pred.cc; c != null; c = c.sup) {
-                if (Objects.equals(c.getClass().getName(), this.getClass().getName())) {
-                    log(LOG_VERBOSE, "Caplet " + this.getClass().getName() + " has already been applied.");
-                    return;
+            if (!isWrapperCapsule()) {
+                for (Capsule c = pred.cc; c != null; c = c.sup) {
+                    if (Objects.equals(c.getClass().getName(), this.getClass().getName())) {
+                        log(LOG_VERBOSE, "Caplet " + this.getClass().getName() + " has already been applied.");
+                        return;
+                    }
                 }
             }
             this.sup = pred;
