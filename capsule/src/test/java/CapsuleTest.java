@@ -872,7 +872,7 @@ public class CapsuleTest {
     @Test
     public void testWrapperCapsule() throws Exception {
         Jar wrapper = newCapsuleJar()
-                .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Caplets", "MyCapsule")
                 .setAttribute("System-Properties", "p1=555")
                 .addClass(Capsule.class)
                 .addClass(MyCapsule.class);
