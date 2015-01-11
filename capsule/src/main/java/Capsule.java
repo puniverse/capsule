@@ -987,8 +987,8 @@ public class Capsule implements Runnable {
             final Path outCapsule = path(getProperty(PROP_MERGE));
             log(LOG_QUIET, "Merging " + jarFile + (!Objects.deepEquals(jarFile, cc.jarFile) ? " + " + cc.jarFile : "") + " -> " + outCapsule);
             mergeCapsule(jarFile, cc.jarFile, outCapsule);
-        } catch (IOException e) {
-            throw new RuntimeException("Capsule merge failed.");
+        } catch (Exception e) {
+            throw new RuntimeException("Capsule merge failed.", e);
         }
     }
 
