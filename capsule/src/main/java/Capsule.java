@@ -751,7 +751,7 @@ public class Capsule implements Runnable {
         if (pred != null) {
             if (sup != null)
                 throw new IllegalStateException("Caplet " + this + " is already in the chain (after " + sup + ")");
-            for (Capsule c = cc; c != null; c = c.sup) {
+            for (Capsule c = pred.cc; c != null; c = c.sup) {
                 if (Objects.equals(c.getClass().getName(), this.getClass().getName())) {
                     log(LOG_VERBOSE, "Caplet " + this.getClass().getName() + " has already been applied.");
                     return;
