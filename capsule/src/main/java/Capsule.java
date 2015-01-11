@@ -1903,7 +1903,7 @@ public class Capsule implements Runnable {
 
     private List<String> getDependencies0() {
         List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
-        if ((deps == null || deps.isEmpty()) && pom != null)
+        if ((deps == null || deps.isEmpty()) && oc.pom != null)
             deps = getPomDependencies();
 
         return (deps != null && !deps.isEmpty()) ? unmodifiableList(deps) : null;
@@ -2356,15 +2356,15 @@ public class Capsule implements Runnable {
     }
 
     private List<String> getPomRepositories() {
-        return ((PomReader) pom).getRepositories();
+        return ((PomReader) oc.pom).getRepositories();
     }
 
     private List<String> getPomDependencies() {
-        return ((PomReader) pom).getDependencies();
+        return ((PomReader) oc.pom).getDependencies();
     }
 
     private String[] getPomAppNameAndVersion() {
-        final PomReader pr = (PomReader) pom;
+        final PomReader pr = (PomReader) oc.pom;
         return new String[]{pr.getGroupId() + "_" + pr.getArtifactId(), pr.getVersion()};
     }
     //</editor-fold>
