@@ -2517,21 +2517,11 @@ public class Capsule implements Runnable {
         }
     }
 
-    private Capsule getSuperManifest(Capsule c0) {
-        for (Capsule c = c0.sup; c != null; c = c.sup) {
-            if (c.manifest != null && c.manifest != c0.manifest)
-                return c;
-        }
-        return null;
-    }
-
     private boolean hasModalAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            for (Map.Entry<String, Attributes> entry : c.manifest.getEntries().entrySet()) {
-                if (entry.getValue().containsKey(key))
-                    return true;
-            }
+        for (Map.Entry<String, Attributes> entry : oc.manifest.getEntries().entrySet()) {
+            if (entry.getValue().containsKey(key))
+                return true;
         }
         return false;
     }
@@ -2539,10 +2529,8 @@ public class Capsule implements Runnable {
     private boolean hasMode(String mode) {
         if (!isLegalModeName(mode))
             throw new IllegalArgumentException(mode + " is an illegal mode name");
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (c.manifest.getAttributes(mode) != null)
-                return true;
-        }
+        if (oc.manifest.getAttributes(mode) != null)
+            return true;
         return false;
     }
 
@@ -2551,11 +2539,9 @@ public class Capsule implements Runnable {
      */
     protected final Set<String> getModes() {
         final Set<String> modes = new HashSet<>();
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            for (Map.Entry<String, Attributes> entry : c.manifest.getEntries().entrySet()) {
-                if (isLegalModeName(entry.getKey()) && !isDigest(entry.getValue()))
-                    modes.add(entry.getKey());
-            }
+        for (Map.Entry<String, Attributes> entry : oc.manifest.getEntries().entrySet()) {
+            if (isLegalModeName(entry.getKey()) && !isDigest(entry.getValue()))
+                modes.add(entry.getKey());
         }
         return unmodifiableSet(modes);
     }
@@ -2566,10 +2552,8 @@ public class Capsule implements Runnable {
     protected final String getModeDescription(String mode) {
         if (!isLegalModeName(mode))
             throw new IllegalArgumentException(mode + " is an illegal mode name");
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (c.manifest != null && c.manifest.getAttributes(mode) != null)
-                return c.manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
-        }
+        if (oc.manifest != null && oc.manifest.getAttributes(mode) != null)
+            return oc.manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
         return null;
     }
 
@@ -2645,10 +2629,8 @@ public class Capsule implements Runnable {
      */
     protected final boolean hasAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
-        for (Capsule c = cc; c != null; c = getSuperManifest(c)) {
-            if (c.hasAttribute0(attr, key))
-                return true;
-        }
+        if (oc.hasAttribute0(attr, key))
+            return true;
         return false;
     }
 
