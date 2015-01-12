@@ -683,7 +683,6 @@ public class Capsule implements Runnable {
         validateManifest(oc.manifest);
         oc.logLevel = chooseLogLevel();
         oc.mode = chooseMode1();
-        initDependencyManager();
         if (oc.dependencyManager != null)
             setDependencyRepositories(getRepositories());
         if (setId)
@@ -708,14 +707,6 @@ public class Capsule implements Runnable {
         oc.appName = nameAndVersion[0];
         oc.appVersion = nameAndVersion[1];
         oc.appId = getAppName() + (getAppVersion() != null ? "_" + getAppVersion() : "");
-    }
-
-    private void initDependencyManager() {
-        if (oc.dependencyManager == null) {
-            oc.dependencyManager = DEPENDENCY_MANAGER != DEFAULT ? DEPENDENCY_MANAGER : tryCreateDependencyManager();
-            if (oc.dependencyManager != null)
-                setDependencyRepositories(getRepositories());
-        }
     }
 
     private boolean isEmptyCapsule() {
@@ -2389,6 +2380,15 @@ public class Capsule implements Runnable {
         return !repos.isEmpty() ? unmodifiableList(repos) : null;
     }
 
+    private Object initDependencyManager() {
+        if (oc.dependencyManager == null) {
+            oc.dependencyManager = DEPENDENCY_MANAGER != DEFAULT ? DEPENDENCY_MANAGER : tryCreateDependencyManager();
+            if (oc.dependencyManager != null)
+                setDependencyRepositories(getRepositories());
+        }
+        return oc.dependencyManager;
+    }
+
     private Object tryCreateDependencyManager() {
         if (systemPropertyEmptyOrTrue(PROP_NO_DEP_MANAGER))
             return null;
@@ -2409,9 +2409,10 @@ public class Capsule implements Runnable {
     }
 
     private Object getDependencyManager() {
-        if (oc.dependencyManager == null)
+        final Object dm = initDependencyManager();
+        if (dm == null)
             throw new RuntimeException("Capsule " + getJarFile() + " uses dependencies, while the necessary dependency management classes are not found in the capsule JAR");
-        return oc.dependencyManager;
+        return dm;
     }
 
     private void setDependencyRepositories(List<String> repositories) {
@@ -2783,7 +2784,7 @@ public class Capsule implements Runnable {
     private List<Path> getPath(String p) {
         if (p == null)
             return null;
-        if (isDependency(p) && oc.dependencyManager != null) {
+        if (isDependency(p) && initDependencyManager() != null) {
             final List<Path> res = resolveDependency(p, "jar");
             if (res == null || res.isEmpty())
                 throw new RuntimeException("Dependency " + p + " was not found.");
