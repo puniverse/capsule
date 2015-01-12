@@ -756,14 +756,11 @@ public class Capsule implements Runnable {
         if (pred != null) {
             if (sup != null)
                 throw new IllegalStateException("Caplet " + this + " is already in the chain (after " + sup + ")");
-            if (!isWrapperCapsule()) {
-                for (Capsule c = pred.cc; c != null; c = c.sup) {
-                    if (Objects.equals(c.getClass().getName(), this.getClass().getName())) {
-                        log(LOG_VERBOSE, "Caplet " + this.getClass().getName() + " has already been applied.");
-                        return;
-                    }
-                }
+            if (!isWrapperCapsule() && pred.hasCaplet(this.getClass().getName())) {
+                log(LOG_VERBOSE, "Caplet " + this.getClass().getName() + " has already been applied.");
+                return;
             }
+
             this.sup = pred;
             this.oc = sup.oc;
             for (Capsule c = cc; c != this; c = c.sup)
@@ -781,6 +778,19 @@ public class Capsule implements Runnable {
                 this.cc = sup.cc;
             }
         }
+    }
+
+    /**
+     * Checks whether a caplet with the given class name is installed.
+     */
+    protected final boolean hasCaplet(String name) {
+        for (Capsule c = cc; c != null; c = c.sup) {
+            for (Class<?> cls = c.getClass(); cls != null; cls = cls.getSuperclass()) {
+                if (name.equals(cls.getClass().getName()))
+                    return true;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("AssertWithSideEffects")
