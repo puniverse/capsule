@@ -628,24 +628,10 @@ public class Capsule implements Runnable {
 
     final Capsule setTarget(String target) {
         verifyCanCallSetTarget();
-
-        Path jar;
-        if (isDependency(target)) {
-            initDependencyManager();
-            jar = toAbsolutePath(firstOrNull(resolveDependency(target, "jar")));
-        } else
-            jar = toAbsolutePath(Paths.get(target));
-
+        final Path jar = toAbsolutePath(isDependency(target) ? firstOrNull(resolveDependency(target, "jar")) : Paths.get(target));
         if (jar == null)
             throw new RuntimeException(target + " not found.");
-        if (jar.equals(getJarFile())) // catch simple loops
-            throw new RuntimeException("Capsule wrapping loop detected with capsule " + getJarFile());
-
-        if (isFactoryCapsule()) {
-            this.jarFile = jar;
-            return this;
-        } else
-            return setTarget(jar);
+        return setTarget(jar);
     }
 
     // called directly by tests
@@ -656,6 +642,11 @@ public class Capsule implements Runnable {
 
         if (jar.equals(getJarFile())) // catch simple loops
             throw new RuntimeException("Capsule wrapping loop detected with capsule " + getJarFile());
+
+        if (isFactoryCapsule()) {
+            this.jarFile = jar;
+            return this;
+        }
 
         final Manifest man;
         boolean isCapsule = false;
