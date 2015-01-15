@@ -49,11 +49,11 @@ subprojects {
         javancss
     }
 
-    //    configurations.all {
-    //        resolutionStrategy {
-    //            failOnVersionConflict()
-    //        }
-    //    }
+    configurations.all {
+        resolutionStrategy {
+            failOnVersionConflict()
+        }
+    }
 
     repositories {
         mavenCentral()
