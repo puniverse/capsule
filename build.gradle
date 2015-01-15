@@ -12,10 +12,13 @@ buildscript {
     }
 }
 
+allprojects {
+    apply plugin: 'com.github.kt3k.coveralls'
+}
+
 subprojects {
     apply plugin: 'java'
     apply plugin: 'jacoco' // 'cobertura'
-    apply plugin: 'com.github.kt3k.coveralls'
     apply plugin: 'info.solidsoft.pitest'
 
     sourceCompatibility = '1.7'
@@ -368,6 +371,10 @@ task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
         xml.enabled = true
         csv.enabled = false
     }
+}
+
+coveralls {
+    sourceDirs = files(subprojects.sourceSets.main.allSource.srcDirs).files.absolutePath
 }
 
 task wrapper(type: Wrapper) {
