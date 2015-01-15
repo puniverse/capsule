@@ -1,7 +1,7 @@
 language: java
 sudo: false
 install: gradle -q assemble
-script: set -o pipefail; gradle -i check | sed 's/\e\[?.*?[\@-~]//g'
+script: gradle -i check
 jdk:
   - oraclejdk7
   - oraclejdk8
@@ -11,8 +11,13 @@ branches:
     - gh-pages
 
 env:
+  - TERM=dumb
   global:
     - secure: "XzCjWbN5BM2ioZy+1GVcFuHVUwX8YHjuved7gZ0CAHp1pMyhPudzZqlLZ2ZWKv44sVS/ZM4ylwbO4JFGyJcobd5/CeP+iJpYPRGas4EYWIuA882K3NgBEn8smnaxy/PcrQwl9QVhnMrsVu8KrmB/dHwBphMyfAT65+2eiQbQWRk="
 
+after_success:
+  - gradle jacocoTestReport coveralls
+
 notifications:
   slack: puniverse:OsnbakHrYeTcLyalVgtUeI4F
+
