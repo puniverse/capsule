@@ -8,7 +8,7 @@ buildscript {
         classpath 'net.sf.proguard:proguard-gradle:5.0'
         // classpath 'net.saliman:gradle-cobertura-plugin:2.2.4'
         classpath 'info.solidsoft.gradle.pitest:gradle-pitest-plugin:1.1.1'
-        classpath 'org.kt3k.gradle.plugin:coveralls-gradle-plugin:2.0.1'
+        classpath 'org.kt3k.gradle.plugin:coveralls-gradle-plugin:2.1.0'
     }
 }
 
@@ -366,7 +366,6 @@ task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
     sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
     classDirectories =  files(subprojects.sourceSets.main.output)
     executionData = files(subprojects.jacocoTestReport.executionData)
-    println("XXXX${executionData}")
     reports {
         html.enabled = true
         xml.enabled = true
@@ -377,6 +376,7 @@ task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
 
 coveralls {
     sourceDirs = files(subprojects.sourceSets.main.allSource.srcDirs).files.absolutePath
+    jacocoReportPath = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
 }
 
 task wrapper(type: Wrapper) {
