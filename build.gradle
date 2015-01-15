@@ -114,6 +114,7 @@ subprojects {
         reports {
             xml.enabled = true // coveralls plugin depends on xml format report
             html.enabled = true
+            csv.enabled = false
         }
     }
 
@@ -354,6 +355,18 @@ project (':capsule-build') {
     dependencies {
         compile "org.eclipse.aether:aether-api:$aetherVer"
         compile project(':capsule')
+    }
+}
+
+task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
+    dependsOn = subprojects.test
+    sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories = files(subprojects.sourceSets.main.output)
+    executionData = files(subprojects.jacocoTestReport.executionData)
+    reports {
+        html.enabled = true
+        xml.enabled = true
+        csv.enabled = false
     }
 }
 
