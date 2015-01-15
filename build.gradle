@@ -14,11 +14,15 @@ buildscript {
 
 allprojects {
     apply plugin: 'com.github.kt3k.coveralls'
+    apply plugin: 'jacoco' // 'cobertura'
+    
+    repositories {
+        mavenCentral()
+    }
 }
 
 subprojects {
     apply plugin: 'java'
-    apply plugin: 'jacoco' // 'cobertura'
     apply plugin: 'info.solidsoft.pitest'
 
     sourceCompatibility = '1.7'
@@ -56,10 +60,6 @@ subprojects {
         resolutionStrategy {
             failOnVersionConflict()
         }
-    }
-
-    repositories {
-        mavenCentral()
     }
 
     dependencies {
@@ -364,12 +364,14 @@ project (':capsule-build') {
 task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
     dependsOn = subprojects.test
     sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
-    classDirectories = files(subprojects.sourceSets.main.output)
+    classDirectories =  files(subprojects.sourceSets.main.output)
     executionData = files(subprojects.jacocoTestReport.executionData)
+    println("XXXX${executionData}")
     reports {
         html.enabled = true
         xml.enabled = true
         csv.enabled = false
+        xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
     }
 }
 
