@@ -3130,9 +3130,7 @@ public class Capsule implements Runnable {
     static Path createPathingJar(Path dir, List<Path> cp) {
         try {
             dir = dir.toAbsolutePath();
-            final List<Path> paths = new ArrayList<>(cp.size());
-            for (Path p : cp) // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file URLs
-                paths.add(dir.relativize(p));
+            final List<String> paths = createClassPath(dir, cp);
 
             final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
             final Manifest man = new Manifest();
@@ -3144,6 +3142,23 @@ public class Capsule implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException("Pathing JAR creation failed", e);
         }
+    }
+
+    private static List<String> createClassPath(Path dir, List<Path> cp) {
+        boolean allPathsHaveSameRoot = true;
+        for (Path p : cp) {
+            if (! dir.getRoot().equals(p.getRoot()))
+                allPathsHaveSameRoot = false;
+        }
+
+        final List<String> paths = new ArrayList<>(cp.size());
+        for (Path p : cp) { // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file URLs
+            if (allPathsHaveSameRoot)
+                paths.add(dir.relativize(p).toString());
+            else
+                paths.add(p.toUri().toString());
+        }
+        return paths;
     }
     //</editor-fold>
 
