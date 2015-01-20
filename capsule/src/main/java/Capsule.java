@@ -3363,8 +3363,8 @@ public class Capsule implements Runnable {
         else if (dir.startsWith(WINDOWS_PROGRAM_FILES_2))
             dir2 = WINDOWS_PROGRAM_FILES_1.resolve(WINDOWS_PROGRAM_FILES_2.relativize(dir));
         if (dir2 != null) {
-            Map<String, Path> allHomes = new HashMap<>(homes);
-            allHomes.putAll(getJavaHomes(dir2));
+            Map<String, Path> allHomes = new HashMap<>(nullToEmpty(homes));
+            allHomes.putAll(nullToEmpty(getJavaHomes(dir2)));
             return allHomes;
         } else
             return homes;
@@ -3387,7 +3387,7 @@ public class Capsule implements Runnable {
                 }
             }
         }
-        return emptyToNull(dirs);
+        return dirs;
     }
 
     // visible for testing
