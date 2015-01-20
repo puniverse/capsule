@@ -1454,13 +1454,9 @@ public class Capsule implements Runnable {
             cache = initCacheDir(Paths.get(cacheDirEnv));
             if (cache == null)
                 throw new RuntimeException("Could not initialize cache directory " + Paths.get(cacheDirEnv));
-        } else {
-            final String name = getCacheName();
-            cache = initCacheDir(getCacheHome().resolve(name));
-            if (cache == null)
-                cache = initCacheDir(getTempDir().resolve(name));
-        }
-        return cache;
+        } else
+            cache = getCacheHome().resolve(getCacheName());
+        return initCacheDir(cache);
     }
 
     private static String getCacheName() {
