@@ -81,6 +81,7 @@ public class DependencyManagerImpl implements DependencyManager {
     private static final int LOG_VERBOSE = 2;
     private static final int LOG_DEBUG = 3;
     private static final String LOG_PREFIX = "CAPSULE: ";
+    private static final String JAVA_HOME = "java.home";
     //</editor-fold>
 
     private final boolean forceRefresh;
@@ -94,7 +95,7 @@ public class DependencyManagerImpl implements DependencyManager {
     //<editor-fold desc="Construction and Setup">
     /////////// Construction and Setup ///////////////////////////////////
     @SuppressWarnings("OverridableMethodCallInConstructor")
-    public DependencyManagerImpl(Path localRepoPath, boolean forceRefresh, int logLevel) {
+    public DependencyManagerImpl(Path localRepoPath, boolean forceRefresh, int logLevel, String javaHome) {
         this.logLevel = logLevel;
         this.forceRefresh = forceRefresh;
         this.offline = isPropertySet(PROP_OFFLINE, false);
@@ -107,7 +108,7 @@ public class DependencyManagerImpl implements DependencyManager {
         final LocalRepository localRepo = new LocalRepository(localRepoPath.toFile());
         this.settings = UserSettings.getInstance();
         this.system = newRepositorySystem();
-        this.session = newRepositorySession(system, localRepo);
+        this.session = newRepositorySession(system, localRepo, javaHome);
     }
 
     @Override
@@ -163,12 +164,13 @@ public class DependencyManagerImpl implements DependencyManager {
         return locator.getService(RepositorySystem.class);
     }
 
-    protected RepositorySystemSession newRepositorySession(RepositorySystem system, LocalRepository localRepo) {
+    protected RepositorySystemSession newRepositorySession(RepositorySystem system, LocalRepository localRepo, String javaHome) {
         final DefaultRepositorySystemSession s = MavenRepositorySystemUtils.newSession();
 
         s.setConfigProperty(ConfigurationProperties.CONNECT_TIMEOUT, propertyOrEnv(PROP_CONNECT_TIMEOUT, ENV_CONNECT_TIMEOUT));
         s.setConfigProperty(ConfigurationProperties.REQUEST_TIMEOUT, propertyOrEnv(PROP_REQUEST_TIMEOUT, ENV_REQUEST_TIMEOUT));
         s.setConfigProperty(ConflictResolver.CONFIG_PROP_VERBOSE, true);
+        s.setSystemProperty(JAVA_HOME, javaHome);
 
         s.setOffline(offline);
         s.setUpdatePolicy(forceRefresh ? RepositoryPolicy.UPDATE_POLICY_ALWAYS : RepositoryPolicy.UPDATE_POLICY_NEVER);
