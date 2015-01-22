@@ -2395,7 +2395,7 @@ public class Capsule implements Runnable {
         try {
             final boolean reset = systemPropertyEmptyOrTrue(PROP_RESET);
             final Path localRepo = getLocalRepo();
-            return createDependencyManager(localRepo.toAbsolutePath(), reset, oc.logLevel);
+            return createDependencyManager(localRepo.toAbsolutePath(), reset, oc.logLevel, javaHome_.toString());
         } catch (NoClassDefFoundError e) {
             return null;
         }
@@ -2404,8 +2404,8 @@ public class Capsule implements Runnable {
     /**
      * @deprecated marked deprecated to exclude from javadoc.
      */
-    protected Object createDependencyManager(Path localRepo, boolean reset, int logLevel) {
-        return new DependencyManagerImpl(localRepo, reset, logLevel);
+    protected Object createDependencyManager(Path localRepo, boolean reset, int logLevel, String javaHome) {
+        return new DependencyManagerImpl(localRepo, reset, logLevel, javaHome);
     }
 
     private Object getDependencyManager() {

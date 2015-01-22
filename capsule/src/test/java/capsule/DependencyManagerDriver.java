@@ -23,7 +23,7 @@ public class DependencyManagerDriver {
     public static void main(String[] args) {
         DependencyManager dm;
 
-        dm = new DependencyManagerImpl(DEFAULT_LOCAL_MAVEN, false, 3);
+        dm = new DependencyManagerImpl(DEFAULT_LOCAL_MAVEN, false, 3, "");
         dm.setRepos(null, true);
         
         resolve(dm, "co.paralleluniverse:quasar-core:LATEST");
