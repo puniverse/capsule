@@ -963,7 +963,7 @@ public class Capsule implements Runnable {
     }
 
     void printJVMs(List<String> args) {
-        final Map<String, Path> jres = getJavaHomes();
+        final Map<String, Path> jres = getJavaHomes(false);
         if (jres == null)
             println("No detected Java installations");
         else {
@@ -2260,7 +2260,7 @@ public class Capsule implements Runnable {
         Path jhome = null;
         if (!"current".equals(propJHome)) {
             jhome = propJHome != null ? Paths.get(propJHome) : null;
-            if (jhome == null && !isMatchingJavaVersion(getProperty(PROP_JAVA_VERSION))) {
+            if (jhome == null) {
                 final boolean jdk = Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
 
                 jhome = findJavaHome(jdk);
@@ -2281,10 +2281,8 @@ public class Capsule implements Runnable {
         return jhome != null ? jhome.toAbsolutePath() : jhome;
     }
 
-    private Path findJavaHome(boolean jdk) {
-        Map<String, Path> homes = nullToEmpty(getJavaHomes());
-        if (jdk)
-            homes = getJDKs(homes);
+    private Path findJavaHome(boolean requireJdk) {
+        Map<String, Path> homes = nullToEmpty(getJavaHomes(requireJdk));
         Path best = null;
         String bestVersion = null;
         for (Map.Entry<String, Path> e : homes.entrySet()) {
@@ -3339,7 +3337,7 @@ public class Capsule implements Runnable {
      *
      * @return a map from installations' versions to their respective paths
      */
-    protected static Map<String, Path> getJavaHomes() {
+    protected static Map<String, Path> getJavaHomes(boolean requireJdk) {
         if (JAVA_HOMES == null) {
             try {
                 Path homesDir = null;
@@ -3349,9 +3347,9 @@ public class Capsule implements Runnable {
                         break;
                     }
                 }
-                Map<String, Path> homes = getJavaHomes(homesDir);
+                Map<String, Path> homes = getJavaHomes(homesDir, requireJdk);
                 if (homes != null && isWindows())
-                    homes = windowsJavaHomesHeuristics(homesDir, homes);
+                    homes = windowsJavaHomesHeuristics(homesDir, homes, requireJdk);
                 JAVA_HOMES = homes;
             } catch (IOException e) {
                 throw rethrow(e);
@@ -3360,7 +3358,7 @@ public class Capsule implements Runnable {
         return JAVA_HOMES;
     }
 
-    private static Map<String, Path> windowsJavaHomesHeuristics(Path dir, Map<String, Path> homes) throws IOException {
+    private static Map<String, Path> windowsJavaHomesHeuristics(Path dir, Map<String, Path> homes, boolean requireJdk) throws IOException {
         Path dir2 = null;
         if (dir.startsWith(WINDOWS_PROGRAM_FILES_1))
             dir2 = WINDOWS_PROGRAM_FILES_2.resolve(WINDOWS_PROGRAM_FILES_1.relativize(dir));
@@ -3368,13 +3366,16 @@ public class Capsule implements Runnable {
             dir2 = WINDOWS_PROGRAM_FILES_1.resolve(WINDOWS_PROGRAM_FILES_2.relativize(dir));
         if (dir2 != null) {
             Map<String, Path> allHomes = new HashMap<>(homes);
-            allHomes.putAll(getJavaHomes(dir2));
+            Map<String, Path> allHomes2 = getJavaHomes(dir2, requireJdk);
+            if (allHomes2 != null) {
+                allHomes.putAll(allHomes2);
+            }
             return allHomes;
         } else
             return homes;
     }
 
-    private static Map<String, Path> getJavaHomes(Path dir) throws IOException {
+    private static Map<String, Path> getJavaHomes(Path dir, boolean requireJdk) throws IOException {
         if (dir == null || !Files.isDirectory(dir))
             return null;
         final Map<String, Path> dirs = new HashMap<String, Path>();
@@ -3382,16 +3383,27 @@ public class Capsule implements Runnable {
             for (Path f : fs) {
                 String ver;
                 Path home;
-                if (Files.isDirectory(f) && (ver = isJavaDir(f.getFileName().toString())) != null
-                        && (home = searchJavaHomeInDir(f)) != null) {
-                    home = home.toAbsolutePath();
-                    if (parseJavaVersion(ver)[3] == 0)
-                        ver = getActualJavaVersion(home);
-                    dirs.put(ver, home);
+                if (Files.isDirectory(f) && (ver = isJavaDir(f.getFileName().toString())) != null) {
+                    if (isJavaHome(f) && (!requireJdk || isJDK(f))) {
+                        storeJavaHome(dirs, ver, f);
+                    }
+                    else {
+                        home = searchJavaHomeInDir(f);
+                        if (home != null && (!requireJdk || isJDK(home))) {
+                            storeJavaHome(dirs, ver, home);
+                        }
+                    }
                 }
             }
         }
         return emptyToNull(dirs);
+    }
+
+    private static void storeJavaHome(Map<String, Path> result, String version, Path path) {
+        Path home = path.toAbsolutePath();
+        if (parseJavaVersion(version)[3] == 0)
+            version = getActualJavaVersion(home);
+        result.put(version, home);
     }
 
     // visible for testing
