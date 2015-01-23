@@ -374,7 +374,3 @@ coveralls {
     sourceDirs = files(subprojects.sourceSets.main.allSource.srcDirs).files.absolutePath
     jacocoReportPath = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
 }
-
-task wrapper(type: Wrapper) {
-    gradleVersion = '2.1'
-}
