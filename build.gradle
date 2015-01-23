@@ -4,7 +4,7 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:0.8'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.1'
         classpath 'net.sf.proguard:proguard-gradle:5.0'
         // classpath 'net.saliman:gradle-cobertura-plugin:2.2.4'
         classpath 'info.solidsoft.gradle.pitest:gradle-pitest-plugin:1.1.1'
@@ -215,7 +215,9 @@ subprojects {
     defaultTasks 'build'
 }
 
-project (':capsule') {    
+project (':capsule') {
+    apply plugin: 'com.github.johnrengelman.shadow'
+    
     configurations {
         all*.exclude group: 'org.eclipse.sisu', module: '*'
         all*.exclude group: 'commons-codec', module: '*'
@@ -255,42 +257,36 @@ project (':capsule') {
         testCompile project(':capsule-util')
     }
 
-    apply plugin: 'shadow'
-
     jar {
         manifest {
             attributes('Main-Class' : 'Capsule')
         }
     }
 
-    shadow {
+    shadowJar {
+        outputs.upToDateWhen { false }
+        
         // artifactAttached = false
         classifier = 'shadow'
-        destinationDir = "$buildDir/libs"
+        destinationDir = file("$buildDir/libs")
 
         exclude 'META-INF/**'
         exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
         exclude 'about.html'
         exclude 'io/takari/aether/localrepo/**'
         exclude 'javax/inject/**'
+        exclude 'org/apache/log4j/lf5/**'
+        exclude 'org/apache/log4j/xml/log4j.dtd'
+        exclude '**/version.properties'
 
-        relocation {
-            pattern = 'org.'
-            shadedPattern = 'capsule.org.'
+        relocate 'org.', 'capsule.org.'
+        relocate 'io.', 'capsule.io.'
+        relocate 'com.', 'capsule.com.'
+            
+        doLast {
+            logger.info("$buildDir/libs/${project.name}-${project.version}-shadow.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
+            file("$buildDir/libs/${project.name}-${version}-shadow.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
         }
-        relocation {
-            pattern = 'io.'
-            shadedPattern = 'capsule.io.'
-        }
-        relocation {
-            pattern = 'com.'
-            shadedPattern = 'capsule.com.'
-        }
-    }
-
-    shadowJar.doLast {
-        logger.info("$buildDir/libs/${project.name}-${project.version}-shadow.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
-        file("$buildDir/libs/${project.name}-${version}-shadow.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
     }
 
     task proguard(type: proguard.gradle.ProGuardTask, dependsOn:[shadowJar]) {
