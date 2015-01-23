@@ -1518,11 +1518,8 @@ public class Capsule implements Runnable {
      * This capsule's cache directory, or {@code null} if capsule has been configured not to extract.
      */
     protected final Path getAppCache() {
-        if (oc.appCache == null && shouldExtract()) {
+        if (oc.appCache == null && shouldExtract())
             oc.appCache = buildAppCacheDir();
-            System.err.println("XXXXX " + oc.appCache);
-            Thread.dumpStack();
-        }
         return oc.appCache;
 
     }
@@ -1553,9 +1550,6 @@ public class Capsule implements Runnable {
     }
 
     private Path buildAppCacheDir0() {
-        System.err.println("YYYYYY " + oc.appCache);
-        Thread.dumpStack();
-
         if (getAppId() == null)
             return null;
 
@@ -2364,8 +2358,7 @@ public class Capsule implements Runnable {
             return null;
         try {
             final boolean reset = systemPropertyEmptyOrTrue(PROP_RESET);
-            final Path localRepo = getLocalRepo();
-            return createDependencyManager(localRepo.toAbsolutePath(), reset, oc.logLevel);
+            return createDependencyManager(getLocalRepo().toAbsolutePath(), reset, oc.logLevel);
         } catch (NoClassDefFoundError e) {
             return null;
         }
@@ -3109,7 +3102,7 @@ public class Capsule implements Runnable {
     static Path createPathingJar(Path dir, List<Path> cp) {
         try {
             dir = dir.toAbsolutePath();
-            final List<String> paths = createClassPath(dir, cp);
+            final List<String> paths = createPathingClassPath(dir, cp);
 
             final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
             final Manifest man = new Manifest();
@@ -3123,7 +3116,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static List<String> createClassPath(Path dir, List<Path> cp) {
+    private static List<String> createPathingClassPath(Path dir, List<Path> cp) {
         boolean allPathsHaveSameRoot = true;
         for (Path p : cp) {
             if (! dir.getRoot().equals(p.getRoot()))
