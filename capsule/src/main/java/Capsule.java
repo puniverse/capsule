@@ -3235,33 +3235,20 @@ public class Capsule implements Runnable {
             parent = parent.getParent();
 
         final List<FileAttribute> attrs = new ArrayList<>();
-        if (parent != null) {
-            final PosixFileAttributeView posix = Files.getFileAttributeView(parent, PosixFileAttributeView.class);
-            if (posix != null)
-                attrs.add(PosixFilePermissions.asFileAttribute(posix.readAttributes().permissions()));
-            final AclFileAttributeView aclv = Files.getFileAttributeView(parent, AclFileAttributeView.class);
-            if (aclv != null)
-                attrs.add(asFileAttribute(aclv.getAcl()));
-        }
+
+        final PosixFileAttributeView posix = Files.getFileAttributeView(parent, PosixFileAttributeView.class);
+        if (posix != null)
+            attrs.add(PosixFilePermissions.asFileAttribute(posix.readAttributes().permissions()));
+        final AclFileAttributeView aclv = Files.getFileAttributeView(parent, AclFileAttributeView.class);
+        List<AclEntry> acl = null;
+        if (aclv != null)
+            acl = unmodifiableList(new ArrayList<>(aclv.getAcl()));
 
         Files.createDirectories(dir, attrs.toArray(new FileAttribute[attrs.size()]));
+
+        if (acl != null)
+            Files.getFileAttributeView(dir, AclFileAttributeView.class).setAcl(acl);
         return dir;
-    }
-
-    private static FileAttribute<List<AclEntry>> asFileAttribute(List<AclEntry> acl0) {
-        final List<AclEntry> acl = unmodifiableList(new ArrayList<>(acl0));
-        return new FileAttribute<List<AclEntry>>() {
-
-            @Override
-            public String name() {
-                return "acl:acl";
-            }
-
-            @Override
-            public List<AclEntry> value() {
-                return acl;
-            }
-        };
     }
 
     /**
