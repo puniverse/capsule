@@ -44,7 +44,6 @@ public final class CapsuleLauncher {
     private final Path jarFile;
     private final Class capsuleClass;
     private final Properties properties;
-    private Map<String, Path> javaHomes;
 
     public CapsuleLauncher(Path jarFile) throws IOException {
         this(jarFile, null);
@@ -54,7 +53,7 @@ public final class CapsuleLauncher {
         this.jarFile = jarFile;
         this.properties = properties != null ? properties : new Properties(System.getProperties());
         this.capsuleClass = loadCapsuleClass(jarFile);
-        setProperties(capsuleClass, this.properties);
+        set(null, getCapsuleField("PROPERTIES"), properties);
     }
 
     /**
@@ -64,7 +63,9 @@ public final class CapsuleLauncher {
      * @return {@code this}
      */
     public CapsuleLauncher setJavaHomes(Map<String, Path> javaHomes) {
-        this.javaHomes = javaHomes;
+        final Field homes = getCapsuleField("JAVA_HOMES");
+        if (homes != null)
+            set(null, homes, javaHomes);
         return this;
     }
 
@@ -77,6 +78,17 @@ public final class CapsuleLauncher {
      */
     public CapsuleLauncher setProperty(String property, String value) {
         properties.setProperty(property, value);
+        return this;
+    }
+
+    /**
+     * Sets the location of the cache directory for the capsules created by {@code newCapsule}
+     *
+     * @param dir the cache directory
+     * @return {@code this}
+     */
+    public CapsuleLauncher setCacheDir(Path dir) {
+        set(null, getCapsuleField("CACHE_DIR"), dir);
         return this;
     }
 
@@ -117,9 +129,6 @@ public final class CapsuleLauncher {
      * @return the capsule.
      */
     public Capsule newCapsule(String mode, Path wrappedJar) {
-        if (javaHomes != null)
-            setJavaHomes(capsuleClass, javaHomes);
-
         final String oldMode = properties.getProperty(PROP_MODE);
         try {
             properties.setProperty(PROP_MODE, mode);
@@ -171,9 +180,7 @@ public final class CapsuleLauncher {
     private static boolean isCapsuleClass(Class<?> clazz) {
         if (clazz == null)
             return false;
-        if (CAPSULE_CLASS_NAME.equals(clazz.getName()))
-            return true;
-        return isCapsuleClass(clazz.getSuperclass());
+        return getActualCapsuleClass(clazz) != null;
     }
 
     private static Capsule wrap(Object capsule) {
@@ -242,18 +249,6 @@ public final class CapsuleLauncher {
         }
     }
 
-    private static void setJavaHomes(Class<?> capsuleClass, Map<String, Path> javaHomes) {
-        final Field homes = getField(capsuleClass, "JAVA_HOMES");
-        if (homes == null)
-            return;
-        set(null, homes, javaHomes);
-    }
-
-    private static void setProperties(Class<?> capsuleClass, Properties properties) {
-        final Field props = getField(capsuleClass, "PROPERTIES");
-        set(null, props, properties);
-    }
-
     /**
      * Adds an option to the JVM arguments to enable JMX connection
      *
@@ -305,6 +300,10 @@ public final class CapsuleLauncher {
         return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
 
+    private Field getCapsuleField(String name) {
+        return getField(getActualCapsuleClass(capsuleClass), name);
+    }
+
     //<editor-fold defaultstate="collapsed" desc="Reflection">
     /////////// Reflection ///////////////////////////////////
     private static Method getMethod(Class<?> clazz, String name, Class<?>... paramTypes) {
@@ -329,6 +328,12 @@ public final class CapsuleLauncher {
         } catch (NoSuchFieldException e) {
             return clazz.getSuperclass() != null ? getField(clazz.getSuperclass(), name) : null;
         }
+    }
+
+    private static Class<?> getActualCapsuleClass(Class<?> clazz) {
+        while (clazz != null && !clazz.getName().equals(CAPSULE_CLASS_NAME))
+            clazz = clazz.getSuperclass();
+        return clazz;
     }
 
     private static Object invoke(Object obj, Method method, Object... params) {
