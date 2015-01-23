@@ -2942,7 +2942,7 @@ public class Capsule implements Runnable {
     }
 
     private static Path toAbsolutePath(Path p) {
-        return p != null ? p.normalize().toAbsolutePath() : null;
+        return p != null ? p.toAbsolutePath().normalize() : null;
     }
 
     private static List<Path> sanitize(Path root, List<String> ps) {
@@ -2955,7 +2955,7 @@ public class Capsule implements Runnable {
     }
 
     private static Path sanitize(Path dir, Path p) {
-        final Path path = p.normalize().toAbsolutePath();
+        final Path path = p.toAbsolutePath().normalize();
         if (!path.startsWith(dir))
             throw new IllegalArgumentException("Path " + p + " is not local to " + dir);
         return path;
