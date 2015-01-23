@@ -115,7 +115,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
      * @return a unique process ID
      */
     public String launchCapsule(Path capsulePath, String mode, List<String> jvmArgs, List<String> args) throws IOException {
-        final Capsule capsule = new CapsuleLauncher(capsulePath).setJavaHomes(javaHomes).newCapsule(mode, null, cacheDir);
+        final Capsule capsule = new CapsuleLauncher(capsulePath).setJavaHomes(javaHomes).newCapsule(mode, null);
         return launchCapsule(capsule, jvmArgs, args);
     }
 

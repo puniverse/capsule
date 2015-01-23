@@ -68,6 +68,8 @@ public class CapsuleTest {
 
     @Before
     public void setUp() throws Exception {
+        accessible(Capsule.class.getDeclaredField("CACHE_DIR")).set(null, cache);
+        
         props = new Properties(System.getProperties());
         accessible(Capsule.class.getDeclaredField("PROPERTIES")).set(null, props);
         props.setProperty("capsule.no_dep_manager", "true");
@@ -836,7 +838,7 @@ public class CapsuleTest {
         Path capsuleJar = absolutePath("capsule.jar");
         jar.write(capsuleJar);
 
-        Capsule.newCapsule(MY_CLASSLOADER, capsuleJar, cache).prepareForLaunch(cmdLine, args);
+        Capsule.newCapsule(MY_CLASSLOADER, capsuleJar).prepareForLaunch(cmdLine, args);
     }
 
     @Test
@@ -853,7 +855,7 @@ public class CapsuleTest {
 
         Path capsuleJar = absolutePath("capsule.jar");
         jar.write(capsuleJar);
-        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar, cache);
+        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar);
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
@@ -1232,8 +1234,9 @@ public class CapsuleTest {
             final Class<?> clazz = Class.forName(mainClass);
             accessible(Capsule.class.getDeclaredField("DEPENDENCY_MANAGER")).set(null, dependencyManager);
             accessible(Capsule.class.getDeclaredField("PROFILE")).set(null, 10); // disable profiling even when log=debug
-            Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class, Path.class));
-            return (Capsule) ctor.newInstance(capsuleJar, cache);
+
+            Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class));
+            return (Capsule) ctor.newInstance(capsuleJar);
         } catch (InvocationTargetException e) {
             throw new RuntimeException(e.getCause());
         } catch (Exception e) {

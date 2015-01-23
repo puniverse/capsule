@@ -39,8 +39,13 @@ import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -273,14 +278,15 @@ public class Capsule implements Runnable {
 
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
-    private static Properties PROPERTIES = System.getProperties(); // new Properties(System.getProperties());
+    private static Properties PROPERTIES = System.getProperties();
     private static final String OS = getProperty0(PROP_OS_NAME).toLowerCase();
     private static final String PLATFORM = getOS();
+    private static Path CACHE_DIR;
     private static Capsule CAPSULE;
 
     final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
-            final Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile(), getCacheDir());
+            final Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile());
             clearContext();
             if (capsule.isEmptyCapsule() && !args.isEmpty()) {
                 processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
@@ -525,7 +531,6 @@ public class Capsule implements Runnable {
     private /*final*/ Capsule sup; // previous in chain
     private /*final*/ Capsule _ct; // a temp var
 
-    private final Path cacheDir;         // never null
     private final boolean wrapper;
     private final Manifest manifest;     // never null
     private /*final*/ Path jarFile;      // never null
@@ -537,7 +542,10 @@ public class Capsule implements Runnable {
     private /*final*/ Object dependencyManager;
     private /*final*/ int logLevel;
 
-    private Path appCache;               // non-null iff capsule is extracted
+    private Path cacheDir;
+    private Path appCache;
+    private Path writableAppCache;
+    private Path localRepo;
     private boolean cacheUpToDate;
     private FileLock appCacheLock;
 
@@ -567,10 +575,9 @@ public class Capsule implements Runnable {
      * as they may not have been properly pre-processed yet.
      *
      * @param jarFile  the path to the JAR file
-     * @param cacheDir the path to the (shared) Capsule cache directory
      */
     @SuppressWarnings({"OverridableMethodCallInConstructor", "LeakingThisInConstructor"})
-    protected Capsule(Path jarFile, Path cacheDir) {
+    protected Capsule(Path jarFile) {
         clearContext();
         Objects.requireNonNull(jarFile, "jarFile can't be null");
 
@@ -578,7 +585,6 @@ public class Capsule implements Runnable {
         this.cc = this;
         this.sup = null;
 
-        this.cacheDir = initCacheDir(cacheDir);
         this.jarFile = toAbsolutePath(jarFile);
 
         final long start = System.nanoTime(); // can't use clock before log level is set
@@ -621,7 +627,6 @@ public class Capsule implements Runnable {
 
         // insertAfter(pred);
         // copy final dields
-        this.cacheDir = pred.cacheDir;
         this.wrapper = pred.wrapper;
         this.manifest = pred.manifest;
     }
@@ -672,7 +677,7 @@ public class Capsule implements Runnable {
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             oc.jarFile = jar;
-            insertAfter(newCapsule(newClassLoader(MY_CLASSLOADER, jar), jar, cacheDir));
+            insertAfter(newCapsule(newClassLoader(MY_CLASSLOADER, jar), jar));
             oc.dependencyManager = dependencyManager;
         }
         finalizeCapsule(isCapsule);
@@ -721,9 +726,9 @@ public class Capsule implements Runnable {
             final List<Path> jars = resolveDependency(caplet, "jar");
             if (jars.size() != 1)
                 throw new RuntimeException("The caplet " + caplet + " has transitive dependencies.");
-            return newCapsule(newClassLoader(MY_CLASSLOADER, jars.get(0)), jars.get(0), pred);
+            return newCapsule(jars.get(0), pred);
         } else
-            return newCapsule(MY_CLASSLOADER, caplet, pred);
+            return newCapsule(caplet, pred);
     }
 
     /**
@@ -842,13 +847,6 @@ public class Capsule implements Runnable {
      */
     protected final String getMode() {
         return oc.mode;
-    }
-
-    /**
-     * This capsule's cache directory, or {@code null} if capsule has been configured not to extract.
-     */
-    protected final Path getAppCache() {
-        return oc.appCache;
     }
 
     /**
@@ -1078,7 +1076,6 @@ public class Capsule implements Runnable {
 
     void resolve(List<String> args) throws IOException, InterruptedException {
         verifyNonEmpty("Cannot resolve a wrapper capsule.");
-        ensureExtractedIfNecessary();
         resolveDependency(getAttribute(ATTR_APP_ARTIFACT), "jar");
         resolveDependencies(getDependencies(), "jar");
         getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
@@ -1152,10 +1149,8 @@ public class Capsule implements Runnable {
         try {
             final ProcessBuilder pb;
             try {
-                ensureExtractedIfNecessary();
-
                 pb = prelaunch(nullToEmpty(args));
-                markCache1();
+                markCache();
                 return pb;
             } finally {
                 unlockAppCache();
@@ -1439,24 +1434,36 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule Cache">
     /////////// Capsule Cache ///////////////////////////////////
-    private Path getCache() {
-        if (cc.cacheDir == null)
-            throw new RuntimeException("Could not create the Capsule cache directory. Do you have write permissions to the home dir or to temp dir storage?");
-        return cc.cacheDir;
-    }
-
-    private static Path getCacheDir() {
-        Path cache;
-        final String cacheDirEnv = System.getenv(ENV_CACHE_DIR);
-        if (cacheDirEnv != null) {
-            if (cacheDirEnv.equalsIgnoreCase(CACHE_NONE))
-                return null;
-            cache = initCacheDir(Paths.get(cacheDirEnv));
-            if (cache == null)
-                throw new RuntimeException("Could not initialize cache directory " + Paths.get(cacheDirEnv));
-        } else
-            cache = getCacheHome().resolve(getCacheName());
-        return initCacheDir(cache);
+    private Path getCacheDir() {
+        if (oc.cacheDir == null) {
+            Path cache = CACHE_DIR;
+            if (cache != null) {
+                cache = initCacheDir(cache);
+            } else {
+                final String cacheDirEnv = System.getenv(ENV_CACHE_DIR);
+                if (cacheDirEnv != null) {
+                    if (cacheDirEnv.equalsIgnoreCase(CACHE_NONE))
+                        return null;
+                    cache = initCacheDir(Paths.get(cacheDirEnv));
+                    if (cache == null)
+                        throw new RuntimeException("Could not initialize cache directory " + Paths.get(cacheDirEnv));
+                } else {
+                    final String name = getCacheName();
+                    cache = initCacheDir(getCacheHome().resolve(name));
+                    if (cache == null) {
+                        try {
+                            cache = addTempFile(Files.createTempDirectory(getTempDir(), "capsule-"));
+                        } catch (IOException e) {
+                            log(LOG_VERBOSE, "Could not create directory: " + cache + " -- " + e.getMessage());
+                            cache = null;
+                        }
+                    }
+                }
+            }
+            log(LOG_VERBOSE, "Cache directory: " + cache);
+            oc.cacheDir = cache;
+        }
+        return oc.cacheDir;
     }
 
     private static String getCacheName() {
@@ -1465,21 +1472,14 @@ public class Capsule implements Runnable {
         return (isWindows() ? "" : ".") + cacheName;
     }
 
-    private static Path initCacheDir(Path cache) {
-        if (cache == null)
-            return null;
+    private Path initCacheDir(Path cache) {
         try {
             if (!Files.exists(cache))
-                Files.createDirectory(cache);
-            Files.createDirectories(cache.resolve(APP_CACHE_NAME));
-            Files.createDirectories(cache.resolve(DEPS_CACHE_NAME));
-
+                createDirsWithSamePermissionsAsParent(cache);
             return cache;
         } catch (IOException e) {
-//            log(LOG_VERBOSE, "Error initializing cache dir " + cache);
-//            if(isLogging(LOG_VERBOSE))
-//                e.printStackTrace(System.err);
-            return null; // throw new RuntimeException("Error opening cache directory " + cache.toAbsolutePath(), e);
+            log(LOG_VERBOSE, "Could not create directory: " + cache + " -- " + e.getMessage());
+            return null;
         }
     }
 
@@ -1510,121 +1510,110 @@ public class Capsule implements Runnable {
 
         return cacheHome;
     }
-
-    private static Path getTempDir() {
-        try {
-            return Paths.get(getProperty(PROP_TMP_DIR));
-        } catch (Exception e) {
-            return null;
-        }
-    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="App Cache">
     /////////// App Cache ///////////////////////////////////
     /**
-     * Returns the path of the application cache (this is the directory where the capsule is extracted if necessary).
+     * This capsule's cache directory, or {@code null} if capsule has been configured not to extract.
      */
-    protected Path getAppCacheDir() {
-        assert getAppId() != null;
-        return toAbsolutePath(getCache().resolve(APP_CACHE_NAME).resolve(getAppId()));
-    }
-
-    private Path getOrCreateAppCacheDir() throws IOException {
-        Path appDir = getAppCacheDir();
-        try {
-            if (!Files.exists(appDir))
-                Files.createDirectory(appDir);
-            return appDir;
-        } catch (IOException e) {
-            throw new IOException("Application cache directory " + appDir.toAbsolutePath() + " could not be created.");
+    protected final Path getAppCache() {
+        if (oc.appCache == null && shouldExtract()) {
+            oc.appCache = buildAppCacheDir();
+            System.err.println("XXXXX " + oc.appCache);
+            Thread.dumpStack();
         }
-    }
+        return oc.appCache;
 
-    private void ensureAppCacheIfNecessary() throws IOException {
-        if (getAppCache() != null)
-            return;
-        if (getAppId() == null)
-            return;
-
-        oc.appCache = needsAppCache() ? getOrCreateAppCacheDir() : null;
-        this.cacheUpToDate = getAppCache() != null ? isAppCacheUpToDate1() : false;
-    }
-
-    private void ensureExtractedIfNecessary() throws IOException {
-        final long start = clock();
-        ensureAppCacheIfNecessary();
-        if (getAppCache() != null) {
-            if (!cacheUpToDate) {
-                resetAppCache();
-                if (shouldExtract())
-                    extractCapsule();
-            } else
-                log(LOG_VERBOSE, "App cache " + getAppCache() + " is up to date.");
-        }
-        time("ensureExtracted", start);
     }
 
     /**
-     * @return {@code true} if this capsule requires an app cache; {@code false} otherwise.
+     * Returns a writable directory that can be used to store files related to launching the capsule.
      */
-    protected boolean needsAppCache() {
-        return (_ct = getCallTarget()) != null ? _ct.needsAppCache() : needsAppCache0();
+    protected final Path getWritableAppCache() {
+        if (oc.writableAppCache == null) {
+            Path cache = getAppCache();
+            if (cache == null || !Files.isWritable(cache)) {
+                try {
+                    cache = addTempFile(Files.createTempDirectory(getTempDir(), "capsule-"));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            oc.writableAppCache = cache;
+        }
+        return oc.writableAppCache;
     }
 
-    private boolean needsAppCache0() {
-        if (hasRenamedNativeDependencies())
-            return true;
-//        if (hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
-//            return false;
-        return shouldExtract();
+    /**
+     * Returns the path of the application cache (this is the directory where the capsule is extracted if necessary).
+     */
+    protected Path buildAppCacheDir() {
+        return (_ct = getCallTarget()) != null ? _ct.buildAppCacheDir() : buildAppCacheDir0();
+    }
+
+    private Path buildAppCacheDir0() {
+        System.err.println("YYYYYY " + oc.appCache);
+        Thread.dumpStack();
+
+        if (getAppId() == null)
+            return null;
+
+        try {
+            final long start = clock();
+            final Path dir = toAbsolutePath(getCacheDir().resolve(APP_CACHE_NAME).resolve(getAppId()));
+            createDirsWithSamePermissionsAsParent(dir);
+
+            this.cacheUpToDate = isAppCacheUpToDate1(dir);
+            if (!cacheUpToDate) {
+                resetAppCache(dir);
+                if (shouldExtract())
+                    extractCapsule(dir);
+            } else
+                log(LOG_VERBOSE, "App cache " + getAppCache() + " is up to date.");
+
+            time("buildAppCacheDir", start);
+            return dir;
+        } catch (IOException e) {
+            throw rethrow(e);
+        }
     }
 
     private boolean shouldExtract() {
         return Boolean.parseBoolean(getAttribute(ATTR_EXTRACT));
     }
 
-    private void resetAppCache() throws IOException {
+    private void resetAppCache(Path dir) throws IOException {
         try {
-            log(LOG_DEBUG, "Creating cache for " + getJarFile() + " in " + getAppCache().toAbsolutePath());
-            final Path lockFile = getAppCache().resolve(LOCK_FILE_NAME);
-            try (DirectoryStream<Path> ds = Files.newDirectoryStream(getAppCache())) {
+            log(LOG_DEBUG, "Creating cache for " + getJarFile() + " in " + dir.toAbsolutePath());
+            final Path lockFile = dir.resolve(LOCK_FILE_NAME);
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
                 for (Path f : ds) {
                     if (!lockFile.equals(f))
                         delete(f);
                 }
             }
         } catch (IOException e) {
-            throw new IOException("Exception while extracting jar " + getJarFile() + " to app cache directory " + getAppCache().toAbsolutePath(), e);
+            throw new IOException("Exception while extracting jar " + getJarFile() + " to app cache directory " + dir.toAbsolutePath(), e);
         }
     }
 
-    private boolean isAppCacheUpToDate1() throws IOException {
-        boolean res = testAppCacheUpToDate();
+    private boolean isAppCacheUpToDate1(Path dir) throws IOException {
+        boolean res = testAppCacheUpToDate(dir);
         if (!res) {
-            lockAppCache();
-            res = testAppCacheUpToDate();
+            lockAppCache(dir);
+            res = testAppCacheUpToDate(dir);
             if (res)
-                unlockAppCache();
+                unlockAppCache(dir);
         }
         return res;
     }
 
-    /**
-     * Tests if the app cache is up to date.
-     *
-     * The app cache directory is obtained by calling {@link #getAppCache() getAppCache}.
-     * This creates a file in the app cache, whose timestamp is compared with the capsule's JAR timestamp.
-     */
-    protected boolean testAppCacheUpToDate() throws IOException {
-        return (_ct = getCallTarget()) != null ? _ct.testAppCacheUpToDate() : testAppCacheUpToDate0();
-    }
-
-    private boolean testAppCacheUpToDate0() throws IOException {
+    private boolean testAppCacheUpToDate(Path dir) throws IOException {
         if (systemPropertyEmptyOrTrue(PROP_RESET))
             return false;
 
-        Path extractedFile = getAppCache().resolve(TIMESTAMP_FILE_NAME);
+        Path extractedFile = dir.resolve(TIMESTAMP_FILE_NAME);
         if (!Files.exists(extractedFile))
             return false;
         FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
@@ -1633,68 +1622,52 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Whether the app cache is up to date.
-     * This is the result returned from {@link #testAppCacheUpToDate() }.
-     */
-    protected final boolean isAppCacheUpToDate() {
-        return oc.cacheUpToDate;
-    }
-
-    /**
      * Extracts the capsule's contents into the app cache directory.
      * This method may be overridden to write additional files to the app cache.
      */
-    protected void extractCapsule() throws IOException {
+    protected void extractCapsule(Path dir) throws IOException {
         if ((_ct = getCallTarget()) != null)
-            _ct.extractCapsule();
+            _ct.extractCapsule(dir);
         else
-            extractCapsule0();
+            extractCapsule0(dir);
     }
 
-    private void extractCapsule0() throws IOException {
+    private void extractCapsule0(Path dir) throws IOException {
         try {
-            log(LOG_VERBOSE, "Extracting " + getJarFile() + " to app cache directory " + getAppCache().toAbsolutePath());
-            extractJar(openJarInputStream(getJarFile()), getAppCache());
+            log(LOG_VERBOSE, "Extracting " + getJarFile() + " to app cache directory " + dir.toAbsolutePath());
+            extractJar(openJarInputStream(getJarFile()), dir);
         } catch (IOException e) {
-            throw new IOException("Exception while extracting jar " + getJarFile() + " to app cache directory " + getAppCache().toAbsolutePath(), e);
+            throw new IOException("Exception while extracting jar " + getJarFile() + " to app cache directory " + dir.toAbsolutePath(), e);
         }
     }
 
-    private void markCache1() throws IOException {
-        if (getAppCache() == null || cacheUpToDate)
+    private void markCache() throws IOException {
+        if (oc.appCache == null || cacheUpToDate)
             return;
-        markCache();
+        if (Files.isWritable(oc.appCache))
+            Files.createFile(oc.appCache.resolve(TIMESTAMP_FILE_NAME));
     }
 
-    /**
-     * Called after a successful completion of launch preparation if an app cache is used
-     * to write persistent information to the cache denoting the successful preparation.
-     */
-    protected void markCache() throws IOException {
-        if ((_ct = getCallTarget()) != null)
-            _ct.markCache();
-        else
-            markCache0();
-    }
-
-    private void markCache0() throws IOException {
-        Files.createFile(getAppCache().resolve(TIMESTAMP_FILE_NAME));
-    }
-
-    private void lockAppCache() throws IOException {
-        final Path lockFile = getAppCache().resolve(LOCK_FILE_NAME);
+    private void lockAppCache(Path dir) throws IOException {
+        final Path lockFile = dir.resolve(LOCK_FILE_NAME);
         log(LOG_VERBOSE, "Locking " + lockFile);
         final FileChannel c = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         this.appCacheLock = c.lock();
     }
 
-    private void unlockAppCache() throws IOException {
+    private void unlockAppCache(Path dir) throws IOException {
         if (appCacheLock != null) {
-            log(LOG_VERBOSE, "Unocking " + getAppCache().resolve(LOCK_FILE_NAME));
+            log(LOG_VERBOSE, "Unocking " + dir.resolve(LOCK_FILE_NAME));
             appCacheLock.release();
             appCacheLock.acquiredBy().close();
             appCacheLock = null;
         }
+    }
+
+    private void unlockAppCache() throws IOException {
+        if (oc.appCache == null)
+            return;
+        unlockAppCache(oc.appCache);
     }
     //</editor-fold>
 
@@ -1771,7 +1744,7 @@ public class Capsule implements Runnable {
             log(LOG_DEBUG, "Command line length: " + len);
             if (isTrampoline())
                 throw new RuntimeException("Command line too long and trampoline requested.");
-            final Path pathingJar = addTempFile(createPathingJar(Paths.get(getProperty(PROP_TMP_DIR)), cp));
+            final Path pathingJar = addTempFile(createPathingJar(getTempDir(), cp));
             log(LOG_VERBOSE, "Writing classpath: " + cp + " to pathing JAR: " + pathingJar);
             return singletonList(pathingJar);
         } else
@@ -1983,6 +1956,7 @@ public class Capsule implements Runnable {
         final List<Path> libraryPath = buildNativeLibraryPath();
         systemProperties.put(PROP_JAVA_LIBRARY_PATH, compileClassPath(libraryPath));
 
+        // security manager
         if (hasAttribute(ATTR_SECURITY_POLICY) || hasAttribute(ATTR_SECURITY_POLICY_A)) {
             systemProperties.put(PROP_JAVA_SECURITY_MANAGER, "");
             if (hasAttribute(ATTR_SECURITY_POLICY_A))
@@ -2071,7 +2045,7 @@ public class Capsule implements Runnable {
                 for (int i = 0; i < deps.size(); i++) {
                     final Path lib = resolved.get(i);
                     final String rename = renames.get(i);
-                    Files.copy(lib, sanitize(getAppCache().resolve(rename != null ? rename : lib.getFileName().toString())));
+                    Files.copy(lib, sanitize(getWritableAppCache().resolve(rename != null ? rename : lib.getFileName().toString())));
                 }
             } catch (IOException e) {
                 throw new RuntimeException("Exception while copying native libs", e);
@@ -2422,8 +2396,17 @@ public class Capsule implements Runnable {
         final String local = emptyToNull(expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO)));
         if (local != null)
             return toAbsolutePath(Paths.get(local));
-        final Path localRepo = getCache().resolve(DEPS_CACHE_NAME);
-        return localRepo;
+        final Path localRepo = getCacheDir().resolve(DEPS_CACHE_NAME);
+        try {
+            if (!Files.exists(localRepo))
+                createDirsWithSamePermissionsAsParent(localRepo);
+            return localRepo;
+        } catch (IOException e) {
+            log(LOG_VERBOSE, "Could not create local repo at " + localRepo);
+            if (isLogging(LOG_VERBOSE))
+                e.printStackTrace(System.err);
+            return null;
+        }
     }
 
     private void printDependencyTree(String root, String type) {
@@ -2927,7 +2910,7 @@ public class Capsule implements Runnable {
                         }
                     }
 
-                    newCapsule(newClassLoader(null, outCapsule), outCapsule, cacheDir); // test capsule
+                    newCapsule(newClassLoader(null, outCapsule), outCapsule); // test capsule
 
                     return outCapsule;
                 }
@@ -2945,7 +2928,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Path Utils">
     /////////// Path Utils ///////////////////////////////////
     private FileSystem getFileSystem() {
-        return cc.cacheDir != null ? cc.cacheDir.getFileSystem() : FileSystems.getDefault();
+        return cc.jarFile != null ? cc.jarFile.getFileSystem() : FileSystems.getDefault();
     }
 
     private Path path(String p, String... more) {
@@ -3233,6 +3216,53 @@ public class Capsule implements Runnable {
         for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
             out.write(buffer, 0, bytesRead);
         out.flush();
+    }
+
+    private static Path getTempDir() {
+        try {
+            return Paths.get(getProperty(PROP_TMP_DIR));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Path createDirsWithSamePermissionsAsParent(Path dir) throws IOException {
+        if (Files.exists(dir))
+            return dir;
+
+        dir = dir.toAbsolutePath();
+        Path parent = dir.getParent();
+        while (parent != null && !Files.exists(parent))
+            parent = parent.getParent();
+
+        final List<FileAttribute> attrs = new ArrayList<>();
+        if (parent != null) {
+            final PosixFileAttributeView posix = Files.getFileAttributeView(parent, PosixFileAttributeView.class);
+            if (posix != null)
+                attrs.add(PosixFilePermissions.asFileAttribute(posix.readAttributes().permissions()));
+            final AclFileAttributeView aclv = Files.getFileAttributeView(parent, AclFileAttributeView.class);
+            if (aclv != null)
+                attrs.add(asFileAttribute(aclv.getAcl()));
+        }
+
+        Files.createDirectories(dir, attrs.toArray(new FileAttribute[attrs.size()]));
+        return dir;
+    }
+
+    private static FileAttribute<List<AclEntry>> asFileAttribute(List<AclEntry> acl0) {
+        final List<AclEntry> acl = unmodifiableList(new ArrayList<>(acl0));
+        return new FileAttribute<List<AclEntry>>() {
+
+            @Override
+            public String name() {
+                return "acl:acl";
+            }
+
+            @Override
+            public List<AclEntry> value() {
+                return acl;
+            }
+        };
     }
 
     /**
@@ -4182,9 +4212,9 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Capsule Loading and Launching">
     /////////// Capsule Loading and Launching ///////////////////////////////////
     // visible for testing
-    static Capsule newCapsule(ClassLoader cl, Path jarFile, Path cacheDir) {
+    static Capsule newCapsule(ClassLoader cl, Path jarFile) {
         try {
-            return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Path.class, Path.class)).newInstance(jarFile, cacheDir);
+            return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Path.class)).newInstance(jarFile);
         } catch (IncompatibleClassChangeError e) {
             throw new RuntimeException("Caplet " + jarFile + " is not compatible with this capsule (" + VERSION + ")");
         } catch (InvocationTargetException e) {
@@ -4194,9 +4224,9 @@ public class Capsule implements Runnable {
         }
     }
 
-    static Capsule newCapsule(ClassLoader cl, Path jarFile, Capsule pred) {
+    private Capsule newCapsule(Path jarFile, Capsule pred) {
         try {
-            return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Capsule.class)).newInstance(pred);
+            return accessible(loadCapsule(newClassLoader(MY_CLASSLOADER, jarFile), jarFile).getDeclaredConstructor(Capsule.class)).newInstance(pred);
         } catch (IncompatibleClassChangeError e) {
             throw new RuntimeException("Caplet " + jarFile + " is not compatible with this capsule (" + VERSION + ")");
         } catch (InvocationTargetException e) {
@@ -4206,34 +4236,46 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static Class<? extends Capsule> loadCapsule(ClassLoader cl, Path jarFile) {
+    private static Capsule newCapsule(String capsuleClass, Capsule pred) {
         try {
-            final String mainClassName = getMainClass(jarFile);
-            if (mainClassName != null) {
-                final Class<?> clazz = cl.loadClass(mainClassName);
-                if (isCapsuleClass(clazz))
-                    return (Class<? extends Capsule>) clazz;
-            }
-            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(jarFile + " does not appear to be a valid capsule.", e);
-        } catch (IncompatibleClassChangeError e) {
-            throw new RuntimeException("Caplet " + jarFile + " is not compatible with this capsule (" + VERSION + ")");
-        }
-    }
-
-    static Capsule newCapsule(ClassLoader cl, String capsuleClass, Capsule pred) {
-        try {
-            final Class<? extends Capsule> clazz = (Class<? extends Capsule>) cl.loadClass(capsuleClass);
+            final Class<? extends Capsule> clazz = loadCapsule(MY_CLASSLOADER, capsuleClass, capsuleClass);
             return accessible(clazz.getDeclaredConstructor(Capsule.class)).newInstance(pred);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException("Caplet " + capsuleClass + " not found.", e);
         } catch (IncompatibleClassChangeError e) {
             throw new RuntimeException("Caplet " + capsuleClass + " is not compatible with this capsule (" + VERSION + ")");
         } catch (InvocationTargetException e) {
             throw rethrow(e.getTargetException());
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not instantiate capsule " + capsuleClass, e);
+        }
+    }
+
+    private static Class<? extends Capsule> loadCapsule(ClassLoader cl, Path jarFile) {
+        final String mainClassName = getMainClass(jarFile);
+        if (mainClassName != null)
+            return loadCapsule(cl, mainClassName, jarFile.toString());
+        throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
+    }
+
+    private static Class<? extends Capsule> loadCapsule(ClassLoader cl, String capsuleClass, String name) {
+        try {
+            final Class<?> clazz = cl.loadClass(capsuleClass);
+            if (!isCapsuleClass(clazz))
+                throw new RuntimeException(name + " does not appear to be a valid capsule.");
+
+            Class<?> c = clazz;
+            while (!Capsule.class.getName().equals(c.getName()))
+                c = c.getSuperclass();
+            accessible(c.getDeclaredField("PROPERTIES")).set(null, new Properties(PROPERTIES));
+
+            return (Class<? extends Capsule>) clazz;
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("Caplet " + capsuleClass + " not found.", e);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(name + " does not appear to be a valid capsule.");
+        } catch (IncompatibleClassChangeError | ClassCastException e) {
+            throw new RuntimeException("Caplet " + capsuleClass + " is not compatible with this capsule (" + VERSION + ")");
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
     }
 

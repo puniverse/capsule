@@ -84,7 +84,7 @@ public final class CapsuleLauncher {
      * Creates a new capsule.
      */
     public Capsule newCapsule() {
-        return newCapsule(null, null, null);
+        return newCapsule(null, null);
     }
 
     /**
@@ -94,7 +94,7 @@ public final class CapsuleLauncher {
      * @return the capsule.
      */
     public Capsule newCapsule(String mode) {
-        return newCapsule(mode, null, null);
+        return newCapsule(mode, null);
     }
 
     /**
@@ -105,19 +105,7 @@ public final class CapsuleLauncher {
      * @return the capsule.
      */
     public Capsule newCapsule(Path wrappedJar) {
-        return newCapsule(null, wrappedJar, null);
-    }
-
-    /**
-     * Creates a new capsule
-     *
-     * @param mode       the capsule mode
-     * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
-     *                   or {@code null} if no wrapped capsule is wanted
-     * @return the capsule.
-     */
-    public Capsule newCapsule(String mode, Path wrappedJar) {
-        return newCapsule(mode, wrappedJar, null);
+        return newCapsule(null, wrappedJar);
     }
 
     /**
@@ -126,22 +114,18 @@ public final class CapsuleLauncher {
      * @param mode       the capsule mode, or {@code null} for the default mode
      * @param wrappedJar a path to a capsule JAR that will be launched (wrapped) by the empty capsule in {@code jarFile}
      *                   or {@code null} if no wrapped capsule is wanted
-     * @param cacheDir   the directory to use as cache, or {@code null} for the default location
      * @return the capsule.
      */
-    public Capsule newCapsule(String mode, Path wrappedJar, Path cacheDir) {
+    public Capsule newCapsule(String mode, Path wrappedJar) {
         if (javaHomes != null)
             setJavaHomes(capsuleClass, javaHomes);
-
-        if (cacheDir == null)
-            cacheDir = getDefaultCacheDir();
 
         final String oldMode = properties.getProperty(PROP_MODE);
         try {
             properties.setProperty(PROP_MODE, mode);
 
-            final Constructor<?> ctor = accessible(capsuleClass.getDeclaredConstructor(Path.class, Path.class));
-            final Object capsule = ctor.newInstance(jarFile, cacheDir);
+            final Constructor<?> ctor = accessible(capsuleClass.getDeclaredConstructor(Path.class));
+            final Object capsule = ctor.newInstance(jarFile);
 
             if (wrappedJar != null) {
                 final Method setTarget = accessible(capsuleClass.getDeclaredMethod("setTarget", Path.class));

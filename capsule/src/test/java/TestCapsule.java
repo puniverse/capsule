@@ -19,8 +19,8 @@ import java.util.List;
 public class TestCapsule extends Capsule {
     static final boolean USE_JAR_CLASSLOADER = true;
 
-    public TestCapsule(Path jarFile, Path cacheDir) {
-        super(jarFile, cacheDir);
+    public TestCapsule(Path jarFile) {
+        super(jarFile);
     }
 
     public TestCapsule(Capsule pred) {
