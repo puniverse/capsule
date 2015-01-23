@@ -574,7 +574,7 @@ public class Capsule implements Runnable {
      * This constructor or that of a subclass must not make use of any registered capsule options,
      * as they may not have been properly pre-processed yet.
      *
-     * @param jarFile  the path to the JAR file
+     * @param jarFile the path to the JAR file
      */
     @SuppressWarnings({"OverridableMethodCallInConstructor", "LeakingThisInConstructor"})
     protected Capsule(Path jarFile) {
@@ -2032,9 +2032,8 @@ public class Capsule implements Runnable {
         if (resolved.size() != deps.size())
             throw new RuntimeException("One of the native artifacts " + deps + " reolved to more than a single file or to none");
 
-        assert getAppCache() != null;
         if (!cacheUpToDate) {
-            log(LOG_DEBUG, "Copying native libs to " + getAppCache());
+            log(LOG_DEBUG, "Copying native libs to " + getWritableAppCache());
             try {
                 for (int i = 0; i < deps.size(); i++) {
                     final Path lib = resolved.get(i);
@@ -2386,20 +2385,27 @@ public class Capsule implements Runnable {
      * Returns the path to the local dependency repository.
      */
     protected final Path getLocalRepo() {
-        final String local = emptyToNull(expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO)));
-        if (local != null)
-            return toAbsolutePath(Paths.get(local));
-        final Path localRepo = getCacheDir().resolve(DEPS_CACHE_NAME);
-        try {
-            if (!Files.exists(localRepo))
-                createDirsWithSamePermissionsAsParent(localRepo);
-            return localRepo;
-        } catch (IOException e) {
-            log(LOG_VERBOSE, "Could not create local repo at " + localRepo);
-            if (isLogging(LOG_VERBOSE))
-                e.printStackTrace(System.err);
-            return null;
+        if (oc.localRepo == null) {
+            Path repo;
+            final String local = emptyToNull(expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO)));
+            if (local != null)
+                repo = toAbsolutePath(Paths.get(local));
+            else {
+                repo = getCacheDir().resolve(DEPS_CACHE_NAME);
+                try {
+                    if (!Files.exists(repo))
+                        createDirsWithSamePermissionsAsParent(repo);
+                    return repo;
+                } catch (IOException e) {
+                    log(LOG_VERBOSE, "Could not create local repo at " + repo);
+                    if (isLogging(LOG_VERBOSE))
+                        e.printStackTrace(System.err);
+                    repo = null;
+                }
+            }
+            oc.localRepo = repo;
         }
+        return oc.localRepo;
     }
 
     private void printDependencyTree(String root, String type) {
@@ -3119,7 +3125,7 @@ public class Capsule implements Runnable {
     private static List<String> createPathingClassPath(Path dir, List<Path> cp) {
         boolean allPathsHaveSameRoot = true;
         for (Path p : cp) {
-            if (! dir.getRoot().equals(p.getRoot()))
+            if (!dir.getRoot().equals(p.getRoot()))
                 allPathsHaveSameRoot = false;
         }
 
