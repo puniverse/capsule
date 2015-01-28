@@ -43,7 +43,7 @@ subprojects {
     ext.distDir         = "$buildDir/dist"
     ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
     
-    ext.aetherVer = '1.0.1.v20141111'
+    ext.aetherVer = '1.0.2.v20150114'
 
     // User and Password are taken from ~/.gradle/gradle.properties
     if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePassword")) {
