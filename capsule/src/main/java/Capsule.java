@@ -139,7 +139,7 @@ public class Capsule implements Runnable {
     private static final String PROP_RESOLVE = OPTION("capsule.resolve", "false", "resolve", "Downloads all un-cached dependencies.");
     private static final String PROP_MODES = OPTION("capsule.modes", "false", "printModes", "Prints all available capsule modes.");
     private static final String PROP_PRINT_JRES = OPTION("capsule.jvms", "false", "printJVMs", "Prints a list of all JVM installations found.");
-    private static final String PROP_MERGE = OPTION("capsule.jvms", null, "mergeCapsules", true, "Merges a wrapper capsule with a wrapped capsule.");
+    private static final String PROP_MERGE = OPTION("capsule.merge", null, "mergeCapsules", true, "Merges a wrapper capsule with a wrapped capsule.");
     private static final String PROP_HELP = OPTION("capsule.help", "false", "printHelp", "Prints this help message.");
     private static final String PROP_MODE = OPTION("capsule.mode", null, null, "Picks the capsule mode to run.");
     private static final String PROP_RESET = OPTION("capsule.reset", "false", null, "Resets the capsule cache before launching. The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
