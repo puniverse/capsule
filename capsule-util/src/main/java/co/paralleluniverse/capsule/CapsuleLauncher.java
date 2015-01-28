@@ -62,7 +62,7 @@ public final class CapsuleLauncher {
      * @param javaHomes a map from Java version strings to their respective JVM installation paths
      * @return {@code this}
      */
-    public CapsuleLauncher setJavaHomes(Map<String, Path> javaHomes) {
+    public CapsuleLauncher setJavaHomes(Map<String, List<Path>> javaHomes) {
         final Field homes = getCapsuleField("JAVA_HOMES");
         if (homes != null)
             set(null, homes, javaHomes);
@@ -241,9 +241,9 @@ public final class CapsuleLauncher {
      * @return a map from the version strings to their respective paths of the Java installations.
      */
     @SuppressWarnings("unchecked")
-    public static Map<String, Path> findJavaHomes() {
+    public static Map<String, List<Path>> findJavaHomes() {
         try {
-            return (Map<String, Path>) accessible(Class.forName(CAPSULE_CLASS_NAME).getDeclaredMethod("getJavaHomes")).invoke(null);
+            return (Map<String, List<Path>>) accessible(Class.forName(CAPSULE_CLASS_NAME).getDeclaredMethod("getJavaHomes")).invoke(null);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }

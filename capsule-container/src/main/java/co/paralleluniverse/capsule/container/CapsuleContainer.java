@@ -49,7 +49,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     private final AtomicInteger counter = new AtomicInteger();
     private final Path cacheDir;
     private final StandardEmitterMBean mbean;
-    private final Map<String, Path> javaHomes;
+    private final Map<String, List<Path>> javaHomes;
 
     /**
      * Constructs a new capsule container
@@ -115,7 +115,9 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
      * @return a unique process ID
      */
     public String launchCapsule(Path capsulePath, String mode, List<String> jvmArgs, List<String> args) throws IOException {
-        final Capsule capsule = new CapsuleLauncher(capsulePath).setJavaHomes(javaHomes).newCapsule(mode, null);
+        final Capsule capsule = new CapsuleLauncher(capsulePath)
+                .setCacheDir(cacheDir).setJavaHomes(javaHomes)
+                .newCapsule(mode, null);
         return launchCapsule(capsule, jvmArgs, args);
     }
 
@@ -256,7 +258,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     /**
-     * 
+     *
      * @param id the process ID (as returned from {@link #launchCapsule(Path, String, List, List) launchCapsule}.
      * @return the process
      */
