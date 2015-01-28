@@ -18,6 +18,8 @@ import static java.util.Collections.unmodifiableMap;
 public interface DependencyManager {
     void setRepos(List<String> repos, boolean allowSnapshots);
 
+    void setSystemProperties(Map<String, String> properties);
+    
     List<Path> resolveDependencies(List<String> coords, String type);
 
     List<Path> resolveDependency(String coords, String type);

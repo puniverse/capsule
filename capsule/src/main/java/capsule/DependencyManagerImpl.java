@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import static java.util.Collections.unmodifiableMap;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +23,7 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
+import org.eclipse.aether.AbstractForwardingRepositorySystemSession;
 import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositoryException;
@@ -86,7 +88,7 @@ public class DependencyManagerImpl implements DependencyManager {
     private final boolean forceRefresh;
     private final boolean offline;
     protected final RepositorySystem system;
-    protected final RepositorySystemSession session;
+    private RepositorySystemSession session;
     private List<RemoteRepository> repos;
     private final int logLevel;
     private final UserSettings settings;
@@ -186,6 +188,27 @@ public class DependencyManagerImpl implements DependencyManager {
         }
 
         return s;
+    }
+
+    @Override
+    public void setSystemProperties(Map<String, String> properties) {
+        final Map<String, String> ps = Collections.unmodifiableMap(properties);
+        if (session instanceof DefaultRepositorySystemSession)
+            ((DefaultRepositorySystemSession) session).setSystemProperties(ps);
+        else {
+            final RepositorySystemSession s = session;
+            this.session = new AbstractForwardingRepositorySystemSession() {
+                @Override
+                protected RepositorySystemSession getSession() {
+                    return s;
+                }
+
+                @Override
+                public Map<String, String> getSystemProperties() {
+                    return ps;
+                }
+            };
+        }
     }
     //</editor-fold>
 

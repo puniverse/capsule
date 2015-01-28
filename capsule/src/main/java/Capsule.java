@@ -2415,6 +2415,12 @@ public class Capsule implements Runnable {
         return oc.localRepo;
     }
 
+    private void setDependencyManagerSystemProperties(Map<String, String> ps) {
+        if (oc.dependencyManager == null)
+            return;
+        ((DependencyManager) getDependencyManager()).setSystemProperties(unmodifiableMap(ps));
+    }
+
     private void printDependencyTree(String root, String type) {
         ((DependencyManager) getDependencyManager()).printDependencyTree(root, type, System.out);
     }
