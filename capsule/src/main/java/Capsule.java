@@ -2861,7 +2861,15 @@ public class Capsule implements Runnable {
     }
 
     private String processOutgoingPath0(Path p) {
-        return p != null ? toAbsolutePath(p).toString() : null;
+        if (p == null)
+            return null;
+        p = toAbsolutePath(p);
+
+        final Path currentJavaHome = Paths.get(System.getProperty(PROP_JAVA_HOME));
+        if (p.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
+            p = move(p, currentJavaHome, getJavaHome());
+
+        return p.toString();
     }
 
     private List<String> processOutgoingPath(List<Path> ps) {
@@ -3024,6 +3032,8 @@ public class Capsule implements Runnable {
         final Path path = p.toAbsolutePath().normalize();
         if (path.startsWith(getAppCache()))
             return path;
+        if (path.startsWith(getJavaHome()) || path.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
+            return path;
         throw new IllegalArgumentException("Path " + p + " is not local to app cache " + getAppCache());
     }
 
@@ -3043,6 +3053,21 @@ public class Capsule implements Runnable {
                 return rel;
         }
         return p;
+    }
+
+    /**
+     * Returns a path to a file or directory moved from {@code fromDir} to {@code toDir}.
+     * This method does not actually moves any files in the filesystem.
+     *
+     * @param what    the path to move; must start with {@code fromDir}
+     * @param fromDir the directory containing {@code what}
+     * @param toDir   the directory {@code what} is moved to
+     * @return the moved path, which will start with {@code toDir}.
+     */
+    protected static Path move(Path what, Path fromDir, Path toDir) {
+        if (!what.startsWith(fromDir))
+            throw new IllegalArgumentException(what + " is not under " + fromDir);
+        return toDir.resolve(fromDir.relativize(what));
     }
     //</editor-fold>
 

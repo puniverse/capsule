@@ -69,7 +69,7 @@ public class CapsuleTest {
     @Before
     public void setUp() throws Exception {
         accessible(Capsule.class.getDeclaredField("CACHE_DIR")).set(null, cache);
-        
+
         props = new Properties(System.getProperties());
         accessible(Capsule.class.getDeclaredField("PROPERTIES")).set(null, props);
         props.setProperty("capsule.no_dep_manager", "true");
@@ -157,6 +157,38 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
         assertTrue(!Files.isDirectory(appCache));
+    }
+
+    @Test
+    public void testJDKClassPath() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                //.setAttribute("Extract-Capsule", "false")
+                .setAttribute("JDK-Required", "true")
+                .setListAttribute("App-Class-Path", list("$JAVA_HOME/lib/tools.jar", "lib/*"))
+                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("lib/a.jar", emptyInputStream())
+                .addEntry("lib/b.jar", emptyInputStream());
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+
+        Capsule capsule = newCapsule(jar, null);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        Path javaHome = path(capsule.getJavaHome().toString()); // different FS
+
+        assertEquals(args, getAppArgs(pb));
+
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+        ASSERT.that(javaHome.toString()).contains("jdk");
+        ASSERT.that(javaHome.toString()).doesNotContain("jre");
+        ASSERT.that(getClassPath(pb)).has().allOf(
+                javaHome.resolve("lib/tools.jar"),
+                appCache,
+                appCache.resolve("foo.jar"),
+                appCache.resolve("lib").resolve("a.jar"),
+                appCache.resolve("lib").resolve("b.jar"));
     }
 
     @Test
@@ -562,7 +594,7 @@ public class CapsuleTest {
         when(dm.resolveDependencies(list("com.acme:bar:1.2"), "jar")).thenReturn(list(barPath));
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
-        
+
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
