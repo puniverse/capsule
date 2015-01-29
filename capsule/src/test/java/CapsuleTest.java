@@ -161,6 +161,8 @@ public class CapsuleTest {
 
     @Test
     public void testJDKClassPath() throws Exception {
+        assumeTrue(!isCI());
+        
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 //.setAttribute("Extract-Capsule", "false")
@@ -1539,5 +1541,20 @@ public class CapsuleTest {
     }
 
     private static final String PS = System.getProperty("path.separator");
+
+    private static boolean isCI() {
+        return (isEnvTrue("CI") || isEnvTrue("CONTINUOUS_INTEGRATION") || isEnvTrue("TRAVIS"));
+    }
+
+    private static boolean isEnvTrue(String envVar) {
+        final String ev = System.getenv(envVar);
+        if (ev == null)
+            return false;
+        try {
+            return Boolean.parseBoolean(ev);
+        } catch (Exception e) {
+            return false;
+        }
+    }
     //</editor-fold>
 }
