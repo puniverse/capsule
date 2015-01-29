@@ -48,8 +48,9 @@ import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
 import org.junit.After;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import static org.junit.Assume.*;
 import org.junit.Before;
-import static org.truth0.Truth.*;
+import static com.google.common.truth.Truth.*;
 import static org.mockito.Mockito.*;
 
 public class CapsuleTest {
@@ -133,10 +134,10 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(appCache.resolve("q").resolve("w").resolve("x.txt")));
         assertTrue(Files.isRegularFile(appCache.resolve("d").resolve("f").resolve("y.txt")));
 
-        ASSERT.that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
-        ASSERT.that(getClassPath(pb)).has().item(appCache);
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
-        ASSERT.that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
+        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache);
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
+        assert_().that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
     }
 
     @Test
@@ -183,9 +184,9 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        ASSERT.that(javaHome.toString()).contains("jdk");
-        ASSERT.that(javaHome.toString()).doesNotContain("jre");
-        ASSERT.that(getClassPath(pb)).has().allOf(
+        assert_().that(javaHome.toString()).contains("jdk");
+        assert_().that(javaHome.toString()).doesNotContain("jre");
+        assert_().that(getClassPath(pb)).has().allOf(
                 javaHome.resolve("lib/tools.jar"),
                 appCache,
                 appCache.resolve("foo.jar"),
@@ -315,14 +316,14 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("d.jar")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("e.txt")));
 
-        ASSERT.that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
-        ASSERT.that(getClassPath(pb)).has().item(appCache);
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("b.jar"));
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib2").resolve("c.jar"));
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib2").resolve("d.jar"));
-        ASSERT.that(getClassPath(pb)).has().noneOf(appCache.resolve("lib2").resolve("e.txt"));
+        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache);
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("b.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib2").resolve("c.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib2").resolve("d.jar"));
+        assert_().that(getClassPath(pb)).has().noneOf(appCache.resolve("lib2").resolve("e.txt"));
     }
 
     @Test
@@ -346,9 +347,9 @@ public class CapsuleTest {
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         int len = paths(getProperty(pb, "java.library.path")).size();
-        ASSERT.that(paths(getProperty(pb, "java.library.path")).get(0)).isEqualTo(appCache.resolve("lib").resolve("b.so"));
-        ASSERT.that(paths(getProperty(pb, "java.library.path")).get(len - 2)).isEqualTo(appCache.resolve("lib").resolve("a.so"));
-        ASSERT.that(paths(getProperty(pb, "java.library.path")).get(len - 1)).isEqualTo(appCache);
+        assert_().that(paths(getProperty(pb, "java.library.path")).get(0)).isEqualTo(appCache.resolve("lib").resolve("b.so"));
+        assert_().that(paths(getProperty(pb, "java.library.path")).get(len - 2)).isEqualTo(appCache.resolve("lib").resolve("a.so"));
+        assert_().that(paths(getProperty(pb, "java.library.path")).get(len - 1)).isEqualTo(appCache);
     }
 
     @Test
@@ -372,7 +373,7 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        ASSERT.that(paths(getProperty(pb, "java.library.path"))).isEqualTo(list(
+        assert_().that(paths(getProperty(pb, "java.library.path"))).isEqualTo(list(
                 appCache.resolve("lib").resolve("b.so"),
                 path("/foo", "bar"),
                 appCache.resolve("lib").resolve("a.so"),
@@ -413,7 +414,7 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        ASSERT.that(paths(getProperty(pb, "java.library.path"))).has().item(appCache);
+        assert_().that(paths(getProperty(pb, "java.library.path"))).has().item(appCache);
 
         if (Capsule.isUnix())
             assertTrue(Files.isRegularFile(appCache.resolve("libbaz.so")));
@@ -444,10 +445,10 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("c.jar"));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("d.jar"));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/a"))).isEqualTo(list(appCache.resolve("lib").resolve("a.jar")));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("c.jar"));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("d.jar"));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath/a"))).isEqualTo(list(appCache.resolve("lib").resolve("a.jar")));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
     }
 
     @Test
@@ -471,11 +472,11 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        ASSERT.that(getOption(pb, "-Xbootclasspath")).isEqualTo("/foo/bar");
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCache.resolve("lib").resolve("c.jar"));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCache.resolve("lib").resolve("d.jar"));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/a"))).isEqualTo(list(appCache.resolve("lib").resolve("a.jar")));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
+        assert_().that(getOption(pb, "-Xbootclasspath")).isEqualTo("/foo/bar");
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCache.resolve("lib").resolve("c.jar"));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCache.resolve("lib").resolve("d.jar"));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath/a"))).isEqualTo(list(appCache.resolve("lib").resolve("a.jar")));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
     }
 
     @Test
@@ -506,10 +507,10 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("c.jar"));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(barPath);
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/a"))).has().item(bazPath);
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("c.jar"));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(barPath);
+        assert_().that(paths(getOption(pb, "-Xbootclasspath/a"))).has().item(bazPath);
+        assert_().that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
     }
 
     @Test
@@ -532,9 +533,9 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("c.jar"));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("bar-1.2.jar"));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("c.jar"));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("bar-1.2.jar"));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
     }
 
     @Test
@@ -602,8 +603,8 @@ public class CapsuleTest {
 
         ProcessBuilder pb = newCapsule(jar, dm).prepareForLaunch(cmdLine, args);
 
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCache.resolve("bar-1.2.jar"));
-        ASSERT.that(paths(getOption(pb, "-Xbootclasspath"))).has().item(barPath);
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCache.resolve("bar-1.2.jar"));
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(barPath);
     }
 
     @Test
@@ -627,8 +628,8 @@ public class CapsuleTest {
         assertTrue(Files.isDirectory(appCache.resolve("lib")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib").resolve("a.jar")));
 
-        ASSERT.that(getClassPath(pb)).has().noneOf(absolutePath("capsule.jar"));
-        ASSERT.that(getClassPath(pb)).has().allOf(
+        assert_().that(getClassPath(pb)).has().noneOf(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().allOf(
                 appCache,
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"),
@@ -724,11 +725,11 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        ASSERT.that(getJvmArgs(pb)).has().allOf("-javaagent:" + appCache.resolve("ja1.jar"));
-        ASSERT.that(getJvmArgs(pb)).has().item("-javaagent:" + appCache.resolve("ja2.jar") + "=a=1,b=2");
-        ASSERT.that(getJvmArgs(pb)).has().item("-javaagent:" + barPath + "=x=hi");
-        ASSERT.that(getJvmArgs(pb)).has().item("-agentpath:" + appCache.resolve("na1." + Capsule.getNativeLibExtension()) + "=c=3,d=4");
-        ASSERT.that(getJvmArgs(pb)).has().item("-agentpath:" + appCache.resolve("na2." + Capsule.getNativeLibExtension()));
+        assert_().that(getJvmArgs(pb)).has().allOf("-javaagent:" + appCache.resolve("ja1.jar"));
+        assert_().that(getJvmArgs(pb)).has().item("-javaagent:" + appCache.resolve("ja2.jar") + "=a=1,b=2");
+        assert_().that(getJvmArgs(pb)).has().item("-javaagent:" + barPath + "=x=hi");
+        assert_().that(getJvmArgs(pb)).has().item("-agentpath:" + appCache.resolve("na1." + Capsule.getNativeLibExtension()) + "=c=3,d=4");
+        assert_().that(getJvmArgs(pb)).has().item("-agentpath:" + appCache.resolve("na2." + Capsule.getNativeLibExtension()));
     }
 
     @Test
@@ -804,7 +805,7 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar, dm);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        ASSERT.that(getClassPath(pb)).has().item(barPath);
+        assert_().that(getClassPath(pb)).has().item(barPath);
         assertEquals("com.acme.Bar", getMainClass(pb));
     }
 
@@ -830,9 +831,9 @@ public class CapsuleTest {
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("AcmeFoo_1.0");
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("bar.jar"));
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("liba.jar"));
-        ASSERT.that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("libb.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("bar.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("liba.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("libb.jar"));
         assertEquals("com.acme.Bar", getMainClass(pb));
     }
 
@@ -971,7 +972,7 @@ public class CapsuleTest {
         assertTrue(!Files.isDirectory(appCache.resolve("META-INF")));
         assertTrue(!Files.isRegularFile(appCache.resolve("META-INF").resolve("x.txt")));
 
-        ASSERT.that(getClassPath(pb)).has().allOf(
+        assert_().that(getClassPath(pb)).has().allOf(
                 fooPath,
                 appCache,
                 appCache.resolve("foo.jar"),
@@ -1017,11 +1018,11 @@ public class CapsuleTest {
         assertTrue(!Files.exists(appCache.resolve("b.txt")));
         assertTrue(!Files.exists(appCache.resolve("a.class")));
 
-        ASSERT.that(getClassPath(pb)).has().allOf(
+        assert_().that(getClassPath(pb)).has().allOf(
                 fooPath.toAbsolutePath(),
                 path("lib").resolve("a.jar").toAbsolutePath(),
                 path("lib").resolve("b.jar").toAbsolutePath());
-        ASSERT.that(getClassPath(pb)).has().noneOf(
+        assert_().that(getClassPath(pb)).has().noneOf(
                 absolutePath("capsule.jar"),
                 appCache.resolve("lib").resolve("a.jar"),
                 appCache.resolve("lib").resolve("b.jar"));
