@@ -46,6 +46,7 @@ import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -243,7 +244,8 @@ public class Capsule implements Runnable {
             ATTR_MANIFEST_VERSION, ATTR_MAIN_CLASS, "Created-By", "Signature-Version", "Sealed", "Magic",
             ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VERSION, ATTR_IMPLEMENTATION_VENDOR, "Implementation-Vendor-Id", ATTR_IMPLEMENTATION_URL,
             "Specification-Title", "Specification-Version", "Specification-Vendor");
-
+    private static final Permission PERM_UNSAFE_OVERRIDE = new RuntimePermission("unsafeOverride");
+    
     private static final String OS_WINDOWS = "windows";
     private static final String OS_MACOS = "macos";
     private static final String OS_LINUX = "linux";
@@ -677,7 +679,7 @@ public class Capsule implements Runnable {
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             oc.jarFile = jar;
-            insertAfter(newCapsule(newClassLoader(MY_CLASSLOADER, jar), jar));
+            insertAfter(loadTargetCapsule(MY_CLASSLOADER, jar));
             oc.dependencyManager = dependencyManager;
         }
         finalizeCapsule(isCapsule);
@@ -736,7 +738,9 @@ public class Capsule implements Runnable {
      *
      * @param pred the caplet after which this one is to be inserted
      */
-    protected final void insertAfter(Capsule pred) {
+    private void insertAfter(Capsule pred) {
+        // private b/c this might be a security risk (wrapped capsule inserting a caplet after wrapper)
+        // and also because it might be too powerful and prevent us from adopting a different caplet chain implementation
         log(LOG_VERBOSE, "Applying caplet " + this.getClass().getName());
         if (sup == pred)
             return;
@@ -1244,7 +1248,7 @@ public class Capsule implements Runnable {
      * @return a configured {@code ProcessBuilder} (if {@code null}, the launch will be aborted).
      */
     protected ProcessBuilder prelaunch(List<String> args) {
-        return (_ct = getCallTarget()) != null ? _ct.prelaunch(args) : prelaunch0(args);
+        return (_ct = unsafe(getCallTarget())) != null ? _ct.prelaunch(args) : prelaunch0(args);
     }
 
     private ProcessBuilder prelaunch0(List<String> args) {
@@ -1270,7 +1274,7 @@ public class Capsule implements Runnable {
      * @return a {@code ProcessBuilder} (must never be {@code null}).
      */
     protected ProcessBuilder buildProcess() {
-        return (_ct = getCallTarget()) != null ? _ct.buildProcess() : buildProcess0();
+        return (_ct = unsafe(getCallTarget())) != null ? _ct.buildProcess() : buildProcess0();
     }
 
     private ProcessBuilder buildProcess0() {
@@ -4308,6 +4312,20 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule Loading and Launching">
     /////////// Capsule Loading and Launching ///////////////////////////////////
+    /**
+     * Loads the wrapped capsule when this capsule is the wrapper.
+     * Caplets can override this method to provide security.
+     *
+     * @param parent the
+     */
+    protected Capsule loadTargetCapsule(ClassLoader parent, Path jarFile) {
+        return (_ct = getCallTarget()) != null ? _ct.loadTargetCapsule(parent, jarFile) : loadTargetCapsule0(parent, jarFile);
+    }
+
+    private Capsule loadTargetCapsule0(ClassLoader parent, Path jar) {
+        return newCapsule(newClassLoader(parent, jar), jar);
+    }
+
     // visible for testing
     static Capsule newCapsule(ClassLoader cl, Path jarFile) {
         try {
@@ -4393,6 +4411,20 @@ public class Capsule implements Runnable {
         } catch (Exception e) {
             return null;
         }
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Security">
+    /////////// Security ///////////////////////////////////
+    private Capsule unsafe(Capsule target) {
+        if (target != null) {
+            final SecurityManager security = System.getSecurityManager();
+            if (security != null && !target.getClass().getProtectionDomain().implies(PERM_UNSAFE_OVERRIDE)) {
+                log(LOG_DEBUG, "Unsafe target " + target + " skipped");
+                target = null;
+            }
+        }
+        return target;
     }
     //</editor-fold>
 }
