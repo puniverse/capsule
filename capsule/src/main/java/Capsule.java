@@ -1078,12 +1078,15 @@ public class Capsule implements Runnable {
 
     void resolve(List<String> args) throws IOException, InterruptedException {
         verifyNonEmpty("Cannot resolve a wrapper capsule.");
-        resolveDependency(getAttribute(ATTR_APP_ARTIFACT), "jar");
-        resolveDependencies(getDependencies(), "jar");
-        getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
-        getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_P));
-        getPath(getListAttribute(ATTR_BOOT_CLASS_PATH_A));
-
+        
+        final List<String> deps = new ArrayList<>();
+        deps.add(ATTR_APP_ARTIFACT);
+        addAllIfNotContained(deps, getDependencies());
+        addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH));
+        addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH_P));
+        addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH_A));
+        
+        getPath(deps);
         resolveNativeDependencies();
         log(LOG_QUIET, "Capsule resolved");
     }
@@ -1846,7 +1849,7 @@ public class Capsule implements Runnable {
         if (getAppCache() != null)
             addAllIfNotContained(classPath, nullToEmpty(getDefaultCacheClassPath()));
 
-        classPath.addAll(nullToEmpty(resolveDependencies(getDependencies(), "jar")));
+        classPath.addAll(nullToEmpty(getPath(getDependencies())));
 
         time("buildClassPath", start);
         return classPath;
@@ -1998,8 +2001,8 @@ public class Capsule implements Runnable {
 
         resolveNativeDependencies();
         if (getAppCache() != null) {
-            libraryPath.addAll(0, nullToEmpty(sanitize(getAppCache(), getListAttribute(ATTR_LIBRARY_PATH_P))));
-            libraryPath.addAll(nullToEmpty(sanitize(getAppCache(), getListAttribute(ATTR_LIBRARY_PATH_A))));
+            libraryPath.addAll(0, nullToEmpty(sanitize(resolve(getAppCache(), getListAttribute(ATTR_LIBRARY_PATH_P)))));
+            libraryPath.addAll(nullToEmpty(sanitize(resolve(getAppCache(), getListAttribute(ATTR_LIBRARY_PATH_A)))));
             libraryPath.add(getAppCache());
         } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
             throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
@@ -2415,12 +2418,6 @@ public class Capsule implements Runnable {
         return oc.localRepo;
     }
 
-    private void setDependencyManagerSystemProperties(Map<String, String> ps) {
-        if (oc.dependencyManager == null)
-            return;
-        ((DependencyManager) getDependencyManager()).setSystemProperties(unmodifiableMap(ps));
-    }
-
     private void printDependencyTree(String root, String type) {
         ((DependencyManager) getDependencyManager()).printDependencyTree(root, type, System.out);
     }
@@ -2750,16 +2747,32 @@ public class Capsule implements Runnable {
         return lib.contains(":") && !lib.contains(":\\");
     }
 
-    private String dependencyToLocalJar(boolean withGroupId, String p) {
-        final String[] coords = p.split(":");
-        StringBuilder sb = new StringBuilder();
-        if (withGroupId)
-            sb.append(coords[0]).append('-');
-        sb.append(coords[1]).append('-').append(coords[2]);
-        if (coords.length > 3)
-            sb.append('-').append(coords[3]);
-        sb.append(".jar");
-        return sb.toString();
+    private Path dependencyToLocalJar(Path root, String dep) {
+        final String[] coords = dep.split(":");
+        final String group = coords[0];
+        final String artifact = coords[1];
+        final String version = coords[2] + (coords.length > 3 ? "-" + coords[3] : "");
+        final String filename = artifact + '-' + version + ".jar";
+        Path p;
+        p = root.resolve("lib").resolve(group).resolve(filename);
+        if (Files.isRegularFile(p))
+            return p;
+        p = root.resolve("lib").resolve(group + '-' + filename);
+        if (Files.isRegularFile(p))
+            return p;
+        p = root.resolve("lib").resolve(filename);
+        if (Files.isRegularFile(p))
+            return p;
+        p = root.resolve(group).resolve(filename);
+        if (Files.isRegularFile(p))
+            return p;
+        p = root.resolve(group + '-' + filename);
+        if (Files.isRegularFile(p))
+            return p;
+        p = root.resolve(filename);
+        if (Files.isRegularFile(p))
+            return p;
+        return null;
     }
     //</editor-fold>
 
@@ -2773,9 +2786,18 @@ public class Capsule implements Runnable {
      * which matches more than one file.
      */
     private List<Path> getPath(String p) {
+        p = expand(p);
         if (p == null)
             return null;
-        if (isDependency(p) && initDependencyManager() != null) {
+        final boolean isDependency = isDependency(p);
+
+        if (!isDependency) {
+            final Path path = Paths.get(p);
+            if (path.isAbsolute())
+                return singletonList(sanitize(path));
+        }
+
+        if (isDependency && initDependencyManager() != null) {
             final List<Path> res = resolveDependency(p, "jar");
             if (res == null || res.isEmpty())
                 throw new RuntimeException("Dependency " + p + " was not found.");
@@ -2784,12 +2806,9 @@ public class Capsule implements Runnable {
 
         if (getAppCache() == null)
             throw new IllegalStateException((isDependency(p) ? "Dependency manager not found. Cannot resolve " : "Capsule not extracted. Cannot obtain path ") + p);
-        if (isDependency(p)) {
-            Path f = getAppCache().resolve(dependencyToLocalJar(true, p));
-            if (Files.isRegularFile(f))
-                return singletonList(f);
-            f = getAppCache().resolve(dependencyToLocalJar(false, p));
-            if (Files.isRegularFile(f))
+        if (isDependency) {
+            final Path f = dependencyToLocalJar(getAppCache(), p);
+            if (f != null)
                 return singletonList(f);
             throw new IllegalArgumentException("Dependency manager not found, and could not locate artifact " + p + " in capsule");
         } else if (isGlob(p))
@@ -2798,14 +2817,33 @@ public class Capsule implements Runnable {
             return singletonList(sanitize(getAppCache().resolve(p)));
     }
 
-    /**
-     * Returns a list which is a concatenation of all lists returned by calling
-     * {@link #getPath(String) getPath(String)} on each of the file descriptors in the given list.
-     */
     private List<Path> getPath(List<String> ps) {
         if (ps == null)
             return null;
         final List<Path> res = new ArrayList<Path>(ps.size());
+
+        // performance enhancement
+        if (initDependencyManager() != null) {
+            boolean hasDependencies = false;
+            for (String p : ps) {
+                if (isDependency(p)) {
+                    hasDependencies = true;
+                    break;
+                }
+            }
+            if (hasDependencies) {
+                final ArrayList<String> deps = new ArrayList<>();
+                final ArrayList<String> paths = new ArrayList<>();
+                for (String p : ps)
+                    (isDependency(p) ? deps : paths).add(p);
+                
+                res.addAll(nullToEmpty(resolveDependencies(deps, "jar")));
+                for (String p : paths)
+                    res.addAll(getPath(p));
+                return res;
+            }
+        }
+
         for (String p : ps)
             res.addAll(getPath(p));
         return res;
@@ -2964,24 +3002,29 @@ public class Capsule implements Runnable {
         return p != null ? p.toAbsolutePath().normalize() : null;
     }
 
-    private static List<Path> sanitize(Path root, List<String> ps) {
+    private static List<Path> resolve(Path root, List<String> ps) {
         if (ps == null)
             return null;
         final List<Path> aps = new ArrayList<Path>(ps.size());
         for (String p : ps)
-            aps.add(sanitize(root, root.resolve(p)));
+            aps.add(root.resolve(p));
         return aps;
     }
 
-    private static Path sanitize(Path dir, Path p) {
-        final Path path = p.toAbsolutePath().normalize();
-        if (!path.startsWith(dir))
-            throw new IllegalArgumentException("Path " + p + " is not local to " + dir);
-        return path;
+    private List<Path> sanitize(List<Path> ps) {
+        if (ps == null)
+            return null;
+        final List<Path> aps = new ArrayList<Path>(ps.size());
+        for (Path p : ps)
+            aps.add(sanitize(p));
+        return aps;
     }
 
-    private Path sanitize(Path dir) {
-        return sanitize(getAppCache(), dir);
+    private Path sanitize(Path p) {
+        final Path path = p.toAbsolutePath().normalize();
+        if (path.startsWith(getAppCache()))
+            return path;
+        throw new IllegalArgumentException("Path " + p + " is not local to app cache " + getAppCache());
     }
 
     private static String expandCommandLinePath(String str) {
@@ -3617,6 +3660,8 @@ public class Capsule implements Runnable {
     }
 
     private String expand0(String str) {
+        if (str == null)
+            return null;
         if ("$0".equals(str))
             return processOutgoingPath(getJarFile());
 
