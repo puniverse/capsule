@@ -971,7 +971,7 @@ public class Capsule implements Runnable {
                     System.out.println(j.getKey() + (isJDK(home) ? " (JDK)" : "") + (j.getKey().length() < 8 ? "\t\t" : "\t") + home);
             }
         }
-        final Path javaHome = chooseJavaHome();
+        final Path javaHome = getJavaHome();
         System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
@@ -1078,14 +1078,14 @@ public class Capsule implements Runnable {
 
     void resolve(List<String> args) throws IOException, InterruptedException {
         verifyNonEmpty("Cannot resolve a wrapper capsule.");
-        
+
         final List<String> deps = new ArrayList<>();
         deps.add(ATTR_APP_ARTIFACT);
         addAllIfNotContained(deps, getDependencies());
         addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH));
         addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH_P));
         addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH_A));
-        
+
         getPath(deps);
         resolveNativeDependencies();
         log(LOG_QUIET, "Capsule resolved");
@@ -2836,7 +2836,7 @@ public class Capsule implements Runnable {
                 final ArrayList<String> paths = new ArrayList<>();
                 for (String p : ps)
                     (isDependency(p) ? deps : paths).add(p);
-                
+
                 res.addAll(nullToEmpty(resolveDependencies(deps, "jar")));
                 for (String p : paths)
                     res.addAll(getPath(p));
