@@ -1203,7 +1203,7 @@ public class Capsule implements Runnable {
         } catch (Exception t) {
             deshadow(t).printStackTrace(System.err);
         }
-
+        
         for (Path p : oc.tmpFiles) {
             try {
                 delete(p);
@@ -1652,7 +1652,7 @@ public class Capsule implements Runnable {
     }
 
     private void lockAppCache(Path dir) throws IOException {
-        final Path lockFile = dir.resolve(LOCK_FILE_NAME);
+        final Path lockFile = addTempFile(dir.resolve(LOCK_FILE_NAME));
         log(LOG_VERBOSE, "Locking " + lockFile);
         final FileChannel c = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         this.appCacheLock = c.lock();
