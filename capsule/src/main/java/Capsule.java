@@ -1555,7 +1555,7 @@ public class Capsule implements Runnable {
      * Returns the path of the application cache (this is the directory where the capsule is extracted if necessary).
      */
     protected Path buildAppCacheDir() {
-        return (_ct = getCallTarget()) != null ? _ct.buildAppCacheDir() : buildAppCacheDir0();
+        return (_ct = unsafe(getCallTarget())) != null ? _ct.buildAppCacheDir() : buildAppCacheDir0();
     }
 
     private Path buildAppCacheDir0() {
