@@ -52,6 +52,8 @@ import static org.junit.Assume.*;
 import org.junit.Before;
 import static com.google.common.truth.Truth.*;
 import static org.mockito.Mockito.*;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 public class CapsuleTest {
     /*
@@ -66,6 +68,7 @@ public class CapsuleTest {
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
 
     private Properties props;
+    private Map<String, List<Path>> deps;
 
     @Before
     public void setUp() throws Exception {
@@ -74,6 +77,8 @@ public class CapsuleTest {
         props = new Properties(System.getProperties());
         accessible(Capsule.class.getDeclaredField("PROPERTIES")).set(null, props);
         props.setProperty("capsule.no_dep_manager", "true");
+
+        deps = null;
     }
 
     @After
@@ -163,7 +168,7 @@ public class CapsuleTest {
     @Test
     public void testJDKClassPath() throws Exception {
         assumeTrue(!isCI());
-        
+
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 //.setAttribute("Extract-Capsule", "false")
@@ -394,16 +399,14 @@ public class CapsuleTest {
                 .addEntry("lib/d.jar", emptyInputStream());
 
         DependencyManager dm = mock(DependencyManager.class);
-        Files.createDirectories(cache.resolve("deps").resolve("com.acme").resolve("baz"));
-        Path bazLinuxPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-linux-3.4.so");
+        Path bazLinuxPath = mockDep(dm, "com.acme:baz-linux:3.4", "so");
+        Path bazWindowsPath = mockDep(dm, "com.acme:baz-win:3.4", "dll");
+        Path bazMacPath = mockDep(dm, "com.acme:baz-macos:3.4", "dylib");
+
+        Files.createDirectories(bazLinuxPath.getParent());
         Files.createFile(bazLinuxPath);
-        when(dm.resolveDependencies(list("com.acme:baz-linux:3.4"), "so")).thenReturn(list(bazLinuxPath));
-        Path bazWindowsPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-win-3.4.dll");
         Files.createFile(bazWindowsPath);
-        when(dm.resolveDependencies(list("com.acme:baz-win:3.4"), "dll")).thenReturn(list(bazWindowsPath));
-        Path bazMacPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-macos-3.4.dylib");
         Files.createFile(bazMacPath);
-        when(dm.resolveDependencies(list("com.acme:baz-macos:3.4"), "dylib")).thenReturn(list(bazMacPath));
 
         props.setProperty("java.library.path", "/foo/bar");
         List<String> args = list("hi", "there");
@@ -492,12 +495,9 @@ public class CapsuleTest {
                 .addEntry("lib/c.jar", emptyInputStream());
 
         DependencyManager dm = mock(DependencyManager.class);
-        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
-        when(dm.resolveDependency("com.acme:bar:1.2", "jar")).thenReturn(list(barPath));
-        when(dm.resolveDependencies(list("com.acme:bar:1.2"), "jar")).thenReturn(list(barPath));
-        Path bazPath = cache.resolve("deps").resolve("com.acme").resolve("baz").resolve("baz-3.4.jar");
-        when(dm.resolveDependency("com.acme:baz:3.4", "jar")).thenReturn(list(bazPath));
-        when(dm.resolveDependencies(list("com.acme:baz:3.4"), "jar")).thenReturn(list(bazPath));
+
+        List<Path> barPath = mockDep(dm, "com.acme:bar:1.2", "jar", "com.acme:bar:1.2");
+        List<Path> bazPath = mockDep(dm, "com.acme:baz:3.4", "jar", "com.acme:baz:3.4");
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
@@ -508,8 +508,8 @@ public class CapsuleTest {
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(appCache.resolve("lib").resolve("c.jar"));
-        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(barPath);
-        assert_().that(paths(getOption(pb, "-Xbootclasspath/a"))).has().item(bazPath);
+        assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().allFrom(barPath);
+        assert_().that(paths(getOption(pb, "-Xbootclasspath/a"))).has().allFrom(bazPath);
         assert_().that(paths(getOption(pb, "-Xbootclasspath/p"))).isEqualTo(list(appCache.resolve("lib").resolve("b.jar")));
     }
 
@@ -592,9 +592,7 @@ public class CapsuleTest {
                 .addEntry("bar-1.2.jar", emptyInputStream());
 
         DependencyManager dm = mock(DependencyManager.class);
-        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
-        when(dm.resolveDependency("com.acme:bar:1.2", "jar")).thenReturn(list(barPath));
-        when(dm.resolveDependencies(list("com.acme:bar:1.2"), "jar")).thenReturn(list(barPath));
+        Path barPath = mockDep(dm, "com.acme:bar:1.2", "jar");
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
@@ -714,8 +712,7 @@ public class CapsuleTest {
                 .addEntry("foo.jar", emptyInputStream());
 
         DependencyManager dm = mock(DependencyManager.class);
-        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
-        when(dm.resolveDependency("com.acme:bar", "jar")).thenReturn(list(barPath));
+        Path barPath = mockDep(dm, "com.acme:bar", "jar", "com.acme:bar:1.2").get(0);
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
@@ -788,13 +785,12 @@ public class CapsuleTest {
                 .setAttribute("Main-Class", "com.acme.Bar")
                 .addEntry("com/acme/Bar.class", emptyInputStream());
 
-        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
+        DependencyManager dm = mock(DependencyManager.class);
+        Path barPath = mockDep(dm, "com.acme:bar:1.2", "jar");
+        when(dm.getLatestVersion("com.acme:bar:1.2", "jar")).thenReturn("com.acme:bar:1.2");
+
         Files.createDirectories(barPath.getParent());
         bar.write(barPath);
-
-        DependencyManager dm = mock(DependencyManager.class);
-        when(dm.resolveDependency("com.acme:bar:1.2", "jar")).thenReturn(list(barPath));
-        when(dm.getLatestVersion("com.acme:bar:1.2", "jar")).thenReturn("com.acme:bar:1.2");
 
         Jar jar = newCapsuleJar()
                 .setAttribute("Application", "com.acme:bar:1.2");
@@ -850,8 +846,7 @@ public class CapsuleTest {
                 .addEntry("foo.jar", emptyInputStream());
 
         DependencyManager dm = mock(DependencyManager.class);
-        Path barPath = cache.resolve("deps").resolve("com.acme").resolve("bar").resolve("bar-1.2.jar");
-        when(dm.resolveDependencies(list("com.acme:bar:1.2"), "jar")).thenReturn(list(barPath));
+        Path barPath = mockDep(dm, "com.acme:bar:1.2", "jar");
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
@@ -934,13 +929,12 @@ public class CapsuleTest {
                 .addEntry("lib/b.class", emptyInputStream())
                 .addEntry("META-INF/x.txt", emptyInputStream());
 
-        Path fooPath = cache.resolve("deps").resolve("com.acme").resolve("foo").resolve("foo-1.0.jar");
+        DependencyManager dm = mock(DependencyManager.class);
+        Path fooPath = mockDep(dm, "com.acme:foo", "jar", "com.acme:foo:1.0").get(0);
+        when(dm.getLatestVersion("com.acme:foo", "jar")).thenReturn("com.acme.foo:1.0");
+
         Files.createDirectories(fooPath.getParent());
         app.write(fooPath);
-
-        DependencyManager dm = mock(DependencyManager.class);
-        when(dm.resolveDependency("com.acme:foo", "jar")).thenReturn(list(fooPath));
-        when(dm.getLatestVersion("com.acme:foo", "jar")).thenReturn("com.acme.foo:1.0");
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
@@ -1481,6 +1475,44 @@ public class CapsuleTest {
         }
 
         return x;
+    }
+
+    private Path mockDep(DependencyManager dm, String dep, String type) {
+        return mockDep(dm, dep, type, dep).get(0);
+    }
+
+    private List<Path> mockDep(DependencyManager dm, String dep, String type, String... artifacts) {
+        List<Path> as = new ArrayList<>(artifacts.length);
+        for (String a : artifacts)
+            as.add(artifact(a, type));
+
+        if (deps == null)
+            this.deps = new HashMap<>();
+        deps.put(dep, as);
+
+        when(dm.resolveDependency(dep, type)).thenReturn(as);
+        when(dm.resolveDependencies(anyList(), eq(type))).thenAnswer(new Answer<List<Path>>() {
+            @Override
+            public List<Path> answer(InvocationOnMock invocation) throws Throwable {
+                List<String> coords = (List<String>) invocation.getArguments()[0];
+                List<Path> res = new ArrayList<>();
+                for (String dep : coords)
+                    res.addAll(deps.get(dep));
+
+                return res;
+            }
+        });
+
+        return as;
+    }
+
+    private Path artifact(String x, String type) {
+        String[] coords = x.split(":");
+        String group = coords[0];
+        String artifact = coords[1];
+        String artifactDir = artifact.split("-")[0]; // arbitrary
+        String version = coords[2] + (coords.length > 3 ? "-" + coords[3] : "");
+        return cache.resolve("deps").resolve(group).resolve(artifactDir).resolve(artifact + "-" + version + '.' + type);
     }
 
     private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
