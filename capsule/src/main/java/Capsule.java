@@ -245,7 +245,7 @@ public class Capsule implements Runnable {
             ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VERSION, ATTR_IMPLEMENTATION_VENDOR, "Implementation-Vendor-Id", ATTR_IMPLEMENTATION_URL,
             "Specification-Title", "Specification-Version", "Specification-Vendor");
     private static final Permission PERM_UNSAFE_OVERRIDE = new RuntimePermission("unsafeOverride");
-    
+
     private static final String OS_WINDOWS = "windows";
     private static final String OS_MACOS = "macos";
     private static final String OS_LINUX = "linux";
@@ -725,7 +725,7 @@ public class Capsule implements Runnable {
     /////////// Caplet Chain ///////////////////////////////////
     protected final Capsule loadCaplet(String caplet, Capsule pred) {
         if (isDependency(caplet)) {
-            final List<Path> jars = resolveDependency(caplet, "jar");
+            final List<Path> jars = getPath(caplet);
             if (jars.size() != 1)
                 throw new RuntimeException("The caplet " + caplet + " has transitive dependencies.");
             return newCapsule(jars.get(0), pred);
