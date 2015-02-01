@@ -2756,24 +2756,28 @@ public class Capsule implements Runnable {
         final String[] coords = dep.split(":");
         final String group = coords[0];
         final String artifact = coords[1];
-        final String version = coords[2] + (coords.length > 3 ? "-" + coords[3] : "");
-        final String filename = artifact + '-' + version + ".jar";
+        final String version = coords.length > 2 ? (coords[2] + (coords.length > 3 ? "-" + coords[3] : "")) : null;
+        final String filename = artifact + (version != null && !version.isEmpty() ? '-' + version : "") + ".jar";
         Path p;
-        p = root.resolve("lib").resolve(group).resolve(filename);
-        if (Files.isRegularFile(p))
-            return p;
-        p = root.resolve("lib").resolve(group + '-' + filename);
-        if (Files.isRegularFile(p))
-            return p;
+        if (group != null && !group.isEmpty()) {
+            p = root.resolve("lib").resolve(group).resolve(filename);
+            if (Files.isRegularFile(p))
+                return p;
+            p = root.resolve("lib").resolve(group + '-' + filename);
+            if (Files.isRegularFile(p))
+                return p;
+        }
         p = root.resolve("lib").resolve(filename);
         if (Files.isRegularFile(p))
             return p;
-        p = root.resolve(group).resolve(filename);
-        if (Files.isRegularFile(p))
-            return p;
-        p = root.resolve(group + '-' + filename);
-        if (Files.isRegularFile(p))
-            return p;
+        if (group != null && !group.isEmpty()) {
+            p = root.resolve(group).resolve(filename);
+            if (Files.isRegularFile(p))
+                return p;
+            p = root.resolve(group + '-' + filename);
+            if (Files.isRegularFile(p))
+                return p;
+        }
         p = root.resolve(filename);
         if (Files.isRegularFile(p))
             return p;
