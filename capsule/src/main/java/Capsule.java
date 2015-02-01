@@ -1654,7 +1654,8 @@ public class Capsule implements Runnable {
     private void lockAppCache(Path dir) throws IOException {
         final Path lockFile = addTempFile(dir.resolve(LOCK_FILE_NAME));
         log(LOG_VERBOSE, "Locking " + lockFile);
-        final FileChannel c = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        final FileChannel c = FileChannel.open(lockFile, new HashSet<>(asList(StandardOpenOption.CREATE, StandardOpenOption.WRITE)), getPermissions(dir));
+
         this.appCacheLock = c.lock();
     }
 
@@ -3313,27 +3314,44 @@ public class Capsule implements Runnable {
     private static Path createDirsWithSamePermissionsAsParent(Path dir) throws IOException {
         if (Files.exists(dir))
             return dir;
+        final Path parent = getExistingAncestor(dir);
+        Files.createDirectories(dir, getPermissions(parent));
+        copyAcl(parent, dir);
 
-        dir = dir.toAbsolutePath();
-        Path parent = dir.getParent();
-        while (parent != null && !Files.exists(parent))
-            parent = parent.getParent();
+        return dir;
+    }
 
+    private static Path getExistingAncestor(Path p) {
+        p = p.toAbsolutePath().getParent();
+        while (p != null && !Files.exists(p))
+            p = p.getParent();
+        return p;
+    }
+
+    private static FileAttribute<?>[] getPermissions(Path p) throws IOException {
         final List<FileAttribute> attrs = new ArrayList<>();
 
-        final PosixFileAttributeView posix = Files.getFileAttributeView(parent, PosixFileAttributeView.class);
+        final PosixFileAttributeView posix = Files.getFileAttributeView(p, PosixFileAttributeView.class);
         if (posix != null)
             attrs.add(PosixFilePermissions.asFileAttribute(posix.readAttributes().permissions()));
-        final AclFileAttributeView aclv = Files.getFileAttributeView(parent, AclFileAttributeView.class);
+
+        return attrs.toArray(new FileAttribute[attrs.size()]);
+    }
+
+//    FileAttribute<?> asFileAttribute(List<AclEntry> acl) {
+    // in Java 8 this could be done:
+//        return Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{ FileAttribute.class }, null)
+//    }
+    private static void copyAcl(Path from, Path to) throws IOException {
+        // Sadly, the ACL cannot be turned into FileAttribute in getPermissions because that would require creating 
+        // a class implementing FileAttribute.
+        final AclFileAttributeView aclv = Files.getFileAttributeView(from, AclFileAttributeView.class);
         List<AclEntry> acl = null;
         if (aclv != null)
             acl = unmodifiableList(new ArrayList<>(aclv.getAcl()));
 
-        Files.createDirectories(dir, attrs.toArray(new FileAttribute[attrs.size()]));
-
         if (acl != null)
-            Files.getFileAttributeView(dir, AclFileAttributeView.class).setAcl(acl);
-        return dir;
+            Files.getFileAttributeView(to, AclFileAttributeView.class).setAcl(acl);
     }
 
     /**
