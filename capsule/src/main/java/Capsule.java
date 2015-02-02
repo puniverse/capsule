@@ -714,7 +714,7 @@ public class Capsule implements Runnable {
         oc.appId = getAppName() + (getAppVersion() != null ? "_" + getAppVersion() : "");
     }
 
-    private boolean isEmptyCapsule() {
+    protected final boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasAttribute(ATTR_SCRIPT);
     }
     //</editor-fold>
@@ -783,7 +783,7 @@ public class Capsule implements Runnable {
     }
 
     @SuppressWarnings("AssertWithSideEffects")
-    private Capsule getCallTarget() {
+    protected final Capsule getCallTarget() {
         /*
          * Here we're implementing both the "invokevirtual" and "invokespecial".
          * We want to somehow differentiate the case where the function is called directly -- and should, like invokevirtual, target cc, the
@@ -1427,7 +1427,10 @@ public class Capsule implements Runnable {
         return new String[]{name, version};
     }
 
-    private static String[] getAppArtifactId(String coords) {
+    /**
+     * @deprecated exclude from javadocs
+     */
+    protected static String[] getAppArtifactId(String coords) {
         if (coords == null)
             return null;
         final String[] cs = coords.split(":");
@@ -1441,7 +1444,10 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule Cache">
     /////////// Capsule Cache ///////////////////////////////////
-    private Path getCacheDir() {
+    /**
+     * @deprecated exclude from javadocs
+     */
+    protected Path getCacheDir() {
         if (oc.cacheDir == null) {
             Path cache = CACHE_DIR;
             if (cache != null) {
@@ -3976,7 +3982,7 @@ public class Capsule implements Runnable {
     /**
      * Returns the value of an environment variable - should be used instead of {@link System#getenv(java.lang.String) System.getenv(envName)}.
      */
-    private static String getenv(String envName) {
+    protected static String getenv(String envName) {
         final String val = envName != null ? System.getenv(envName) : null;
         setContext("environment variable", envName, val);
         return val;
