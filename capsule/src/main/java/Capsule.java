@@ -39,8 +39,6 @@ import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.AclEntry;
-import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -1484,7 +1482,7 @@ public class Capsule implements Runnable {
     private Path initCacheDir(Path cache) {
         try {
             if (!Files.exists(cache))
-                createDirsWithSamePermissionsAsParent(cache);
+                Files.createDirectories(cache, getPermissions(getExistingAncestor(cache)));
             return cache;
         } catch (IOException e) {
             log(LOG_VERBOSE, "Could not create directory: " + cache + " -- " + e.getMessage());
@@ -1565,7 +1563,7 @@ public class Capsule implements Runnable {
         try {
             final long start = clock();
             final Path dir = toAbsolutePath(getCacheDir().resolve(APP_CACHE_NAME).resolve(getAppId()));
-            createDirsWithSamePermissionsAsParent(dir);
+            Files.createDirectories(dir, getPermissions(getExistingAncestor(dir)));
 
             this.cacheUpToDate = isAppCacheUpToDate1(dir);
             if (!cacheUpToDate) {
@@ -3315,16 +3313,6 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static Path createDirsWithSamePermissionsAsParent(Path dir) throws IOException {
-        if (Files.exists(dir))
-            return dir;
-        final Path parent = getExistingAncestor(dir);
-        Files.createDirectories(dir, getPermissions(parent));
-        copyAcl(parent, dir);
-
-        return dir;
-    }
-
     private static Path getExistingAncestor(Path p) {
         p = p.toAbsolutePath().getParent();
         while (p != null && !Files.exists(p))
@@ -3332,7 +3320,10 @@ public class Capsule implements Runnable {
         return p;
     }
 
-    private static FileAttribute<?>[] getPermissions(Path p) throws IOException {
+    /**
+     * Returns the permissions of the given file or directory.
+     */
+    protected static FileAttribute<?>[] getPermissions(Path p) throws IOException {
         final List<FileAttribute> attrs = new ArrayList<>();
 
         final PosixFileAttributeView posix = Files.getFileAttributeView(p, PosixFileAttributeView.class);
@@ -3340,22 +3331,6 @@ public class Capsule implements Runnable {
             attrs.add(PosixFilePermissions.asFileAttribute(posix.readAttributes().permissions()));
 
         return attrs.toArray(new FileAttribute[attrs.size()]);
-    }
-
-//    FileAttribute<?> asFileAttribute(List<AclEntry> acl) {
-    // in Java 8 this could be done:
-//        return Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{ FileAttribute.class }, null)
-//    }
-    private static void copyAcl(Path from, Path to) throws IOException {
-        // Sadly, the ACL cannot be turned into FileAttribute in getPermissions because that would require creating 
-        // a class implementing FileAttribute.
-        final AclFileAttributeView aclv = Files.getFileAttributeView(from, AclFileAttributeView.class);
-        List<AclEntry> acl = null;
-        if (aclv != null)
-            acl = unmodifiableList(new ArrayList<>(aclv.getAcl()));
-
-        if (acl != null)
-            Files.getFileAttributeView(to, AclFileAttributeView.class).setAcl(acl);
     }
 
     /**
