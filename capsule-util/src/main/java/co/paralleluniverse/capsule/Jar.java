@@ -729,7 +729,8 @@ public class Jar {
         StringBuilder sb = new StringBuilder();
         for (String element : list)
             sb.append(element).append(separator);
-        sb.delete(sb.length() - separator.length(), sb.length());
+        if (!list.isEmpty())
+            sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
     }
 
@@ -739,7 +740,8 @@ public class Jar {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, String> entry : map.entrySet())
             sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
-        sb.delete(sb.length() - separator.length(), sb.length());
+        if (!map.isEmpty())
+            sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
     }
 

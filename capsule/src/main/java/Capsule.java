@@ -3598,6 +3598,8 @@ public class Capsule implements Runnable {
     final static String join(Map<?, ?> map, char kvSeparator, String separator) {
         if (map == null)
             return null;
+        if (map.isEmpty())
+            return "";
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<?, ?> entry : map.entrySet())
             sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
