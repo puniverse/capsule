@@ -2075,14 +2075,6 @@ public class Capsule implements Runnable {
     private List<String> getNativeDependencies0() {
         return getListAttribute(ATTR_NATIVE_DEPENDENCIES);
     }
-
-    private boolean hasRenamedNativeDependencies() {
-        for (String depAndRename : nullToEmpty(getNativeDependencies())) {
-            if (depAndRename.contains(","))
-                return true;
-        }
-        return false;
-    }
     //</editor-fold>
 
     private List<String> buildJVMArgs(List<String> cmdLine) {
