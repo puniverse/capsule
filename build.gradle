@@ -40,8 +40,6 @@ subprojects {
     ext.scmConnection   = "https://github.com/puniverse/capsule.git"
     ext.distDir         = "$buildDir/dist"
     ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
-    
-    ext.aetherVer = '1.0.2.v20150114'
 
     // User and Password are taken from ~/.gradle/gradle.properties
     if (!project.hasProperty("sonatypeUsername") || !project.hasProperty("sonatypePassword")) {
@@ -54,8 +52,8 @@ subprojects {
         javancss
     }
 
-    configurations.all {
-        resolutionStrategy {
+    configurations {
+        [compile, runtime]*.resolutionStrategy {
             failOnVersionConflict()
         }
     }
@@ -63,14 +61,9 @@ subprojects {
     dependencies {
         testCompile 'junit:junit:4.12'
         testCompile 'com.google.guava:guava:18.0'
-        testCompile('org.truth0:truth:0.23') {
-            exclude group: 'com.google.guava', module: 'guava'
-            exclude group: 'junit', module: '*'
-        }
+        testCompile 'org.truth0:truth:0.23'
         testCompile 'org.mockito:mockito-all:1.10.19'
-        testCompile('com.google.jimfs:jimfs:1.0') {
-            exclude group: 'com.google.guava', module: 'guava'
-        }
+        testCompile 'com.google.jimfs:jimfs:1.0'
         testCompile 'org.jooq:joor:0.9.4'
         javancss 'org.codehaus.javancss:javancss:33.54'
     }
@@ -228,18 +221,6 @@ project (':capsule') {
     javadoc {
         options.noDeprecated = true
         excludes = [ "capsule/**" ]
-    }
-
-    install.repositories.mavenInstaller {
-        pom.whenConfigured {
-            it.dependencies.clear()
-        }
-    }
-
-    uploadArchives.repositories.mavenDeployer {
-        pom.whenConfigured {
-            it.dependencies.clear()
-        }
     }
 }
 
