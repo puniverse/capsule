@@ -264,13 +264,6 @@ project (':capsule-container') {
     }
 }
 
-project (':capsule-build') {
-    dependencies {
-        compile "org.eclipse.aether:aether-api:$aetherVer"
-        compile project(':capsule')
-    }
-}
-
 task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
     dependsOn = subprojects.test
     sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
