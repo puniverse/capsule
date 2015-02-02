@@ -7,9 +7,6 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
-import capsule.DependencyManagerImpl;
-import capsule.DependencyManager;
-import capsule.PomReader;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -130,12 +127,8 @@ public class Capsule implements Runnable {
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
-    private static final String ENV_CAPSULE_REPOS = "CAPSULE_REPOS";
-    private static final String ENV_CAPSULE_LOCAL_REPO = "CAPSULE_LOCAL_REPO";
 
     private static final String PROP_VERSION = OPTION("capsule.version", "false", "printVersion", "Prints the capsule and application versions.");
-    private static final String PROP_TREE = OPTION("capsule.tree", "false", "printDependencyTree", "Prints the capsule's dependency tree.");
-    private static final String PROP_RESOLVE = OPTION("capsule.resolve", "false", "resolve", "Downloads all un-cached dependencies.");
     private static final String PROP_MODES = OPTION("capsule.modes", "false", "printModes", "Prints all available capsule modes.");
     private static final String PROP_PRINT_JRES = OPTION("capsule.jvms", "false", "printJVMs", "Prints a list of all JVM installations found.");
     private static final String PROP_MERGE = OPTION("capsule.merge", null, "mergeCapsules", true, "Merges a wrapper capsule with a wrapped capsule.");
@@ -145,10 +138,8 @@ public class Capsule implements Runnable {
     private static final String PROP_LOG_LEVEL = OPTION("capsule.log", "quiet", null, "Picks a log level. Must be one of none, quiet, verbose, or debug.");
     private static final String PROP_CAPSULE_JAVA_HOME = OPTION("capsule.java.home", null, null, "Sets the location of the Java home (JVM installation directory) to use; If \'current\' forces the use of the JVM that launched the capsule.");
     private static final String PROP_CAPSULE_JAVA_CMD = OPTION("capsule.java.cmd", null, null, "Sets the path to the Java executable to use.");
-    private static final String PROP_USE_LOCAL_REPO = OPTION("capsule.local", null, null, "Sets the path of the local Maven repository to use.");
     private static final String PROP_JVM_ARGS = OPTION("capsule.jvm.args", null, null, "Sets additional JVM arguments to use when running the application.");
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
-    private static final String PROP_NO_DEP_MANAGER = "capsule.no_dep_manager";
     private static final String PROP_PROFILE = "capsule.profile";
 
     private static final String ATTR_APP_NAME = ATTRIBUTE("Application-Name", null, false, "The application's name");
@@ -179,8 +170,6 @@ public class Capsule implements Runnable {
     private static final String ATTR_SECURITY_POLICY_A = ATTRIBUTE("Security-Policy-A", null, true, "A security policy file, relative to the capsule root, that will be appended to the default security policy");
     private static final String ATTR_JAVA_AGENTS = ATTRIBUTE("Java-Agents", null, true, "A list of Java agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency");
     private static final String ATTR_NATIVE_AGENTS = ATTRIBUTE("Native-Agents", null, true, "A list of native JVMTI agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a native library, without the platform-specific suffix, relative to the capsule root. The native library file(s) can be embedded in the capsule or listed as Maven native dependencies using the Native-Dependencies-... attributes.");
-    private static final String ATTR_REPOSITORIES = ATTRIBUTE("Repositories", "central", true, "A list of Maven repositories, each formatted as URL or NAME(URL)");
-    private static final String ATTR_ALLOW_SNAPSHOTS = ATTRIBUTE("Allow-Snapshots", "false", true, "Whether or not SNAPSHOT dependencies are allowed");
     private static final String ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
     private static final String ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
     private static final String ATTR_LOG_LEVEL = ATTRIBUTE("Capsule-Log-Level", null, false, "The capsule's default log level");
@@ -226,9 +215,7 @@ public class Capsule implements Runnable {
     // misc
     private static final String CAPSULE_PROP_PREFIX = "capsule.";
     private static final String CACHE_DEFAULT_NAME = "capsule";
-    private static final String DEPS_CACHE_NAME = "deps";
     private static final String APP_CACHE_NAME = "apps";
-    private static final String POM_FILE = "pom.xml";
     private static final String LOCK_FILE_NAME = ".lock";
     private static final String TIMESTAMP_FILE_NAME = ".extracted";
     private static final String CACHE_NONE = "NONE";
@@ -538,14 +525,11 @@ public class Capsule implements Runnable {
     private /*final*/ String appName;    // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String appVersion; // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
-    private /*final*/ Object pom;        // non-null iff jar has pom AND manifest doesn't have ATTR_DEPENDENCIES
-    private /*final*/ Object dependencyManager;
     private /*final*/ int logLevel;
 
     private Path cacheDir;
     private Path appCache;
     private Path writableAppCache;
-    private Path localRepo;
     private boolean cacheUpToDate;
     private FileLock appCacheLock;
 
@@ -592,7 +576,6 @@ public class Capsule implements Runnable {
             this.manifest = jis.getManifest();
             if (manifest == null)
                 throw new RuntimeException("Capsule " + jarFile + " does not have a manifest");
-            this.pom = createPomReader(jis);
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
@@ -605,7 +588,7 @@ public class Capsule implements Runnable {
         time("Read JAR in constructor", start);
 
         if (!wrapper)
-            finalizeCapsule(true);
+            finalizeCapsule();
         else if (isFactoryCapsule())
             this.jarFile = null; // an empty factory capsule is marked this way.
         clearContext();
@@ -678,21 +661,27 @@ public class Capsule implements Runnable {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             oc.jarFile = jar;
             insertAfter(loadTargetCapsule(MY_CLASSLOADER, jar));
-            oc.dependencyManager = dependencyManager;
         }
-        finalizeCapsule(isCapsule);
+        finalizeCapsule();
         return this;
     }
 
-    private void finalizeCapsule(boolean setId) {
+    /**
+     * Called once the capsule construction has been completed (after loading of wrapped capsule, if applicable).
+     */
+    protected void finalizeCapsule() {
+        if ((_ct = getCallTarget()) != null)
+            _ct.finalizeCapsule();
+        else
+            finalizeCapsule0();
+        clearContext();
+    }
+
+    private void finalizeCapsule0() {
         validateManifest(oc.manifest);
         oc.logLevel = chooseLogLevel();
         oc.mode = chooseMode1();
-        if (oc.dependencyManager != null)
-            setDependencyRepositories(getRepositories());
-        if (setId)
-            initAppId();
-        clearContext();
+        initAppId();
     }
 
     private void verifyCanCallSetTarget() {
@@ -709,6 +698,8 @@ public class Capsule implements Runnable {
 
     private void initAppId() {
         final String[] nameAndVersion = buildAppId();
+        if (nameAndVersion == null)
+            return;
         oc.appName = nameAndVersion[0];
         oc.appVersion = nameAndVersion[1];
         oc.appId = getAppName() + (getAppVersion() != null ? "_" + getAppVersion() : "");
@@ -806,8 +797,7 @@ public class Capsule implements Runnable {
                 throw new AssertionError("No debug information in Capsule class");
 
             // we return CC if the caller is also Capsule but not the same method (which would mean this is a sup.foo() call)
-            if (st[c2].getClassName().equals(st[c1].getClassName())
-                    && (!st[c2].getMethodName().equals(st[c1].getMethodName()) || Math.abs(st[c2].getLineNumber() - st[c1].getLineNumber()) > 3))
+            if (!st[c2].getMethodName().equals(st[c1].getMethodName()) || Math.abs(st[c2].getLineNumber() - st[c1].getLineNumber()) > 3)
                 return cc;
         }
         return sup;
@@ -907,14 +897,6 @@ public class Capsule implements Runnable {
 
     private String toJarUrl(String relPath) {
         return "jar:file:" + getJarFile().toAbsolutePath() + "!/" + relPath;
-    }
-
-    private InputStream getEntry(ZipInputStream zis, String name) throws IOException {
-        for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
-            if (entry.getName().equals(name))
-                return zis;
-        }
-        return null;
     }
 
     private static boolean isExecutable(Path path) {
@@ -1058,41 +1040,6 @@ public class Capsule implements Runnable {
         }
     }
 
-    void printDependencyTree(List<String> args) {
-        verifyNonEmpty("Cannot print dependencies of a wrapper capsule.");
-        System.out.println("Dependencies for " + getAppId());
-        if (oc.dependencyManager == null)
-            System.out.println("No dependencies declared.");
-        else if (hasAttribute(ATTR_APP_ARTIFACT)) {
-            final String appArtifact = getAttribute(ATTR_APP_ARTIFACT);
-            if (appArtifact == null)
-                throw new IllegalStateException("capsule " + getJarFile() + " has nothing to run");
-            printDependencyTree(appArtifact, "jar");
-        } else
-            printDependencyTree(getDependencies(), "jar");
-
-        final List<String> nativeDeps = getNativeDependencies();
-        if (nativeDeps != null) {
-            System.out.println("\nNative Dependencies:");
-            printDependencyTree(nativeDeps, getNativeLibExtension());
-        }
-    }
-
-    void resolve(List<String> args) throws IOException, InterruptedException {
-        verifyNonEmpty("Cannot resolve a wrapper capsule.");
-
-        final List<String> deps = new ArrayList<>();
-        deps.add(ATTR_APP_ARTIFACT);
-        addAllIfNotContained(deps, getDependencies());
-        addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH));
-        addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH_P));
-        addAllIfNotContained(deps, getListAttribute(ATTR_BOOT_CLASS_PATH_A));
-
-        getPath(deps);
-        resolveNativeDependencies();
-        log(LOG_QUIET, "Capsule resolved");
-    }
-
     private int launch(List<String> args) throws IOException, InterruptedException {
         verifyNonEmpty("Cannot launch a wrapper capsule.");
         final ProcessBuilder pb;
@@ -1201,7 +1148,7 @@ public class Capsule implements Runnable {
         } catch (Exception t) {
             deshadow(t).printStackTrace(System.err);
         }
-        
+
         for (Path p : oc.tmpFiles) {
             try {
                 delete(p);
@@ -1394,20 +1341,13 @@ public class Capsule implements Runnable {
 
         if (name == null) {
             final String appArtifact = getAttribute(ATTR_APP_ARTIFACT);
-            if (appArtifact != null && isDependency(appArtifact)) {
-                if (hasModalAttribute(ATTR_APP_ARTIFACT))
-                    throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_ARTIFACT + " is defined in a modal section of the manifest. "
-                            + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
-                final String[] nameAndVersion = getAppArtifactId(getAppArtifactSpecificVersion(appArtifact));
-                name = nameAndVersion[0];
-                version = nameAndVersion[1];
-            }
-        }
-        if (name == null) {
-            if (pom != null) {
-                final String[] nameAndVersion = getPomAppNameAndVersion();
-                name = nameAndVersion[0];
-                version = nameAndVersion[1];
+            if (appArtifact != null) {
+                if (isDependency(appArtifact)) {
+                    final String[] nameAndVersion = getAppArtifactId(appArtifact);
+                    name = nameAndVersion[0];
+                    version = nameAndVersion[1];
+                } else
+                    return null;
             }
         }
         if (name == null) {
@@ -1416,10 +1356,8 @@ public class Capsule implements Runnable {
                 throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_CLASS + " is defined in a modal section of the manifest. "
                         + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
         }
-        if (name == null) {
-            throw new IllegalArgumentException("Capsule jar " + getJarFile() + " must either have the " + ATTR_APP_NAME + " manifest attribute, "
-                    + "the " + ATTR_APP_CLASS + " attribute, or contain a " + POM_FILE + " file.");
-        }
+        if (name == null)
+            throw new IllegalArgumentException("Capsule jar " + getJarFile() + " must either have the " + ATTR_APP_NAME + " manifest attribute, or the " + ATTR_APP_CLASS + " attribute.");
 
         if (version == null)
             version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
@@ -1875,10 +1813,7 @@ public class Capsule implements Runnable {
     }
 
     private List<String> getDependencies0() {
-        List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
-        if ((deps == null || deps.isEmpty()) && oc.pom != null)
-            deps = getPomDependencies();
-
+        final List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
         return (deps != null && !deps.isEmpty()) ? unmodifiableList(deps) : null;
     }
 
@@ -2306,152 +2241,46 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="POM">
-    /////////// POM ///////////////////////////////////
-    private Object createPomReader(ZipInputStream zis) throws IOException {
-        try {
-            final InputStream is = getEntry(zis, POM_FILE);
-            return is != null ? createPomReader0(is) : null;
-        } catch (IOException e) {
-            throw new IOException("Could not read " + POM_FILE, e);
-        }
-    }
-
-    private static Object createPomReader0(InputStream is) {
-        try {
-            return new PomReader(is);
-        } catch (NoClassDefFoundError e) {
-            throw new RuntimeException("JAR contains a pom.xml file, while the necessary dependency management classes are not found in the capsule");
-        }
-    }
-
-    private List<String> getPomRepositories() {
-        return ((PomReader) oc.pom).getRepositories();
-    }
-
-    private List<String> getPomDependencies() {
-        return ((PomReader) oc.pom).getDependencies();
-    }
-
-    private String[] getPomAppNameAndVersion() {
-        final PomReader pr = (PomReader) oc.pom;
-        return new String[]{pr.getGroupId() + "_" + pr.getArtifactId(), pr.getVersion()};
-    }
-    //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="Dependency Manager">
     /////////// Dependency Manager ///////////////////////////////////
-    private List<String> getRepositories() {
-        final List<String> repos = new ArrayList<String>();
-        addAll(repos, Capsule.split(getenv(ENV_CAPSULE_REPOS), "[,\\s]\\s*"));
-        addAll(repos, getListAttribute(ATTR_REPOSITORIES));
-        if (pom != null)
-            addAllIfNotContained(repos, nullToEmpty(getPomRepositories()));
-
-        return !repos.isEmpty() ? unmodifiableList(repos) : null;
+    /**
+     * @deprecated marked deprecated to exclude from javadoc.
+     */
+    protected List<Path> resolveDependencies(List<String> coords, String type) {
+        final long start = clock();
+        final List<Path> res = (_ct = unsafe(getCallTarget())) != null ? _ct.resolveDependencies(coords, type) : resolveDependencies0(coords, type);
+        time("resolveDependencies", start);
+        return res;
     }
 
-    private Object initDependencyManager() {
-        if (oc.dependencyManager == null) {
-            oc.dependencyManager = DEPENDENCY_MANAGER != DEFAULT ? DEPENDENCY_MANAGER : tryCreateDependencyManager();
-            if (oc.dependencyManager != null)
-                setDependencyRepositories(getRepositories());
-        }
-        return oc.dependencyManager;
-    }
+    private List<Path> resolveDependencies0(List<String> dependencies, String type) {
+        if (dependencies == null)
+            return null;
 
-    private Object tryCreateDependencyManager() {
-        if (systemPropertyEmptyOrTrue(PROP_NO_DEP_MANAGER))
-            return null;
-        try {
-            final boolean reset = systemPropertyEmptyOrTrue(PROP_RESET);
-            return createDependencyManager(getLocalRepo().toAbsolutePath(), reset, oc.logLevel);
-        } catch (NoClassDefFoundError e) {
-            return null;
-        }
+        final List<Path> res = new ArrayList<>();
+        for (String dep : dependencies)
+            res.addAll(nullToEmpty(resolveDependency(dep, type)));
+
+        return emptyToNull(res);
     }
 
     /**
      * @deprecated marked deprecated to exclude from javadoc.
      */
-    protected Object createDependencyManager(Path localRepo, boolean reset, int logLevel) {
-        return new DependencyManagerImpl(localRepo, reset, logLevel);
-    }
-
-    private Object getDependencyManager() {
-        final Object dm = initDependencyManager();
-        if (dm == null)
-            throw new RuntimeException("Capsule " + getJarFile() + " uses dependencies, while the necessary dependency management classes are not found in the capsule JAR");
-        return dm;
-    }
-
-    private void setDependencyRepositories(List<String> repositories) {
-        ((DependencyManager) getDependencyManager()).setRepos(repositories, Boolean.parseBoolean(getAttribute(ATTR_ALLOW_SNAPSHOTS)));
-    }
-
-    /**
-     * Returns the path to the local dependency repository.
-     */
-    protected final Path getLocalRepo() {
-        if (oc.localRepo == null) {
-            Path repo;
-            final String local = emptyToNull(expandCommandLinePath(propertyOrEnv(PROP_USE_LOCAL_REPO, ENV_CAPSULE_LOCAL_REPO)));
-            if (local != null)
-                repo = toAbsolutePath(Paths.get(local));
-            else {
-                repo = getCacheDir().resolve(DEPS_CACHE_NAME);
-                try {
-                    if (!Files.exists(repo))
-                        createDirsWithSamePermissionsAsParent(repo);
-                    return repo;
-                } catch (IOException e) {
-                    log(LOG_VERBOSE, "Could not create local repo at " + repo);
-                    if (isLogging(LOG_VERBOSE))
-                        e.printStackTrace(System.err);
-                    repo = null;
-                }
-            }
-            oc.localRepo = repo;
-        }
-        return oc.localRepo;
-    }
-
-    private void printDependencyTree(String root, String type) {
-        ((DependencyManager) getDependencyManager()).printDependencyTree(root, type, System.out);
-    }
-
-    private void printDependencyTree(List<String> dependencies, String type) {
-        if (dependencies == null)
-            return;
-        ((DependencyManager) getDependencyManager()).printDependencyTree(dependencies, type, System.out);
-    }
-
-    private List<Path> resolveDependencies(List<String> dependencies, String type) {
-        if (dependencies == null)
-            return null;
+    protected List<Path> resolveDependency(String coords, String type) {
         final long start = clock();
-        final List<Path> res = ((DependencyManager) getDependencyManager()).resolveDependencies(dependencies, type);
-        time("resolveDependencies", start);
+        final List<Path> res = (_ct = unsafe(getCallTarget())) != null ? _ct.resolveDependency(coords, type) : resolveDependency0(coords, type);
+        time("resolveDependency", start);
         return res;
     }
 
-    private List<Path> resolveDependency(String coords, String type) {
+    private List<Path> resolveDependency0(String coords, String type) {
         if (coords == null)
             return null;
-        final long start = clock();
-        final List<Path> res = ((DependencyManager) getDependencyManager()).resolveDependency(coords, type);
-        time("resolveDependency " + coords, start);
-        return res;
-    }
-
-    private String getAppArtifactSpecificVersion(String appArtifact) {
-        return getArtifactLatestVersion(appArtifact, "jar");
-    }
-
-    private String getArtifactLatestVersion(String coords, String type) {
-        if (coords == null)
-            return null;
-        return ((DependencyManager) getDependencyManager()).getLatestVersion(coords, type);
+        final Path dir = getAppCache();
+        if (dir == null)
+            throw new IllegalStateException("Cannot resolve dependency " + coords + ". Capsule not extracted. Cannot obtain path ");
+        return singletonList(dependencyToLocalJar(dir, coords, type));
     }
     //</editor-fold>
 
@@ -2494,6 +2323,10 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
                     + " Use " + ATTR_APP_CLASS_PATH + " and/or " + ATTR_DEPENDENCIES + " instead.");
         validateNonModalAttributes(manifest);
+
+        if (!hasAttribute(ATTR_APP_NAME) && hasModalAttribute(ATTR_APP_ARTIFACT))
+            throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_ARTIFACT + " is defined in a modal section of the manifest. "
+                    + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
 
         // validate section case-insensitivity
         final Set<String> sectionsLowercase = new HashSet<>();
@@ -2745,12 +2578,12 @@ public class Capsule implements Runnable {
         return lib.contains(":") && !lib.contains(":\\");
     }
 
-    private Path dependencyToLocalJar(Path root, String dep) {
+    private Path dependencyToLocalJar(Path root, String dep, String type) {
         final String[] coords = dep.split(":");
         final String group = coords[0];
         final String artifact = coords[1];
         final String version = coords.length > 2 ? (coords[2] + (coords.length > 3 ? "-" + coords[3] : "")) : null;
-        final String filename = artifact + (version != null && !version.isEmpty() ? '-' + version : "") + ".jar";
+        final String filename = artifact + (version != null && !version.isEmpty() ? '-' + version : "") + "." + type;
         Path p;
         if (group != null && !group.isEmpty()) {
             p = root.resolve("lib").resolve(group).resolve(filename);
@@ -2799,20 +2632,11 @@ public class Capsule implements Runnable {
                 return singletonList(sanitize(path));
         }
 
-        if (isDependency && initDependencyManager() != null) {
+        if (isDependency) {
             final List<Path> res = resolveDependency(p, "jar");
             if (res == null || res.isEmpty())
                 throw new RuntimeException("Dependency " + p + " was not found.");
             return res;
-        }
-
-        if (getAppCache() == null)
-            throw new IllegalStateException((isDependency(p) ? "Dependency manager not found. Cannot resolve " : "Capsule not extracted. Cannot obtain path ") + p);
-        if (isDependency) {
-            final Path f = dependencyToLocalJar(getAppCache(), p);
-            if (f != null)
-                return singletonList(f);
-            throw new IllegalArgumentException("Dependency manager not found, and could not locate artifact " + p + " in capsule");
         } else if (isGlob(p))
             return listDir(getAppCache(), p, false);
         else
@@ -2825,7 +2649,7 @@ public class Capsule implements Runnable {
         final List<Path> res = new ArrayList<Path>(ps.size());
 
         // performance enhancement
-        if (initDependencyManager() != null) {
+        if (true) {
             boolean hasDependencies = false;
             for (String p : ps) {
                 if (isDependency(p)) {
@@ -3137,6 +2961,18 @@ public class Capsule implements Runnable {
 
     private static JarInputStream copyJarPrefix(InputStream is, OutputStream os) throws IOException {
         return new JarInputStream(skipToZipStart(is, null));
+    }
+
+    protected static InputStream getEntryInputStream(Path jar, String name) throws IOException {
+        return getEntry(openJarInputStream(jar), name);
+    }
+
+    private static InputStream getEntry(ZipInputStream zis, String name) throws IOException {
+        for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
+            if (entry.getName().equals(name))
+                return zis;
+        }
+        return null;
     }
 
     private static String getMainClass(Path jar) {

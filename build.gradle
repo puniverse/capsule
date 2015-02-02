@@ -4,8 +4,6 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.1'
-        classpath 'net.sf.proguard:proguard-gradle:5.0'
         // classpath 'net.saliman:gradle-cobertura-plugin:2.2.4'
         classpath 'info.solidsoft.gradle.pitest:gradle-pitest-plugin:1.1.1'
         classpath 'org.kt3k.gradle.plugin:coveralls-gradle-plugin:2.1.0'
@@ -64,6 +62,7 @@ subprojects {
 
     dependencies {
         testCompile 'junit:junit:4.12'
+        testCompile 'com.google.guava:guava:18.0'
         testCompile('org.truth0:truth:0.23') {
             exclude group: 'com.google.guava', module: 'guava'
             exclude group: 'junit', module: '*'
@@ -215,45 +214,8 @@ subprojects {
     defaultTasks 'build'
 }
 
-project (':capsule') {
-    apply plugin: 'com.github.johnrengelman.shadow'
-    
-    configurations {
-        all*.exclude group: 'org.eclipse.sisu', module: '*'
-        all*.exclude group: 'commons-codec', module: '*'
-    }
-
+project (':capsule') {   
     dependencies {
-        compile "org.eclipse.aether:aether-api:$aetherVer"
-        compile "org.eclipse.aether:aether-util:$aetherVer"
-        compile "org.eclipse.aether:aether-impl:$aetherVer"
-        compile "org.eclipse.aether:aether-connector-basic:$aetherVer"
-        compile "org.eclipse.aether:aether-transport-file:$aetherVer"
-        compile("org.eclipse.aether:aether-transport-http:$aetherVer") {
-            exclude group: 'org.slf4j', module: 'slf4j-api'
-        }
-        compile('org.apache.maven:maven-aether-provider:3.2.5') {
-            exclude group: 'org.eclipse.aether', module: '*'
-        }
-        compile 'org.apache.maven:maven-model:3.2.5'
-        compile('org.apache.maven:maven-settings-builder:3.2.5') {
-            exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
-        }
-        compile('org.codehaus.plexus:plexus-container-default:1.6') {
-            exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
-            exclude group: 'com.google.collections', module: 'google-collections'
-            exclude group: 'commons-logging', module: '*'
-            exclude group: 'junit', module: '*'
-        }
-        runtime 'com.google.guava:guava:18.0' // necessary -- unfortunately -- for maven-aether-provider
-
-        runtime 'org.slf4j:slf4j-nop:1.7.10'
-
-        compile 'io.takari.aether:takari-local-repository:0.11.0'
-        compile('io.takari:takari-filemanager:0.8.3') {
-            exclude group: 'org.slf4j', module: '*'
-        }
-
         testCompile project(':capsule-util')
     }
 
@@ -263,58 +225,10 @@ project (':capsule') {
         }
     }
 
-    shadowJar {
-        outputs.upToDateWhen { false }
-        
-        // artifactAttached = false
-        classifier = 'shadow'
-        destinationDir = file("$buildDir/libs")
-
-        exclude 'META-INF/**'
-        exclude 'licenses/**' // licenses to thoughtworks CruiseControl, Javolution, and Indiana University Extreme! Labs, none of which are used by Capsule
-        exclude 'about.html'
-        exclude 'io/takari/aether/localrepo/**'
-        exclude 'javax/inject/**'
-        exclude 'org/apache/log4j/lf5/**'
-        exclude 'org/apache/log4j/xml/log4j.dtd'
-        exclude '**/version.properties'
-
-        relocate 'org.', 'capsule.org.'
-        relocate 'io.', 'capsule.io.'
-        relocate 'com.', 'capsule.com.'
-            
-        doLast {
-            logger.info("$buildDir/libs/${project.name}-${project.version}-shadow.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
-            file("$buildDir/libs/${project.name}-${version}-shadow.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
-        }
-    }
-
-    task proguard(type: proguard.gradle.ProGuardTask, dependsOn:[shadowJar]) {
-        injars jar
-        outjars "$buildDir/libs/${project.name}-${version}-shrunk.jar"
-        libraryjars "${System.getProperty('java.home')}/lib/rt.jar"
-        keep 'class Capsule { *; }'
-        keepclassmembers 'enum * {**[] $VALUES;public static **[] values();public static ** valueOf(java.lang.String);}'
-        keep 'class capsule.org.eclipse.aether.AbstractForwardingRepositorySystemSession { *; }'
-        dontoptimize
-        dontobfuscate
-        dontwarn
-        //whyareyoukeeping 'class capsule.org.codehaus.plexus.**'
-        doLast {
-            logger.info("$buildDir/libs/${project.name}-${project.version}-shrunk.jar -> $buildDir/libs/${project.name}-${project.version}.jar")
-            file("$buildDir/libs/${project.name}-${version}-shrunk.jar").renameTo(file("$buildDir/libs/${project.name}-${project.version}.jar"))
-        }
-    }
-
     javadoc {
         options.noDeprecated = true
         excludes = [ "capsule/**" ]
     }
-
-    build.dependsOn proguard
-    install.dependsOn proguard
-    signArchives.dependsOn proguard
-    uploadArchives.dependsOn proguard
 
     install.repositories.mavenInstaller {
         pom.whenConfigured {
