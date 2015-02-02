@@ -1842,11 +1842,8 @@ public class Capsule implements Runnable {
         }
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
-            for (String sp : getListAttribute(ATTR_APP_CLASS_PATH)) {
-                if (isDependency(sp))
-                    throw new IllegalArgumentException("Dependency " + sp + " is not allowed in the " + ATTR_APP_CLASS_PATH + " attribute");
+            for (String sp : getListAttribute(ATTR_APP_CLASS_PATH))
                 addAllIfNotContained(classPath, getPath(sp));
-            }
         }
 
         if (getAppCache() != null)
