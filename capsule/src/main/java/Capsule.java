@@ -579,14 +579,14 @@ public class Capsule implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
-        
+
         oc.logLevel = chooseLogLevel(); // temporary
-        
+
         log(LOG_VERBOSE, "Jar: " + jarFile);
         log(LOG_VERBOSE, "Platform: " + PLATFORM);
 
         initAppId(); // first try, before loading caplets
-        
+
         loadCaplets();
         this.wrapper = isEmptyCapsule();
 
@@ -689,6 +689,9 @@ public class Capsule implements Runnable {
         oc.logLevel = chooseLogLevel();
         oc.mode = chooseMode1();
         initAppId();
+
+        if (getAppId() == null && !(hasAttribute(ATTR_APP_ARTIFACT) && !isDependency(getAttribute(ATTR_APP_ARTIFACT))))
+            throw new IllegalArgumentException("Could not determine app ID. Capsule jar " + getJarFile() + " should have the " + ATTR_APP_NAME + " manifest attribute.");
     }
 
     private void verifyCanCallSetTarget() {
@@ -1374,7 +1377,7 @@ public class Capsule implements Runnable {
                         + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
         }
         if (name == null)
-            throw new IllegalArgumentException("Capsule jar " + getJarFile() + " must either have the " + ATTR_APP_NAME + " manifest attribute, or the " + ATTR_APP_CLASS + " attribute.");
+            return null;
 
         if (version == null)
             version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);

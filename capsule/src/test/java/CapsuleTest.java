@@ -42,7 +42,7 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 import org.junit.Before;
 import static com.google.common.truth.Truth.*;
-import static org.mockito.Mockito.*;
+//import static org.mockito.Mockito.*;
 
 public class CapsuleTest {
     /*
