@@ -579,13 +579,18 @@ public class Capsule implements Runnable {
         } catch (IOException e) {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
+        
+        oc.logLevel = chooseLogLevel(); // temporary
+        
+        log(LOG_VERBOSE, "Jar: " + jarFile);
+        log(LOG_VERBOSE, "Platform: " + PLATFORM);
 
         initAppId(); // first try, before loading caplets
         
         loadCaplets();
         this.wrapper = isEmptyCapsule();
 
-        oc.logLevel = chooseLogLevel(); // temporary, just for the sake of "time". will be overridden in finalizeCapsule
+        oc.logLevel = chooseLogLevel(); // temporary
         time("Load class", START, start);
         time("Read JAR in constructor", start);
 
