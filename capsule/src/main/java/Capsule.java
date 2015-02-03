@@ -2301,12 +2301,12 @@ public class Capsule implements Runnable {
         return res;
     }
 
-    private List<Path> resolveDependencies0(List<String> dependencies, String type) {
-        if (dependencies == null)
+    private List<Path> resolveDependencies0(List<String> coords, String type) {
+        if (coords == null)
             return null;
 
         final List<Path> res = new ArrayList<>();
-        for (String dep : dependencies)
+        for (String dep : coords)
             res.addAll(nullToEmpty(resolveDependency(dep, type)));
 
         return emptyToNull(res);
