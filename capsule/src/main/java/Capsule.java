@@ -1515,7 +1515,7 @@ public class Capsule implements Runnable {
                 if (shouldExtract())
                     extractCapsule(dir);
             } else
-                log(LOG_VERBOSE, "App cache " + getAppCache() + " is up to date.");
+                log(LOG_VERBOSE, "App cache " + dir + " is up to date.");
 
             time("buildAppCacheDir", start);
             return dir;
