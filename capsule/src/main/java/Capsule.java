@@ -2296,8 +2296,12 @@ public class Capsule implements Runnable {
      */
     protected List<Path> resolveDependencies(List<String> coords, String type) {
         final long start = clock();
-        final List<Path> res = (_ct = unsafe(getCallTarget())) != null ? _ct.resolveDependencies(coords, type) : resolveDependencies0(coords, type);
-        time("resolveDependencies", start);
+        final Capsule ct;
+        final List<Path> res = (ct = unsafe(getCallTarget())) != null ? ct.resolveDependencies(coords, type) : resolveDependencies0(coords, type);
+        if (ct == cc) {
+            time("resolveDependencies" + coords + ", " + type, start);
+            log(LOG_DEBUG, "resolveDependencies " + coords + ", " + type + " -> " + res);
+        }
         return res;
     }
 
@@ -2317,8 +2321,12 @@ public class Capsule implements Runnable {
      */
     protected List<Path> resolveDependency(String coords, String type) {
         final long start = clock();
-        final List<Path> res = (_ct = unsafe(getCallTarget())) != null ? _ct.resolveDependency(coords, type) : resolveDependency0(coords, type);
-        time("resolveDependency", start);
+        final Capsule ct;
+        final List<Path> res = (ct = unsafe(getCallTarget())) != null ? ct.resolveDependency(coords, type) : resolveDependency0(coords, type);
+        if (ct == cc) {
+            time("resolveDependency " + coords + ", " + type, start);
+            log(LOG_DEBUG, "resolveDependency " + coords + ", " + type + " -> " + res);
+        }
         return res;
     }
 
