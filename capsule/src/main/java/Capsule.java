@@ -3690,10 +3690,12 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Collection Utils">
     /////////// Collection Utils ///////////////////////////////////
+    @SuppressWarnings("unchecked")
     private static <T> List<T> nullToEmpty(List<T> list) {
         return list != null ? list : (List<T>) emptyList();
     }
 
+    @SuppressWarnings("unchecked")
     private static <K, V> Map<K, V> nullToEmpty(Map<K, V> map) {
         return map != null ? map : (Map<K, V>) emptyMap();
     }
@@ -3774,6 +3776,7 @@ public class Capsule implements Runnable {
         return m;
     }
 
+    @SafeVarargs
     private static <T> Set<T> immutableSet(T... elems) {
         return unmodifiableSet(new HashSet<T>(asList(elems)));
     }
@@ -4251,6 +4254,7 @@ public class Capsule implements Runnable {
         throw new RuntimeException(jarFile + " does not appear to be a valid capsule.");
     }
 
+    @SuppressWarnings("unchecked")
     private static Class<? extends Capsule> loadCapsule(ClassLoader cl, String capsuleClass, String name) {
         try {
             final Class<?> clazz = cl.loadClass(capsuleClass);
