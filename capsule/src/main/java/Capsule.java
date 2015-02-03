@@ -3609,7 +3609,10 @@ public class Capsule implements Runnable {
         return obj != null ? obj.toString() : null;
     }
 
-    static List<String> split(String str, String separator) {
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    protected static List<String> split(String str, String separator) {
         if (str == null)
             return null;
         String[] es = str.split(separator);
@@ -3622,7 +3625,10 @@ public class Capsule implements Runnable {
         return list;
     }
 
-    static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    protected static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
         if (map == null)
             return null;
         Map<String, String> m = new LinkedHashMap<>();
@@ -3640,7 +3646,10 @@ public class Capsule implements Runnable {
         return m;
     }
 
-    final static String join(Collection<?> coll, String separator) {
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    protected static String join(Collection<?> coll, String separator) {
         if (coll == null)
             return null;
         if (coll.isEmpty())
@@ -3654,7 +3663,10 @@ public class Capsule implements Runnable {
         return sb.toString();
     }
 
-    final static String join(Map<?, ?> map, char kvSeparator, String separator) {
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    protected static String join(Map<?, ?> map, char kvSeparator, String separator) {
         if (map == null)
             return null;
         if (map.isEmpty())
@@ -4221,7 +4233,13 @@ public class Capsule implements Runnable {
     // visible for testing
     static Capsule newCapsule(ClassLoader cl, Path jarFile) {
         try {
-            return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Path.class)).newInstance(jarFile);
+            final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
+            try {
+                Thread.currentThread().setContextClassLoader(cl);
+                return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Path.class)).newInstance(jarFile);
+            } finally {
+                Thread.currentThread().setContextClassLoader(ccl);
+            }
         } catch (IncompatibleClassChangeError e) {
             throw new RuntimeException("Caplet " + jarFile + " is not compatible with this capsule (" + VERSION + ")");
         } catch (InvocationTargetException e) {
@@ -4233,7 +4251,14 @@ public class Capsule implements Runnable {
 
     private Capsule newCapsule(Path jarFile, Capsule pred) {
         try {
-            return accessible(loadCapsule(newClassLoader(MY_CLASSLOADER, jarFile), jarFile).getDeclaredConstructor(Capsule.class)).newInstance(pred);
+            final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
+            try {
+                final ClassLoader cl = newClassLoader(ccl, jarFile);
+                Thread.currentThread().setContextClassLoader(cl);
+                return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Path.class)).newInstance(jarFile);
+            } finally {
+                Thread.currentThread().setContextClassLoader(ccl);
+            }
         } catch (IncompatibleClassChangeError e) {
             throw new RuntimeException("Caplet " + jarFile + " is not compatible with this capsule (" + VERSION + ")");
         } catch (InvocationTargetException e) {
@@ -4245,7 +4270,7 @@ public class Capsule implements Runnable {
 
     private static Capsule newCapsule(String capsuleClass, Capsule pred) {
         try {
-            final Class<? extends Capsule> clazz = loadCapsule(MY_CLASSLOADER, capsuleClass, capsuleClass);
+            final Class<? extends Capsule> clazz = loadCapsule(Thread.currentThread().getContextClassLoader(), capsuleClass, capsuleClass);
             return accessible(clazz.getDeclaredConstructor(Capsule.class)).newInstance(pred);
         } catch (IncompatibleClassChangeError e) {
             throw new RuntimeException("Caplet " + capsuleClass + " is not compatible with this capsule (" + VERSION + ")");
