@@ -2678,24 +2678,25 @@ public class Capsule implements Runnable {
         p = expand(p);
         if (p == null)
             return null;
-        final boolean isDependency = isDependency(p);
-
-        if (!isDependency) {
-            final Path path = Paths.get(p);
-            if (path.isAbsolute())
-                return singletonList(sanitize(path));
-        }
 
         try {
-            if (isDependency) {
-                final List<Path> res = resolveDependency(p, "jar");
-                if (res == null || res.isEmpty())
-                    throw new RuntimeException("Dependency " + p + " was not found.");
-                return res;
-            } else if (isGlob(p))
-                return listDir(verifyAppCache(), p, false);
+            final List<Path> res;
+
+            final boolean isDependency = isDependency(p);
+            final Path path;
+            if (!isDependency && (path = Paths.get(p)).isAbsolute())
+                res = singletonList(sanitize(path));
+            else if (isDependency)
+                res = resolveDependency(p, "jar");
+            else if (isGlob(p))
+                res = listDir(verifyAppCache(), p, false);
             else
-                return singletonList(sanitize(verifyAppCache().resolve(p)));
+                res = singletonList(sanitize(verifyAppCache().resolve(p)));
+
+            log(LOG_DEBUG, "resolve " + p + " -> " + res);
+            if (res == null || res.isEmpty())
+                throw new RuntimeException("Dependency " + p + " was not found.");
+            return res;
         } catch (Exception e) {
             throw new RuntimeException("Could not resolve item " + p, e);
         }
