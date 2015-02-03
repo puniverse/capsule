@@ -1486,6 +1486,29 @@ public class Capsule implements Runnable {
         return oc.appCache;
     }
 
+    /**
+     * Returns this capsule's cache directory.
+     * The difference between this method and {@link #getAppCache()} is that this method throws an exception if the app cache
+     * cannot be retrieved, while {@link #getAppCache()} returns {@code null}.
+     *
+     * @throws IllegalStateException if the app cache hasn't been set up (yet).
+     */
+    protected final Path verifyAppCache() {
+        final Path dir = getAppCache();
+        if (dir == null) {
+            String message = "Capsule not extracted.";
+            if (getAppId() == null) {
+                if (isEmptyCapsule())
+                    message += " This is a wrapper capsule and the wrapped capsule hasn't been set (yet)";
+                else
+                    message += " App ID has not been determined yet.";
+            } else {
+                if (!shouldExtract())
+                    message += " The " + ATTR_EXTRACT + " attribute has been set to false";
+            }
+            throw new IllegalStateException(message);
+        }
+        return dir;
     }
 
     /**
@@ -1634,7 +1657,11 @@ public class Capsule implements Runnable {
     /////////// Script Process ///////////////////////////////////
     private Path getScript() {
         final String s = getAttribute(ATTR_SCRIPT);
-        return s != null ? sanitize(getAppCache().resolve(s.replace('/', FILE_SEPARATOR_CHAR))) : null;
+        try {
+            return s != null ? sanitize(verifyAppCache().resolve(s.replace('/', FILE_SEPARATOR_CHAR))) : null;
+        } catch (Exception e) {
+            throw new RuntimeException("Could not start script " + s, e);
+        }
     }
 
     private boolean buildScriptProcess(ProcessBuilder pb) {
@@ -2290,10 +2317,7 @@ public class Capsule implements Runnable {
     private List<Path> resolveDependency0(String coords, String type) {
         if (coords == null)
             return null;
-        final Path dir = getAppCache();
-        if (dir == null)
-            throw new IllegalStateException("Cannot resolve dependency " + coords + ". Capsule not extracted. Cannot obtain path ");
-        return singletonList(dependencyToLocalJar(dir, coords, type));
+        return singletonList(dependencyToLocalJar(verifyAppCache(), coords, type));
     }
     //</editor-fold>
 
@@ -2645,15 +2669,19 @@ public class Capsule implements Runnable {
                 return singletonList(sanitize(path));
         }
 
-        if (isDependency) {
-            final List<Path> res = resolveDependency(p, "jar");
-            if (res == null || res.isEmpty())
-                throw new RuntimeException("Dependency " + p + " was not found.");
-            return res;
-        } else if (isGlob(p))
-            return listDir(getAppCache(), p, false);
-        else
-            return singletonList(sanitize(getAppCache().resolve(p)));
+        try {
+            if (isDependency) {
+                final List<Path> res = resolveDependency(p, "jar");
+                if (res == null || res.isEmpty())
+                    throw new RuntimeException("Dependency " + p + " was not found.");
+                return res;
+            } else if (isGlob(p))
+                return listDir(verifyAppCache(), p, false);
+            else
+                return singletonList(sanitize(verifyAppCache().resolve(p)));
+        } catch (Exception e) {
+            throw new RuntimeException("Could not resolve item " + p, e);
+        }
     }
 
     private List<Path> getPath(List<String> ps) {
@@ -2869,7 +2897,7 @@ public class Capsule implements Runnable {
 
     private Path sanitize(Path p) {
         final Path path = p.toAbsolutePath().normalize();
-        if (path.startsWith(getAppCache()))
+        if (getAppCache() != null && path.startsWith(getAppCache()))
             return path;
         if (path.startsWith(getJavaHome()) || path.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
             return path;
