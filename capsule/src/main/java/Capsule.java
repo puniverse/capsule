@@ -580,6 +580,8 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
 
+        initAppId(); // first try, before loading caplets
+        
         loadCaplets();
         this.wrapper = isEmptyCapsule();
 
@@ -697,6 +699,8 @@ public class Capsule implements Runnable {
     }
 
     private void initAppId() {
+        if (oc.appId != null)
+            return;
         final String[] nameAndVersion = buildAppId();
         if (nameAndVersion == null)
             return;
@@ -713,7 +717,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Caplet Chain">
     /////////// Caplet Chain ///////////////////////////////////
     protected final Capsule loadCaplet(String caplet, Capsule pred) {
-        if (isDependency(caplet)) {
+        if (isDependency(caplet) || caplet.endsWith(".jar")) {
             final List<Path> jars = getPath(caplet);
             if (jars.size() != 1)
                 throw new RuntimeException("The caplet " + caplet + " has transitive dependencies.");
