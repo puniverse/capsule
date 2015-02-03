@@ -722,11 +722,6 @@ public class Capsule implements Runnable {
             return newCapsule(caplet, pred);
     }
 
-    /**
-     * Inserts this caplet into the chain.
-     *
-     * @param pred the caplet after which this one is to be inserted
-     */
     private void insertAfter(Capsule pred) {
         // private b/c this might be a security risk (wrapped capsule inserting a caplet after wrapper)
         // and also because it might be too powerful and prevent us from adopting a different caplet chain implementation
@@ -1479,12 +1474,13 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="App Cache">
     /////////// App Cache ///////////////////////////////////
     /**
-     * This capsule's cache directory, or {@code null} if capsule has been configured not to extract.
+     * This capsule's cache directory, or {@code null} if capsule has been configured not to extract, or the app cache dir hasn't been set up yet.
      */
     protected final Path getAppCache() {
         if (oc.appCache == null && shouldExtract())
             oc.appCache = buildAppCacheDir();
         return oc.appCache;
+    }
 
     }
 
