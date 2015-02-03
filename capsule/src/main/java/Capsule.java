@@ -726,7 +726,7 @@ public class Capsule implements Runnable {
     /////////// Caplet Chain ///////////////////////////////////
     protected final Capsule loadCaplet(String caplet, Capsule pred) {
         if (isDependency(caplet) || caplet.endsWith(".jar")) {
-            final List<Path> jars = getPath(caplet);
+            final List<Path> jars = resolve(caplet);
             if (jars.size() != 1)
                 throw new RuntimeException("The caplet " + caplet + " has transitive dependencies.");
             return newCapsule(jars.get(0), pred);
@@ -1817,7 +1817,7 @@ public class Capsule implements Runnable {
                 throw new IllegalArgumentException("Glob pattern not allowed in " + ATTR_APP_ARTIFACT + " attribute.");
             final List<Path> app = isWrapperOfNonCapsule()
                     ? singletonList(toAbsolutePath(path(getAttribute(ATTR_APP_ARTIFACT))))
-                    : getPath(getAttribute(ATTR_APP_ARTIFACT));
+                    : resolve(getAttribute(ATTR_APP_ARTIFACT));
             classPath.addAll(app);
             final Path jar = app.get(0);
             final Manifest man = getManifest(jar);
@@ -1835,13 +1835,13 @@ public class Capsule implements Runnable {
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
             for (String sp : getListAttribute(ATTR_APP_CLASS_PATH))
-                addAllIfNotContained(classPath, getPath(sp));
+                addAllIfNotContained(classPath, resolve(sp));
         }
 
         if (getAppCache() != null)
             addAllIfNotContained(classPath, nullToEmpty(getDefaultCacheClassPath()));
 
-        classPath.addAll(nullToEmpty(getPath(getDependencies())));
+        classPath.addAll(nullToEmpty(resolve(getDependencies())));
 
         time("buildClassPath", start);
         return classPath;
@@ -1885,7 +1885,7 @@ public class Capsule implements Runnable {
     }
 
     private List<Path> buildBootClassPath0() {
-        return getPath(getListAttribute(ATTR_BOOT_CLASS_PATH));
+        return resolve(getListAttribute(ATTR_BOOT_CLASS_PATH));
     }
 
     /**
@@ -1911,7 +1911,7 @@ public class Capsule implements Runnable {
     }
 
     private List<Path> buildClassPath(String attr) {
-        return getPath(getListAttribute(attr));
+        return resolve(getListAttribute(attr));
     }
 
     private Map<String, String> buildSystemProperties(List<String> cmdLine) {
@@ -2152,7 +2152,7 @@ public class Capsule implements Runnable {
             final String agentName = agent.getKey();
             final String agentOptions = agent.getValue();
             try {
-                final Path agentPath = first(getPath(agentName + (java ? "" : ("." + getNativeLibExtension()))));
+                final Path agentPath = first(resolve(agentName + (java ? "" : ("." + getNativeLibExtension()))));
                 agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? agentOptions : ""));
             } catch (IllegalStateException e) {
                 if (getAppCache() == null && isThrownByCapsule(e))
@@ -2666,7 +2666,7 @@ public class Capsule implements Runnable {
      * if a dependency is given and it resolves to more than a single artifact, or if a glob pattern is given,
      * which matches more than one file.
      */
-    private List<Path> getPath(String p) {
+    private List<Path> resolve(String p) {
         p = expand(p);
         if (p == null)
             return null;
@@ -2693,7 +2693,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private List<Path> getPath(List<String> ps) {
+    private List<Path> resolve(List<String> ps) {
         if (ps == null)
             return null;
         final List<Path> res = new ArrayList<Path>(ps.size());
@@ -2715,13 +2715,13 @@ public class Capsule implements Runnable {
 
                 res.addAll(nullToEmpty(resolveDependencies(deps, "jar")));
                 for (String p : paths)
-                    res.addAll(getPath(p));
+                    res.addAll(resolve(p));
                 return res;
             }
         }
 
         for (String p : ps)
-            res.addAll(getPath(p));
+            res.addAll(resolve(p));
         return res;
     }
 
