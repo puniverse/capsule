@@ -2022,7 +2022,7 @@ public class Capsule implements Runnable {
         splitDepsAndRename(depsAndRename, deps, renames);
 
         log(LOG_VERBOSE, "Resolving native libs " + deps);
-        final List<Path> resolved = resolveDependencies(deps, getNativeLibExtension());
+        final List<Path> resolved = nullToEmpty(resolveDependencies(deps, getNativeLibExtension()));
         if (resolved.size() != deps.size())
             throw new RuntimeException("One of the native artifacts " + deps + " reolved to more than a single file or to none");
 
