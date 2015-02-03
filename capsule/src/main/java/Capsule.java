@@ -2317,7 +2317,8 @@ public class Capsule implements Runnable {
     private List<Path> resolveDependency0(String coords, String type) {
         if (coords == null)
             return null;
-        return singletonList(dependencyToLocalJar(verifyAppCache(), coords, type));
+        final Path file = dependencyToLocalJar(verifyAppCache(), coords, type);
+        return file != null ? singletonList(file) : null;
     }
     //</editor-fold>
 
