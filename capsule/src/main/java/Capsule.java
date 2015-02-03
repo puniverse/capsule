@@ -609,7 +609,7 @@ public class Capsule implements Runnable {
      */
     @SuppressWarnings("LeakingThisInConstructor")
     protected Capsule(Capsule pred) {
-        this.oc = this;
+        this.oc = pred.oc;
         this.cc = this;
 
         time("Load class", START);
