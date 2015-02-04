@@ -467,6 +467,7 @@ public class Capsule implements Runnable {
         processOptions();
     }
 
+    @SuppressWarnings("unchecked")
     private static boolean runActions(Capsule capsule, List<String> args) {
         try {
             boolean found = false;
@@ -474,7 +475,8 @@ public class Capsule implements Runnable {
                 if (!capsule.isWrapperCapsule() && (Boolean) entry.getValue()[OPTION_WRAPPER_ONLY])
                     continue;
                 if (entry.getValue()[OPTION_METHOD] != null && systemPropertyEmptyOrTrue(entry.getKey())) {
-                    getMethod(capsule, (String) entry.getValue()[OPTION_METHOD], List.class).invoke(capsule, args);
+                    final Method m = getMethod(capsule, (String) entry.getValue()[OPTION_METHOD], List.class);
+                    m.invoke(capsule.cc.sup((Class<? extends Capsule>)m.getDeclaringClass()), args);
                     found = true;
                 }
             }
@@ -784,8 +786,6 @@ public class Capsule implements Runnable {
      * The first caplet in the caplet chain starting with the current one and going up (back) that is of the requested type.
      */
     protected final <T extends Capsule> T sup(Class<T> caplet) {
-        if (caplet == getClass())
-            throw new IllegalArgumentException("Called with " + caplet.getName() + " on the same class.");
         for (Capsule c = this; c != null; c = c.sup) {
             if (caplet.isInstance(c))
                 return caplet.cast(c);
@@ -3807,11 +3807,12 @@ public class Capsule implements Runnable {
     /////////// Reflection Utils ///////////////////////////////////
     private static Method getMethod(Capsule capsule, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
         for (Capsule c = capsule.cc; c != null; c = c.sup) {
-            final Method m;
-            if ((m = getMethod(capsule.getClass(), name, parameterTypes)) != null)
-                return m;
+            try {
+                return getMethod(c.getClass(), name, parameterTypes);
+            } catch (NoSuchMethodException e) {
+            }
         }
-        return null;
+        throw new NoSuchMethodException(name + "(" + Arrays.toString(parameterTypes) + ")");
     }
 
     private static Method getMethod(Class<?> clazz, String name, Class<?>... parameterTypes) throws NoSuchMethodException {
