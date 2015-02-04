@@ -42,6 +42,7 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 import org.junit.Before;
 import static com.google.common.truth.Truth.*;
+import org.joor.Reflect;
 //import static org.mockito.Mockito.*;
 
 public class CapsuleTest {
@@ -513,8 +514,7 @@ public class CapsuleTest {
         paths.addAll(mockDep("com.acme:baz:3.4:jdk8", "jar", "com.google:guava:18.0"));
         paths.add(mockDep("com.acme:wat:5.8", "jar"));
         paths.addAll(mockDep("com.acme:woo", "jar", "org.apache:tomcat:8.0", "io.jetty:jetty:123.0"));
-        
-        
+
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
@@ -816,13 +816,75 @@ public class CapsuleTest {
     }
 
     @Test
-    public void testCustomCapsule() throws Exception {
+    public void testSimpleCaplet1() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Main-Class", "MyCapsule")
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10")
                 .addClass(MyCapsule.class);
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
+
+        Path capsuleJar = absolutePath("capsule.jar");
+        jar.write(capsuleJar);
+        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar);
+
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertEquals("x", getProperty(pb, "foo"));
+        assertEquals("", getProperty(pb, "bar"));
+        assertEquals("", getProperty(pb, "zzz"));
+        assertEquals("44", getProperty(pb, "baz"));
+
+        assertTrue(getJvmArgs(pb).contains("-Xmx3000"));
+        assertTrue(!getJvmArgs(pb).contains("-Xmx100"));
+        assertTrue(getJvmArgs(pb).contains("-Xms15"));
+        assertTrue(!getJvmArgs(pb).contains("-Xms10"));
+    }
+
+    @Test
+    public void testSimpleCaplet2() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setListAttribute("Caplets", list("MyCapsule"))
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .addClass(MyCapsule.class);
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
+
+        Path capsuleJar = absolutePath("capsule.jar");
+        jar.write(capsuleJar);
+        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar);
+
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertEquals("x", getProperty(pb, "foo"));
+        assertEquals("", getProperty(pb, "bar"));
+        assertEquals("", getProperty(pb, "zzz"));
+        assertEquals("44", getProperty(pb, "baz"));
+
+        assertTrue(getJvmArgs(pb).contains("-Xmx3000"));
+        assertTrue(!getJvmArgs(pb).contains("-Xmx100"));
+        assertTrue(getJvmArgs(pb).contains("-Xms15"));
+        assertTrue(!getJvmArgs(pb).contains("-Xms10"));
+    }
+
+    @Test
+    public void testEmbeddedCaplet() throws Exception {
+        Jar bar = newCapsuleJar()
+                .setListAttribute("Caplets", list("MyCapsule"))
+                .addClass(MyCapsule.class);
+
+        Jar jar = newCapsuleJar()
+                .setListAttribute("Caplets", list("com.acme:mycapsule:0.9"))
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .addEntry("mycapsule-0.9.jar", bar.toByteArray());
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
@@ -1078,6 +1140,58 @@ public class CapsuleTest {
         assertTrue(!pathMatcher.matches(fs1.getPath(".java.exe")));
         assertTrue(!pathMatcher.matches(fs1.getPath("java.exe1")));
         assertTrue(!pathMatcher.matches(fs1.getPath("java.")));
+    }
+
+    @Test
+    @SuppressWarnings("LocalVariableHidesMemberVariable")
+    public void testDependencyToLocalJar() throws Exception {
+        FileSystem fs;
+        Path root, lib, group, file;
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        lib = Files.createDirectory(root.resolve("lib"));
+        group = Files.createDirectory(lib.resolve("com.acme"));
+        file = Files.createFile(group.resolve("foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        lib = Files.createDirectory(root.resolve("lib"));
+        file = Files.createFile(lib.resolve("com.acme-foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        lib = Files.createDirectory(root.resolve("lib"));
+        file = Files.createFile(lib.resolve("foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        group = Files.createDirectory(root.resolve("com.acme"));
+        file = Files.createFile(group.resolve("foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        file = Files.createFile(root.resolve("com.acme-foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        file = Files.createFile(root.resolve("foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+    }
+
+    private static Path dependencyToLocalJar(Path root, String dep, String type) {
+        return Reflect.on(Capsule.class).call("dependencyToLocalJar", root, dep, type).get();
     }
 
     @Test
