@@ -2632,7 +2632,7 @@ public class Capsule implements Runnable {
         return lib.contains(":") && !lib.contains(":\\");
     }
 
-    private Path dependencyToLocalJar(Path root, String dep, String type) {
+    private static Path dependencyToLocalJar(Path root, String dep, String type) {
         final String[] coords = dep.split(":");
         final String group = coords[0];
         final String artifact = coords[1];
