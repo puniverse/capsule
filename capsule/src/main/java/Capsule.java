@@ -2471,7 +2471,7 @@ public class Capsule implements Runnable {
 
     private String getAttribute0(String attr) {
         String value = null;
-        if (oc.manifest != null) {
+        if (manifest != null) {
             if (getMode() != null && allowsModal(attr))
                 value = getPlatformAttribute(getMode(), attr);
             if (value == null)
@@ -2524,7 +2524,7 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final String getAttribute(String attr) {
-        String value = getAttribute0(attr);
+        String value = oc.getAttribute0(attr);
         final Object[] conf;
         if (value == null && (conf = ATTRIBS.get(attr)) != null)
             value = (String) conf[ATTRIB_DEFAULT];
@@ -2549,7 +2549,7 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final List<String> getListAttribute(String attr) {
-        List<String> res = new ArrayList<>(nullToEmpty(parse(getAttribute0(attr))));
+        List<String> res = new ArrayList<>(nullToEmpty(parse(oc.getAttribute0(attr))));
         final Object[] conf;
         if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT]);
@@ -2570,7 +2570,7 @@ public class Capsule implements Runnable {
      * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
      */
     protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
-        Map<String, String> res = new HashMap<>(nullToEmpty(parse(getAttribute0(attr), defaultValue)));
+        Map<String, String> res = new HashMap<>(nullToEmpty(parse(oc.getAttribute0(attr), defaultValue)));
         final Object[] conf;
         if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
             res = parse((String) conf[ATTRIB_DEFAULT], defaultValue);
