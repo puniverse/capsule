@@ -20,7 +20,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -272,42 +271,6 @@ public final class CapsuleLauncher {
         final List<String> cmdLine2 = new ArrayList<>(jvmArgs);
         cmdLine2.add(arg);
         return cmdLine2;
-    }
-
-    /**
-     * Returns the path of the default capsule cache directory
-     */
-    public static Path getDefaultCacheDir() {
-        final Path cache;
-        cache = getCacheHome().resolve((isWindows() ? "" : ".") + CACHE_DEFAULT_NAME);
-        return cache;
-    }
-
-    private static Path getCacheHome() {
-        final Path userHome = Paths.get(System.getProperty(PROP_USER_HOME));
-        if (!isWindows())
-            return userHome;
-
-        Path localData;
-        final String localAppData = System.getenv("LOCALAPPDATA");
-        if (localAppData != null) {
-            localData = Paths.get(localAppData);
-            if (!Files.isDirectory(localData))
-                throw new RuntimeException("%LOCALAPPDATA% set to nonexistent directory " + localData);
-        } else {
-            localData = userHome.resolve(Paths.get("AppData", "Local"));
-            if (!Files.isDirectory(localData))
-                localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
-            if (!Files.isDirectory(localData))
-                throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
-                        + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
-                        + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
-        }
-        return localData;
-    }
-
-    private static boolean isWindows() {
-        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
     }
 
     private Field getCapsuleField(String name) {
