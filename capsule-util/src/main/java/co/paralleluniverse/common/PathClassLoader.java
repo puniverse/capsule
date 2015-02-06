@@ -105,7 +105,7 @@ public class PathClassLoader extends FlexibleClassLoader {
     @Override
     protected Enumeration<URL> findResources1(String name) {
         try {
-            List<URL> urls = new ArrayList<>();
+            final List<URL> urls = new ArrayList<>();
             for (Object o : paths) {
                 final Path p = resolve(o, name);
                 if (Files.exists(p))
