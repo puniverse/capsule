@@ -6,7 +6,6 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-
 package co.paralleluniverse.capsule;
 
 import co.paralleluniverse.common.JarClassLoader;
@@ -37,9 +36,6 @@ public final class CapsuleLauncher {
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
     private static final String PROP_MODE = "capsule.mode";
-    private static final String PROP_USER_HOME = "user.home";
-    private static final String PROP_OS_NAME = "os.name";
-    private static final String CACHE_DEFAULT_NAME = "capsule";
 
     private final Path jarFile;
     private final Class capsuleClass;
@@ -313,15 +309,8 @@ public final class CapsuleLauncher {
     private static Object invoke(Object obj, Method method, Object... params) {
         try {
             return method.invoke(obj, params);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
-        } catch (InvocationTargetException e) {
-            final Throwable t = e.getTargetException();
-            if (t instanceof RuntimeException)
-                throw (RuntimeException) t;
-            if (t instanceof Error)
-                throw (Error) t;
-            throw new RuntimeException(t);
+        } catch (Exception e) {
+            throw rethrow(e);
         }
     }
 
@@ -334,17 +323,27 @@ public final class CapsuleLauncher {
     private static Object get(Object obj, Field field) {
         try {
             return field.get(obj);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
+        } catch (Exception e) {
+            throw rethrow(e);
         }
     }
 
     private static void set(Object obj, Field field, Object value) {
         try {
             field.set(obj, value);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
+        } catch (Exception e) {
+            throw rethrow(e);
         }
+    }
+
+    private static RuntimeException rethrow(Throwable t) {
+        while (t instanceof InvocationTargetException)
+            t = ((InvocationTargetException) t).getTargetException();
+        if (t instanceof RuntimeException)
+            throw (RuntimeException) t;
+        if (t instanceof Error)
+            throw (Error) t;
+        throw new RuntimeException(t);
     }
     //</editor-fold>
 }
