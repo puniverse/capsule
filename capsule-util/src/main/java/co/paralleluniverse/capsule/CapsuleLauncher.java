@@ -43,17 +43,12 @@ public final class CapsuleLauncher {
 
     private final Path jarFile;
     private final Class capsuleClass;
-    private final Properties properties;
+    private Properties properties;
 
     public CapsuleLauncher(Path jarFile) throws IOException {
-        this(jarFile, null);
-    }
-
-    public CapsuleLauncher(Path jarFile, Properties properties) throws IOException {
         this.jarFile = jarFile;
-        this.properties = properties != null ? properties : new Properties(System.getProperties());
         this.capsuleClass = loadCapsuleClass(jarFile);
-        set(null, getCapsuleField("PROPERTIES"), properties);
+        setProperties(null);
     }
 
     /**
@@ -70,6 +65,18 @@ public final class CapsuleLauncher {
     }
 
     /**
+     * Sets the properties for the capsules created by {@code newCapsule}
+     *
+     * @param properties the properties
+     * @return {@code this}
+     */
+    public CapsuleLauncher setProperties(Properties properties) {
+        this.properties = properties != null ? properties : new Properties(System.getProperties());
+        set(null, getCapsuleField("PROPERTIES"), this.properties);
+        return this;
+    }
+
+    /**
      * Sets a property for the capsules created by {@code newCapsule}
      *
      * @param property the name of the property
@@ -77,7 +84,10 @@ public final class CapsuleLauncher {
      * @return {@code this}
      */
     public CapsuleLauncher setProperty(String property, String value) {
-        properties.setProperty(property, value);
+        if (value != null)
+            properties.setProperty(property, value);
+        else
+            properties.remove(property);
         return this;
     }
 
@@ -131,7 +141,7 @@ public final class CapsuleLauncher {
     public Capsule newCapsule(String mode, Path wrappedJar) {
         final String oldMode = properties.getProperty(PROP_MODE);
         try {
-            properties.setProperty(PROP_MODE, mode);
+            setProperty(PROP_MODE, mode);
 
             final Constructor<?> ctor = accessible(capsuleClass.getDeclaredConstructor(Path.class));
             final Object capsule = ctor.newInstance(jarFile);
@@ -145,7 +155,7 @@ public final class CapsuleLauncher {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not create capsule instance.", e);
         } finally {
-            properties.setProperty(PROP_MODE, oldMode);
+            setProperty(PROP_MODE, oldMode);
         }
     }
 
