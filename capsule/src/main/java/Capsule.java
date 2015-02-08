@@ -240,9 +240,6 @@ public class Capsule implements Runnable {
 
     private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_UNIX, OS_POSIX);
 
-    @SuppressWarnings("FieldMayBeFinal")
-    private static Object DEPENDENCY_MANAGER = DEFAULT; // used only by tests
-
     // logging
     private static final String LOG_PREFIX = "CAPSULE: ";
     protected static final int LOG_NONE = 0;
