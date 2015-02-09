@@ -42,6 +42,7 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.Permission;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,6 +52,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.jar.Attributes;
@@ -142,37 +144,43 @@ public class Capsule implements Runnable {
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
     private static final String PROP_PROFILE = "capsule.profile";
 
-    private static final String ATTR_APP_NAME = ATTRIBUTE("Application-Name", null, false, "The application's name");
-    private static final String ATTR_APP_VERSION = ATTRIBUTE("Application-Version", null, false, "The application's version string");
-    private static final String ATTR_CAPLETS = ATTRIBUTE("Caplets", null, false, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
-    private static final String ATTR_MODE_DESC = ATTRIBUTE("Description", null, true, "Contains the description of its respective mode");
-    private static final String ATTR_APP_CLASS = ATTRIBUTE("Application-Class", null, true, "The main application class");
-    private static final String ATTR_APP_ARTIFACT = ATTRIBUTE("Application", null, true, "The Maven coordinates of the application's main JAR or the path of the main JAR within the capsule");
-    private static final String ATTR_SCRIPT = ATTRIBUTE("Application-Script", null, true, "A startup script to be run *instead* of `Application-Class`, given as a path relative to the capsule's root");
-    private static final String ATTR_EXTRACT = ATTRIBUTE("Extract-Capsule", "true", true, "Whether or not the capsule JAR will be extracted to the filesystem");
-    private static final String ATTR_MIN_JAVA_VERSION = ATTRIBUTE("Min-Java-Version", null, true, "The lowest Java version required to run the application");
-    private static final String ATTR_JAVA_VERSION = ATTRIBUTE("Java-Version", null, true, "The highest version of the Java installation required to run the application");
-    private static final String ATTR_MIN_UPDATE_VERSION = ATTRIBUTE("Min-Update-Version", null, true, "A space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required");
-    private static final String ATTR_JDK_REQUIRED = ATTRIBUTE("JDK-Required", "false", true, "Whether or not a JDK is required to launch the application");
-    private static final String ATTR_JVM_ARGS = ATTRIBUTE("JVM-Args", null, true, "A list of JVM arguments that will be used to launch the application's Java process");
-    private static final String ATTR_ARGS = ATTRIBUTE("Args", null, true, "A list of command line arguments to be passed to the application; the UNIX shell-style special variables (`$*`, `$1`, `$2`, ...) can refer to the actual arguments passed on the capsule's command line; if no special var is used, the listed values will be prepended to the supplied arguments (i.e., as if `$*` had been listed last).");
-    private static final String ATTR_ENV = ATTRIBUTE("Environment-Variables", null, true, "A list of environment variables that will be put in the applications environment; formatted \"var=value\" or \"var\"");
-    private static final String ATTR_SYSTEM_PROPERTIES = ATTRIBUTE("System-Properties", null, true, "A list of system properties that will be defined in the applications JVM; formatted \"prop=value\" or \"prop\"");
-    private static final String ATTR_APP_CLASS_PATH = ATTRIBUTE("App-Class-Path", null, true, "A list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed");
-    private static final String ATTR_CAPSULE_IN_CLASS_PATH = ATTRIBUTE("Capsule-In-Class-Path", "true", true, "Whether or not the capsule JAR itself is on the application's classpath");
-    private static final String ATTR_BOOT_CLASS_PATH = ATTRIBUTE("Boot-Class-Path", null, true, "A list of JARs, dependencies, and/or directories, relative to the capsule root, that will be used as the application's boot classpath");
-    private static final String ATTR_BOOT_CLASS_PATH_A = ATTRIBUTE("Boot-Class-Path-A", null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath");
-    private static final String ATTR_BOOT_CLASS_PATH_P = ATTRIBUTE("Boot-Class-Path-P", null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be prepended to the applications default boot classpath");
-    private static final String ATTR_LIBRARY_PATH_A = ATTRIBUTE("Library-Path-A", null, true, "A list of JARs and/or directories, relative to the capsule root, to be appended to the default native library path");
-    private static final String ATTR_LIBRARY_PATH_P = ATTRIBUTE("Library-Path-P", null, true, "a list of JARs and/or directories, relative to the capsule root, to be prepended to the default native library path");
-    private static final String ATTR_SECURITY_MANAGER = ATTRIBUTE("Security-Manager", null, true, "The name of a class that will serve as the application's security-manager");
-    private static final String ATTR_SECURITY_POLICY = ATTRIBUTE("Security-Policy", null, true, "A security policy file, relative to the capsule root, that will be used as the security policy");
-    private static final String ATTR_SECURITY_POLICY_A = ATTRIBUTE("Security-Policy-A", null, true, "A security policy file, relative to the capsule root, that will be appended to the default security policy");
-    private static final String ATTR_JAVA_AGENTS = ATTRIBUTE("Java-Agents", null, true, "A list of Java agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency");
-    private static final String ATTR_NATIVE_AGENTS = ATTRIBUTE("Native-Agents", null, true, "A list of native JVMTI agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a native library, without the platform-specific suffix, relative to the capsule root. The native library file(s) can be embedded in the capsule or listed as Maven native dependencies using the Native-Dependencies-... attributes.");
-    private static final String ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
-    private static final String ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
-    private static final String ATTR_LOG_LEVEL = ATTRIBUTE("Capsule-Log-Level", null, false, "The capsule's default log level");
+    protected static final String TYPE_STRING = new String();
+    protected static final List<String> TYPE_LIST = new ArrayList<>();
+    protected static final Set<String> TYPE_SET = new HashSet<>();
+    protected static final Map<String, String> TYPE_MAP = new HashMap<>();
+    protected static final Map<String, String> TYPE_MAP_O = new HashMap<>();
+
+    private static final Entry<String, String> ATTR_APP_NAME = ATTRIBUTE("Application-Name", TYPE_STRING, null, false, "The application's name");
+    private static final Entry<String, String> ATTR_APP_VERSION = ATTRIBUTE("Application-Version", TYPE_STRING, null, false, "The application's version string");
+    private static final Entry<String, List<String>> ATTR_CAPLETS = ATTRIBUTE("Caplets", TYPE_LIST, null, false, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
+    private static final Entry<String, String> ATTR_MODE_DESC = ATTRIBUTE("Description", TYPE_STRING, null, true, "Contains the description of its respective mode");
+    private static final Entry<String, String> ATTR_APP_CLASS = ATTRIBUTE("Application-Class", TYPE_STRING, null, true, "The main application class");
+    private static final Entry<String, String> ATTR_APP_ARTIFACT = ATTRIBUTE("Application", TYPE_STRING, null, true, "The Maven coordinates of the application's main JAR or the path of the main JAR within the capsule");
+    private static final Entry<String, String> ATTR_SCRIPT = ATTRIBUTE("Application-Script", TYPE_STRING, null, true, "A startup script to be run *instead* of `Application-Class`, given as a path relative to the capsule's root");
+    private static final Entry<String, String> ATTR_EXTRACT = ATTRIBUTE("Extract-Capsule", TYPE_STRING, "true", true, "Whether or not the capsule JAR will be extracted to the filesystem");
+    private static final Entry<String, String> ATTR_MIN_JAVA_VERSION = ATTRIBUTE("Min-Java-Version", TYPE_STRING, null, true, "The lowest Java version required to run the application");
+    private static final Entry<String, String> ATTR_JAVA_VERSION = ATTRIBUTE("Java-Version", TYPE_STRING, null, true, "The highest version of the Java installation required to run the application");
+    private static final Entry<String, Map<String, String>> ATTR_MIN_UPDATE_VERSION = ATTRIBUTE("Min-Update-Version", TYPE_MAP_O, null, true, "A space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required");
+    private static final Entry<String, String> ATTR_JDK_REQUIRED = ATTRIBUTE("JDK-Required", TYPE_STRING, "false", true, "Whether or not a JDK is required to launch the application");
+    private static final Entry<String, List<String>> ATTR_JVM_ARGS = ATTRIBUTE("JVM-Args", TYPE_LIST, null, true, "A list of JVM arguments that will be used to launch the application's Java process");
+    private static final Entry<String, List<String>> ATTR_ARGS = ATTRIBUTE("Args", TYPE_LIST, null, true, "A list of command line arguments to be passed to the application; the UNIX shell-style special variables (`$*`, `$1`, `$2`, ...) can refer to the actual arguments passed on the capsule's command line; if no special var is used, the listed values will be prepended to the supplied arguments (i.e., as if `$*` had been listed last).");
+    private static final Entry<String, Map<String, String>> ATTR_ENV = ATTRIBUTE("Environment-Variables", TYPE_MAP_O, null, true, "A list of environment variables that will be put in the applications environment; formatted \"var=value\" or \"var\"");
+    private static final Entry<String, Map<String, String>> ATTR_SYSTEM_PROPERTIES = ATTRIBUTE("System-Properties", TYPE_MAP, null, true, "A list of system properties that will be defined in the applications JVM; formatted \"prop=value\" or \"prop\"");
+    private static final Entry<String, List<String>> ATTR_APP_CLASS_PATH = ATTRIBUTE("App-Class-Path", TYPE_LIST, null, true, "A list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed");
+    private static final Entry<String, String> ATTR_CAPSULE_IN_CLASS_PATH = ATTRIBUTE("Capsule-In-Class-Path", TYPE_STRING, "true", true, "Whether or not the capsule JAR itself is on the application's classpath");
+    private static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH = ATTRIBUTE("Boot-Class-Path", TYPE_LIST, null, true, "A list of JARs, dependencies, and/or directories, relative to the capsule root, that will be used as the application's boot classpath");
+    private static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH_A = ATTRIBUTE("Boot-Class-Path-A", TYPE_LIST, null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath");
+    private static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH_P = ATTRIBUTE("Boot-Class-Path-P", TYPE_LIST, null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be prepended to the applications default boot classpath");
+    private static final Entry<String, List<String>> ATTR_LIBRARY_PATH_A = ATTRIBUTE("Library-Path-A", TYPE_LIST, null, true, "A list of JARs and/or directories, relative to the capsule root, to be appended to the default native library path");
+    private static final Entry<String, List<String>> ATTR_LIBRARY_PATH_P = ATTRIBUTE("Library-Path-P", TYPE_LIST, null, true, "a list of JARs and/or directories, relative to the capsule root, to be prepended to the default native library path");
+    private static final Entry<String, String> ATTR_SECURITY_MANAGER = ATTRIBUTE("Security-Manager", TYPE_STRING, null, true, "The name of a class that will serve as the application's security-manager");
+    private static final Entry<String, String> ATTR_SECURITY_POLICY = ATTRIBUTE("Security-Policy", TYPE_STRING, null, true, "A security policy file, relative to the capsule root, that will be used as the security policy");
+    private static final Entry<String, String> ATTR_SECURITY_POLICY_A = ATTRIBUTE("Security-Policy-A", TYPE_STRING, null, true, "A security policy file, relative to the capsule root, that will be appended to the default security policy");
+    private static final Entry<String, Map<String, String>> ATTR_JAVA_AGENTS = ATTRIBUTE("Java-Agents", TYPE_MAP, null, true, "A list of Java agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency");
+    private static final Entry<String, Map<String, String>> ATTR_NATIVE_AGENTS = ATTRIBUTE("Native-Agents", TYPE_MAP, null, true, "A list of native JVMTI agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a native library, without the platform-specific suffix, relative to the capsule root. The native library file(s) can be embedded in the capsule or listed as Maven native dependencies using the Native-Dependencies-... attributes.");
+    private static final Entry<String, List<String>> ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", TYPE_LIST, null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
+    private static final Entry<String, List<String>> ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", TYPE_LIST, null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
+    private static final Entry<String, String> ATTR_LOG_LEVEL = ATTRIBUTE("Capsule-Log-Level", TYPE_STRING, null, false, "The capsule's default log level");
 
     // outgoing
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
@@ -255,9 +263,10 @@ public class Capsule implements Runnable {
     private static final int OPTION_DESC = 3;
 
     // attributes
-    private static final int ATTRIB_DEFAULT = 0;
-    private static final int ATTRIB_MODAL = 1;
-    private static final int ATTRIB_DESC = 2;
+    private static final int ATTRIB_TYPE = 0;
+    private static final int ATTRIB_DEFAULT = 1;
+    private static final int ATTRIB_MODAL = 2;
+    private static final int ATTRIB_DESC = 3;
     //</editor-fold>
 
     //<editor-fold desc="Main">
@@ -473,7 +482,7 @@ public class Capsule implements Runnable {
                     continue;
                 if (entry.getValue()[OPTION_METHOD] != null && systemPropertyEmptyOrTrue(entry.getKey())) {
                     final Method m = getMethod(capsule, (String) entry.getValue()[OPTION_METHOD], List.class);
-                    m.invoke(capsule.cc.sup((Class<? extends Capsule>)m.getDeclaringClass()), args);
+                    m.invoke(capsule.cc.sup((Class<? extends Capsule>) m.getDeclaringClass()), args);
                     found = true;
                 }
             }
@@ -662,7 +671,7 @@ public class Capsule implements Runnable {
         time("Read JAR in setTarget", start);
 
         if (!isCapsule)
-            manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT, jar.toString());
+            manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT.getKey(), jar.toString());
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             oc.jarFile = jar;
@@ -701,7 +710,7 @@ public class Capsule implements Runnable {
     }
 
     private void loadCaplets() {
-        for (String caplet : nullToEmpty(getListAttribute(ATTR_CAPLETS)))
+        for (String caplet : nullToEmpty(getAttribute(ATTR_CAPLETS)))
             loadCaplet(caplet, cc).insertAfter(cc);
     }
 
@@ -1259,7 +1268,7 @@ public class Capsule implements Runnable {
     }
 
     private List<String> buildArgs0(List<String> args) {
-        return expandArgs(nullToEmpty(expand(getListAttribute(ATTR_ARGS))), args);
+        return expandArgs(nullToEmpty(expand(getAttribute(ATTR_ARGS))), args);
     }
 
     // visible for testing
@@ -1306,24 +1315,17 @@ public class Capsule implements Runnable {
     }
 
     private Map<String, String> buildEnvironmentVariables0(Map<String, String> env) {
-        final List<String> jarEnv = getListAttribute(ATTR_ENV);
-        if (jarEnv != null) {
-            for (String e : jarEnv) {
-                String var = getBefore(e, '=');
-                String value = getAfter(e, '=');
-
-                if (var.isEmpty())
-                    throw new IllegalArgumentException("Malformed env variable definition: " + e);
-
-                boolean overwrite = false;
-                if (var.endsWith(":")) {
-                    overwrite = true;
-                    var = var.substring(0, var.length() - 1);
-                }
-
-                if (overwrite || !env.containsKey(var))
-                    env.put(var, value != null ? value : "");
+        final Map<String, String> jarEnv = nullToEmpty(getAttribute(ATTR_ENV));
+        for (Map.Entry<String, String> e : jarEnv.entrySet()) {
+            boolean overwrite = false;
+            String var = e.getKey();
+            if (var.endsWith(":")) {
+                overwrite = true;
+                var = var.substring(0, var.length() - 1);
             }
+
+            if (overwrite || !env.containsKey(var))
+                env.put(var, e.getValue() != null ? e.getValue() : "");
         }
         if (getAppId() != null) {
             if (getAppCache() != null)
@@ -1831,7 +1833,7 @@ public class Capsule implements Runnable {
         }
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
-            for (String sp : getListAttribute(ATTR_APP_CLASS_PATH))
+            for (String sp : getAttribute(ATTR_APP_CLASS_PATH))
                 addAllIfNotContained(classPath, resolve(sp));
         }
 
@@ -1858,7 +1860,7 @@ public class Capsule implements Runnable {
     }
 
     private List<String> getDependencies0() {
-        final List<String> deps = getListAttribute(ATTR_DEPENDENCIES);
+        final List<String> deps = getAttribute(ATTR_DEPENDENCIES);
         return (deps != null && !deps.isEmpty()) ? unmodifiableList(deps) : null;
     }
 
@@ -1882,7 +1884,7 @@ public class Capsule implements Runnable {
     }
 
     private List<Path> buildBootClassPath0() {
-        return resolve(getListAttribute(ATTR_BOOT_CLASS_PATH));
+        return resolve(getAttribute(ATTR_BOOT_CLASS_PATH));
     }
 
     /**
@@ -1907,8 +1909,8 @@ public class Capsule implements Runnable {
         return buildClassPath(ATTR_BOOT_CLASS_PATH_A);
     }
 
-    private List<Path> buildClassPath(String attr) {
-        return resolve(getListAttribute(attr));
+    private List<Path> buildClassPath(Entry<String, List<String>> attr) {
+        return resolve(getAttribute(attr));
     }
 
     private Map<String, String> buildSystemProperties(List<String> cmdLine) {
@@ -1934,7 +1936,7 @@ public class Capsule implements Runnable {
         final Map<String, String> systemProperties = new HashMap<String, String>();
 
         // attribute
-        for (Map.Entry<String, String> pv : nullToEmpty(getMapAttribute(ATTR_SYSTEM_PROPERTIES, "")).entrySet())
+        for (Map.Entry<String, String> pv : nullToEmpty(getAttribute(ATTR_SYSTEM_PROPERTIES)).entrySet())
             systemProperties.put(pv.getKey(), expand(pv.getValue()));
 
         // library path
@@ -1986,12 +1988,9 @@ public class Capsule implements Runnable {
         final List<Path> libraryPath = new ArrayList<Path>(getPlatformNativeLibraryPath());
 
         resolveNativeDependencies();
-        if (getAppCache() != null) {
-            libraryPath.addAll(0, nullToEmpty(sanitize(resolve(getAppCache(), getListAttribute(ATTR_LIBRARY_PATH_P)))));
-            libraryPath.addAll(nullToEmpty(sanitize(resolve(getAppCache(), getListAttribute(ATTR_LIBRARY_PATH_A)))));
-            libraryPath.add(getAppCache());
-        } else if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A))
-            throw new IllegalStateException("Cannot use the " + ATTR_LIBRARY_PATH_P + " or the " + ATTR_LIBRARY_PATH_A + " attributes when the " + ATTR_EXTRACT + " attribute is set to false");
+        libraryPath.addAll(0, nullToEmpty(sanitize(resolve(verifyAppCache(), getAttribute(ATTR_LIBRARY_PATH_P)))));
+        libraryPath.addAll(nullToEmpty(sanitize(resolve(verifyAppCache(), getAttribute(ATTR_LIBRARY_PATH_A)))));
+        libraryPath.add(getAppCache());
         return libraryPath;
     }
 
@@ -2056,7 +2055,7 @@ public class Capsule implements Runnable {
     }
 
     private List<String> getNativeDependencies0() {
-        return getListAttribute(ATTR_NATIVE_DEPENDENCIES);
+        return getAttribute(ATTR_NATIVE_DEPENDENCIES);
     }
     //</editor-fold>
 
@@ -2087,7 +2086,7 @@ public class Capsule implements Runnable {
     private List<String> buildJVMArgs0() {
         final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
 
-        for (String a : nullToEmpty(getListAttribute(ATTR_JVM_ARGS))) {
+        for (String a : nullToEmpty(getAttribute(ATTR_JVM_ARGS))) {
             a = a.trim();
             if (!a.isEmpty() && !a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
                 addJvmArg(expand(a), jvmArgs);
@@ -2143,7 +2142,7 @@ public class Capsule implements Runnable {
 
     private Map<Path, String> buildAgents0(boolean java) {
         final long start = clock();
-        final Map<String, String> agents0 = nullToEmpty(getMapAttribute(java ? ATTR_JAVA_AGENTS : ATTR_NATIVE_AGENTS, ""));
+        final Map<String, String> agents0 = nullToEmpty(getAttribute(java ? ATTR_JAVA_AGENTS : ATTR_NATIVE_AGENTS));
         final Map<Path, String> agents = new LinkedHashMap<>(agents0.size());
         for (Map.Entry<String, String> agent : agents0.entrySet()) {
             final String agentName = agent.getKey();
@@ -2260,11 +2259,11 @@ public class Capsule implements Runnable {
                 return false;
             }
             if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(javaVersion, shortJavaVersion(getAttribute(ATTR_JAVA_VERSION)), 3) > 0) {
-                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_JAVA_VERSION + ": " + getAttribute(ATTR_JAVA_VERSION));
+                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_JAVA_VERSION.getKey() + ": " + getAttribute(ATTR_JAVA_VERSION));
                 return false;
             }
             if (getMinUpdateFor(javaVersion) > parseJavaVersion(javaVersion)[3]) {
-                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_MIN_UPDATE_VERSION + ": " + getAttribute(ATTR_MIN_UPDATE_VERSION) + " (" + getMinUpdateFor(javaVersion) + ")");
+                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_MIN_UPDATE_VERSION.getKey() + ": " + getAttribute(ATTR_MIN_UPDATE_VERSION) + " (" + getMinUpdateFor(javaVersion) + ")");
                 return false;
             }
             log(LOG_DEBUG, "Java version " + javaVersion + " matches");
@@ -2276,7 +2275,7 @@ public class Capsule implements Runnable {
     }
 
     private int getMinUpdateFor(String version) {
-        final Map<String, String> m = nullToEmpty(getMapAttribute(ATTR_MIN_UPDATE_VERSION, null));
+        final Map<String, String> m = nullToEmpty(getAttribute(ATTR_MIN_UPDATE_VERSION));
         final int[] ver = parseJavaVersion(version);
         for (Map.Entry<String, String> entry : m.entrySet()) {
             if (equals(ver, toInt(shortJavaVersion(entry.getKey()).split(SEPARATOR_DOT)), 3))
@@ -2346,15 +2345,17 @@ public class Capsule implements Runnable {
      * @param description  a description of the attribute
      * @return the attribute's name
      */
-    protected static final String ATTRIBUTE(String attrName, String defaultValue, boolean allowModal, String description) {
-        final Object[] conf = new Object[]{defaultValue, allowModal, description};
+    protected static final <T> Entry<String, T> ATTRIBUTE(String attrName, T type, T defaultValue, boolean allowModal, String description) {
+        if (!asList(TYPE_STRING, TYPE_LIST, TYPE_SET, TYPE_MAP, TYPE_MAP_O).contains(type))
+            throw new IllegalArgumentException("Type " + type + " is not supported for attributes");
+        final Object[] conf = new Object[]{type, defaultValue, allowModal, description};
         final Object[] old = ATTRIBS.get(attrName);
         if (old != null) {
             if (asList(conf).subList(0, conf.length - 1).equals(asList(old).subList(0, conf.length - 1))) // don't compare description
                 throw new IllegalStateException("Attribute " + attrName + " has a conflicting registration: " + Arrays.toString(old));
         }
         ATTRIBS.put(attrName, conf);
-        return attrName;
+        return new AbstractMap.SimpleImmutableEntry<String, T>(attrName, null);
     }
 
     /*
@@ -2396,8 +2397,8 @@ public class Capsule implements Runnable {
         }
     }
 
-    private boolean hasModalAttribute(String attr) {
-        final Attributes.Name key = new Attributes.Name(attr);
+    private boolean hasModalAttribute(Entry<String, ?> attr) {
+        final Attributes.Name key = new Attributes.Name(attr.getKey());
         for (Map.Entry<String, Attributes> entry : oc.manifest.getEntries().entrySet()) {
             if (entry.getValue().containsKey(key))
                 return true;
@@ -2432,7 +2433,7 @@ public class Capsule implements Runnable {
         if (!isLegalModeName(mode))
             throw new IllegalArgumentException(mode + " is an illegal mode name");
         if (oc.manifest != null && oc.manifest.getAttributes(mode) != null)
-            return oc.manifest.getAttributes(mode).getValue(ATTR_MODE_DESC);
+            return oc.manifest.getAttributes(mode).getValue(ATTR_MODE_DESC.getKey());
         return null;
     }
 
@@ -2506,6 +2507,15 @@ public class Capsule implements Runnable {
      *
      * @param attr the attribute
      */
+    protected final boolean hasAttribute(Entry<String, ?> attr) {
+        return hasAttribute(attr.getKey());
+    }
+
+    /**
+     * Tests whether the given attribute is found in the manifest.
+     *
+     * @param attr the attribute
+     */
     protected final boolean hasAttribute(String attr) {
         final Attributes.Name key = new Attributes.Name(attr);
         if (oc.hasAttribute0(attr, key))
@@ -2515,64 +2525,54 @@ public class Capsule implements Runnable {
 
     /**
      * Returns the value of the given manifest attribute with consideration to the capsule's mode.
+     * If the attribute is not defined, returns {@code null}.
+     *
+     * @param attr the attribute
+     * @return the value of the attribute as a String, or {@code null} if the attribute is not defined in the manifest.
+     */
+    @SuppressWarnings("unchecked")
+    protected final String getAttribute(String attr) {
+        return oc.getAttribute0(attr);
+    }
+
+    /**
+     * Returns the value of the given manifest attribute with consideration to the capsule's mode.
      * If the attribute is not defined, its default value will be returned
      * (if set with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE()}).
      *
      * @param attr the attribute
+     * @return the value of the attribute, or its default value if the attribute is not defined in the manifest.
      */
-    protected final String getAttribute(String attr) {
-        String value = oc.getAttribute0(attr);
-        final Object[] conf;
-        if (value == null && (conf = ATTRIBS.get(attr)) != null)
-            value = (String) conf[ATTRIB_DEFAULT];
-        setContext("attribute", attr, value);
+    @SuppressWarnings("unchecked")
+    protected final <T> T getAttribute(Entry<String, T> attr) {
+        final Object[] conf = ATTRIBS.get(attr.getKey());
+        if (conf == null)
+            throw new IllegalArgumentException("Attribute " + attr.getKey() + " has not been registered with ATTRIBUTE");
+        final String strv = getAttribute(attr.getKey());
+        final T value;
+        if (strv != null) {
+            final Object type = conf[ATTRIB_TYPE];
+            if (TYPE_STRING == type)
+                value = (T) strv;
+            else if (TYPE_LIST == type)
+                value = (T) parse(strv);
+            else if (TYPE_SET == type)
+                value = (T) new HashSet<String>(parse(strv));
+            else if (TYPE_MAP == type)
+                value = (T) parse(strv, "");
+            else if (TYPE_MAP_O == type)
+                value = (T) parse(strv, null);
+            else
+                throw new AssertionError("Unsupported attribute type " + type);
+        } else
+            value = (T) conf[ATTRIB_DEFAULT];
+        setContext("attribute", attr.getKey(), value);
         return value;
     }
 
     private boolean allowsModal(String attr) {
         final Object[] vals = ATTRIBS.get(attr);
         return vals != null ? (Boolean) vals[ATTRIB_MODAL] : true;
-    }
-
-    /**
-     * Returns the value of the given attribute (with consideration to the capsule's mode) as a list.
-     * The items comprising attribute's value must be whitespace-separated.
-     * <br>
-     * If the attribute is not defined, its default value will be returned
-     * (if set with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE()}).
-     * <p>
-     * The returned list is a concatenation of the lists found in the attribute in all manifests of installed caplets.
-     *
-     * @param attr the attribute
-     */
-    protected final List<String> getListAttribute(String attr) {
-        List<String> res = new ArrayList<>(nullToEmpty(parse(oc.getAttribute0(attr))));
-        final Object[] conf;
-        if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
-            res = parse((String) conf[ATTRIB_DEFAULT]);
-        setContext("attribute", attr, res);
-        return emptyToNull(res);
-    }
-
-    /**
-     * Returns the value of the given attribute (with consideration to the capsule's mode) as a map.
-     * The key-value pairs comprising attribute's value must be whitespace-separated, with each pair written as <i>key</i>=<i>value</i>.
-     * <br>
-     * If the attribute is not defined, its default value will be returned
-     * (if set with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE()}).
-     * <p>
-     * The returned map is a merge of the maps found in the attribute in all manifests of installed caplets.
-     *
-     * @param attr         the attribute
-     * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
-     */
-    protected final Map<String, String> getMapAttribute(String attr, String defaultValue) {
-        Map<String, String> res = new HashMap<>(nullToEmpty(parse(oc.getAttribute0(attr), defaultValue)));
-        final Object[] conf;
-        if (res.isEmpty() && (conf = ATTRIBS.get(attr)) != null)
-            res = parse((String) conf[ATTRIB_DEFAULT], defaultValue);
-        setContext("attribute", attr, res);
-        return emptyToNull(res);
     }
 
     /**
@@ -2825,11 +2825,11 @@ public class Capsule implements Runnable {
                     man.getMainAttributes().putValue(ATTR_MAIN_CLASS, wrMainClass);
                 }
 
-                final List<String> wrCaplets = nullToEmpty(parse(wd.getManifest().getMainAttributes().getValue(ATTR_CAPLETS)));
-                final ArrayList<String> caplets = new ArrayList<>(nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CAPLETS))));
+                final List<String> wrCaplets = nullToEmpty(parse(wd.getManifest().getMainAttributes().getValue(ATTR_CAPLETS.getKey())));
+                final ArrayList<String> caplets = new ArrayList<>(nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CAPLETS.getKey()))));
                 addAllIfNotContained(caplets, wrCaplets);
 
-                man.getMainAttributes().putValue(ATTR_CAPLETS, join(caplets, " "));
+                man.getMainAttributes().putValue(ATTR_CAPLETS.getKey(), join(caplets, " "));
 
                 try (final JarOutputStream out = new JarOutputStream(os, man)) {
 

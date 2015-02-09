@@ -219,7 +219,10 @@ public final class CapsuleLauncher {
                 switch (method.getName()) {
                     case "getVersion":
                         return get("VERSION");
-
+                    case "getAttribute":
+                        return getMethod(clazz, "getAttribute", Map.Entry.class).invoke(capsule, ((Attribute) args[0]).toEntry());
+                    case "hasAttribute":
+                        return getMethod(clazz, "hasAttribute", Map.Entry.class).invoke(capsule, ((Attribute) args[0]).toEntry());
                     default:
                         throw new UnsupportedOperationException("Capsule " + clazz + " does not support this operation");
                 }

@@ -6,11 +6,9 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-
 package co.paralleluniverse.capsule;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
@@ -28,7 +26,7 @@ public interface Capsule {
      * These may be set to change the capsule's behavior.
      */
     Properties getProperties();
-    
+
     /**
      * Returns a capsule's ID..
      */
@@ -52,26 +50,13 @@ public interface Capsule {
     /**
      * Tests whether the given attribute is found in the manifest.
      */
-    boolean hasAttribute(String attr);
+    boolean hasAttribute(Attribute<?> attr);
 
     /**
      * Returns the value of the given manifest attribute with consideration to the capsule's mode.
      * If the attribute is not defined, its default value will be returned.
      */
-    String getAttribute(String attr);
-
-    /**
-     * Returns the value of the given attribute (with consideration to the capsule's mode) as a list.
-     */
-    List<String> getListAttribute(String attr);
-
-    /**
-     * Returns the value of the given attribute (with consideration to the capsule's mode) as a map.
-     *
-     * @param attr         the attribute
-     * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
-     */
-    Map<String, String> getMapAttribute(String attr, String defaultValue);
+    <T> T getAttribute(Attribute<T> attr);
 
     /**
      * Creates a {@link ProcessBuilder} ready to use for launching the capsule.
