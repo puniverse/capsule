@@ -948,8 +948,8 @@ public class Capsule implements Runnable {
         if (getAppId() != null) {
             System.out.println(LOG_PREFIX + "Application " + getAppId());
             for (String attr : asList(ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VENDOR, ATTR_IMPLEMENTATION_URL)) {
-                if (hasAttribute(attr))
-                    System.out.println(LOG_PREFIX + getAttribute(attr));
+                if (hasManifestAttribute(attr))
+                    System.out.println(LOG_PREFIX + getManifestAttribute(attr));
             }
         }
         System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
@@ -2271,7 +2271,7 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * CAPLET OVERRIDE ONLY: Returns the value of the given manifest attribute with consideration to the capsule's mode.
+     * CAPLET OVERRIDE ONLY: Returns the value of the given capsule attribute with consideration to the capsule's mode.
      * Caplets may override this method to manipulate capsule attributes. This method must not be called directly except
      * as {@code super.attribute(attr)} calls in the caplet's implementation of this method.
      * <p>
@@ -2290,7 +2290,7 @@ public class Capsule implements Runnable {
         final Object[] conf = ATTRIBS.get(name(attr));
         if (conf == null)
             throw new IllegalArgumentException("Attribute " + attr.getKey() + " has not been registered with ATTRIBUTE");
-        final String svalue = getAttribute(name(attr));
+        final String svalue = getManifestAttribute(name(attr));
         final T type = (T) conf[ATTRIB_TYPE];
         final T value;
         if (svalue != null) {
@@ -2367,6 +2367,38 @@ public class Capsule implements Runnable {
                 modes.add(entry.getKey());
         }
         return unmodifiableSet(modes);
+    }
+
+    /**
+     * Tests whether the given attribute is found in the manifest.
+     * <p>
+     * This method should normally only be used for unregistered attributes, such as common non-capsule-specific attributes.
+     * The result returned by this method is unaffected by the implementation of the {@link #attribute(Map.Entry) attribute} method
+     * or in any way by installed caplets.
+     *
+     * @param attr the attribute
+     */
+    private boolean hasManifestAttribute(String attr) {
+        final Attributes.Name key = new Attributes.Name(attr);
+        if (oc.hasAttribute0(attr, key))
+            return true;
+        return false;
+    }
+
+    /**
+     * Returns the value of the given capsule manifest attribute with consideration to the capsule's mode.
+     * If the attribute is not defined, returns {@code null}
+     * <p>
+     * This method should normally only be used for unregistered attributes, such as common non-capsule-specific attributes.
+     * The result returned by this method is unaffected by the implementation of the {@link #attribute(Map.Entry) attribute} method
+     * or in any way by installed caplets.
+     *
+     * @param attr the attribute
+     * @return the value of the attribute as a String, or {@code null} if the attribute is not defined in the manifest.
+     */
+    @SuppressWarnings("unchecked")
+    private String getManifestAttribute(String attr) {
+        return oc.getAttribute0(attr);
     }
 
     /**
@@ -2459,30 +2491,6 @@ public class Capsule implements Runnable {
         if (res instanceof Map)
             return !((Map) res).isEmpty();
         return true;
-    }
-
-    /**
-     * Tests whether the given attribute is found in the manifest.
-     *
-     * @param attr the attribute
-     */
-    protected final boolean hasAttribute(String attr) {
-        final Attributes.Name key = new Attributes.Name(attr);
-        if (oc.hasAttribute0(attr, key))
-            return true;
-        return false;
-    }
-
-    /**
-     * Returns the value of the given manifest attribute with consideration to the capsule's mode.
-     * If the attribute is not defined, returns {@code null}.
-     *
-     * @param attr the attribute
-     * @return the value of the attribute as a String, or {@code null} if the attribute is not defined in the manifest.
-     */
-    @SuppressWarnings("unchecked")
-    protected final String getAttribute(String attr) {
-        return oc.getAttribute0(attr);
     }
 
     private boolean allowsModal(String attr) {
