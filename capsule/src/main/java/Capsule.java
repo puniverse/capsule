@@ -2661,20 +2661,6 @@ public class Capsule implements Runnable {
     private static Map<String, String> parse(String value, String defaultValue) {
         return split(value, '=', "\\s+", defaultValue);
     }
-
-    /**
-     * Combines collection elements into a string that can be used as the value of an attribute.
-     */
-    protected static final String toStringValue(Collection<?> list) {
-        return join(list, " ");
-    }
-
-    /**
-     * Combines map elements into a string that can be used as the value of an attribute.
-     */
-    protected static final String toStringValue(Map<?, ?> map) {
-        return join(map, '=', " ");
-    }
     //</editor-fold>
 
     private static final Attributes EMPTY_ATTRIBUTES = new Attributes();
@@ -3712,21 +3698,6 @@ public class Capsule implements Runnable {
             if (e != null)
                 sb.append(e).append(separator);
         }
-        sb.delete(sb.length() - separator.length(), sb.length());
-        return sb.toString();
-    }
-
-    /**
-     * @deprecated marked deprecated to exclude from javadoc
-     */
-    protected static String join(Map<?, ?> map, char kvSeparator, String separator) {
-        if (map == null)
-            return null;
-        if (map.isEmpty())
-            return "";
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<?, ?> entry : map.entrySet())
-            sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
         sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
     }
