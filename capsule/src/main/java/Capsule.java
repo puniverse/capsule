@@ -2495,6 +2495,8 @@ public class Capsule implements Runnable {
         return vals != null ? (Boolean) vals[ATTRIB_MODAL] : true;
     }
 
+    //<editor-fold defaultstate="collapsed" desc="Attribute Types and Parsing">
+    /////////// Attribute Types and Parsing ///////////////////////////////////
     /**
      * Represents the attribute type {@code  String}
      */
@@ -2673,6 +2675,7 @@ public class Capsule implements Runnable {
     protected static final String toStringValue(Map<?, ?> map) {
         return join(map, '=', " ");
     }
+    //</editor-fold>
 
     private static final Attributes EMPTY_ATTRIBUTES = new Attributes();
 
