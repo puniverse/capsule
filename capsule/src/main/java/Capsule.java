@@ -1379,7 +1379,7 @@ public class Capsule implements Runnable {
             return null;
 
         if (version == null)
-            version = hasAttribute(ATTR_APP_VERSION) ? getAttribute(ATTR_APP_VERSION) : getAttribute(ATTR_IMPLEMENTATION_VERSION);
+            version = getAttribute(ATTR_APP_VERSION);
 
         return new String[]{name, version};
     }
@@ -2287,6 +2287,16 @@ public class Capsule implements Runnable {
 
     @SuppressWarnings("unchecked")
     private <T> T attribute0(Entry<String, T> attr) {
+        if (attr == ATTR_APP_VERSION) {
+            final String ver = attribute00(ATTR_APP_VERSION);
+            if (ver == null)
+                return (T) getManifestAttribute(ATTR_IMPLEMENTATION_VERSION);
+        }
+        return attribute00(attr);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T attribute00(Entry<String, T> attr) {
         final Object[] conf = ATTRIBS.get(name(attr));
         if (conf == null)
             throw new IllegalArgumentException("Attribute " + attr.getKey() + " has not been registered with ATTRIBUTE");
