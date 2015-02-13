@@ -18,6 +18,10 @@ public class Attribute<T> {
     public static <T> Attribute<T> named(String name) {
         return new Attribute<>(name);
     }
+    
+    public static <T> Attribute<T> of(Map.Entry<String, T> attr) {
+        return new Attribute<>(attr.getKey());
+    }
 
     private final String name;
 
