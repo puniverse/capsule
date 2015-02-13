@@ -685,7 +685,7 @@ public class Capsule implements Runnable {
      * Called once the capsule construction has been completed (after loading of wrapped capsule, if applicable).
      */
     protected void finalizeCapsule() {
-        if ((_ct = getCallTarget()) != null)
+        if ((_ct = getCallTarget(Capsule.class)) != null)
             _ct.finalizeCapsule();
         else
             finalizeCapsule0();
@@ -799,21 +799,22 @@ public class Capsule implements Runnable {
         return null;
     }
 
-    @SuppressWarnings("AssertWithSideEffects")
-    protected final Capsule getCallTarget() {
+    protected final <T extends Capsule> T getCallTarget(Class<T> clazz) {
         /*
          * Here we're implementing both the "invokevirtual" and "invokespecial".
          * We want to somehow differentiate the case where the function is called directly -- and should, like invokevirtual, target cc, the
          * last caplet in the hieracrchy -- from the case where the function is called with super.foo -- and should, like invokevirtual, 
          * target sup, the previous caplet in the hierarchy.
          */
-        if (sup == null && cc != this) {
+        Capsule target = null;
+        if ((sup == null || sup.sup(clazz) == null) && cc != this) {
             final StackTraceElement[] st = new Throwable().getStackTrace();
             if (st == null || st.length < 3)
                 throw new AssertionError("No debug information in Capsule class");
 
             final int c1 = 1;
-            assert st[c1].getClassName().equals(Capsule.class.getName());
+            if (!st[c1].getClassName().equals(clazz.getName()))
+                throw new RuntimeException("Illegal access. Method can only be called by the " + clazz.getName() + " class");
 
             int c2 = 2;
             while (isStream(st[c2].getClassName()))
@@ -824,9 +825,12 @@ public class Capsule implements Runnable {
 
             // we return CC if the caller is also Capsule but not the same method (which would mean this is a sup.foo() call)
             if (!st[c2].getMethodName().equals(st[c1].getMethodName()) || Math.abs(st[c2].getLineNumber() - st[c1].getLineNumber()) > 3)
-                return cc;
+                target = cc;
         }
-        return sup;
+        if (target == null)
+            target = sup;
+
+        return target != null ? target.sup(clazz) : null;
     }
     //</editor-fold>
 
@@ -1160,7 +1164,7 @@ public class Capsule implements Runnable {
      * must be wither ignored completely or printed to STDERR.
      */
     protected void cleanup() {
-        if ((_ct = getCallTarget()) != null)
+        if ((_ct = getCallTarget(Capsule.class)) != null)
             _ct.cleanup();
         else
             cleanup0();
@@ -1202,7 +1206,7 @@ public class Capsule implements Runnable {
      * The mode is chosen during the preparations for launch (not at construction time).
      */
     protected String chooseMode() {
-        return (_ct = getCallTarget()) != null ? _ct.chooseMode() : chooseMode0();
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.chooseMode() : chooseMode0();
     }
 
     private String chooseMode0() {
@@ -1219,7 +1223,7 @@ public class Capsule implements Runnable {
      * @return a configured {@code ProcessBuilder} (if {@code null}, the launch will be aborted).
      */
     protected ProcessBuilder prelaunch(List<String> args) {
-        return (_ct = unsafe(getCallTarget())) != null ? _ct.prelaunch(args) : prelaunch0(args);
+        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.prelaunch(args) : prelaunch0(args);
     }
 
     private ProcessBuilder prelaunch0(List<String> args) {
@@ -1245,7 +1249,7 @@ public class Capsule implements Runnable {
      * @return a {@code ProcessBuilder} (must never be {@code null}).
      */
     protected ProcessBuilder buildProcess() {
-        return (_ct = unsafe(getCallTarget())) != null ? _ct.buildProcess() : buildProcess0();
+        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.buildProcess() : buildProcess0();
     }
 
     private ProcessBuilder buildProcess0() {
@@ -1264,7 +1268,7 @@ public class Capsule implements Runnable {
      * @param args The command line arguments passed to the capsule at launch
      */
     protected List<String> buildArgs(List<String> args) {
-        return (_ct = getCallTarget()) != null ? _ct.buildArgs(args) : buildArgs0(args);
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.buildArgs(args) : buildArgs0(args);
     }
 
     private List<String> buildArgs0(List<String> args) {
@@ -1311,7 +1315,7 @@ public class Capsule implements Runnable {
      * @param env the current environment
      */
     protected Map<String, String> buildEnvironmentVariables(Map<String, String> env) {
-        return (_ct = getCallTarget()) != null ? _ct.buildEnvironmentVariables(env) : buildEnvironmentVariables0(env);
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.buildEnvironmentVariables(env) : buildEnvironmentVariables0(env);
     }
 
     private Map<String, String> buildEnvironmentVariables0(Map<String, String> env) {
@@ -1349,7 +1353,7 @@ public class Capsule implements Runnable {
      * @return An array of exactly two strings, the first being the application's name, and the second, its version (or {@code null} if no version).
      */
     protected String[] buildAppId() {
-        return (_ct = getCallTarget()) != null ? _ct.buildAppId() : buildAppId0();
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.buildAppId() : buildAppId0();
     }
 
     private String[] buildAppId0() {
@@ -1540,7 +1544,7 @@ public class Capsule implements Runnable {
      * Returns the path of the application cache (this is the directory where the capsule is extracted if necessary).
      */
     protected Path buildAppCacheDir() {
-        return (_ct = unsafe(getCallTarget())) != null ? _ct.buildAppCacheDir() : buildAppCacheDir0();
+        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.buildAppCacheDir() : buildAppCacheDir0();
     }
 
     private Path buildAppCacheDir0() {
@@ -1614,7 +1618,7 @@ public class Capsule implements Runnable {
      * This method may be overridden to write additional files to the app cache.
      */
     protected void extractCapsule(Path dir) throws IOException {
-        if ((_ct = getCallTarget()) != null)
+        if ((_ct = getCallTarget(Capsule.class)) != null)
             _ct.extractCapsule(dir);
         else
             extractCapsule0(dir);
@@ -1750,7 +1754,7 @@ public class Capsule implements Runnable {
      * and if not set, returns the value of {@code getJavaExecutable(getJavaHome())}.
      */
     protected Path getJavaExecutable() {
-        return (_ct = getCallTarget()) != null ? _ct.getJavaExecutable() : getJavaExecutable0();
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.getJavaExecutable() : getJavaExecutable0();
     }
 
     private Path getJavaExecutable0() {
@@ -2293,7 +2297,7 @@ public class Capsule implements Runnable {
     protected List<Path> resolveDependencies(List<String> coords, String type) {
         final long start = clock();
         final Capsule ct;
-        final List<Path> res = (ct = unsafe(getCallTarget())) != null ? ct.resolveDependencies(coords, type) : resolveDependencies0(coords, type);
+        final List<Path> res = (ct = unsafe(getCallTarget(Capsule.class))) != null ? ct.resolveDependencies(coords, type) : resolveDependencies0(coords, type);
         if (ct == cc) {
             time("resolveDependencies" + coords + ", " + type, start);
             log(LOG_DEBUG, "resolveDependencies " + coords + ", " + type + " -> " + res);
@@ -2318,7 +2322,7 @@ public class Capsule implements Runnable {
     protected List<Path> resolveDependency(String coords, String type) {
         final long start = clock();
         final Capsule ct;
-        final List<Path> res = (ct = unsafe(getCallTarget())) != null ? ct.resolveDependency(coords, type) : resolveDependency0(coords, type);
+        final List<Path> res = (ct = unsafe(getCallTarget(Capsule.class))) != null ? ct.resolveDependency(coords, type) : resolveDependency0(coords, type);
         if (ct == cc) {
             time("resolveDependency " + coords + ", " + type, start);
             log(LOG_DEBUG, "resolveDependency " + coords + ", " + type + " -> " + res);
@@ -2739,7 +2743,7 @@ public class Capsule implements Runnable {
      * @return the processed path
      */
     protected String processOutgoingPath(Path p) {
-        return (_ct = getCallTarget()) != null ? _ct.processOutgoingPath(p) : processOutgoingPath0(p);
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.processOutgoingPath(p) : processOutgoingPath0(p);
     }
 
     private String processOutgoingPath0(Path p) {
@@ -3569,7 +3573,7 @@ public class Capsule implements Runnable {
      * @return the expanded string
      */
     protected String expand(String str) {
-        return (_ct = getCallTarget()) != null ? _ct.expand(str) : expand0(str);
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.expand(str) : expand0(str);
     }
 
     private String expand0(String str) {
@@ -4015,7 +4019,7 @@ public class Capsule implements Runnable {
      * Chooses and returns the capsules log level.
      */
     protected int chooseLogLevel() {
-        return (_ct = getCallTarget()) != null ? _ct.chooseLogLevel() : chooseLogLevel0();
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.chooseLogLevel() : chooseLogLevel0();
     }
 
     private int chooseLogLevel0() {
@@ -4221,7 +4225,7 @@ public class Capsule implements Runnable {
      * @param parent the
      */
     protected Capsule loadTargetCapsule(ClassLoader parent, Path jarFile) {
-        return (_ct = getCallTarget()) != null ? _ct.loadTargetCapsule(parent, jarFile) : loadTargetCapsule0(parent, jarFile);
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.loadTargetCapsule(parent, jarFile) : loadTargetCapsule0(parent, jarFile);
     }
 
     private Capsule loadTargetCapsule0(ClassLoader parent, Path jar) {
