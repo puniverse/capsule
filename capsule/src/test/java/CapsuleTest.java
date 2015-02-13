@@ -354,9 +354,9 @@ public class CapsuleTest {
     public void testNativesWithDeps() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
-                .setListAttribute("Linux", "Native-Dependencies", list("com.acme:baz-linux:3.4,libbaz.so"))
-                .setListAttribute("Windows", "Native-Dependencies", list("com.acme:baz-win:3.4,libbaz.dll"))
-                .setListAttribute("MacOS", "Native-Dependencies", list("com.acme:baz-macos:3.4,libbaz.dylib"))
+                .setListAttribute("Linux", "Native-Dependencies", list("com.acme:baz-linux:3.4=libbaz.so"))
+                .setListAttribute("Windows", "Native-Dependencies", list("com.acme:baz-win:3.4=libbaz.dll"))
+                .setListAttribute("MacOS", "Native-Dependencies", list("com.acme:baz-macos:3.4=libbaz.dylib"))
                 .addEntry("foo.jar", emptyInputStream())
                 .addEntry("lib/a.so", emptyInputStream())
                 .addEntry("lib/b.so", emptyInputStream())
