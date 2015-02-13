@@ -93,7 +93,7 @@ public class Capsule implements Runnable {
      * This class follows some STRICT RULES:
      *
      * 1. IT MUST COMPILE TO A SINGLE CLASS FILE (so it must not contain nested or inner classes).
-     * 2. IT MUST ONLY REFERENCE CLASSES IN THE JDK AND THOSE IN THE capsule PACKAGE, TAKING INTO ACCOUNT THAT THE LATTER MAY NOT EXIST AT RUNTIME.
+     * 2. IT MUST ONLY REFERENCE CLASSES IN THE JDK.
      * 3. ALL METHODS MUST BE PURE OR, AT LEAST, IDEMPOTENT (with the exception of the launch method, and the constructor).
      *
      * Rules #1 and #2 ensure that fat capsules will work with only Capsule.class included in the JAR. Rule #2 helps enforcing rules #1 and #3.
