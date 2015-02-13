@@ -82,6 +82,9 @@ import static java.util.Arrays.asList;
  * <p>
  * Final methods implement various utility or accessors, which may be freely used by caplets.
  * <p>
+ * Caplets might consider overriding one of the following powerful methods: 
+ * {@link #attribute(java.util.Map.Entry) attribute}, {@link #processOutgoingPath(Path) processOutgoingPath}, {@link #prelaunch(List) prelaunch}
+ * <p>
  * For command line option handling, see {@link #OPTION(String, String, String, String) OPTION}.<br/>
  * Attributes should be registered with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE}.
  *
