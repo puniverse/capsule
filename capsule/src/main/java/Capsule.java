@@ -232,10 +232,6 @@ public class Capsule implements Runnable {
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
-    private static final Set<String> COMMON_ATTRIBUTES = immutableSet(
-            ATTR_MANIFEST_VERSION, ATTR_MAIN_CLASS, "Created-By", "Signature-Version", "Sealed", "Magic",
-            ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VERSION, ATTR_IMPLEMENTATION_VENDOR, "Implementation-Vendor-Id", ATTR_IMPLEMENTATION_URL,
-            "Specification-Title", "Specification-Version", "Specification-Vendor");
     private static final Permission PERM_UNSAFE_OVERRIDE = new RuntimePermission("unsafeOverride");
 
     private static final String OS_WINDOWS = "windows";
@@ -844,12 +840,12 @@ public class Capsule implements Runnable {
         if (!getClass().equals(Capsule.class) || !wrapper)
             return false;
         for (Object attr : manifest.getMainAttributes().keySet()) {
-            if (!isCommonAttribute(attr.toString()))
+            if (ATTRIBS.containsKey(attr.toString())) // (!isCommonAttribute(attr.toString()))
                 return false;
         }
         for (Attributes atts : manifest.getEntries().values()) {
             for (Object attr : atts.keySet()) {
-                if (!isCommonAttribute(attr.toString()))
+                if (ATTRIBS.containsKey(attr.toString())) // (!isCommonAttribute(attr.toString()))
                     return false;
             }
         }
@@ -2313,10 +2309,6 @@ public class Capsule implements Runnable {
      * The methods in this section are the only ones accessing the manifest. Therefore other means of
      * setting attributes can be added by changing these methods alone.
      */
-    private static boolean isCommonAttribute(String attr) {
-        return COMMON_ATTRIBUTES.contains(attr) || attr.toLowerCase().endsWith("-digest");
-    }
-
     private static boolean isLegalModeName(String name) {
         return !name.contains("/") && !name.endsWith(".class") && !name.endsWith(".jar") && !isOsSpecific(name);
     }
