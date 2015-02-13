@@ -6,7 +6,6 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-
 package co.paralleluniverse.capsule;
 
 import java.io.ByteArrayInputStream;
@@ -43,13 +42,14 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import static co.paralleluniverse.common.ZipFS.newZipFileSystem;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.Collection;
 
 /**
  * A JAR file that can be easily modified.
  * This class is not thread-safe.
  */
 public class Jar {
-    private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
+    private static final String MANIFEST_NAME = "META-INF/MANIFEST.MF"; // java.util.jar.JarFile.MANIFEST_NAME
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
     private OutputStream os;
     private final Manifest manifest;
@@ -61,6 +61,8 @@ public class Jar {
     private Path jarPrefixFile;
     private boolean sealed;
 
+    //<editor-fold defaultstate="collapsed" desc="Constructors">
+    /////////// Constructors ///////////////////////////////////
     /**
      * Creates a new, empty, JAR
      */
@@ -114,7 +116,10 @@ public class Jar {
         this.jis = jar.jis;
         this.manifest = new Manifest(jar.manifest);
     }
+    //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Manifest">
+    /////////// Manifest ///////////////////////////////////
     /**
      * Returns the manifest of this JAR. Modifications to the manifest will be reflected in the written JAR, provided they are done
      * before any entries are added with {@code addEntry()}.
@@ -170,7 +175,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setListAttribute(String name, List<String> values) {
+    public Jar setListAttribute(String name, Collection<?> values) {
         return setAttribute(name, join(values));
     }
 
@@ -184,7 +189,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setListAttribute(String section, String name, List<String> values) {
+    public Jar setListAttribute(String section, String name, Collection<?> values) {
         return setAttribute(section, name, join(values));
     }
 
@@ -197,7 +202,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setMapAttribute(String name, Map<String, String> values) {
+    public Jar setMapAttribute(String name, Map<String, ?> values) {
         return setAttribute(name, join(values));
     }
 
@@ -211,7 +216,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setMapAttribute(String section, String name, Map<String, String> values) {
+    public Jar setMapAttribute(String section, String name, Map<String, ?> values) {
         return setAttribute(section, name, join(values));
     }
 
@@ -281,6 +286,18 @@ public class Jar {
         return mapSplit(getAttribute(section, name), defaultValue);
     }
 
+    private static Manifest getManifest(Path jarFile) throws IOException {
+        try (FileSystem zipfs = newZipFileSystem(jarFile)) {
+            final Path p = zipfs.getPath(MANIFEST_NAME);
+            if (!Files.exists(p))
+                return null;
+            return new Manifest(Files.newInputStream(p));
+        }
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Entries">
+    /////////// Entries ///////////////////////////////////
     /**
      * Adds an entry to this JAR.
      *
@@ -476,6 +493,28 @@ public class Jar {
         });
     }
 
+    private static void addEntry(JarOutputStream jarOut, String path, InputStream is) throws IOException {
+        jarOut.putNextEntry(new JarEntry(path));
+        copy(is, jarOut);
+        jarOut.closeEntry();
+    }
+
+    private static void addEntryNoClose(JarOutputStream jarOut, String path, InputStream is) throws IOException {
+        jarOut.putNextEntry(new JarEntry(path));
+        copy0(is, jarOut);
+        jarOut.closeEntry();
+    }
+
+    private static void addEntry(JarOutputStream jarOut, String path, byte[] data) throws IOException {
+        jarOut.putNextEntry(new JarEntry(path));
+        jarOut.write(data);
+        jarOut.flush();
+        jarOut.closeEntry();
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Jar File Properties">
+    /////////// Jar File Properties ///////////////////////////////////
     /**
      * Sets a {@link Pack200} packer to use when writing the JAR.
      *
@@ -529,7 +568,10 @@ public class Jar {
         this.jarPrefixFile = file;
         return this;
     }
+    //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Writing">
+    /////////// Writing ///////////////////////////////////
     /**
      * Sets an {@link OutputStream} to which the JAR will be written.
      * If used, this method must be called before any entries have been added or the JAR written. Calling this method prevents this
@@ -582,7 +624,7 @@ public class Jar {
             setAttribute(ATTR_MANIFEST_VERSION, "1.0");
         jos = new JarOutputStream(os, manifest);
         if (jar != null)
-            addEntries((Path) null, jar);
+            addEntries(nullPath(), jar);
         else if (jis != null)
             addEntries(null, jis);
     }
@@ -669,49 +711,7 @@ public class Jar {
             throw new AssertionError();
         }
     }
-
-    private static void addEntry(JarOutputStream jarOut, String path, InputStream is) throws IOException {
-        jarOut.putNextEntry(new JarEntry(path));
-        copy(is, jarOut);
-        jarOut.closeEntry();
-    }
-
-    private static void addEntryNoClose(JarOutputStream jarOut, String path, InputStream is) throws IOException {
-        jarOut.putNextEntry(new JarEntry(path));
-        copy0(is, jarOut);
-        jarOut.closeEntry();
-    }
-
-    private static void addEntry(JarOutputStream jarOut, String path, byte[] data) throws IOException {
-        jarOut.putNextEntry(new JarEntry(path));
-        jarOut.write(data);
-        jarOut.flush();
-        jarOut.closeEntry();
-    }
-
-    private static void copy(InputStream is, OutputStream os) throws IOException {
-        try {
-            copy0(is, os);
-        } finally {
-            is.close();
-        }
-    }
-
-    private static Manifest getManifest(Path jarFile) throws IOException {
-        try (FileSystem zipfs = newZipFileSystem(jarFile)) {
-            final Path p = zipfs.getPath(MANIFEST_NAME);
-            if (!Files.exists(p))
-                return null;
-            return new Manifest(Files.newInputStream(p));
-        }
-    }
-
-    private static void copy0(InputStream is, OutputStream os) throws IOException {
-        final byte[] buffer = new byte[1024];
-        for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
-            os.write(buffer, 0, bytesRead);
-        os.flush();
-    }
+    //</editor-fold>
 
     /**
      * Turns a {@code String} into an {@code InputStream} containing the string's encoded characters.
@@ -724,33 +724,50 @@ public class Jar {
         return new ByteArrayInputStream(str.getBytes(charset));
     }
 
-    private static String join(List<String> list, String separator) {
+    //<editor-fold defaultstate="collapsed" desc="Utils">
+    /////////// Utils ///////////////////////////////////
+    private static void copy(InputStream is, OutputStream os) throws IOException {
+        try {
+            copy0(is, os);
+        } finally {
+            is.close();
+        }
+    }
+
+    private static void copy0(InputStream is, OutputStream os) throws IOException {
+        final byte[] buffer = new byte[1024];
+        for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
+            os.write(buffer, 0, bytesRead);
+        os.flush();
+    }
+
+    private static String join(Collection<?> list, String separator) {
         if (list == null)
             return null;
         StringBuilder sb = new StringBuilder();
-        for (String element : list)
-            sb.append(element).append(separator);
+        for (Object element : list)
+            sb.append(element.toString()).append(separator);
         if (!list.isEmpty())
             sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
     }
 
-    private static String join(Map<String, String> map, char kvSeparator, String separator) {
+    private static String join(Map<String, ?> map, char kvSeparator, String separator) {
         if (map == null)
             return null;
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : map.entrySet())
-            sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
+        for (Map.Entry<String, ?> entry : map.entrySet())
+            sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue().toString()).append(separator);
         if (!map.isEmpty())
             sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
     }
 
-    private static String join(List<String> list) {
+    private static String join(Collection<?> list) {
         return join(list, " ");
     }
 
-    private static String join(Map<String, String> map) {
+    private static String join(Map<String, ?> map) {
         return join(map, '=', " ");
     }
 
@@ -806,4 +823,9 @@ public class Jar {
             return null;
         return s.substring(i + 1);
     }
+
+    private static Path nullPath() {
+        return null;
+    }
+        //</editor-fold>
 }
