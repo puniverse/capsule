@@ -82,7 +82,7 @@ import static java.util.Arrays.asList;
  * <p>
  * Final methods implement various utility or accessors, which may be freely used by caplets.
  * <p>
- * Caplets might consider overriding one of the following powerful methods: 
+ * Caplets might consider overriding one of the following powerful methods:
  * {@link #attribute(java.util.Map.Entry) attribute}, {@link #processOutgoingPath(Path) processOutgoingPath}, {@link #prelaunch(List) prelaunch}
  * <p>
  * For command line option handling, see {@link #OPTION(String, String, String, String) OPTION}.<br/>
@@ -2223,6 +2223,10 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Attributes">
     /////////// Attributes ///////////////////////////////////
+    /*
+     * The methods in this section are the only ones accessing the manifest. Therefore other means of
+     * setting attributes can be added by changing these methods alone.
+     */
     /**
      * Registers a manifest attribute. Must be called during the caplet's static initialization.
      *
@@ -2305,10 +2309,6 @@ public class Capsule implements Runnable {
         return attribute.getKey();
     }
 
-    /*
-     * The methods in this section are the only ones accessing the manifest. Therefore other means of
-     * setting attributes can be added by changing these methods alone.
-     */
     private static boolean isLegalModeName(String name) {
         return !name.contains("/") && !name.endsWith(".class") && !name.endsWith(".jar") && !isOsSpecific(name);
     }
