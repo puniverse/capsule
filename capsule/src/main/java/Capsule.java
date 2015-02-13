@@ -2654,24 +2654,11 @@ public class Capsule implements Runnable {
         throw new IllegalArgumentException("Unsupported primitive attribute type: " + type.getClass().getName());
     }
 
-    /**
-     * Parses an attribute's value string into a list.
-     * The items comprising attribute's value must be whitespace-separated.
-     *
-     * @param value the attribute's value
-     */
-    protected static final List<String> parse(String value) {
+    private static List<String> parse(String value) {
         return split(value, "\\s+");
     }
 
-    /**
-     * Parses an attribute's value string into an ordered map.
-     * The key-value pairs comprising string must be whitespace-separated, with each pair written as <i>key</i>=<i>value</i>.
-     *
-     * @param value        the attribute's value
-     * @param defaultValue a default value to use for keys without a value, or {@code null} if such an event should throw an exception
-     */
-    protected static final Map<String, String> parse(String value, String defaultValue) {
+    private static Map<String, String> parse(String value, String defaultValue) {
         return split(value, '=', "\\s+", defaultValue);
     }
 
@@ -3157,9 +3144,7 @@ public class Capsule implements Runnable {
         return is;
     }
 
-    /**
-     * @deprecated marked deprecated to exclude from javadoc. Visible for testing
-     */
+    // visible for testing
     static Path createPathingJar(Path dir, List<Path> cp) {
         try {
             dir = dir.toAbsolutePath();
@@ -3686,10 +3671,7 @@ public class Capsule implements Runnable {
         return obj != null ? obj.toString() : null;
     }
 
-    /**
-     * @deprecated marked deprecated to exclude from javadoc
-     */
-    protected static List<String> split(String str, String separator) {
+    private static List<String> split(String str, String separator) {
         if (str == null)
             return null;
         String[] es = str.split(separator);
@@ -3702,10 +3684,7 @@ public class Capsule implements Runnable {
         return list;
     }
 
-    /**
-     * @deprecated marked deprecated to exclude from javadoc
-     */
-    protected static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
+    private static Map<String, String> split(String map, char kvSeparator, String separator, String defaultValue) {
         if (map == null)
             return null;
         Map<String, String> m = new LinkedHashMap<>();
@@ -3723,10 +3702,7 @@ public class Capsule implements Runnable {
         return m;
     }
 
-    /**
-     * @deprecated marked deprecated to exclude from javadoc
-     */
-    protected static String join(Collection<?> coll, String separator) {
+    private static String join(Collection<?> coll, String separator) {
         if (coll == null)
             return null;
         if (coll.isEmpty())
