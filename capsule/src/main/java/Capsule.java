@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.io.Reader;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.AccessibleObject;
@@ -266,6 +267,8 @@ public class Capsule implements Runnable {
 
     //<editor-fold desc="Main">
     /////////// Main ///////////////////////////////////
+    protected static final PrintStream STDOUT = System.out;
+    protected static final PrintStream STDERR = System.err;
     private static Properties PROPERTIES = System.getProperties();
     private static final String OS = getProperty0(PROP_OS_NAME).toLowerCase();
     private static final String PLATFORM = getOS();
@@ -319,14 +322,14 @@ public class Capsule implements Runnable {
     }
 
     private static void printError(Throwable t, Capsule capsule) {
-        System.err.print("CAPSULE EXCEPTION: " + t.getMessage());
+        STDERR.print("CAPSULE EXCEPTION: " + t.getMessage());
         if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
-            System.err.print(" while processing " + getContext());
+            STDERR.print(" while processing " + getContext());
         if (getLogLevel(getProperty0(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
-            System.err.println();
-            deshadow(t).printStackTrace(System.err);
+            STDERR.println();
+            deshadow(t).printStackTrace(STDERR);
         } else
-            System.err.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
+            STDERR.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
         if (t instanceof IllegalArgumentException)
             printHelp(capsule != null ? capsule.isWrapperCapsule() : true);
     }
@@ -358,7 +361,7 @@ public class Capsule implements Runnable {
                 main.invoke(null, (Object) args.toArray(new String[0]));
                 return 0;
             } catch (Exception e) {
-                deshadow(e).printStackTrace(System.err);
+                deshadow(e).printStackTrace(STDERR);
                 return 1;
             }
         } catch (ReflectiveOperationException e) {
@@ -952,20 +955,20 @@ public class Capsule implements Runnable {
                     System.out.println(LOG_PREFIX + getManifestAttribute(attr));
             }
         }
-        System.out.println(LOG_PREFIX + "Capsule Version " + VERSION);
+        STDOUT.println(LOG_PREFIX + "Capsule Version " + VERSION);
     }
 
     void printModes(List<String> args) {
         verifyNonEmpty("Cannot print modes of a wrapper capsule.");
-        System.out.println(LOG_PREFIX + "Application " + getAppId());
-        System.out.println("Available modes:");
+        STDOUT.println(LOG_PREFIX + "Application " + getAppId());
+        STDOUT.println("Available modes:");
         final Set<String> modes = getModes();
         if (modes.isEmpty())
-            System.out.println("Default mode only");
+            STDOUT.println("Default mode only");
         else {
             for (String m : modes) {
                 final String desc = getModeDescription(m);
-                System.out.println("* " + m + (desc != null ? ": " + desc : ""));
+                STDOUT.println("* " + m + (desc != null ? ": " + desc : ""));
             }
         }
     }
@@ -975,14 +978,14 @@ public class Capsule implements Runnable {
         if (jres == null)
             println("No detected Java installations");
         else {
-            System.out.println(LOG_PREFIX + "Detected Java installations:");
+            STDOUT.println(LOG_PREFIX + "Detected Java installations:");
             for (Map.Entry<String, List<Path>> j : jres.entrySet()) {
                 for (Path home : j.getValue())
-                    System.out.println(j.getKey() + (isJDK(home) ? " (JDK)" : "") + (j.getKey().length() < 8 ? "\t\t" : "\t") + home);
+                    STDOUT.println(j.getKey() + (isJDK(home) ? " (JDK)" : "") + (j.getKey().length() < 8 ? "\t\t" : "\t") + home);
             }
         }
         final Path javaHome = getJavaHome();
-        System.out.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (getProperty(PROP_JAVA_HOME) + " (current)")));
+        STDOUT.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
     void printUsage() {
@@ -1021,10 +1024,10 @@ public class Capsule implements Runnable {
             usage.append("<path or Maven coords of application JAR/capsule>");
         else
             usage.append(myJar);
-        System.err.println("USAGE: " + usage);
+        STDERR.println("USAGE: " + usage);
 
         // OPTIONS:
-        System.err.println("\nOptions:");
+        STDERR.println("\nOptions:");
         for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
             if (entry.getValue()[OPTION_DESC] != null) {
                 if (!simple && (Boolean) entry.getValue()[OPTION_WRAPPER_ONLY])
@@ -1043,13 +1046,13 @@ public class Capsule implements Runnable {
                 }
                 sb.append(" - ").append(entry.getValue()[OPTION_DESC]);
 
-                System.err.println("  " + sb);
+                STDERR.println("  " + sb);
             }
         }
 
         // ATTRIBUTES:
         if (1 == 2) {
-            System.err.println("\nManifest Attributes:");
+            STDERR.println("\nManifest Attributes:");
             for (Map.Entry<String, Object[]> entry : ATTRIBS.entrySet()) {
                 if (entry.getValue()[ATTRIB_DESC] != null) {
                     final String attrib = entry.getKey();
@@ -1060,7 +1063,7 @@ public class Capsule implements Runnable {
                         sb.append(" (default: ").append(defaultValue).append(")");
                     sb.append(" - ").append(entry.getValue()[ATTRIB_DESC]);
 
-                    System.err.println("  " + sb);
+                    STDERR.println("  " + sb);
                 }
             }
         }
@@ -1089,7 +1092,7 @@ public class Capsule implements Runnable {
             if (hasAttribute(ATTR_ENV))
                 throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
             pb.command().remove("-D" + PROP_TRAMPOLINE);
-            System.out.println(join(pb.command(), " "));
+            STDOUT.println(join(pb.command(), " "));
         } else {
             Runtime.getRuntime().addShutdownHook(new Thread(this));
 
@@ -1172,7 +1175,7 @@ public class Capsule implements Runnable {
                 oc.child.destroy();
             oc.child = null;
         } catch (Exception t) {
-            deshadow(t).printStackTrace(System.err);
+            deshadow(t).printStackTrace(STDERR);
         }
 
         for (Path p : oc.tmpFiles) {
@@ -4082,7 +4085,7 @@ public class Capsule implements Runnable {
      */
     protected final void log(int level, String str) {
         if (isLogging(level))
-            System.err.println(LOG_PREFIX + str);
+            STDERR.println(LOG_PREFIX + str);
     }
 
     private void println(String str) {
@@ -4098,7 +4101,7 @@ public class Capsule implements Runnable {
     }
 
     private static void setContext(String type, String key, Object value) {
-//        System.err.println("setContext: " + type + " " + key + " " + value);
+//        STDERR.println("setContext: " + type + " " + key + " " + value);
 //        Thread.dumpStack();
 
         contextType_ = type;
@@ -4146,10 +4149,10 @@ public class Capsule implements Runnable {
     private boolean pipeIoStream() {
         switch (Thread.currentThread().getName()) {
             case "pipe-out":
-                pipe(child.getInputStream(), System.out);
+                pipe(child.getInputStream(), STDOUT);
                 return true;
             case "pipe-err":
-                pipe(child.getErrorStream(), System.err);
+                pipe(child.getErrorStream(), STDERR);
                 return true;
             case "pipe-in":
                 pipe(System.in, child.getOutputStream());
@@ -4169,7 +4172,7 @@ public class Capsule implements Runnable {
             }
         } catch (Throwable e) {
             if (isLogging(LOG_VERBOSE))
-                e.printStackTrace(System.err);
+                e.printStackTrace(STDERR);
         }
     }
     //</editor-fold>
