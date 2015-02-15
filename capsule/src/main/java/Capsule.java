@@ -1290,7 +1290,7 @@ public class Capsule implements Runnable {
     }
 
     private List<String> buildArgs0(List<String> args) {
-        return expandArgs(expand(getAttribute(ATTR_ARGS)), args);
+        return expandArgs(getAttribute(ATTR_ARGS), args);
     }
 
     // visible for testing
@@ -1873,7 +1873,7 @@ public class Capsule implements Runnable {
 
         // attribute
         for (Map.Entry<String, String> pv : getAttribute(ATTR_SYSTEM_PROPERTIES).entrySet())
-            systemProperties.put(pv.getKey(), expand(pv.getValue()));
+            systemProperties.put(pv.getKey(), pv.getValue());
 
         // library path
         final List<Path> libraryPath = buildNativeLibraryPath();
@@ -2401,9 +2401,9 @@ public class Capsule implements Runnable {
         return value;
     }
 
-    static <T> T parseAttribute(String attr, T type, String s) {
+    private <T> T parseAttribute(String attr, T type, String s) {
         try {
-            return parse(s, type);
+            return parse(expand(s), type);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Error parsing attribute " + attr + ". Expected " + typeString(type) + " but was: " + s, e);
         }
@@ -2695,7 +2695,6 @@ public class Capsule implements Runnable {
      * which matches more than one file.
      */
     private List<Path> resolve(String p) {
-        p = expand(p);
         if (p == null)
             return null;
 
@@ -3574,50 +3573,77 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="String Expansion">
     /////////// String Expansion ///////////////////////////////////
-    private List<String> expand(List<String> strs) {
-        if (strs == null)
+    private static final Pattern VAR_PATTERN = Pattern.compile("\\$(?:([a-zA-Z0-9_\\-]+)|(?:\\{([^\\}]*)\\}))");
+
+    private String expand(String str) {
+        if (str == null)
             return null;
-        final List<String> res = new ArrayList<String>(strs.size());
-        for (String s : strs)
-            res.add(expand(s));
-        return res;
+        
+        final StringBuffer sb = new StringBuffer();
+        final Matcher m = VAR_PATTERN.matcher(str);
+        while (m.find()) {
+            assert m.group(1) != null ^ m.group(2) != null;
+            final String var = m.group(1) != null ? m.group(1) : m.group(2);
+            m.appendReplacement(sb, Matcher.quoteReplacement(getVarValue(var)));
+        }
+        m.appendTail(sb);
+        str = sb.toString();
+        
+        // str = expandCommandLinePath(str);
+        str = str.replace('/', FILE_SEPARATOR_CHAR);
+        return str;
     }
 
     /**
-     * Expands occurrences of {@code $VARNAME} in attribute values.
+     * Resolves {@code $VARNAME} or {@code ${VARNAME}} in attribute values.
      *
-     * @param str the original string
-     * @return the expanded string
+     * @param str the variable name
+     * @return the variable's value
      */
-    protected String expand(String str) {
-        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.expand(str) : expand0(str);
+    protected String getVarValue(String var) {
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.getVarValue(var) : getVarValue0(var);
     }
 
-    private String expand0(String str) {
-        if (str == null)
-            return null;
-        if ("$0".equals(str))
-            return processOutgoingPath(getJarFile());
+    private String getVarValue0(String var) {
+        String value = null;
+        switch (var) {
+            case VAR_CAPSULE_DIR:
+                if (getAppCache() == null)
+                    throw new IllegalStateException("Cannot resolve variable $" + var + "; capsule not expanded");
+                value = processOutgoingPath(getAppCache());
+                break;
 
-        str = expandCommandLinePath(str);
+            case VAR_CAPSULE_APP:
+                if (getAppId() == null)
+                    throw new RuntimeException("Cannot resolve variable $" + var + " in an empty capsule.");
+                value = getAppId();
+                break;
 
-        if (getAppCache() != null)
-            str = str.replace("$" + VAR_CAPSULE_DIR, processOutgoingPath(getAppCache()));
-        else if (str.contains("$" + VAR_CAPSULE_DIR))
-            throw new IllegalStateException("The $" + VAR_CAPSULE_DIR + " variable cannot be expanded when the capsule is not extracted");
+            case VAR_CAPSULE_JAR:
+            case "0":
+                value = processOutgoingPath(getJarFile());
+                break;
 
-        if (getAppId() != null)
-            str = str.replace("$" + VAR_CAPSULE_APP, getAppId());
-        else if (str.contains("$" + VAR_CAPSULE_APP))
-            throw new IllegalStateException("Cannot use $" + VAR_CAPSULE_APP + " variable in an empty capsule. (in: " + str + ")");
-
-        str = str.replace("$" + VAR_CAPSULE_JAR, processOutgoingPath(getJarFile()));
-
-        final String jhome = processOutgoingPath(getJavaHome());
-        if (jhome != null)
-            str = str.replace("$" + VAR_JAVA_HOME, jhome);
-        str = str.replace('/', FILE_SEPARATOR_CHAR);
-        return str;
+            case VAR_JAVA_HOME:
+                final String jhome = processOutgoingPath(getJavaHome());
+                if (jhome == null)
+                    throw new RuntimeException("Cannot resolve variable $" + var + "; Java home not set.");
+                value = jhome;
+                break;
+        }
+        if (value == null) {
+            value = getProperty(var);
+            if (value != null)
+                log(LOG_DEBUG, "Resolved variable $" + var + " with a property");
+        }
+        if (value == null) {
+            value = getenv(var);
+            if (value != null)
+                log(LOG_DEBUG, "Resolved variable $" + var + " with an environement variable");
+        }
+        if (value == null)
+            throw new RuntimeException("Cannot resolve variable $" + var);
+        return value;
     }
     //</editor-fold>
 

@@ -39,6 +39,7 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 import org.junit.Before;
 import static com.google.common.truth.Truth.*;
+import java.lang.reflect.InvocationTargetException;
 import org.joor.Reflect;
 //import static org.mockito.Mockito.*;
 
@@ -1197,6 +1198,9 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo");
 
+        props.setProperty("a.b.c", "777");
+        props.setProperty("my.prop", "888");
+
         Capsule capsule = newCapsule(jar);
         capsule.prepareForLaunch(null, null);
 
@@ -1204,10 +1208,18 @@ public class CapsuleTest {
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId();
 
-        assertEquals(cj + "abc" + cj + "def" + cj, capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR"));
-        assertEquals(cid + "abc" + cid + "def" + cid, capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP"));
-        assertEquals(cd + "abc" + cd + "def" + cd, capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_DIR" + "def" + "$CAPSULE_DIR"));
-        assertEquals(cd + "abc" + cid + "def" + cj, capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_JAR"));
+        assertEquals(cj + "abc" + cj + "def " + cj, expand(capsule, "${CAPSULE_JAR}" + "abc" + "${CAPSULE_JAR}" + "def" + " $CAPSULE_JAR"));
+        assertEquals(cid + " abc" + cid + "def" + cid, expand(capsule, "$CAPSULE_APP" + " abc" + "${CAPSULE_APP}" + "def" + "${CAPSULE_APP}"));
+        assertEquals(cd + "abc " + cd + " def" + cd, expand(capsule, "${CAPSULE_DIR}" + "abc " + "$CAPSULE_DIR" + " def" + "${CAPSULE_DIR}"));
+        assertEquals(cd + "abc" + cid + "def" + cj + "888777", expand(capsule, "${CAPSULE_DIR}" + "abc" + "${CAPSULE_APP}" + "def" + "${CAPSULE_JAR}${my.prop}${a.b.c}"));
+        assertEquals("888", expand(capsule, "${my.prop}"));
+        assertEquals(cj, expand(capsule, "$CAPSULE_JAR"));
+
+        try {
+            expand(capsule, "${foo.bar.baz}");
+            fail();
+        } catch (RuntimeException e) {
+        }
     }
 
     @Test
@@ -1223,12 +1235,20 @@ public class CapsuleTest {
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId();
 
-        assertEquals(cj + "xxx" + cj + "xxx" + cj, capsule.expand("$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR"));
-        assertEquals(cid + "xxx" + cid + "xxx" + cid, capsule.expand("$CAPSULE_APP" + "xxx" + "$CAPSULE_APP" + "xxx" + "$CAPSULE_APP"));
+        assertEquals(cj + "xxx " + cj + " xxx " + cj, expand(capsule, "${CAPSULE_JAR}" + "xxx " + "$CAPSULE_JAR" + " xxx " + "$CAPSULE_JAR"));
+        assertEquals(cid + " xxx" + cid + "xxx " + cid, expand(capsule, "$CAPSULE_APP" + " xxx" + "${CAPSULE_APP}" + "xxx " + "$CAPSULE_APP"));
         try {
-            capsule.expand("$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR");
+            expand(capsule, "${CAPSULE_DIR}" + "xxx" + "${CAPSULE_DIR}" + "xxx" + "${CAPSULE_DIR}");
             fail();
         } catch (IllegalStateException e) {
+        }
+    }
+
+    private String expand(Capsule c, String s) {
+        try {
+            return (String) accessible(Capsule.class.getDeclaredMethod("expand", String.class)).invoke(c, s);
+        } catch (ReflectiveOperationException e) {
+            throw rethrow(e);
         }
     }
 
@@ -1522,6 +1542,16 @@ public class CapsuleTest {
 
     private static int[] ints(int... xs) {
         return xs;
+    }
+
+    private static RuntimeException rethrow(Throwable t) {
+        while (t instanceof InvocationTargetException)
+            t = ((InvocationTargetException) t).getTargetException();
+        if (t instanceof RuntimeException)
+            throw (RuntimeException) t;
+        if (t instanceof Error)
+            throw (Error) t;
+        throw new RuntimeException(t);
     }
 
     @SuppressWarnings("unchecked")
