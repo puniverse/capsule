@@ -225,7 +225,7 @@ public class CapsuleTest {
 
     @Test
     public void testCapsuleJavaHome() throws Exception {
-        props.setProperty("capsule.java.home", "/my/java/home");
+        props.setProperty("capsule.java.home", "/my/1.7.0.jdk/home");
 
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
@@ -238,7 +238,7 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        assertEquals("/my/java/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""), pb.command().get(0));
+        assertEquals("/my/1.7.0.jdk/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""), pb.command().get(0));
     }
 
     @Test
@@ -593,11 +593,15 @@ public class CapsuleTest {
 
     @Test
     public void testPlatformSepcific() throws Exception {
+        props.setProperty("capsule.java.home", "/my/1.8.0.jdk/home");
+        
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Linux", "System-Properties", "bar baz=33 foo=y os=lin")
                 .setAttribute("MacOS", "System-Properties", "bar baz=33 foo=y os=mac")
                 .setAttribute("Windows", "System-Properties", "bar baz=33 foo=y os=win")
+                .setAttribute("Java-8", "System-Properties", "jjj=8")
+                .setAttribute("Java-7", "System-Properties", "jjj=7")
                 .addEntry("foo.jar", emptyInputStream());
 
         List<String> args = list("hi", "there");
@@ -610,6 +614,7 @@ public class CapsuleTest {
         assertEquals("", getProperty(pb, "bar"));
         assertEquals("", getProperty(pb, "zzz"));
         assertEquals("33", getProperty(pb, "baz"));
+        assertEquals("8", getProperty(pb, "jjj"));
 
         if (Capsule.isWindows())
             assertEquals("win", getProperty(pb, "os"));

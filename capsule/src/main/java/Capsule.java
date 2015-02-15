@@ -534,6 +534,7 @@ public class Capsule implements Runnable {
     private /*final*/ String mode;
     private /*final*/ int logLevel;
 
+    private Path javaHome;
     private Path cacheDir;
     private Path appCache;
     private Path writableAppCache;
@@ -2059,18 +2060,16 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Get Java Home">
     /////////// Get Java Home ///////////////////////////////////
-    private Path javaHome_; // cached value
-
     /**
      * The path to the Java installation this capsule's app will use.
      */
     protected final Path getJavaHome() {
-        if (oc.javaHome_ == null) {
+        if (oc.javaHome == null) {
             final Path jhome = chooseJavaHome();
-            oc.javaHome_ = jhome != null ? jhome : Paths.get(getProperty(PROP_JAVA_HOME));
-            log(LOG_VERBOSE, "Using JVM: " + oc.javaHome_);
+            oc.javaHome = jhome != null ? jhome : Paths.get(getProperty(PROP_JAVA_HOME));
+            log(LOG_VERBOSE, "Using JVM: " + oc.javaHome);
         }
-        return oc.javaHome_;
+        return oc.javaHome;
     }
 
     /**
@@ -2278,7 +2277,8 @@ public class Capsule implements Runnable {
     }
 
     private static boolean isLegalModeName(String name) {
-        return !name.contains("/") && !name.endsWith(".class") && !name.endsWith(".jar") && !isOsSpecific(name);
+        return !name.contains("/") && !name.endsWith(".class") && !name.endsWith(".jar")
+                && !isJavaVersionSpecific(name) && !isOsSpecific(name);
     }
 
     private void validateManifest(Manifest manifest) {
@@ -2372,8 +2372,10 @@ public class Capsule implements Runnable {
         return false;
     }
 
+    private static final Pattern PAT_JAVA_SPECIFIC_SECTION = Pattern.compile("\\A(.+-|)java-[0-9]+\\z");
+
     private static boolean isJavaVersionSpecific(String section) {
-        xxx;
+        return PAT_JAVA_SPECIFIC_SECTION.matcher(section.toLowerCase()).find();
     }
 
     /**
@@ -2414,13 +2416,16 @@ public class Capsule implements Runnable {
 
     private <T> T getAttribute0(String attr, T type) {
         T value = null;
+        final String majorJavaVersion = majorJavaVersion(getJavaVersion(oc.javaHome));
         if (manifest != null) {
             value = merge(value, parseAttribute(attr, type, getAttributes(manifest, null, null).getValue(attr)));
-            value = merge(value, parseAttribute(attr, type, getAttributes(manifest, null, jjjj).getValue(attr)));
+            if (majorJavaVersion != null)
+                value = merge(value, parseAttribute(attr, type, getAttributes(manifest, null, "java-" + majorJavaVersion).getValue(attr)));
             value = merge(value, parseAttribute(attr, type, getPlatformAttribute(null, attr)));
             if (getMode() != null && allowsModal(attr)) {
                 value = merge(value, parseAttribute(attr, type, getAttributes(manifest, mode, null).getValue(attr)));
-                value = merge(value, parseAttribute(attr, type, getAttributes(manifest, mode, jjj).getValue(attr)));
+                if (majorJavaVersion != null)
+                    value = merge(value, parseAttribute(attr, type, getAttributes(manifest, mode, "java-" + majorJavaVersion).getValue(attr)));
                 value = merge(value, parseAttribute(attr, type, getPlatformAttribute(getMode(), attr)));
             }
             setContext("attribute of " + jarFile, attr, value);
@@ -3388,6 +3393,18 @@ public class Capsule implements Runnable {
         return dirs;
     }
 
+    private static String getJavaVersion(Path home) {
+        if (home == null)
+            return null;
+        String ver;
+        for (Path f = home; f != null && f.getNameCount() > 0; f = f.getParent()) {
+            ver = isJavaDir(f.getFileName().toString());
+            if (ver != null)
+                return ver;
+        }
+        return getActualJavaVersion(home);
+    }
+
     // visible for testing
     static String isJavaDir(String fileName) {
         fileName = fileName.toLowerCase();
@@ -3465,6 +3482,17 @@ public class Capsule implements Runnable {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private static String majorJavaVersion(String v) {
+        if (v == null)
+            return null;
+        final String[] vs = v.split(SEPARATOR_DOT);
+        if (vs.length == 1)
+            return vs[0];
+        if (vs.length >= 2)
+            return vs[1];
+        throw new AssertionError("unreachable");
     }
 
     /**
@@ -3576,22 +3604,19 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="String Expansion">
     /////////// String Expansion ///////////////////////////////////
-    private static final Pattern VAR_PATTERN = Pattern.compile("\\$(?:([a-zA-Z0-9_\\-]+)|(?:\\{([^\\}]*)\\}))");
+    private static final Pattern PAT_VAR = Pattern.compile("\\$(?:([a-zA-Z0-9_\\-]+)|(?:\\{([^\\}]*)\\}))");
 
     private String expand(String str) {
         if (str == null)
             return null;
-        
+
         final StringBuffer sb = new StringBuffer();
-        final Matcher m = VAR_PATTERN.matcher(str);
-        while (m.find()) {
-            assert m.group(1) != null ^ m.group(2) != null;
-            final String var = m.group(1) != null ? m.group(1) : m.group(2);
-            m.appendReplacement(sb, Matcher.quoteReplacement(getVarValue(var)));
-        }
+        final Matcher m = PAT_VAR.matcher(str);
+        while (m.find())
+            m.appendReplacement(sb, Matcher.quoteReplacement(getVarValue(xor(m.group(1), m.group(2)))));
         m.appendTail(sb);
         str = sb.toString();
-        
+
         // str = expandCommandLinePath(str);
         str = str.replace('/', FILE_SEPARATOR_CHAR);
         return str;
@@ -3600,7 +3625,7 @@ public class Capsule implements Runnable {
     /**
      * Resolves {@code $VARNAME} or {@code ${VARNAME}} in attribute values.
      *
-     * @param str the variable name
+     * @param var the variable name
      * @return the variable's value
      */
     protected String getVarValue(String var) {
@@ -3729,6 +3754,11 @@ public class Capsule implements Runnable {
             return null;
         s = s.trim();
         return s.isEmpty() ? null : s;
+    }
+
+    private static <T> T xor(T x, T y) {
+        assert x == null ^ y == null;
+        return x != null ? x : y;
     }
     //</editor-fold>
 
