@@ -8,7 +8,6 @@
  */
 
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -45,11 +44,6 @@ public class MyCapsule extends TestCapsule {
             return (T) args;
         }
         return super.attribute(attr); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    protected String[] buildAppId() {
-        return super.buildAppId();
     }
 
     @Override
