@@ -148,9 +148,9 @@ public class Capsule implements Runnable {
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
     private static final String PROP_PROFILE = "capsule.profile";
 
-    /** The application's name, e.g. {@code "The Best Word Processor"} */
+    /** The application's name. E.g. {@code "The Best Word Processor"} */
     protected static final Entry<String, String> ATTR_APP_NAME = ATTRIBUTE("Application-Name", T_STRING(), null, false, "The application's name");
-    /** The application's unique ID, e.g. {@code "com.acme.bestwordprocessor"} */
+    /** The application's unique ID. E.g. {@code "com.acme.bestwordprocessor"} */
     protected static final Entry<String, String> ATTR_APP_ID = ATTRIBUTE("Application-Id", T_STRING(), null, false, "The application's name");
     protected static final Entry<String, String> ATTR_APP_VERSION = ATTRIBUTE("Application-Version", T_STRING(), null, false, "The application's version string");
     private static final Entry<String, List<String>> ATTR_CAPLETS = ATTRIBUTE("Caplets", T_LIST(T_STRING()), null, false, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
