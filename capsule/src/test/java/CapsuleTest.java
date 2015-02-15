@@ -8,14 +8,11 @@
  */
 
 import co.paralleluniverse.capsule.Jar;
+import co.paralleluniverse.capsule.test.CapsuleTestUtils;
+import static co.paralleluniverse.capsule.test.CapsuleTestUtils.*;
 import com.google.common.jimfs.Jimfs;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -61,11 +58,10 @@ public class CapsuleTest {
 
     @Before
     public void setUp() throws Exception {
-        accessible(Capsule.class.getDeclaredField("CACHE_DIR")).set(null, cache);
-
         props = new Properties(System.getProperties());
-        accessible(Capsule.class.getDeclaredField("PROPERTIES")).set(null, props);
-        props.setProperty("capsule.no_dep_manager", "true");
+        setProperties(props);
+        setCacheDir(cache);
+        resetOutputStreams();
 
         TestCapsule.reset();
     }
@@ -190,6 +186,8 @@ public class CapsuleTest {
 
     @Test
     public void testLogLevel() throws Exception {
+        setSTDERR(DEVNULL);
+
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Extract-Capsule", "false")
@@ -1279,20 +1277,7 @@ public class CapsuleTest {
     /////////// Utilities ///////////////////////////////////
     // may be called once per test (always writes jar into /capsule.jar)
     private Capsule newCapsule(Jar jar) {
-        try {
-            Path capsuleJar = path("capsule.jar");
-            jar.write(capsuleJar);
-            final String mainClass = jar.getAttribute("Main-Class");
-            final Class<?> clazz = Class.forName(mainClass);
-            accessible(Capsule.class.getDeclaredField("PROFILE")).set(null, 10); // disable profiling even when log=debug
-
-            Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class));
-            return (Capsule) ctor.newInstance(capsuleJar);
-        } catch (InvocationTargetException e) {
-            throw new RuntimeException(e.getCause());
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
+        return (Capsule) CapsuleTestUtils.newCapsule(jar, path("capsule.jar"));
     }
 
     private Jar newCapsuleJar() {
@@ -1488,26 +1473,6 @@ public class CapsuleTest {
         return Collections.unmodifiableMap(m);
     }
 
-    private static <T extends AccessibleObject> T accessible(T x) {
-        if (!x.isAccessible())
-            x.setAccessible(true);
-
-        if (x instanceof Field) {
-            Field field = (Field) x;
-            if ((field.getModifiers() & Modifier.FINAL) != 0) {
-                try {
-                    Field modifiersField = Field.class.getDeclaredField("modifiers");
-                    modifiersField.setAccessible(true);
-                    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-                } catch (ReflectiveOperationException e) {
-                    throw new AssertionError(e);
-                }
-            }
-        }
-
-        return x;
-    }
-
     private Path mockDep(String dep, String type) {
         return mockDep(dep, type, dep).get(0);
     }
@@ -1547,20 +1512,5 @@ public class CapsuleTest {
     }
 
     private static final String PS = System.getProperty("path.separator");
-
-    private static boolean isCI() {
-        return (isEnvTrue("CI") || isEnvTrue("CONTINUOUS_INTEGRATION") || isEnvTrue("TRAVIS"));
-    }
-
-    private static boolean isEnvTrue(String envVar) {
-        final String ev = System.getenv(envVar);
-        if (ev == null)
-            return false;
-        try {
-            return Boolean.parseBoolean(ev);
-        } catch (Exception e) {
-            return false;
-        }
-    }
     //</editor-fold>
 }
