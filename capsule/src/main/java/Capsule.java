@@ -726,6 +726,19 @@ public class Capsule implements Runnable {
     protected final boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasAttribute(ATTR_SCRIPT);
     }
+    @SuppressWarnings("unchecked")
+    private <T> T attribute0(Entry<String, T> attr) {
+
+        if (ATTR_APP_VERSION == attr) {
+            String ver = attribute00(ATTR_APP_VERSION);
+            if (ver == null && getManifestAttribute(ATTR_IMPLEMENTATION_VERSION) != null)
+                ver = getManifestAttribute(ATTR_IMPLEMENTATION_VERSION);
+            if (ver == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
+                ver = getAppArtifactVersion(getAttribute(ATTR_APP_ARTIFACT));
+            return (T) ver;
+        }
+        return attribute00(attr);
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Caplet Chain">
@@ -2268,54 +2281,13 @@ public class Capsule implements Runnable {
     protected final <T> T getAttribute(Entry<String, T> attr) {
         if (name(ATTR_CAPLETS).equals(name(attr)))
             return attribute0(attr);
-        final T value = cc.attribute(attr);
-        setContext("attribute", name(attr), value);
-        return value;
-    }
-
-    /**
-     * CAPLET OVERRIDE ONLY: Returns the value of the given capsule attribute with consideration to the capsule's mode.
-     * Caplets may override this method to manipulate capsule attributes. This method must not be called directly except
-     * as {@code super.attribute(attr)} calls in the caplet's implementation of this method.
-     * <p>
-     * The default implementation parses and returns the relevant manifest attribute or its default value if undefined.
-     *
-     * @param attr the attribute
-     * @return the value of the attribute.
-     * @see #getAttribute(Map.Entry)
-     */
-    protected <T> T attribute(Entry<String, T> attr) {
-        return sup != null ? sup.attribute(attr) : attribute0(attr);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> T attribute0(Entry<String, T> attr) {
-        if (attr == ATTR_APP_VERSION) {
-            final String ver = attribute00(ATTR_APP_VERSION);
-            if (ver == null)
-                return (T) getManifestAttribute(ATTR_IMPLEMENTATION_VERSION);
+        try {
+            final T value = cc.attribute(attr);
+            setContext("attribute", name(attr), value);
+            return value;
+        } catch (Exception e) {
+            throw new RuntimeException("Exception while getting attribute " + name(attr), e);
         }
-        return attribute00(attr);
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> T attribute00(Entry<String, T> attr) {
-        final Object[] conf = ATTRIBS.get(name(attr));
-        if (conf == null)
-            throw new IllegalArgumentException("Attribute " + attr.getKey() + " has not been registered with ATTRIBUTE");
-        final String svalue = getManifestAttribute(name(attr));
-        final T type = (T) conf[ATTRIB_TYPE];
-        final T value;
-        if (svalue != null) {
-            try {
-                value = parse(svalue, type);
-            } catch (RuntimeException e) {
-                throw new IllegalArgumentException("Error parsing attribute " + name(attr) + ". Expected " + typeString(type) + " but was: " + svalue, e);
-            }
-        } else
-            value = defaultValue(type, (T) conf[ATTRIB_DEFAULT]);
-        setContext("attribute", attr.getKey(), value);
-        return value;
     }
 
     protected final String name(Entry<String, ?> attribute) {
@@ -2382,36 +2354,9 @@ public class Capsule implements Runnable {
         return unmodifiableSet(modes);
     }
 
-    /**
-     * Tests whether the given attribute is found in the manifest.
-     * <p>
-     * This method should normally only be used for unregistered attributes, such as common non-capsule-specific attributes.
-     * The result returned by this method is unaffected by the implementation of the {@link #attribute(Map.Entry) attribute} method
-     * or in any way by installed caplets.
-     *
-     * @param attr the attribute
-     */
-    private boolean hasManifestAttribute(String attr) {
-        final Attributes.Name key = new Attributes.Name(attr);
-        if (oc.hasAttribute0(attr, key))
-            return true;
-        return false;
-    }
-
-    /**
-     * Returns the value of the given capsule manifest attribute with consideration to the capsule's mode.
-     * If the attribute is not defined, returns {@code null}
-     * <p>
-     * This method should normally only be used for unregistered attributes, such as common non-capsule-specific attributes.
-     * The result returned by this method is unaffected by the implementation of the {@link #attribute(Map.Entry) attribute} method
-     * or in any way by installed caplets.
-     *
-     * @param attr the attribute
-     * @return the value of the attribute as a String, or {@code null} if the attribute is not defined in the manifest.
-     */
     @SuppressWarnings("unchecked")
     private String getManifestAttribute(String attr) {
-        return oc.getAttribute0(attr);
+        return oc.manifest.getMainAttributes().getValue(attr);
     }
 
     /**
@@ -2444,24 +2389,57 @@ public class Capsule implements Runnable {
         return false;
     }
 
-    private boolean hasAttribute0(String attr, Attributes.Name key) {
-        if (manifest != null) {
-            if (getMode() != null && allowsModal(attr)
-                    && (getAttributes(manifest, getMode()).containsKey(key) || getAttributes(manifest, getMode() + "-" + PLATFORM).containsKey(key)))
-                return true;
-            if (manifest.getMainAttributes().containsKey(key) || getAttributes(manifest, PLATFORM).containsKey(key))
-                return true;
-        }
-        return false;
+    private static boolean isJavaVersionSpecific(String section) {
+        xxx;
     }
 
-    private String getAttribute0(String attr) {
-        String value = null;
+    /**
+     * CAPLET OVERRIDE ONLY: Returns the value of the given capsule attribute with consideration to the capsule's mode.
+     * Caplets may override this method to manipulate capsule attributes. This method must not be called directly except
+     * as {@code super.attribute(attr)} calls in the caplet's implementation of this method.
+     * <p>
+     * The default implementation parses and returns the relevant manifest attribute or its default value if undefined.
+     *
+     * @param attr the attribute
+     * @return the value of the attribute.
+     * @see #getAttribute(Map.Entry)
+     */
+    protected <T> T attribute(Entry<String, T> attr) {
+        return sup != null ? sup.attribute(attr) : attribute0(attr);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T attribute00(Entry<String, T> attr) {
+        final Object[] conf = ATTRIBS.get(name(attr));
+        if (conf == null)
+            throw new IllegalArgumentException("Attribute " + attr.getKey() + " has not been registered with ATTRIBUTE");
+        final T type = (T) conf[ATTRIB_TYPE];
+        T value = oc.getAttribute0(name(attr), type);
+        if (isEmpty(value))
+            value = defaultValue(type, (T) conf[ATTRIB_DEFAULT]);
+        setContext("attribute", attr.getKey(), value);
+        return value;
+    }
+
+    static <T> T parseAttribute(String attr, T type, String s) {
+        try {
+            return parse(s, type);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Error parsing attribute " + attr + ". Expected " + typeString(type) + " but was: " + s, e);
+        }
+    }
+
+    private <T> T getAttribute0(String attr, T type) {
+        T value = null;
         if (manifest != null) {
-            if (getMode() != null && allowsModal(attr))
-                value = getPlatformAttribute(getMode(), attr);
-            if (value == null)
-                value = getPlatformAttribute(null, attr);
+            value = merge(value, parseAttribute(attr, type, getAttributes(manifest, null, null).getValue(attr)));
+            value = merge(value, parseAttribute(attr, type, getAttributes(manifest, null, jjjj).getValue(attr)));
+            value = merge(value, parseAttribute(attr, type, getPlatformAttribute(null, attr)));
+            if (getMode() != null && allowsModal(attr)) {
+                value = merge(value, parseAttribute(attr, type, getAttributes(manifest, mode, null).getValue(attr)));
+                value = merge(value, parseAttribute(attr, type, getAttributes(manifest, mode, jjj).getValue(attr)));
+                value = merge(value, parseAttribute(attr, type, getPlatformAttribute(getMode(), attr)));
+            }
             setContext("attribute of " + jarFile, attr, value);
         }
         return value;
@@ -2475,8 +2453,6 @@ public class Capsule implements Runnable {
             value = getAttributes(manifest, mode, OS_UNIX).getValue(attr);
         if (value == null && (isUnix() || isMac()))
             value = getAttributes(manifest, mode, OS_POSIX).getValue(attr);
-        if (value == null)
-            value = getAttributes(manifest, mode, null).getValue(attr);
         return value;
     }
 
@@ -2558,8 +2534,9 @@ public class Capsule implements Runnable {
      * @param type         One of {@link #T_STRING() T_STRING}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE}
      * @param defaultValue The default value for a key without a value in the attribute string, or {@code null} if all keys must explicitly specify a value.
      */
+    @SuppressWarnings("unchecked")
     protected static final <E> Map<String, E> T_MAP(E type, E defaultValue) {
-        return (Map<String, E>) (defaultValue != null ? singletonMap(T_STRING(), defaultValue) : singletonMap(null, type));
+        return (Map<String, E>) (defaultValue != null ? singletonMap(T_STRING(), promote(defaultValue, type)) : singletonMap(null, type));
     }
 
     @SuppressWarnings("unchecked")
@@ -2611,7 +2588,8 @@ public class Capsule implements Runnable {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T parse(String s, T type) {
+    // visible for testing
+    static <T> T parse(String s, T type) {
         if (type instanceof Collection) {
             final Object etype = ((Collection<?>) type).iterator().next();
             final List<String> slist = parse(s);
@@ -2638,7 +2616,9 @@ public class Capsule implements Runnable {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T parsePrimitive(String s, T type) {
+    private static <T> T parsePrimitive(String s, T type) {
+        if (s == null)
+            return null;
         if (type instanceof String)
             return (T) s;
         if (type instanceof Boolean)
@@ -2648,6 +2628,20 @@ public class Capsule implements Runnable {
         if (type instanceof Double)
             return (T) (Double) Double.parseDouble(s);
         throw new IllegalArgumentException("Unsupported primitive attribute type: " + type.getClass().getName());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T promote(Object x, T type) {
+        if (!(x instanceof Number && type instanceof Number))
+            return (T) x;
+
+        if (x instanceof Integer) {
+            if (type instanceof Long)
+                x = Long.valueOf((Integer) x);
+            else if (type instanceof Double)
+                x = Double.valueOf((Integer) x);
+        }
+        return (T) x;
     }
 
     private static List<String> parse(String value) {
@@ -3656,7 +3650,7 @@ public class Capsule implements Runnable {
     private static List<String> split(String str, String separator) {
         if (str == null)
             return null;
-        String[] es = str.split(separator);
+        final String[] es = str.split(separator);
         final List<String> list = new ArrayList<>(es.length);
         for (String e : es) {
             e = e.trim();
@@ -3832,6 +3826,32 @@ public class Capsule implements Runnable {
         if (x instanceof Map)
             return ((Map) x).isEmpty();
         return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T merge(T v1, T v2) {
+        if (v2 == null)
+            return v1;
+        if (v1 instanceof Collection) {
+            final Collection<Object> c1 = (Collection<Object>) v1;
+            final Collection<Object> c2 = (Collection<Object>) v2;
+            final Collection<Object> cm;
+            if (v1 instanceof List)
+                cm = new ArrayList<>(c1.size() + c2.size());
+            else if (v1 instanceof Set)
+                cm = new HashSet<>(c1.size() + c2.size());
+            else
+                throw new RuntimeException("Unhandled type: " + v1.getClass().getName());
+            cm.addAll(c1);
+            addAllIfAbsent(cm, c2);
+            return (T) cm;
+        } else if (v1 instanceof Map) {
+            final Map<Object, Object> mm = new HashMap<>();
+            mm.putAll((Map<Object, Object>) v1);
+            mm.putAll((Map<Object, Object>) v2);
+            return (T) mm;
+        } else
+            return v2;
     }
     //</editor-fold>
 
