@@ -84,7 +84,8 @@ import static java.util.Arrays.asList;
  * Final methods implement various utility or accessors, which may be freely used by caplets.
  * <p>
  * Caplets might consider overriding one of the following powerful methods:
- * {@link #attribute(java.util.Map.Entry) attribute}, {@link #processOutgoingPath(Path) processOutgoingPath}, {@link #prelaunch(List) prelaunch}
+ * {@link #attribute(Map.Entry) attribute}, {@link #getVarValue(String) getVarValue},
+ * {@link #processOutgoingPath(Path) processOutgoingPath}, {@link #prelaunch(List) prelaunch}.
  * <p>
  * For command line option handling, see {@link #OPTION(String, String, String, String) OPTION}.<br/>
  * Attributes should be registered with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE}.
@@ -108,6 +109,10 @@ public class Capsule implements Runnable {
      * Other than those few methods called in the constructor, all others are can be called in any order, and don't rely on any state.
      *
      * We do a lot of data transformations that could benefit from Java 8's lambdas+streams, but we want Capsule to support Java 7.
+     *
+     * The JavaDoc could really benefit from https://bugs.openjdk.java.net/browse/JDK-4085608 to categorize methods into 
+     * Caplet overrides properties, and utility categories.
+     *
      *
      * Caplet Hierarcy (or chain)
      * --------------------------
@@ -148,6 +153,9 @@ public class Capsule implements Runnable {
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
     private static final String PROP_PROFILE = "capsule.profile";
 
+    /*
+     * Map.Entry<String, T> was chosen to represent an attribute because of rules 1 and 2.
+     */
     /** The application's name. E.g. {@code "The Best Word Processor"} */
     protected static final Entry<String, String> ATTR_APP_NAME = ATTRIBUTE("Application-Name", T_STRING(), null, false, "The application's name");
     /** The application's unique ID. E.g. {@code "com.acme.bestwordprocessor"} */
@@ -474,8 +482,9 @@ public class Capsule implements Runnable {
         processOptions();
     }
 
+    // visible for testing
     @SuppressWarnings("unchecked")
-    private static boolean runActions(Capsule capsule, List<String> args) {
+    static final boolean runActions(Capsule capsule, List<String> args) {
         try {
             boolean found = false;
             for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
@@ -760,7 +769,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Caplet Chain">
     /////////// Caplet Chain ///////////////////////////////////
-    protected final Capsule loadCaplet(String caplet, Capsule pred) {
+    private Capsule loadCaplet(String caplet, Capsule pred) {
         log(LOG_VERBOSE, "Loading caplet: " + caplet);
         if (isDependency(caplet) || caplet.endsWith(".jar")) {
             final List<Path> jars = resolve(caplet);
@@ -807,7 +816,7 @@ public class Capsule implements Runnable {
     /**
      * Checks whether a caplet with the given class name is installed.
      */
-    protected final boolean hasCaplet(String name) {
+    private boolean hasCaplet(String name) {
         for (Capsule c = cc; c != null; c = c.sup) {
             for (Class<?> cls = c.getClass(); cls != null; cls = cls.getSuperclass()) {
                 if (name.equals(cls.getClass().getName()))
@@ -828,7 +837,7 @@ public class Capsule implements Runnable {
         return null;
     }
 
-    protected final <T extends Capsule> T getCallTarget(Class<T> clazz) {
+    final <T extends Capsule> T getCallTarget(Class<T> clazz) {
         /*
          * Here we're implementing both the "invokevirtual" and "invokespecial".
          * We want to somehow differentiate the case where the function is called directly -- and should, like invokevirtual, target cc, the
@@ -1004,8 +1013,8 @@ public class Capsule implements Runnable {
                     STDOUT.println(j.getKey() + (isJDK(home) ? " (JDK)" : "") + (j.getKey().length() < 8 ? "\t\t" : "\t") + home);
             }
         }
-        final Path javaHome = getJavaHome();
-        STDOUT.println(LOG_PREFIX + "selected " + (javaHome != null ? javaHome : (getProperty(PROP_JAVA_HOME) + " (current)")));
+        final Path jhome = getJavaHome();
+        STDOUT.println(LOG_PREFIX + "selected " + (jhome != null ? jhome : (getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
     void printUsage() {
@@ -4258,6 +4267,8 @@ public class Capsule implements Runnable {
     /////////// Object Methods ///////////////////////////////////
     /**
      * Throws a {@link CloneNotSupportedException}
+     *
+     * @deprecated marked deprecated to exclude from javadoc
      */
     @SuppressWarnings("CloneDoesntCallSuperClone")
     @Override
@@ -4265,11 +4276,17 @@ public class Capsule implements Runnable {
         throw new CloneNotSupportedException();
     }
 
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
     @Override
     public final int hashCode() {
         return super.hashCode();
     }
 
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
     @Override
     public final boolean equals(Object obj) {
         return super.equals(obj);
