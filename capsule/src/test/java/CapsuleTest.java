@@ -9,6 +9,7 @@
 
 import co.paralleluniverse.capsule.Jar;
 import co.paralleluniverse.capsule.test.CapsuleTestUtils;
+import co.paralleluniverse.capsule.test.CapsuleTestUtils.StringPrintStream;
 import static co.paralleluniverse.capsule.test.CapsuleTestUtils.*;
 import com.google.common.jimfs.Jimfs;
 import java.io.IOException;
@@ -594,7 +595,7 @@ public class CapsuleTest {
     @Test
     public void testPlatformSepcific() throws Exception {
         props.setProperty("capsule.java.home", "/my/1.8.0.jdk/home");
-        
+
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Linux", "System-Properties", "bar baz=33 foo=y os=lin")
@@ -1042,6 +1043,55 @@ public class CapsuleTest {
         app.write(fooPath);
 
         newCapsule(wrapper).setTarget(fooPath);
+    }
+
+    @Test
+    public void testPrintCapsuleVersion() throws Exception {
+        StringPrintStream out = setSTDOUT(new StringPrintStream());
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Application-Version", "12.34")
+                .addEntry("foo.jar", emptyInputStream());
+        
+        props.setProperty("capsule.version", "");
+
+        Capsule capsule = newCapsule(jar);
+        Capsule.runActions(capsule, null);
+
+        String res = out.toString();
+        assert_().that(res).contains("Application com.acme.Foo_12.34");
+        assert_().that(res).contains("Version: 12.34");
+    }
+
+    @Test
+    public void testPrintModes() throws Exception {
+        StringPrintStream out = setSTDOUT(new StringPrintStream());
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Application-Version", "12.34")
+                .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
+                .setAttribute("ModeX", "Description", "This is a secret mode")
+                .setAttribute("ModeY", "Description", "This is another secret mode")
+                .setAttribute("ModeZ", "Foo", "xxx")
+                .setAttribute("ModeX-Linux", "System-Properties", "bar baz=55 foo=w os=lin")
+                .setAttribute("ModeX-MacOS", "System-Properties", "bar baz=55 foo=w os=mac")
+                .setAttribute("ModeX-Windows", "System-Properties", "bar baz=55 foo=w os=win")
+                .setAttribute("ModeY-Java-15", "Description", "This is a secret mode")
+                .addEntry("foo.jar", emptyInputStream());
+        
+        props.setProperty("capsule.modes", "");
+
+        Capsule capsule = newCapsule(jar);
+        Capsule.runActions(capsule, null);
+
+        String res = out.toString();
+        assert_().that(res).contains("* ModeX: This is a secret mode");
+        assert_().that(res).contains("* ModeY: This is another secret mode");
+        assert_().that(res).contains("* ModeZ");
+        assert_().that(res).doesNotContain("* ModeX-Linux");
+        assert_().that(res).doesNotContain("* ModeY-Java-15");
     }
     //</editor-fold>
 

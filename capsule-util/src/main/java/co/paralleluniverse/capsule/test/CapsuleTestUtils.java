@@ -75,12 +75,14 @@ public final class CapsuleTestUtils {
         setSTDERR(System.err);
     }
     
-    public static void setSTDOUT(PrintStream ps) {
+    public static <T extends PrintStream> T setSTDOUT(T ps) {
         setStream("STDOUT", ps);
+        return ps;
     }
 
-    public static void setSTDERR(PrintStream ps) {
+    public static <T extends PrintStream> T setSTDERR(T ps) {
         setStream("STDERR", ps);
+        return ps;
     }
 
     public static void setStream(String stream, PrintStream ps) {
