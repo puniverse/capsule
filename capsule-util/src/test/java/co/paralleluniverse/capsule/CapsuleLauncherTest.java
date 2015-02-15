@@ -16,6 +16,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -60,6 +61,10 @@ public class CapsuleLauncherTest {
         Capsule capsule = newCapsuleLauncher(jar).newCapsule();
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+        
+        assertTrue(capsule.hasAttribute(Attribute.named("Application-Class")));
+        assertEquals("com.acme.Foo", capsule.getAttribute(Attribute.named("Application-Class")));
+        assertEquals("com.acme.Foo", capsule.getAttribute(Attribute.of(new AbstractMap.SimpleImmutableEntry<String, String>("Application-Class", null))));
 
         // dumpFileSystem(fs);
         assertEquals(args, getAppArgs(pb));
