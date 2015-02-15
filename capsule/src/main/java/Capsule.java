@@ -148,8 +148,11 @@ public class Capsule implements Runnable {
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
     private static final String PROP_PROFILE = "capsule.profile";
 
-    private static final Entry<String, String> ATTR_APP_NAME = ATTRIBUTE("Application-Name", T_STRING(), null, false, "The application's name");
-    private static final Entry<String, String> ATTR_APP_VERSION = ATTRIBUTE("Application-Version", T_STRING(), null, false, "The application's version string");
+    /** The application's name, e.g. {@code "The Best Word Processor"} */
+    protected static final Entry<String, String> ATTR_APP_NAME = ATTRIBUTE("Application-Name", T_STRING(), null, false, "The application's name");
+    /** The application's unique ID, e.g. {@code "com.acme.bestwordprocessor"} */
+    protected static final Entry<String, String> ATTR_APP_ID = ATTRIBUTE("Application-Id", T_STRING(), null, false, "The application's name");
+    protected static final Entry<String, String> ATTR_APP_VERSION = ATTRIBUTE("Application-Version", T_STRING(), null, false, "The application's version string");
     private static final Entry<String, List<String>> ATTR_CAPLETS = ATTRIBUTE("Caplets", T_LIST(T_STRING()), null, false, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
     private static final Entry<String, String> ATTR_LOG_LEVEL = ATTRIBUTE("Capsule-Log-Level", T_STRING(), null, false, "The capsule's default log level");
     private static final Entry<String, String> ATTR_MODE_DESC = ATTRIBUTE("Description", T_STRING(), null, true, "Contains the description of its respective mode");
@@ -528,8 +531,6 @@ public class Capsule implements Runnable {
     private final Manifest manifest;     // never null
     private /*final*/ Path jarFile;      // never null
     private /*final*/ String appId;      // null iff wrapper capsule wrapping a non-capsule JAR
-    private /*final*/ String appName;    // null iff wrapper capsule wrapping a non-capsule JAR
-    private /*final*/ String appVersion; // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
     private /*final*/ int logLevel;
 
@@ -713,21 +714,36 @@ public class Capsule implements Runnable {
     private void initAppId() {
         if (oc.appId != null)
             return;
-        log(LOG_VERBOSE, "Initializeing app ID");
-        final String[] nameAndVersion = buildAppId();
-        if (nameAndVersion == null)
+        log(LOG_VERBOSE, "Initializing app ID");
+        final String name = getAppIdNoVer();
+        if (name == null)
             return;
-        oc.appName = nameAndVersion[0];
-        oc.appVersion = nameAndVersion[1];
-        oc.appId = getAppName() + (getAppVersion() != null ? "_" + getAppVersion() : "");
-        log(LOG_VERBOSE, "Initializeing app ID: " + oc.appId);
+        final String version = getAttribute(ATTR_APP_VERSION);
+        oc.appId = name + (version != null ? "_" + version : "");
+        log(LOG_VERBOSE, "Initialized app ID: " + oc.appId);
     }
 
     protected final boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasAttribute(ATTR_SCRIPT);
     }
+
     @SuppressWarnings("unchecked")
     private <T> T attribute0(Entry<String, T> attr) {
+        if (ATTR_APP_ID == attr) {
+            String id = attribute00(ATTR_APP_ID);
+            if (id == null && getManifestAttribute(ATTR_IMPLEMENTATION_TITLE) != null)
+                id = getManifestAttribute(ATTR_IMPLEMENTATION_TITLE);
+            if (id == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
+                id = getAppArtifactId(getAttribute(ATTR_APP_ARTIFACT));
+            return (T) id;
+        }
+
+        if (ATTR_APP_NAME == attr) {
+            String name = attribute00(ATTR_APP_NAME);
+            if (name == null)
+                name = getManifestAttribute(ATTR_IMPLEMENTATION_TITLE);
+            return (T) name;
+        }
 
         if (ATTR_APP_VERSION == attr) {
             String ver = attribute00(ATTR_APP_VERSION);
@@ -898,20 +914,6 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * The app's name
-     */
-    protected final String getAppName() {
-        return oc.appName;
-    }
-
-    /**
-     * The app's version or {@code null} if unversioned.
-     */
-    protected final String getAppVersion() {
-        return oc.appVersion;
-    }
-
-    /**
      * Capsule's log level
      */
     protected final int getLogLevel() {
@@ -962,10 +964,14 @@ public class Capsule implements Runnable {
     /////////// Main Operations ///////////////////////////////////
     void printVersion(List<String> args) {
         if (getAppId() != null) {
-            System.out.println(LOG_PREFIX + "Application " + getAppId());
-            for (String attr : asList(ATTR_IMPLEMENTATION_TITLE, ATTR_IMPLEMENTATION_VENDOR, ATTR_IMPLEMENTATION_URL)) {
-                if (hasManifestAttribute(attr))
-                    System.out.println(LOG_PREFIX + getManifestAttribute(attr));
+            STDOUT.println(LOG_PREFIX + "Application " + getAppId());
+            if (hasAttribute(ATTR_APP_NAME))
+                STDOUT.println(LOG_PREFIX + getAttribute(ATTR_APP_NAME));
+            if (hasAttribute(ATTR_APP_VERSION))
+                STDOUT.println(LOG_PREFIX + "Version: " + getAttribute(ATTR_APP_VERSION));
+            for (String attr : asList(ATTR_IMPLEMENTATION_VENDOR, ATTR_IMPLEMENTATION_URL)) {
+                if (getManifestAttribute(attr) != null)
+                    STDOUT.println(LOG_PREFIX + getManifestAttribute(attr));
             }
         }
         STDOUT.println(LOG_PREFIX + "Capsule Version " + VERSION);
@@ -1359,59 +1365,33 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="App ID">
     /////////// App ID ///////////////////////////////////
-    /**
-     * Computes and returns application's ID.
-     *
-     * @return An array of exactly two strings, the first being the application's name, and the second, its version (or {@code null} if no version).
-     */
-    protected String[] buildAppId() {
-        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.buildAppId() : buildAppId0();
-    }
-
-    private String[] buildAppId0() {
-        String name;
-        String version = null;
-
-        name = getAttribute(ATTR_APP_NAME);
-
-        if (name == null) {
-            final String appArtifact = getAttribute(ATTR_APP_ARTIFACT);
-            if (appArtifact != null) {
-                if (isDependency(appArtifact)) {
-                    final String[] nameAndVersion = getAppArtifactId(appArtifact);
-                    name = nameAndVersion[0];
-                    version = nameAndVersion[1];
-                } else
-                    return null;
-            }
-        }
-        if (name == null) {
-            name = getAttribute(ATTR_APP_CLASS);
-            if (name != null && hasModalAttribute(ATTR_APP_CLASS))
+    private String getAppIdNoVer() {
+        String id = getAttribute(ATTR_APP_ID);
+        if (isEmpty(id))
+            id = getAttribute(ATTR_APP_NAME);
+        if (id == null) {
+            id = getAttribute(ATTR_APP_CLASS);
+            if (id != null && hasModalAttribute(ATTR_APP_CLASS))
                 throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_CLASS + " is defined in a modal section of the manifest. "
-                        + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
+                        + " In this case, you must add the " + ATTR_APP_ID + " attribute to the manifest's main section.");
         }
-        if (name == null)
-            return null;
-
-        if (version == null)
-            version = getAttribute(ATTR_APP_VERSION);
-
-        return new String[]{name, version};
+        return id;
     }
 
-    /**
-     * @deprecated exclude from javadocs
-     */
-    protected static String[] getAppArtifactId(String coords) {
+    static String getAppArtifactId(String coords) {
+        if (coords == null)
+            return null;
+        final String[] cs = coords.split(":");
+        return cs[0] + "." + cs[1];
+    }
+
+    static String getAppArtifactVersion(String coords) {
         if (coords == null)
             return null;
         final String[] cs = coords.split(":");
         if (cs.length < 3)
-            throw new IllegalArgumentException("Illegal main artifact coordinates: " + coords);
-        String name = cs[0] + "_" + cs[1];
-        String version = cs[2];
-        return new String[]{name, version};
+            return null;
+        return cs[2];
     }
     //</editor-fold>
 
