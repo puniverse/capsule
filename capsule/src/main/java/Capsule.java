@@ -2270,6 +2270,9 @@ public class Capsule implements Runnable {
         }
     }
 
+    /**
+     * Returns an attribute's name.
+     */
     protected final String name(Entry<String, ?> attribute) {
         return attribute.getKey();
     }
