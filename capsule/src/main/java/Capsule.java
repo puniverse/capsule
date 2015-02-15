@@ -1780,7 +1780,7 @@ public class Capsule implements Runnable {
     }
 
     private String compileClassPath(List<Path> cp) {
-        if (cp == null || cp.isEmpty())
+        if (isEmpty(cp))
             return null;
         return join(processOutgoingPath(cp), PATH_SEPARATOR);
     }
@@ -1833,11 +1833,11 @@ public class Capsule implements Runnable {
 
         if (hasAttribute(ATTR_APP_CLASS_PATH)) {
             for (String sp : getAttribute(ATTR_APP_CLASS_PATH))
-                addAllIfNotContained(classPath, resolve(sp));
+                addAllIfAbsent(classPath, resolve(sp));
         }
 
         if (getAppCache() != null)
-            addAllIfNotContained(classPath, nullToEmpty(getDefaultCacheClassPath()));
+            addAllIfAbsent(classPath, nullToEmpty(getDefaultCacheClassPath()));
 
         classPath.addAll(resolve(getAttribute(ATTR_DEPENDENCIES)));
 
@@ -2496,14 +2496,7 @@ public class Capsule implements Runnable {
      * @param attr the attribute
      */
     protected final boolean hasAttribute(Entry<String, ?> attr) {
-        final Object res = getAttribute(attr);
-        if (res == null)
-            return false;
-        if (res instanceof Collection)
-            return !((Collection) res).isEmpty();
-        if (res instanceof Map)
-            return !((Map) res).isEmpty();
-        return true;
+        return !isEmpty(getAttribute(attr));
     }
 
     private boolean allowsModal(String attr) {
@@ -2883,7 +2876,7 @@ public class Capsule implements Runnable {
 
                 final List<String> wrCaplets = nullToEmpty(parse(wd.getManifest().getMainAttributes().getValue(name(ATTR_CAPLETS))));
                 final ArrayList<String> caplets = new ArrayList<>(nullToEmpty(parse(man.getMainAttributes().getValue(name(ATTR_CAPLETS)))));
-                addAllIfNotContained(caplets, wrCaplets);
+                addAllIfAbsent(caplets, wrCaplets);
 
                 man.getMainAttributes().putValue(name(ATTR_CAPLETS), join(caplets, " "));
 
@@ -3808,7 +3801,7 @@ public class Capsule implements Runnable {
         return c;
     }
 
-    private static <C extends Collection<T>, T> C addAllIfNotContained(C c, Collection<T> c1) {
+    private static <C extends Collection<T>, T> C addAllIfAbsent(C c, Collection<T> c1) {
         for (T e : c1) {
             if (!c.contains(e))
                 c.add(e);
@@ -3827,6 +3820,18 @@ public class Capsule implements Runnable {
     @SafeVarargs
     private static <T> Set<T> immutableSet(T... elems) {
         return unmodifiableSet(new HashSet<T>(asList(elems)));
+    }
+
+    private static boolean isEmpty(Object x) {
+        if (x == null)
+            return true;
+        if (x instanceof String)
+            return ((String) x).isEmpty();
+        if (x instanceof Collection)
+            return ((Collection) x).isEmpty();
+        if (x instanceof Map)
+            return ((Map) x).isEmpty();
+        return false;
     }
     //</editor-fold>
 
