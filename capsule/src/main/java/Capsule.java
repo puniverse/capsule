@@ -3423,9 +3423,11 @@ public class Capsule implements Runnable {
             if (fileName.endsWith(".jdk") || fileName.endsWith(".jre"))
                 fileName = fileName.substring(0, fileName.length() - 4);
             return shortJavaVersion(fileName);
-        } else if (fileName.startsWith("java-") && fileName.contains("-openjdk"))
-            return shortJavaVersion(fileName.substring("java-".length(), fileName.indexOf("-openjdk")));
-        else
+        } else if (fileName.startsWith("java-") && (fileName.contains("-openjdk") || fileName.contains("-oracle"))) {
+            final Matcher m = Pattern.compile("java-([0-9]+)-").matcher(fileName);
+            m.find();
+            return shortJavaVersion(m.group(1));
+        } else
             return null;
     }
 
