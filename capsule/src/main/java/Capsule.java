@@ -2111,29 +2111,25 @@ public class Capsule implements Runnable {
 
     private boolean isMatchingJavaVersion(String javaVersion, boolean jdk) {
         final boolean jdkRequired = Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
-        try {
-            if (jdkRequired && !jdk) {
-                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match because JDK required and this is not a JDK");
-                return false;
-            }
-            if (hasAttribute(ATTR_MIN_JAVA_VERSION) && compareVersions(javaVersion, getAttribute(ATTR_MIN_JAVA_VERSION)) < 0) {
-                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_MIN_JAVA_VERSION + ": " + getAttribute(ATTR_MIN_JAVA_VERSION));
-                return false;
-            }
-            if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(javaVersion, shortJavaVersion(getAttribute(ATTR_JAVA_VERSION)), 3) > 0) {
-                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + name(ATTR_JAVA_VERSION) + ": " + getAttribute(ATTR_JAVA_VERSION));
-                return false;
-            }
-            if (getMinUpdateFor(javaVersion) > parseJavaVersion(javaVersion)[3]) {
-                log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + name(ATTR_MIN_UPDATE_VERSION) + ": " + getAttribute(ATTR_MIN_UPDATE_VERSION) + " (" + getMinUpdateFor(javaVersion) + ")");
-                return false;
-            }
-            log(LOG_DEBUG, "Java version " + javaVersion + " matches");
-            return true;
-        } catch (IllegalArgumentException ex) {
-            log(LOG_VERBOSE, "Error parsing Java version " + javaVersion);
+
+        if (jdkRequired && !jdk) {
+            log(LOG_DEBUG, "Java version " + javaVersion + " fails to match because JDK required and this is not a JDK");
             return false;
         }
+        if (hasAttribute(ATTR_MIN_JAVA_VERSION) && compareVersions(javaVersion, getAttribute(ATTR_MIN_JAVA_VERSION)) < 0) {
+            log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + ATTR_MIN_JAVA_VERSION + ": " + getAttribute(ATTR_MIN_JAVA_VERSION));
+            return false;
+        }
+        if (hasAttribute(ATTR_JAVA_VERSION) && compareVersions(javaVersion, shortJavaVersion(getAttribute(ATTR_JAVA_VERSION)), 3) > 0) {
+            log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + name(ATTR_JAVA_VERSION) + ": " + getAttribute(ATTR_JAVA_VERSION));
+            return false;
+        }
+        if (getMinUpdateFor(javaVersion) > parseJavaVersion(javaVersion)[3]) {
+            log(LOG_DEBUG, "Java version " + javaVersion + " fails to match due to " + name(ATTR_MIN_UPDATE_VERSION) + ": " + getAttribute(ATTR_MIN_UPDATE_VERSION) + " (" + getMinUpdateFor(javaVersion) + ")");
+            return false;
+        }
+        log(LOG_DEBUG, "Java version " + javaVersion + " matches");
+        return true;
     }
 
     private int getMinUpdateFor(String version) {
