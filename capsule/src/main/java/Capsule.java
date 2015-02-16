@@ -2405,12 +2405,12 @@ public class Capsule implements Runnable {
     @SuppressWarnings("unchecked")
     private <T> T attribute00(Entry<String, T> attr) {
         final Object[] conf = ATTRIBS.get(name(attr));
-        if (conf == null)
-            throw new IllegalArgumentException("Attribute " + attr.getKey() + " has not been registered with ATTRIBUTE");
-        final T type = (T) conf[ATTRIB_TYPE];
+//        if (conf == null)
+//            throw new IllegalArgumentException("Attribute " + attr.getKey() + " has not been registered with ATTRIBUTE");
+        final T type = (T) (conf != null ? conf[ATTRIB_TYPE] : T_STRING());
         T value = oc.getAttribute0(name(attr), type);
         if (isEmpty(value))
-            value = defaultValue(type, (T) conf[ATTRIB_DEFAULT]);
+            value = defaultValue(type, (T) (conf != null ? conf[ATTRIB_DEFAULT] : null));
         setContext("attribute", attr.getKey(), value);
         return value;
     }

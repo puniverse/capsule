@@ -16,7 +16,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -36,7 +35,6 @@ public class CapsuleLauncherTest {
     private final Path tmp = fs.getPath("/tmp");
     private Properties props;
 
-
     @After
     public void tearDown() throws Exception {
         fs.close();
@@ -46,6 +44,7 @@ public class CapsuleLauncherTest {
     public void testSimpleExtract() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Unregisterd-Attribute", "just a string")
                 .addEntry("foo.jar", emptyInputStream())
                 .addEntry("a.class", emptyInputStream())
                 .addEntry("b.txt", emptyInputStream())
@@ -61,10 +60,12 @@ public class CapsuleLauncherTest {
         Capsule capsule = newCapsuleLauncher(jar).newCapsule();
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
-        
+
         assertTrue(capsule.hasAttribute(Attribute.named("Application-Class")));
         assertEquals("com.acme.Foo", capsule.getAttribute(Attribute.named("Application-Class")));
-        assertEquals("com.acme.Foo", capsule.getAttribute(Attribute.of(new AbstractMap.SimpleImmutableEntry<String, String>("Application-Class", null))));
+
+        assertTrue(capsule.hasAttribute(Attribute.named("Unregisterd-Attribute")));
+        assertEquals("just a string", capsule.getAttribute(Attribute.named("Unregisterd-Attribute")));
 
         // dumpFileSystem(fs);
         assertEquals(args, getAppArgs(pb));
@@ -111,11 +112,11 @@ public class CapsuleLauncherTest {
                 .setAttribute("Manifest-Version", "1.0")
                 .setAttribute("Main-Class", "Capsule");
     }
-    
+
     private CapsuleLauncher newCapsuleLauncher(Jar jar) throws IOException {
         Path capsuleJar = path("capsule.jar");
         jar.write(capsuleJar);
-        
+
         return new CapsuleLauncher(capsuleJar).setCacheDir(cache);
     }
 
