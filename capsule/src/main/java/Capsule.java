@@ -2143,8 +2143,8 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Dependency Manager">
-    /////////// Dependency Manager ///////////////////////////////////
+    //<editor-fold defaultstate="collapsed" desc="Dependency Resolution">
+    /////////// Dependency Resolution ///////////////////////////////////
     /**
      * @deprecated marked deprecated to exclude from javadoc.
      */
