@@ -736,35 +736,6 @@ public class Capsule implements Runnable {
     protected final boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasAttribute(ATTR_SCRIPT);
     }
-
-    @SuppressWarnings("unchecked")
-    private <T> T attribute0(Entry<String, T> attr) {
-        if (ATTR_APP_ID == attr) {
-            String id = attribute00(ATTR_APP_ID);
-            if (id == null && getManifestAttribute(ATTR_IMPLEMENTATION_TITLE) != null)
-                id = getManifestAttribute(ATTR_IMPLEMENTATION_TITLE);
-            if (id == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
-                id = getAppArtifactId(getAttribute(ATTR_APP_ARTIFACT));
-            return (T) id;
-        }
-
-        if (ATTR_APP_NAME == attr) {
-            String name = attribute00(ATTR_APP_NAME);
-            if (name == null)
-                name = getManifestAttribute(ATTR_IMPLEMENTATION_TITLE);
-            return (T) name;
-        }
-
-        if (ATTR_APP_VERSION == attr) {
-            String ver = attribute00(ATTR_APP_VERSION);
-            if (ver == null && getManifestAttribute(ATTR_IMPLEMENTATION_VERSION) != null)
-                ver = getManifestAttribute(ATTR_IMPLEMENTATION_VERSION);
-            if (ver == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
-                ver = getAppArtifactVersion(getAttribute(ATTR_APP_ARTIFACT));
-            return (T) ver;
-        }
-        return attribute00(attr);
-    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Caplet Chain">
@@ -2227,6 +2198,35 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Attributes">
     /////////// Attributes ///////////////////////////////////
+    @SuppressWarnings("unchecked")
+    private <T> T attribute0(Entry<String, T> attr) {
+        if (ATTR_APP_ID == attr) {
+            String id = attribute00(ATTR_APP_ID);
+            if (id == null && getManifestAttribute(ATTR_IMPLEMENTATION_TITLE) != null)
+                id = getManifestAttribute(ATTR_IMPLEMENTATION_TITLE);
+            if (id == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
+                id = getAppArtifactId(getAttribute(ATTR_APP_ARTIFACT));
+            return (T) id;
+        }
+
+        if (ATTR_APP_NAME == attr) {
+            String name = attribute00(ATTR_APP_NAME);
+            if (name == null)
+                name = getManifestAttribute(ATTR_IMPLEMENTATION_TITLE);
+            return (T) name;
+        }
+
+        if (ATTR_APP_VERSION == attr) {
+            String ver = attribute00(ATTR_APP_VERSION);
+            if (ver == null && getManifestAttribute(ATTR_IMPLEMENTATION_VERSION) != null)
+                ver = getManifestAttribute(ATTR_IMPLEMENTATION_VERSION);
+            if (ver == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
+                ver = getAppArtifactVersion(getAttribute(ATTR_APP_ARTIFACT));
+            return (T) ver;
+        }
+        return attribute00(attr);
+    }
+
     /*
      * The methods in this section are the only ones accessing the manifest. Therefore other means of
      * setting attributes can be added by changing these methods alone.
