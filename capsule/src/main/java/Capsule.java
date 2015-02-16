@@ -1624,7 +1624,7 @@ public class Capsule implements Runnable {
 
     private void unlockAppCache(Path dir) throws IOException {
         if (appCacheLock != null) {
-            log(LOG_VERBOSE, "Unocking " + dir.resolve(LOCK_FILE_NAME));
+            log(LOG_VERBOSE, "Unlocking " + dir.resolve(LOCK_FILE_NAME));
             appCacheLock.release();
             appCacheLock.acquiredBy().close();
             appCacheLock = null;
