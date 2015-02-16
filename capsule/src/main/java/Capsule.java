@@ -1101,12 +1101,14 @@ public class Capsule implements Runnable {
 
             oc.child = pb.start();
 
-            if (isInheritIoBug())
-                pipeIoStreams();
-
             final int pid = getPid(oc.child);
             if (pid > 0)
                 System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
+
+            if (isInheritIoBug())
+                pipeIoStreams();
+
+            postlaunch(child);
 
             oc.child.waitFor();
         }
@@ -1341,6 +1343,21 @@ public class Capsule implements Runnable {
 
     private static boolean isTrampoline() {
         return systemPropertyEmptyOrTrue(PROP_TRAMPOLINE);
+    }
+
+    /**
+     * Called after the application is launched by the capsule.
+     *
+     * @param child the child process running the application
+     */
+    protected void postlaunch(Process child) {
+        if ((_ct = getCallTarget(Capsule.class)) != null)
+            _ct.postlaunch(child);
+        else
+            postlaunch0(child);
+    }
+
+    private void postlaunch0(Process child) {
     }
     //</editor-fold>
 
@@ -3412,6 +3429,10 @@ public class Capsule implements Runnable {
 
     // visible for testing
     static String isJavaDir(String fileName) {
+        /*
+         * This method considers some well-known Java home directory naming schemes.
+         * It will likely require changes to accomodate other schemes used by various package managers.
+         */
         fileName = fileName.toLowerCase();
         if (fileName.startsWith("jdk") || fileName.startsWith("jre") || fileName.endsWith(".jdk") || fileName.endsWith(".jre")) {
             if (fileName.startsWith("jdk") || fileName.startsWith("jre"))
