@@ -682,7 +682,7 @@ public class Capsule implements Runnable {
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             oc.jarFile = jar;
-            insertAfter(loadTargetCapsule(MY_CLASSLOADER, jar));
+            insertAfter(loadTargetCapsule(cc.getClass().getClassLoader(), jar));
         }
         finalizeCapsule();
         return this;
@@ -4381,7 +4381,7 @@ public class Capsule implements Runnable {
         try {
             final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
             try {
-                final ClassLoader cl = newClassLoader(ccl, jarFile);
+                final ClassLoader cl = newClassLoader(pred.getClass().getClassLoader(), jarFile);
                 Thread.currentThread().setContextClassLoader(cl);
                 return accessible(loadCapsule(cl, jarFile).getDeclaredConstructor(Path.class)).newInstance(jarFile);
             } finally {
