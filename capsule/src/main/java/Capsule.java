@@ -787,7 +787,7 @@ public class Capsule implements Runnable {
     /**
      * Checks whether a caplet with the given class name is installed.
      */
-    private boolean hasCaplet(String name) {
+    protected final boolean hasCaplet(String name) {
         for (Capsule c = cc; c != null; c = c.sup) {
             for (Class<?> cls = c.getClass(); cls != null; cls = cls.getSuperclass()) {
                 if (name.equals(cls.getClass().getName()))
