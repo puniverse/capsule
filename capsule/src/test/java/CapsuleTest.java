@@ -1065,7 +1065,6 @@ public class CapsuleTest {
 
     @Test
     public void testTrampoline() throws Exception {
-        StringPrintStream out = setSTDOUT(new StringPrintStream());
         props.setProperty("capsule.java.home", "/my/1.7.0.jdk/home");
         props.setProperty("capsule.trampoline", "true");
 
@@ -1074,8 +1073,11 @@ public class CapsuleTest {
                 .setAttribute("Extract-Capsule", "false")
                 .addEntry("foo.jar", emptyInputStream());
 
-        newCapsule(jar);
-        int exit = main0(new String[]{"hi", "there!"});
+        Class<?> capsuleClass = loadCapsule(jar);
+        setProperties(capsuleClass, props);
+        StringPrintStream out = setSTDOUT(capsuleClass, new StringPrintStream());
+
+        int exit = main0(capsuleClass, new String[]{"hi", "there!"});
 
         assertEquals(0, exit);
         String res = out.toString();
@@ -1084,9 +1086,18 @@ public class CapsuleTest {
         assert_().that(res).endsWith("com.acme.Foo hi there!\n");
     }
 
-    private static int main0(String[] args) {
+    private static int main0(Class<?> clazz, String[] args) {
         try {
-            return (Integer)accessible(Capsule.class.getDeclaredMethod("main0", String[].class)).invoke(null, (Object) args);
+            return (Integer) accessible(actualCapsuleClass(clazz).getDeclaredMethod("main0", String[].class)).invoke(null, (Object) args);
+        } catch (Exception ex) {
+            throw rethrow(ex);
+        }
+    }
+
+    private static boolean runActions(Object capsule, List<String> args) {
+        try {
+            Class<?> clazz = actualCapsuleClass(capsule.getClass());
+            return (Boolean) accessible(clazz.getDeclaredMethod("runActions", clazz, List.class)).invoke(null, capsule, args);
         } catch (Exception ex) {
             throw rethrow(ex);
         }
@@ -1094,8 +1105,6 @@ public class CapsuleTest {
 
     @Test
     public void testPrintHelp() throws Exception {
-        StringPrintStream out = setSTDERR(new StringPrintStream());
-
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Application-Version", "12.34")
@@ -1103,17 +1112,20 @@ public class CapsuleTest {
 
         props.setProperty("capsule.help", "");
 
-        Capsule capsule = newCapsule(jar);
-        Capsule.runActions(capsule, null);
+        Class<?> capsuleClass = loadCapsule(jar);
+        setProperties(capsuleClass, props);
+        StringPrintStream out = setSTDERR(capsuleClass, new StringPrintStream());
+
+        Object capsule = newCapsule(capsuleClass);
+        boolean found = runActions(capsule, null);
 
         String res = out.toString();
+        assert_().that(found).isTrue();
         assert_().that(res).contains("USAGE: ");
     }
 
     @Test
     public void testPrintCapsuleVersion() throws Exception {
-        StringPrintStream out = setSTDOUT(new StringPrintStream());
-
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Application-Version", "12.34")
@@ -1121,19 +1133,22 @@ public class CapsuleTest {
 
         props.setProperty("capsule.version", "");
 
-        Capsule capsule = newCapsule(jar);
-        Capsule.runActions(capsule, null);
+        Class<?> capsuleClass = loadCapsule(jar);
+        setProperties(capsuleClass, props);
+        StringPrintStream out = setSTDOUT(capsuleClass, new StringPrintStream());
+
+        Object capsule = newCapsule(capsuleClass);
+        boolean found = runActions(capsule, null);
 
         String res = out.toString();
+        assert_().that(found).isTrue();
         assert_().that(res).contains("Application com.acme.Foo_12.34");
         assert_().that(res).contains("Version: 12.34");
     }
 
     @Test
     public void testPrintModes() throws Exception {
-        StringPrintStream out = setSTDOUT(new StringPrintStream());
-
-        Jar jar = newCapsuleJar()
+       Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Application-Version", "12.34")
                 .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
@@ -1148,10 +1163,15 @@ public class CapsuleTest {
 
         props.setProperty("capsule.modes", "");
 
-        Capsule capsule = newCapsule(jar);
-        Capsule.runActions(capsule, null);
+        Class<?> capsuleClass = loadCapsule(jar);
+        setProperties(capsuleClass, props);
+        StringPrintStream out = setSTDOUT(capsuleClass, new StringPrintStream());
+
+        Object capsule = newCapsule(capsuleClass);
+        boolean found = runActions(capsule, null);
 
         String res = out.toString();
+        assert_().that(found).isTrue();
         assert_().that(res).contains("* ModeX: This is a secret mode");
         assert_().that(res).contains("* ModeY: This is another secret mode");
         assert_().that(res).contains("* ModeZ");
@@ -1483,10 +1503,24 @@ public class CapsuleTest {
         return (Capsule) CapsuleTestUtils.newCapsule(jar, path("capsule.jar"));
     }
 
+    private Class<?> loadCapsule(Jar jar) throws IOException {
+        jar = makeRealCapsuleJar(jar);
+        return CapsuleTestUtils.loadCapsule(jar, path("capsule.jar"));
+    }
+
+    private Object newCapsule(Class<?> capsuleClass) {
+        return CapsuleTestUtils.newCapsule(capsuleClass, path("capsule.jar"));
+    }
+
     private Jar newCapsuleJar() {
         return new Jar()
                 .setAttribute("Manifest-Version", "1.0")
                 .setAttribute("Main-Class", "TestCapsule");
+    }
+
+    private Jar makeRealCapsuleJar(Jar jar) throws IOException {
+        return jar.addClass(Capsule.class)
+                .addClass(TestCapsule.class);
     }
 
     private Capsule setTarget(Capsule capsule, String artifact) {
@@ -1667,16 +1701,6 @@ public class CapsuleTest {
 
     private static int[] ints(int... xs) {
         return xs;
-    }
-
-    private static RuntimeException rethrow(Throwable t) {
-        while (t instanceof InvocationTargetException)
-            t = ((InvocationTargetException) t).getTargetException();
-        if (t instanceof RuntimeException)
-            throw (RuntimeException) t;
-        if (t instanceof Error)
-            throw (Error) t;
-        throw new RuntimeException(t);
     }
 
     @SuppressWarnings("unchecked")

@@ -9,6 +9,7 @@
 package co.paralleluniverse.capsule.test;
 
 import co.paralleluniverse.capsule.Jar;
+import co.paralleluniverse.common.JarClassLoader;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -42,11 +43,34 @@ public final class CapsuleTestUtils {
     public static Object newCapsule(Jar jar, Path path) {
         try {
             jar.write(path);
-            accessible(capsuleClass.getDeclaredField("MY_JAR")).set(null, path);
-            
+            //accessible(capsuleClass.getDeclaredField("MY_JAR")).set(null, path);
+
             final String mainClass = jar.getAttribute("Main-Class");
             final Class<?> clazz = Class.forName(mainClass);
 
+            return newCapsule(clazz, path);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        } catch (Exception e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static Class<?> loadCapsule(Jar jar, Path path) {
+        try {
+            jar.write(path);
+
+            final String mainClass = jar.getAttribute("Main-Class");
+            final Class<?> clazz = new JarClassLoader(path, true).loadClass(mainClass);
+
+            return clazz;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static Object newCapsule(Class<?> clazz, Path path) {
+        try {
             Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class));
             return ctor.newInstance(path);
         } catch (InvocationTargetException e) {
@@ -56,43 +80,67 @@ public final class CapsuleTestUtils {
         }
     }
 
-    public static void setCacheDir(Path cache) {
+    public static void setCacheDir(Class<?> capsuleClass, Path cache) {
         try {
-            accessible(capsuleClass.getDeclaredField("CACHE_DIR")).set(null, cache);
+            accessible(actualCapsuleClass(capsuleClass).getDeclaredField("CACHE_DIR")).set(null, cache);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
+    }
+
+    public static void setProperties(Class<?> capsuleClass, Properties props) {
+        try {
+            accessible(actualCapsuleClass(capsuleClass).getDeclaredField("PROPERTIES")).set(null, props);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static void resetOutputStreams(Class<?> capsuleClass) {
+        setSTDOUT(capsuleClass, System.out);
+        setSTDERR(capsuleClass, System.err);
+    }
+
+    public static <T extends PrintStream> T setSTDOUT(Class<?> capsuleClass, T ps) {
+        setStream(capsuleClass, "STDOUT", ps);
+        return ps;
+    }
+
+    public static <T extends PrintStream> T setSTDERR(Class<?> capsuleClass, T ps) {
+        setStream(capsuleClass, "STDERR", ps);
+        return ps;
+    }
+
+    public static void setStream(Class<?> capsuleClass, String stream, PrintStream ps) {
+        try {
+            accessible(actualCapsuleClass(capsuleClass).getDeclaredField(stream)).set(null, ps);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static void setCacheDir(Path cache) {
+        setCacheDir(capsuleClass, cache);
     }
 
     public static void setProperties(Properties props) {
-        try {
-            accessible(capsuleClass.getDeclaredField("PROPERTIES")).set(null, props);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
+        setProperties(capsuleClass, props);
     }
 
     public static void resetOutputStreams() {
-        setSTDOUT(System.out);
-        setSTDERR(System.err);
+        resetOutputStreams(capsuleClass);
     }
-    
+
     public static <T extends PrintStream> T setSTDOUT(T ps) {
-        setStream("STDOUT", ps);
-        return ps;
+        return setSTDOUT(capsuleClass, ps);
     }
 
     public static <T extends PrintStream> T setSTDERR(T ps) {
-        setStream("STDERR", ps);
-        return ps;
+        return setSTDERR(capsuleClass, ps);
     }
 
     public static void setStream(String stream, PrintStream ps) {
-        try {
-            accessible(capsuleClass.getDeclaredField(stream)).set(null, ps);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
+        setStream(capsuleClass, stream, ps);
     }
 
     public static <T extends AccessibleObject> T accessible(T x) {
@@ -114,7 +162,15 @@ public final class CapsuleTestUtils {
 
         return x;
     }
-    
+
+    public static Class<?> actualCapsuleClass(Class<?> clazz) {
+        for (; clazz != null; clazz = clazz.getSuperclass()) {
+            if (clazz.getName().equals("Capsule"))
+                return clazz;
+        }
+        throw new AssertionError("Class " + clazz.getName() + " is not a capsule class");
+    }
+
     public static boolean isCI() {
         return (isEnvTrue("CI") || isEnvTrue("CONTINUOUS_INTEGRATION") || isEnvTrue("TRAVIS"));
     }
@@ -128,6 +184,16 @@ public final class CapsuleTestUtils {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public static RuntimeException rethrow(Throwable t) {
+        while (t instanceof InvocationTargetException)
+            t = ((InvocationTargetException) t).getTargetException();
+        if (t instanceof RuntimeException)
+            throw (RuntimeException) t;
+        if (t instanceof Error)
+            throw (Error) t;
+        throw new RuntimeException(t);
     }
 
     public static final PrintStream DEVNULL = new PrintStream(new OutputStream() {

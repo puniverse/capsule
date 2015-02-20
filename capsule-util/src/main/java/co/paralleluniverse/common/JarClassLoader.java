@@ -169,4 +169,9 @@ public final class JarClassLoader extends FlexibleClassLoader {
             return jis.getManifest();
         }
     }
+
+    @Override
+    public String toString() {
+        return super.toString() + '{' + jarFile.toAbsolutePath() + '}';
+    }
 }
