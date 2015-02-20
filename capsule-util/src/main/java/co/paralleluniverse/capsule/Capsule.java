@@ -59,6 +59,11 @@ public interface Capsule {
     <T> T getAttribute(Attribute<T> attr);
 
     /**
+     * Checks whether a caplet with the given class name is installed.
+     */
+    boolean hasCaplet(String name);
+
+    /**
      * Creates a {@link ProcessBuilder} ready to use for launching the capsule.
      *
      * @param jvmArgs JVM arguments to use for launching the capsule

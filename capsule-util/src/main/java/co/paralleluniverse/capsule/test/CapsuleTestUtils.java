@@ -42,6 +42,8 @@ public final class CapsuleTestUtils {
     public static Object newCapsule(Jar jar, Path path) {
         try {
             jar.write(path);
+            accessible(capsuleClass.getDeclaredField("MY_JAR")).set(null, path);
+            
             final String mainClass = jar.getAttribute("Main-Class");
             final Class<?> clazz = Class.forName(mainClass);
 

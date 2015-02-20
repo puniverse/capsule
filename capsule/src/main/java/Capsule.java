@@ -280,6 +280,7 @@ public class Capsule implements Runnable {
     /////////// Main ///////////////////////////////////
     protected static final PrintStream STDOUT = System.out;
     protected static final PrintStream STDERR = System.err;
+    private static Path MY_JAR;
     private static Properties PROPERTIES = System.getProperties();
     private static final String OS = getProperty0(PROP_OS_NAME).toLowerCase();
     private static final String PLATFORM = getOS();
@@ -445,7 +446,7 @@ public class Capsule implements Runnable {
             final String defval = (String) entry.getValue()[OPTION_DEFAULT];
             if (getProperty0(option) == null && defval != null && !defval.equals("false")) // the last condition is for backwards compatibility
                 setProperty(option, defval);
-            else if (optionTakesArguments(option) && "".equals(getProperty0(option)))
+            else if (!optionTakesArguments(option) && "".equals(getProperty0(option)))
                 setProperty(option, "true");
         }
     }
@@ -905,6 +906,9 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
     /////////// Capsule JAR ///////////////////////////////////
     private static Path findOwnJarFile() {
+        if (MY_JAR != null)
+            return MY_JAR;
+
         final URL url = MY_CLASSLOADER.getResource(Capsule.class.getName().replace('.', '/') + ".class");
         if (!"jar".equals(url.getProtocol()))
             throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
@@ -988,7 +992,7 @@ public class Capsule implements Runnable {
         STDOUT.println(LOG_PREFIX + "selected " + (jhome != null ? jhome : (getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
-    void printUsage() {
+    void printHelp(List<String> args) {
         printHelp(wrapper);
     }
 
@@ -1004,7 +1008,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    static void printHelp(boolean simple) {
+    private static void printHelp(boolean simple) {
         // USAGE:
         final Path myJar = toFriendlyPath(findOwnJarFile());
         final boolean executable = isExecutable(myJar);

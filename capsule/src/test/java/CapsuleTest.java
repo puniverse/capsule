@@ -1046,6 +1046,71 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testProcessCommandLineOptions() throws Exception {
+        List<String> args = new ArrayList<>(list("-java-home", "/foo/bar", "-reset", "-jvm-args=a b c", "-java-cmd", "gogo", "hi", "there"));
+        List<String> jvmArgs = list("-Dcapsule.java.cmd=wow");
+
+        processCmdLineOptions(args, jvmArgs);
+
+        assertEquals("/foo/bar", props.getProperty("capsule.java.home"));
+        assertEquals("true", props.getProperty("capsule.reset"));
+        assertEquals("a b c", props.getProperty("capsule.jvm.args"));
+        assertEquals(null, props.getProperty("capsule.java.cmd")); // overriden
+        assertEquals(list("hi", "there"), args);
+    }
+
+    private static void processCmdLineOptions(List<String> args, List<String> jvmArgs) {
+        Reflect.on(Capsule.class).call("processCmdLineOptions", args, jvmArgs);
+    }
+
+    @Test
+    public void testTrampoline() throws Exception {
+        StringPrintStream out = setSTDOUT(new StringPrintStream());
+        props.setProperty("capsule.java.home", "/my/1.7.0.jdk/home");
+        props.setProperty("capsule.trampoline", "true");
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false")
+                .addEntry("foo.jar", emptyInputStream());
+
+        newCapsule(jar);
+        int exit = main0(new String[]{"hi", "there!"});
+
+        assertEquals(0, exit);
+        String res = out.toString();
+        assert_().that(res).matches("[^\n]+\n\\z"); // a single line, teminated with a newline
+        assert_().that(res).startsWith("/my/1.7.0.jdk/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""));
+        assert_().that(res).endsWith("com.acme.Foo hi there!\n");
+    }
+
+    private static int main0(String[] args) {
+        try {
+            return (Integer)accessible(Capsule.class.getDeclaredMethod("main0", String[].class)).invoke(null, (Object) args);
+        } catch (Exception ex) {
+            throw rethrow(ex);
+        }
+    }
+
+    @Test
+    public void testPrintHelp() throws Exception {
+        StringPrintStream out = setSTDERR(new StringPrintStream());
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Application-Version", "12.34")
+                .addEntry("foo.jar", emptyInputStream());
+
+        props.setProperty("capsule.help", "");
+
+        Capsule capsule = newCapsule(jar);
+        Capsule.runActions(capsule, null);
+
+        String res = out.toString();
+        assert_().that(res).contains("USAGE: ");
+    }
+
+    @Test
     public void testPrintCapsuleVersion() throws Exception {
         StringPrintStream out = setSTDOUT(new StringPrintStream());
 
@@ -1053,7 +1118,7 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Application-Version", "12.34")
                 .addEntry("foo.jar", emptyInputStream());
-        
+
         props.setProperty("capsule.version", "");
 
         Capsule capsule = newCapsule(jar);
@@ -1080,7 +1145,7 @@ public class CapsuleTest {
                 .setAttribute("ModeX-Windows", "System-Properties", "bar baz=55 foo=w os=win")
                 .setAttribute("ModeY-Java-15", "Description", "This is a secret mode")
                 .addEntry("foo.jar", emptyInputStream());
-        
+
         props.setProperty("capsule.modes", "");
 
         Capsule capsule = newCapsule(jar);
