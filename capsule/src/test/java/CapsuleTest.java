@@ -40,7 +40,6 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 import org.junit.Before;
 import static com.google.common.truth.Truth.*;
-import java.lang.reflect.InvocationTargetException;
 import org.joor.Reflect;
 //import static org.mockito.Mockito.*;
 

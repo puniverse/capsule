@@ -164,9 +164,9 @@ public final class CapsuleTestUtils {
     }
 
     public static Class<?> actualCapsuleClass(Class<?> clazz) {
-        for (; clazz != null; clazz = clazz.getSuperclass()) {
-            if (clazz.getName().equals("Capsule"))
-                return clazz;
+        for (Class<?> c = clazz; c != null; c = c.getSuperclass()) {
+            if (c.getName().equals("Capsule"))
+                return c;
         }
         throw new AssertionError("Class " + clazz.getName() + " is not a capsule class");
     }
