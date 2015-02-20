@@ -988,10 +988,6 @@ public class Capsule implements Runnable {
         STDOUT.println(LOG_PREFIX + "selected " + (jhome != null ? jhome : (getProperty(PROP_JAVA_HOME) + " (current)")));
     }
 
-    void printHelp(List<String> args) {
-        printHelp(wrapper);
-    }
-
     void mergeCapsules(List<String> args) {
         if (!isWrapperCapsule())
             throw new IllegalStateException("This is not a wrapper capsule");
@@ -1002,6 +998,10 @@ public class Capsule implements Runnable {
         } catch (Exception e) {
             throw new RuntimeException("Capsule merge failed.", e);
         }
+    }
+
+    void printHelp(List<String> args) {
+        printHelp(wrapper);
     }
 
     private static void printHelp(boolean simple) {
@@ -1026,27 +1026,29 @@ public class Capsule implements Runnable {
             usage.append(myJar);
         STDERR.println("USAGE: " + usage);
 
-        // OPTIONS:
-        STDERR.println("\nOptions:");
-        for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
-            if (entry.getValue()[OPTION_DESC] != null) {
-                if (!simple && (Boolean) entry.getValue()[OPTION_WRAPPER_ONLY])
-                    continue;
-                final String option = entry.getKey();
-                final String defaultValue = (String) entry.getValue()[OPTION_DEFAULT];
-                if (simple && !optionTakesArguments(option) && defaultValue.equals("true"))
-                    continue;
-                StringBuilder sb = new StringBuilder();
-                sb.append(simple ? optionToSimple(option) : option);
+        // ACTIONS AND OPTIONS:
+        for (boolean actions : new boolean[]{true, false}) {
+            STDERR.println("\n" + (actions ? "Actions:" : "Options:"));
+            for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
+                if (entry.getValue()[OPTION_DESC] != null && (entry.getValue()[OPTION_METHOD] != null) == actions) {
+                    if (!simple && (Boolean) entry.getValue()[OPTION_WRAPPER_ONLY])
+                        continue;
+                    final String option = entry.getKey();
+                    final String defaultValue = (String) entry.getValue()[OPTION_DEFAULT];
+                    if (simple && !optionTakesArguments(option) && defaultValue.equals("true"))
+                        continue;
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(simple ? optionToSimple(option) : option);
 
-                if (optionTakesArguments(option) || defaultValue.equals("true")) {
-                    sb.append(simple ? ' ' : '=').append("<value>");
-                    if (defaultValue != null)
-                        sb.append(" (default: ").append(defaultValue).append(")");
+                    if (optionTakesArguments(option) || defaultValue.equals("true")) {
+                        sb.append(simple ? ' ' : '=').append("<value>");
+                        if (defaultValue != null)
+                            sb.append(" (default: ").append(defaultValue).append(")");
+                    }
+                    sb.append(" - ").append(entry.getValue()[OPTION_DESC]);
+
+                    STDERR.println("  " + sb);
                 }
-                sb.append(" - ").append(entry.getValue()[OPTION_DESC]);
-
-                STDERR.println("  " + sb);
             }
         }
 
