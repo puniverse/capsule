@@ -1147,7 +1147,7 @@ public class CapsuleTest {
 
     @Test
     public void testPrintModes() throws Exception {
-       Jar jar = newCapsuleJar()
+        Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Application-Version", "12.34")
                 .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
