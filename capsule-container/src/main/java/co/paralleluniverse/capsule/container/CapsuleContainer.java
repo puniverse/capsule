@@ -35,6 +35,8 @@ import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 import javax.management.ObjectName;
 import javax.management.StandardEmitterMBean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Launches, monitors and manages capsules.
@@ -42,6 +44,7 @@ import javax.management.StandardEmitterMBean;
  * @author pron
  */
 public class CapsuleContainer implements CapsuleContainerMXBean {
+    protected static final Logger LOG = LoggerFactory.getLogger(CapsuleContainer.class);
     public static final String CAPSULE_PROCESS_LAUNCHED = "capsule.launch";
     public static final String CAPSULE_PROCESS_KILLED = "capsule.death";
     private final AtomicLong notificationSequence = new AtomicLong();
@@ -126,7 +129,8 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
             jvmArgs = Collections.emptyList();
         if (args == null)
             args = Collections.emptyList();
-
+        
+        LOG.info("Launching capsule {} args: {} jvmArgs: {}", capsule, args, jvmArgs);
         try {
             final String capsuleId = capsule.getAppId();
             final ProcessBuilder pb = configureCapsuleProcess(capsule.prepareForLaunch(CapsuleLauncher.enableJMX(jvmArgs), args));
@@ -134,6 +138,8 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
             final Process p = pb.start();
             final String id = createProcessId(capsuleId, p);
 
+            LOG.info("Launching capsule as process {}", id);
+            
             final ProcessInfo pi = mountProcess(p, id, capsuleId, jvmArgs, args);
             processes.put(id, pi);
 
@@ -164,6 +170,7 @@ public class CapsuleContainer implements CapsuleContainerMXBean {
     }
 
     void processDied(String id, Process p, int exitValue) {
+        LOG.info("Process {} has died", id);
         mbean.sendNotification(processDiedNotification(id, exitValue));
         onProcessDeath(id, getProcessInfo(id), exitValue);
     }

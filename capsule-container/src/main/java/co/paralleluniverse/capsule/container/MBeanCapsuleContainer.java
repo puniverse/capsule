@@ -38,7 +38,7 @@ public class MBeanCapsuleContainer extends CapsuleContainer {
             Thread.sleep(1000); // give the process a chance to set up
             connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.warn("Unable to obtain JMX connector address for process " + id, e);
         }
         return new ProcessInfo(p, capsuleId, jvmArgs, args, connectorAddress);
     }

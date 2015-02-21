@@ -56,7 +56,7 @@ public class CascadingCapsuleContainer extends MBeanCapsuleContainer {
             connectorAddress = ProcessUtil.getLocalConnectorAddress(p, false);
             mountId = cascade != null ? cascade.mount(connectorAddress, null, ObjectName.WILDCARD, "capsule/" + id) : null;
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.warn("Unable to obtain JMX connector address for process " + id, e);
         }
         return new ProcessInfo(p, capsuleId, jvmArgs, args, connectorAddress, mountId);
     }
