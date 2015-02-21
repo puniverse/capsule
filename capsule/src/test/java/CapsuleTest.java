@@ -1076,7 +1076,7 @@ public class CapsuleTest {
         setProperties(capsuleClass, props);
         StringPrintStream out = setSTDOUT(capsuleClass, new StringPrintStream());
 
-        int exit = main0(capsuleClass, new String[]{"hi", "there!"});
+        int exit = main0(capsuleClass, "hi", "there!");
 
         assertEquals(0, exit);
         String res = out.toString();
@@ -1085,7 +1085,7 @@ public class CapsuleTest {
         assert_().that(res).endsWith("com.acme.Foo hi there!\n");
     }
 
-    private static int main0(Class<?> clazz, String[] args) {
+    private static int main0(Class<?> clazz, String... args) {
         try {
             return (Integer) accessible(actualCapsuleClass(clazz).getDeclaredMethod("main0", String[].class)).invoke(null, (Object) args);
         } catch (Exception ex) {
@@ -1176,6 +1176,44 @@ public class CapsuleTest {
         assert_().that(res).contains("* ModeZ");
         assert_().that(res).doesNotContain("* ModeX-Linux");
         assert_().that(res).doesNotContain("* ModeY-Java-15");
+    }
+
+    @Test
+    public void testMerge() throws Exception {
+        Jar wrapper = newCapsuleJar()
+                .setAttribute("Caplets", "MyCapsule")
+                .setAttribute("System-Properties", "p1=555")
+                .addClass(MyCapsule.class);
+
+        Jar app = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "p1=111")
+                .setListAttribute("App-Class-Path", list("lib/a.jar"))
+                .addClass(Capsule.class)
+                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("a.class", emptyInputStream())
+                .addEntry("b.txt", emptyInputStream())
+                .addEntry("lib/a.jar", emptyInputStream())
+                .addEntry("lib/b.class", emptyInputStream())
+                .addEntry("META-INF/x.txt", emptyInputStream());
+
+        Class<?> capsuleClass = loadCapsule(wrapper);
+        setProperties(capsuleClass, props);
+
+        Path fooPath = mockDep(capsuleClass, "com.acme:foo", "jar", "com.acme:foo:1.0").get(0);
+        Files.createDirectories(fooPath.getParent());
+        app.write(fooPath);
+
+        props.setProperty("capsule.merge", "out.jar");
+        props.setProperty("capsule.log", "verbose");
+
+        int exit = main0(capsuleClass, "com.acme:foo");
+
+        assertEquals(0, exit);
+        assertTrue(Files.isRegularFile(path("out.jar")));
+        Jar out = new Jar(path("out.jar"));
+        
+        //assert_().that(out.getListAttribute("Caplets")).isEqualTo(list("MyCapsule"));
     }
     //</editor-fold>
 
@@ -1715,11 +1753,19 @@ public class CapsuleTest {
     }
 
     private List<Path> mockDep(String dep, String type, String... artifacts) {
+        return mockDep(TestCapsule.class, dep, type, artifacts);
+    }
+
+    private List<Path> mockDep(Class<?> testCapsuleClass, String dep, String type, String... artifacts) {
         List<Path> as = new ArrayList<>(artifacts.length);
         for (String a : artifacts)
             as.add(artifact(a, type));
 
-        TestCapsule.mock(dep, type, as);
+        try {
+            testCapsuleClass.getMethod("mock", String.class, String.class, List.class).invoke(null, dep, type, as);
+        } catch (ReflectiveOperationException e) {
+            throw rethrow(e);
+        }
 
         return as;
     }

@@ -295,7 +295,7 @@ public class Capsule implements Runnable {
                 if (!args.isEmpty())
                     capsule.setTarget(args.remove(0));
             }
-            CAPSULE = capsule.oc;
+            CAPSULE = capsule.oc; // TODO: capsule or oc ???
         }
         return CAPSULE;
     }
@@ -488,9 +488,9 @@ public class Capsule implements Runnable {
         try {
             boolean found = false;
             for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
-                if (!capsule.isWrapperCapsule() && (Boolean) entry.getValue()[OPTION_WRAPPER_ONLY])
-                    continue;
-                if (entry.getValue()[OPTION_METHOD] != null && systemPropertyEmptyOrTrue(entry.getKey())) {
+                if (entry.getValue()[OPTION_METHOD] != null && systemPropertyEmptyOrNotFalse(entry.getKey())) {
+                    if (!capsule.isWrapperCapsule() && (Boolean) entry.getValue()[OPTION_WRAPPER_ONLY])
+                        throw new IllegalStateException("Action " + entry.getKey() + " is availbale for wrapper capsules only.");
                     final Method m = getMethod(capsule, (String) entry.getValue()[OPTION_METHOD], List.class);
                     m.invoke(capsule.cc.sup((Class<? extends Capsule>) m.getDeclaringClass()), args);
                     found = true;
@@ -634,6 +634,7 @@ public class Capsule implements Runnable {
         // copy final dields
         this.wrapper = pred.wrapper;
         this.manifest = pred.manifest;
+        this.jarFile = pred.jarFile;
     }
 
     final Capsule setTarget(String target) {
@@ -681,7 +682,6 @@ public class Capsule implements Runnable {
             manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT.getKey(), jar.toString());
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
-            oc.jarFile = jar;
             insertAfter(loadTargetCapsule(cc.getClass().getClassLoader(), jar));
         }
         finalizeCapsule();
@@ -760,7 +760,7 @@ public class Capsule implements Runnable {
         if (pred != null) {
             if (sup != null)
                 throw new IllegalStateException("Caplet " + this + " is already in the chain (after " + sup + ")");
-            if (!isWrapperCapsule() && pred.hasCaplet(this.getClass().getName())) {
+            if (!wrapper && pred.hasCaplet(this.getClass().getName())) {
                 log(LOG_VERBOSE, "Caplet " + this.getClass().getName() + " has already been applied.");
                 return;
             }
@@ -833,7 +833,8 @@ public class Capsule implements Runnable {
                 throw new AssertionError("No debug information in Capsule class");
 
             // we return CC if the caller is also Capsule but not the same method (which would mean this is a sup.foo() call)
-            if (!st[c2].getMethodName().equals(st[c1].getMethodName()) || Math.abs(st[c2].getLineNumber() - st[c1].getLineNumber()) > 3)
+            if (!st[c2].getMethodName().equals(st[c1].getMethodName())
+                    || (st[c2].getClassName().equals(clazz.getName()) && Math.abs(st[c2].getLineNumber() - st[c1].getLineNumber()) > 3))
                 target = cc;
         }
         if (target == null)
@@ -870,7 +871,11 @@ public class Capsule implements Runnable {
      * Whether or not this is an empty capsule
      */
     protected final boolean isWrapperCapsule() {
-        return oc.wrapper;
+        for (Capsule c = cc; c != null; c = c.sup) {
+            if (c.wrapper)
+                return true;
+        }
+        return false;
     }
 
     /**
@@ -993,8 +998,10 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("This is not a wrapper capsule");
         try {
             final Path outCapsule = path(getProperty(PROP_MERGE));
-            log(LOG_QUIET, "Merging " + jarFile + (!Objects.deepEquals(jarFile, cc.jarFile) ? " + " + cc.jarFile : "") + " -> " + outCapsule);
-            mergeCapsule(jarFile, cc.jarFile, outCapsule);
+            final Path wr = cc.jarFile;
+            final Path wd = oc.jarFile;
+            log(LOG_QUIET, "Merging " + wr + (!Objects.deepEquals(wr, wd) ? " + " + wd : "") + " -> " + outCapsule);
+            mergeCapsule(wr, wd, outCapsule);
         } catch (Exception e) {
             throw new RuntimeException("Capsule merge failed.", e);
         }
@@ -2886,7 +2893,6 @@ public class Capsule implements Runnable {
                 man.getMainAttributes().putValue(name(ATTR_CAPLETS), join(caplets, " "));
 
                 try (final JarOutputStream out = new JarOutputStream(os, man)) {
-
                     final Set<String> copied = new HashSet<>();
                     for (JarEntry entry; (entry = first.getNextJarEntry()) != null;) {
                         if (!entry.getName().equals(MANIFEST_NAME)) {
@@ -2904,7 +2910,7 @@ public class Capsule implements Runnable {
                         }
                     }
 
-                    newCapsule(newClassLoader(null, outCapsule), outCapsule); // test capsule
+                    newCapsule0(newClassLoader(ClassLoader.getSystemClassLoader(), outCapsule), outCapsule); // test capsule
 
                     return outCapsule;
                 }
@@ -4029,6 +4035,13 @@ public class Capsule implements Runnable {
         return value.isEmpty() || Boolean.parseBoolean(value);
     }
 
+    private static boolean systemPropertyEmptyOrNotFalse(String property) {
+        final String value = getProperty(property);
+        if (value == null)
+            return false;
+        return value.isEmpty() || !"false".equalsIgnoreCase(value);
+    }
+
     private static boolean isThrownByCapsule(Exception e) {
         return e.getStackTrace() != null && e.getStackTrace().length > 0 && e.getStackTrace()[0].getClassName().equals(Capsule.class.getName());
     }
@@ -4362,6 +4375,10 @@ public class Capsule implements Runnable {
 
     // visible for testing
     static Capsule newCapsule(ClassLoader cl, Path jarFile) {
+        return (Capsule)newCapsule0(cl, jarFile);
+    }
+
+    private static Object newCapsule0(ClassLoader cl, Path jarFile) {
         try {
             final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
             try {
@@ -4428,7 +4445,8 @@ public class Capsule implements Runnable {
             Class<?> c = clazz;
             while (!Capsule.class.getName().equals(c.getName()))
                 c = c.getSuperclass();
-            accessible(c.getDeclaredField("PROPERTIES")).set(null, new Properties(PROPERTIES));
+            if (c != Capsule.class) // i.e. it's the Capsule class but in a different classloader
+                accessible(c.getDeclaredField("PROPERTIES")).set(null, new Properties(PROPERTIES));
 
             return (Class<? extends Capsule>) clazz;
         } catch (ClassNotFoundException e) {
