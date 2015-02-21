@@ -13,7 +13,7 @@ buildscript {
 allprojects {
     apply plugin: 'com.github.kt3k.coveralls'
     apply plugin: 'jacoco' // 'cobertura'
-    
+
     repositories {
         mavenCentral()
     }
@@ -207,7 +207,7 @@ subprojects {
     defaultTasks 'build'
 }
 
-project (':capsule') {   
+project (':capsule') {
     dependencies {
         testCompile project(':capsule-util')
     }
@@ -234,15 +234,6 @@ project (':capsule-util') {
         excludes = ["co/paralleluniverse/common/**",
                     "co/paralleluniverse/filesystem/**"
         ]
-    }
-}
-
-project (':capsule-container') {
-    dependencies {
-        compile project(':capsule-util')
-        compile files("${System.getProperty('java.home')}/../lib/tools.jar")
-        compile 'com.betfair.net.java.opendmk:core:1.0-b02'
-        compile 'org.slf4j:slf4j-api:1.7.7'
     }
 }
 
