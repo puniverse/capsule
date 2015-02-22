@@ -11,6 +11,7 @@ import co.paralleluniverse.capsule.Jar;
 import co.paralleluniverse.capsule.test.CapsuleTestUtils;
 import co.paralleluniverse.capsule.test.CapsuleTestUtils.StringPrintStream;
 import static co.paralleluniverse.capsule.test.CapsuleTestUtils.*;
+import co.paralleluniverse.common.ZipFS;
 import com.google.common.jimfs.Jimfs;
 import java.io.IOException;
 import java.io.InputStream;
@@ -1213,7 +1214,20 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(path("out.jar")));
         Jar out = new Jar(path("out.jar"));
         
-        //assert_().that(out.getListAttribute("Caplets")).isEqualTo(list("MyCapsule"));
+        assert_().that(out.getAttribute("Main-Class")).isEqualTo("TestCapsule");
+        assert_().that(out.getListAttribute("Caplets")).isEqualTo(list("MyCapsule"));
+        assert_().that(out.getMapAttribute("System-Properties", "")).isEqualTo(map("p1", "111"));
+        
+        FileSystem jar = ZipFS.newZipFileSystem(path("out.jar"));
+        assertTrue(Files.isRegularFile(jar.getPath("Capsule.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("TestCapsule.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("MyCapsule.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("foo.jar")));
+        assertTrue(Files.isRegularFile(jar.getPath("a.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("b.txt")));
+        assertTrue(Files.isRegularFile(jar.getPath("lib/a.jar")));
+        assertTrue(Files.isRegularFile(jar.getPath("lib/b.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("META-INF/x.txt")));
     }
     //</editor-fold>
 

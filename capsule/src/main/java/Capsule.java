@@ -2886,7 +2886,7 @@ public class Capsule implements Runnable {
                     man.getMainAttributes().putValue(ATTR_MAIN_CLASS, wrMainClass);
                 }
 
-                final List<String> wrCaplets = nullToEmpty(parse(wd.getManifest().getMainAttributes().getValue(name(ATTR_CAPLETS))));
+                final List<String> wrCaplets = nullToEmpty(parse(wr.getManifest().getMainAttributes().getValue(name(ATTR_CAPLETS))));
                 final ArrayList<String> caplets = new ArrayList<>(nullToEmpty(parse(man.getMainAttributes().getValue(name(ATTR_CAPLETS)))));
                 addAllIfAbsent(caplets, wrCaplets);
 
@@ -2910,7 +2910,9 @@ public class Capsule implements Runnable {
                         }
                     }
 
+                    log(LOG_VERBOSE, "Testing capsule " + outCapsule);
                     newCapsule0(newClassLoader(ClassLoader.getSystemClassLoader(), outCapsule), outCapsule); // test capsule
+                    log(LOG_VERBOSE, "Done testing capsule " + outCapsule);
 
                     return outCapsule;
                 }
