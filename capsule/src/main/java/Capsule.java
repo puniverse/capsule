@@ -4251,6 +4251,13 @@ public class Capsule implements Runnable {
      * Called when an unhandled exception is thrown, to display error information to the user before shutting down.
      */
     protected void onError(Throwable t) {
+        if ((_ct = getCallTarget(Capsule.class)) != null)
+            _ct.onError(t);
+        else
+            onError0(t);
+    }
+
+    private void onError0(Throwable t) {
         printError(t, this);
     }
     //</editor-fold>
