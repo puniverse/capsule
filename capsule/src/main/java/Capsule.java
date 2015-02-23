@@ -4230,7 +4230,7 @@ public class Capsule implements Runnable {
     }
 
     private static String getContext() {
-        return contextType_ + " " + contextKey_ + ": " + contextValue_;
+        return contextType_.get() + " " + contextKey_.get() + ": " + contextValue_.get();
     }
 
     private static long clock() {
