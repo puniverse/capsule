@@ -688,7 +688,7 @@ public class Capsule implements Runnable {
             manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT.getKey(), jar.toString());
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
-            insertAfter(loadTargetCapsule(cc.getClass().getClassLoader(), jar));
+            insertAfter(loadTargetCapsule(cc.getClass().getClassLoader(), jar).cc);
         }
         finalizeCapsule();
         return this;
@@ -822,7 +822,7 @@ public class Capsule implements Runnable {
          * target sup, the previous caplet in the hierarchy.
          */
         Capsule target = null;
-        if ((sup == null || sup.sup(clazz) == null) && cc != this) {
+        if ((sup == null || sup.sup(clazz) == null || this.jarFile != ((Capsule) sup.sup(clazz)).jarFile) && cc != this) { // the jarFile condition tests if this is the first caplet in a wrapper capsule
             final StackTraceElement[] st = new Throwable().getStackTrace();
             if (st == null || st.length < 3)
                 throw new AssertionError("No debug information in Capsule class");
