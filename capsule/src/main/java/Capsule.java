@@ -4357,7 +4357,7 @@ public class Capsule implements Runnable {
             sb.append(')');
         }
         sb.append('[');
-        sb.append(getJarFile());
+        sb.append(jarFile);
         if (getAppId() != null) {
             sb.append(", ").append(getAppId());
             sb.append(", ").append(getAttribute(ATTR_APP_CLASS) != null ? getAttribute(ATTR_APP_CLASS) : getAttribute(ATTR_APP_ARTIFACT));
