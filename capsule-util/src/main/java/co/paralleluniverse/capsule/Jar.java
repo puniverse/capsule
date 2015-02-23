@@ -42,12 +42,17 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Collection;
+import java.util.zip.ZipException;
 
 /**
  * A JAR file that can be easily modified.
  * This class is not thread-safe.
  */
 public class Jar {
+    public static interface Filter {
+        boolean filter(String entryName);
+    }
+
     private static final String MANIFEST_NAME = "META-INF/MANIFEST.MF"; // java.util.jar.JarFile.MANIFEST_NAME
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
     private OutputStream os;
@@ -384,17 +389,41 @@ public class Jar {
      *
      * @param path     the path within the JAR where the root of the directory will be placed, or {@code null} for the JAR's root
      * @param dirOrZip the directory to add as an entry or a zip/JAR file whose contents will be extracted and added as entries
+     * @param filter   a filter to select particular classes
      * @return {@code this}
      */
-    public Jar addEntries(Path path, Path dirOrZip) throws IOException {
+    public Jar addEntries(Path path, Path dirOrZip, Filter filter) throws IOException {
         if (Files.isDirectory(dirOrZip))
-            addDir(path, dirOrZip, true);
+            addDir(path, dirOrZip, filter, true);
         else {
             try (JarInputStream jis1 = newJarInputStream(Files.newInputStream(dirOrZip))) {
-                addEntries(path, jis1);
+                addEntries(path, jis1, filter);
             }
         }
         return this;
+    }
+
+    /**
+     * Adds a directory (with all its subdirectories) or the contents of a zip/JAR to this JAR.
+     *
+     * @param path     the path within the JAR where the root of the directory will be placed, or {@code null} for the JAR's root
+     * @param dirOrZip the directory to add as an entry or a zip/JAR file whose contents will be extracted and added as entries
+     * @return {@code this}
+     */
+    public Jar addEntries(Path path, Path dirOrZip) throws IOException {
+        return addEntries(path, dirOrZip, null);
+    }
+
+    /**
+     * Adds a directory (with all its subdirectories) or the contents of a zip/JAR to this JAR.
+     *
+     * @param path     the path within the JAR where the root of the directory/zip will be placed, or {@code null} for the JAR's root
+     * @param dirOrZip the directory to add as an entry or a zip/JAR file whose contents will be extracted and added as entries
+     * @param filter   a filter to select particular classes
+     * @return {@code this}
+     */
+    public Jar addEntries(String path, Path dirOrZip, Filter filter) throws IOException {
+        return addEntries(path != null ? Paths.get(path) : null, dirOrZip, filter);
     }
 
     /**
@@ -405,7 +434,7 @@ public class Jar {
      * @return {@code this}
      */
     public Jar addEntries(String path, Path dirOrZip) throws IOException {
-        return addEntries(path != null ? Paths.get(path) : null, dirOrZip);
+        return addEntries(path, dirOrZip, null);
     }
 
     /**
@@ -416,13 +445,26 @@ public class Jar {
      * @return {@code this}
      */
     public Jar addEntries(Path path, ZipInputStream zip) throws IOException {
+        return addEntries(path, zip, null);
+    }
+
+    /**
+     * Adds the contents of the zip/JAR contained in the given byte array to this JAR.
+     *
+     * @param path   the path within the JAR where the root of the zip will be placed, or {@code null} for the JAR's root
+     * @param zip    the contents of the zip/JAR file
+     * @param filter a filter to select particular classes
+     * @return {@code this}
+     */
+    public Jar addEntries(Path path, ZipInputStream zip, Filter filter) throws IOException {
         beginWriting();
         try (ZipInputStream zis = zip) {
             for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
                 final String target = path != null ? path.resolve(entry.getName()).toString() : entry.getName();
                 if (target.equals(MANIFEST_NAME))
                     continue;
-                addEntryNoClose(jos, target, zis);
+                if (filter == null || filter.filter(target))
+                    addEntryNoClose(jos, target, zis);
             }
         }
         return this;
@@ -435,11 +477,22 @@ public class Jar {
      * @return {@code this}
      */
     public Jar addPackageOf(Class<?> clazz) throws IOException {
+        return addPackageOf(clazz, null);
+    }
+
+    /**
+     * Adds the contents of a Java package to this JAR.
+     *
+     * @param clazz  a class whose package we wish to add to the JAR.
+     * @param filter a filter to select particular classes
+     * @return {@code this}
+     */
+    public Jar addPackageOf(Class<?> clazz, Filter filter) throws IOException {
         try {
             final String path = clazz.getPackage().getName().replace('.', '/');
             URL dirURL = clazz.getClassLoader().getResource(path);
             if (dirURL != null && dirURL.getProtocol().equals("file"))
-                addDir(Paths.get(path), Paths.get(dirURL.toURI()), false);
+                addDir(Paths.get(path), Paths.get(dirURL.toURI()), filter, false);
             else {
                 if (dirURL == null) // In case of a jar file, we can't actually find a directory.
                     dirURL = clazz.getClassLoader().getResource(clazz.getName().replace('.', '/') + ".class");
@@ -448,8 +501,15 @@ public class Jar {
                     final URI jarUri = new URI(dirURL.getPath().substring(0, dirURL.getPath().indexOf('!')));
                     try (JarInputStream jis1 = newJarInputStream(Files.newInputStream(Paths.get(jarUri)))) {
                         for (JarEntry entry; (entry = jis1.getNextJarEntry()) != null;) {
-                            if (entry.getName().startsWith(path + '/'))
-                                addEntryNoClose(jos, entry.getName(), jis1);
+                            try {
+                                if (entry.getName().startsWith(path + '/')) {
+                                    if (filter == null || filter.filter(entry.getName()))
+                                        addEntryNoClose(jos, entry.getName(), jis1);
+                                }
+                            } catch (ZipException e) {
+                                if (!e.getMessage().startsWith("duplicate entry"))
+                                    throw e;
+                            }
                         }
                     }
                 } else
@@ -461,7 +521,7 @@ public class Jar {
         }
     }
 
-    private void addDir(final Path path, final Path dir1, final boolean recursive) throws IOException {
+    private void addDir(final Path path, final Path dir1, final Filter filter, final boolean recursive) throws IOException {
         final Path dir = dir1.toAbsolutePath();
         Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
             @Override
@@ -473,8 +533,10 @@ public class Jar {
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 final Path p = dir.relativize(file.toAbsolutePath());
                 final Path target = path != null ? path.resolve(p.toString()) : p;
-                if (!target.toString().equals(MANIFEST_NAME))
-                    addEntry(target, file);
+                if (!target.toString().equals(MANIFEST_NAME)) {
+                    if (filter == null || filter.filter(target.toString()))
+                        addEntry(target, file);
+                }
                 return FileVisitResult.CONTINUE;
             }
         });
