@@ -942,6 +942,8 @@ public class CapsuleTest {
         Capsule capsule = newCapsule(wrapper).setTarget("com.acme:foo");
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
+        assertTrue(capsule.hasCaplet("MyCapsule"));
+        
         // dumpFileSystem(fs);
         assertTrue(pb != null);
 

@@ -796,7 +796,7 @@ public class Capsule implements Runnable {
     protected final boolean hasCaplet(String name) {
         for (Capsule c = cc; c != null; c = c.sup) {
             for (Class<?> cls = c.getClass(); cls != null; cls = cls.getSuperclass()) {
-                if (name.equals(cls.getClass().getName()))
+                if (name.equals(cls.getName()))
                     return true;
             }
         }
