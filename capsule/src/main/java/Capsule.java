@@ -171,7 +171,7 @@ public class Capsule implements Runnable {
     private static final Entry<String, String> ATTR_MIN_JAVA_VERSION = ATTRIBUTE("Min-Java-Version", T_STRING(), null, true, "The lowest Java version required to run the application");
     private static final Entry<String, String> ATTR_JAVA_VERSION = ATTRIBUTE("Java-Version", T_STRING(), null, true, "The highest version of the Java installation required to run the application");
     private static final Entry<String, Map<String, String>> ATTR_MIN_UPDATE_VERSION = ATTRIBUTE("Min-Update-Version", T_MAP(T_STRING(), null), null, true, "A space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required");
-    protected static final Entry<String, String> ATTR_JDK_REQUIRED = ATTRIBUTE("JDK-Required", T_STRING(), "false", true, "Whether or not a JDK is required to launch the application");
+    protected static final Entry<String, Boolean> ATTR_JDK_REQUIRED = ATTRIBUTE("JDK-Required", T_BOOL(), false, true, "Whether or not a JDK is required to launch the application");
     private static final Entry<String, List<String>> ATTR_ARGS = ATTRIBUTE("Args", T_LIST(T_STRING()), null, true,
             "A list of command line arguments to be passed to the application; the UNIX shell-style special variables (`$*`, `$1`, `$2`, ...) can refer to the actual arguments passed on the capsule's command line; if no special var is used, the listed values will be prepended to the supplied arguments (i.e., as if `$*` had been listed last).");
     private static final Entry<String, Map<String, String>> ATTR_ENV = ATTRIBUTE("Environment-Variables", T_MAP(T_STRING(), null), null, true, "A list of environment variables that will be put in the applications environment; formatted \"var=value\" or \"var\"");
@@ -2094,7 +2094,7 @@ public class Capsule implements Runnable {
         if (!"current".equals(propJHome)) {
             jhome = propJHome != null ? Paths.get(propJHome) : null;
             if (jhome == null && !isMatchingJavaVersion(getProperty(PROP_JAVA_VERSION), isJDK(Paths.get(getProperty(PROP_JAVA_HOME))))) {
-                final boolean jdk = Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
+                final boolean jdk = getAttribute(ATTR_JDK_REQUIRED);
 
                 jhome = findJavaHome(jdk);
                 if (isLogging(LOG_VERBOSE))
@@ -2136,7 +2136,7 @@ public class Capsule implements Runnable {
     }
 
     private boolean isMatchingJavaVersion(String javaVersion, boolean jdk) {
-        final boolean jdkRequired = Boolean.parseBoolean(getAttribute(ATTR_JDK_REQUIRED));
+        final boolean jdkRequired = getAttribute(ATTR_JDK_REQUIRED);
 
         if (jdkRequired && !jdk) {
             log(LOG_DEBUG, "Java version " + javaVersion + " fails to match because JDK required and this is not a JDK");
