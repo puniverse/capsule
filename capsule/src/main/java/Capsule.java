@@ -192,6 +192,7 @@ public class Capsule implements Runnable {
             "A list of native JVMTI agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a native library, without the platform-specific suffix, relative to the capsule root. The native library file(s) can be embedded in the capsule or listed as Maven native dependencies using the Native-Dependencies-... attributes.");
     protected static final Entry<String, List<String>> ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", T_LIST(T_STRING()), null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
     protected static final Entry<String, Map<String, String>> ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", T_MAP(T_STRING(), ""), null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
+    protected static final Entry<String, Boolean> ATTR_WAIT_CHILD = ATTRIBUTE("Wait-Child", T_BOOL(), true, true, "Whether or not the capsule process should await the termination of the child (application) process");
 
     // outgoing
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
@@ -1113,11 +1114,14 @@ public class Capsule implements Runnable {
             if (pid > 0)
                 System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
 
-            postlaunch(child);
+            postlaunch(oc.child);
 
-            if (isInheritIoBug())
-                pipeIoStreams();
-            oc.child.waitFor();
+            if (getAttribute(ATTR_WAIT_CHILD)) {
+                if (isInheritIoBug())
+                    pipeIoStreams();
+                oc.child.waitFor();
+            } else
+                oc.child = null;
         }
 
         return oc.child != null ? oc.child.exitValue() : 0;
