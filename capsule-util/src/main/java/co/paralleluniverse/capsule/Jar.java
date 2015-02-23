@@ -18,10 +18,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.nio.file.FileSystem;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,7 +40,6 @@ import java.util.jar.Manifest;
 import java.util.jar.Pack200;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import static co.paralleluniverse.common.ZipFS.newZipFileSystem;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Collection;
 
@@ -53,7 +52,6 @@ public class Jar {
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
     private OutputStream os;
     private final Manifest manifest;
-    private final Path jar;
     private final JarInputStream jis;
     private JarOutputStream jos;
     private Pack200.Packer packer;
@@ -67,7 +65,6 @@ public class Jar {
      * Creates a new, empty, JAR
      */
     public Jar() {
-        this.jar = null;
         this.jis = null;
         this.manifest = new Manifest();
     }
@@ -77,8 +74,7 @@ public class Jar {
      * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
      */
     public Jar(InputStream jar) throws IOException {
-        this.jar = null;
-        this.jis = jar instanceof JarInputStream ? (JarInputStream) jar : new JarInputStream(jar);
+        this.jis = jar instanceof JarInputStream ? (JarInputStream) jar : newJarInputStream(jar);
         this.manifest = new Manifest(jis.getManifest());
     }
 
@@ -87,9 +83,8 @@ public class Jar {
      * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
      */
     public Jar(Path jar) throws IOException {
-        this.jar = jar;
-        this.jis = null;
-        this.manifest = getManifest(jar);
+        this.jis = newJarInputStream(Files.newInputStream(jar));
+        this.manifest = new Manifest(jis.getManifest());
     }
 
     /**
@@ -112,7 +107,6 @@ public class Jar {
      * Creates a copy
      */
     public Jar(Jar jar) {
-        this.jar = jar.jar;
         this.jis = jar.jis;
         this.manifest = new Manifest(jar.manifest);
     }
@@ -285,15 +279,6 @@ public class Jar {
     public Map<String, String> getMapAttribute(String section, String name, String defaultValue) {
         return mapSplit(getAttribute(section, name), defaultValue);
     }
-
-    private static Manifest getManifest(Path jarFile) throws IOException {
-        try (FileSystem zipfs = newZipFileSystem(jarFile)) {
-            final Path p = zipfs.getPath(MANIFEST_NAME);
-            if (!Files.exists(p))
-                return null;
-            return new Manifest(Files.newInputStream(p));
-        }
-    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Entries">
@@ -405,9 +390,8 @@ public class Jar {
         if (Files.isDirectory(dirOrZip))
             addDir(path, dirOrZip, true);
         else {
-            try (FileSystem zipfs = newZipFileSystem(dirOrZip)) {
-                for (Path root : zipfs.getRootDirectories())
-                    addDir(path, root, true);
+            try (JarInputStream jis1 = newJarInputStream(Files.newInputStream(dirOrZip))) {
+                addEntries(path, jis1);
             }
         }
         return this;
@@ -461,9 +445,12 @@ public class Jar {
                     dirURL = clazz.getClassLoader().getResource(clazz.getName().replace('.', '/') + ".class");
 
                 if (dirURL.getProtocol().equals("jar")) {
-                    String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf('!'));
-                    try (FileSystem zipfs = newZipFileSystem(Paths.get(jarPath))) {
-                        addDir(Paths.get(path), zipfs.getPath(path), false);
+                    final URI jarUri = new URI(dirURL.getPath().substring(0, dirURL.getPath().indexOf('!')));
+                    try (JarInputStream jis1 = newJarInputStream(Files.newInputStream(Paths.get(jarUri)))) {
+                        for (JarEntry entry; (entry = jis1.getNextJarEntry()) != null;) {
+                            if (entry.getName().startsWith(path + '/'))
+                                addEntryNoClose(jos, entry.getName(), jis1);
+                        }
                     }
                 } else
                     throw new AssertionError();
@@ -623,9 +610,7 @@ public class Jar {
         if (getAttribute(ATTR_MANIFEST_VERSION) == null)
             setAttribute(ATTR_MANIFEST_VERSION, "1.0");
         jos = new JarOutputStream(os, manifest);
-        if (jar != null)
-            addEntries(nullPath(), jar);
-        else if (jis != null)
+        if (jis != null)
             addEntries(null, jis);
     }
 
@@ -726,6 +711,14 @@ public class Jar {
 
     //<editor-fold defaultstate="collapsed" desc="Utils">
     /////////// Utils ///////////////////////////////////
+    private static JarInputStream newJarInputStream(InputStream in) throws IOException {
+        return new co.paralleluniverse.common.JarInputStream(in);
+    }
+
+    private static ZipInputStream newZipInputStream(InputStream in) throws IOException {
+        return new co.paralleluniverse.common.ZipInputStream(in);
+    }
+
     private static void copy(InputStream is, OutputStream os) throws IOException {
         try {
             copy0(is, os);

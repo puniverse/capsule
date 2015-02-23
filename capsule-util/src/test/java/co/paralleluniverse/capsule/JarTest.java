@@ -323,6 +323,30 @@ public class JarTest {
     }
 
     @Test
+    public void testAddPackage2() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path jarPath = fs.getPath("test.jar");
+
+        final Class clazz = JarClassLoader.class;
+
+        new Jar().addPackageOf(clazz).write(jarPath);
+
+        ByteArrayOutputStream res = new Jar()
+                .setAttribute("Foo", "1234")
+                .addPackageOf(new JarClassLoader(jarPath, true).loadClass(clazz.getName()))
+                .write(new ByteArrayOutputStream());
+
+        // printEntries(toInput(res));
+        final Path pp = Paths.get(clazz.getPackage().getName().replace('.', '/'));
+
+        assertTrue(getEntry(toInput(res), pp.resolve(clazz.getSimpleName() + ".class")) != null);
+        assertTrue(getEntry(toInput(res), pp.resolve("ProcessUtil.class")) != null);
+
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
     public void testReallyExecutableJar() throws Exception {
         FileSystem fs = Jimfs.newFileSystem();
         Path jarPath = fs.getPath("test.jar");
