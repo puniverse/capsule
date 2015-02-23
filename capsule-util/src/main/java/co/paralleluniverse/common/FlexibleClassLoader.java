@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
+ * Capsule
+ * Copyright (c) 2014-2015, Parallel Universe Software Co. All rights reserved.
  * 
  * This program and the accompanying materials are licensed under the terms 
  * of the Eclipse Public License v1.0, available at
@@ -81,10 +82,14 @@ public abstract class FlexibleClassLoader extends ClassLoader {
 
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
-        final byte[] buf = readResource(name.replace('.', '/') + ".class");
-        if (buf == null)
-            throw new ClassNotFoundException(name);
-        return defineClass(name, buf, 0, buf.length);
+        Class<?> clazz = findLoadedClass(name);
+        if (clazz == null) {
+            final byte[] buf = readResource(name.replace('.', '/') + ".class");
+            if (buf == null)
+                throw new ClassNotFoundException(name);
+            clazz = defineClass(name, buf, 0, buf.length);
+        }
+        return clazz;
     }
 
     @Override
@@ -93,12 +98,12 @@ public abstract class FlexibleClassLoader extends ClassLoader {
             return null;
         return findResource1(name);
     }
-    
+
     protected abstract URL findResource1(String name);
-    
+
     protected abstract Enumeration<URL> findResources1(String name);
 
     protected abstract InputStream findResourceAsStream(String name);
-    
+
     protected abstract byte[] readResource(String name);
 }

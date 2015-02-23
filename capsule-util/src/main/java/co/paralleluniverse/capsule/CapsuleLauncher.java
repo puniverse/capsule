@@ -1,6 +1,6 @@
 /*
  * Capsule
- * Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
+ * Copyright (c) 2014-2015, Parallel Universe Software Co. All rights reserved.
  * 
  * This program and the accompanying materials are licensed under the terms 
  * of the Eclipse Public License v1.0, available at
@@ -20,7 +20,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,23 +36,15 @@ public final class CapsuleLauncher {
     private static final String OPT_JMX_REMOTE = "com.sun.management.jmxremote";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
     private static final String PROP_MODE = "capsule.mode";
-    private static final String PROP_USER_HOME = "user.home";
-    private static final String PROP_OS_NAME = "os.name";
-    private static final String CACHE_DEFAULT_NAME = "capsule";
 
     private final Path jarFile;
     private final Class capsuleClass;
-    private final Properties properties;
+    private Properties properties;
 
     public CapsuleLauncher(Path jarFile) throws IOException {
-        this(jarFile, null);
-    }
-
-    public CapsuleLauncher(Path jarFile, Properties properties) throws IOException {
         this.jarFile = jarFile;
-        this.properties = properties != null ? properties : new Properties(System.getProperties());
         this.capsuleClass = loadCapsuleClass(jarFile);
-        set(null, getCapsuleField("PROPERTIES"), properties);
+        setProperties(null);
     }
 
     /**
@@ -70,6 +61,18 @@ public final class CapsuleLauncher {
     }
 
     /**
+     * Sets the properties for the capsules created by {@code newCapsule}
+     *
+     * @param properties the properties
+     * @return {@code this}
+     */
+    public CapsuleLauncher setProperties(Properties properties) {
+        this.properties = properties != null ? properties : new Properties(System.getProperties());
+        set(null, getCapsuleField("PROPERTIES"), this.properties);
+        return this;
+    }
+
+    /**
      * Sets a property for the capsules created by {@code newCapsule}
      *
      * @param property the name of the property
@@ -77,7 +80,10 @@ public final class CapsuleLauncher {
      * @return {@code this}
      */
     public CapsuleLauncher setProperty(String property, String value) {
-        properties.setProperty(property, value);
+        if (value != null)
+            properties.setProperty(property, value);
+        else
+            properties.remove(property);
         return this;
     }
 
@@ -131,7 +137,7 @@ public final class CapsuleLauncher {
     public Capsule newCapsule(String mode, Path wrappedJar) {
         final String oldMode = properties.getProperty(PROP_MODE);
         try {
-            properties.setProperty(PROP_MODE, mode);
+            setProperty(PROP_MODE, mode);
 
             final Constructor<?> ctor = accessible(capsuleClass.getDeclaredConstructor(Path.class));
             final Object capsule = ctor.newInstance(jarFile);
@@ -145,7 +151,7 @@ public final class CapsuleLauncher {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not create capsule instance.", e);
         } finally {
-            properties.setProperty(PROP_MODE, oldMode);
+            setProperty(PROP_MODE, oldMode);
         }
     }
 
@@ -213,7 +219,12 @@ public final class CapsuleLauncher {
                 switch (method.getName()) {
                     case "getVersion":
                         return get("VERSION");
-
+                    case "getProperties":
+                        return get("PROPERTIES");
+                    case "getAttribute":
+                        return getMethod(clazz, "getAttribute", Map.Entry.class).invoke(capsule, ((Attribute) args[0]).toEntry());
+                    case "hasAttribute":
+                        return getMethod(clazz, "hasAttribute", Map.Entry.class).invoke(capsule, ((Attribute) args[0]).toEntry());
                     default:
                         throw new UnsupportedOperationException("Capsule " + clazz + " does not support this operation");
                 }
@@ -264,42 +275,6 @@ public final class CapsuleLauncher {
         return cmdLine2;
     }
 
-    /**
-     * Returns the path of the default capsule cache directory
-     */
-    public static Path getDefaultCacheDir() {
-        final Path cache;
-        cache = getCacheHome().resolve((isWindows() ? "" : ".") + CACHE_DEFAULT_NAME);
-        return cache;
-    }
-
-    private static Path getCacheHome() {
-        final Path userHome = Paths.get(System.getProperty(PROP_USER_HOME));
-        if (!isWindows())
-            return userHome;
-
-        Path localData;
-        final String localAppData = System.getenv("LOCALAPPDATA");
-        if (localAppData != null) {
-            localData = Paths.get(localAppData);
-            if (!Files.isDirectory(localData))
-                throw new RuntimeException("%LOCALAPPDATA% set to nonexistent directory " + localData);
-        } else {
-            localData = userHome.resolve(Paths.get("AppData", "Local"));
-            if (!Files.isDirectory(localData))
-                localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
-            if (!Files.isDirectory(localData))
-                throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
-                        + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
-                        + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
-        }
-        return localData;
-    }
-
-    private static boolean isWindows() {
-        return System.getProperty(PROP_OS_NAME).toLowerCase().startsWith("windows");
-    }
-
     private Field getCapsuleField(String name) {
         return getField(getActualCapsuleClass(capsuleClass), name);
     }
@@ -339,15 +314,8 @@ public final class CapsuleLauncher {
     private static Object invoke(Object obj, Method method, Object... params) {
         try {
             return method.invoke(obj, params);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
-        } catch (InvocationTargetException e) {
-            final Throwable t = e.getTargetException();
-            if (t instanceof RuntimeException)
-                throw (RuntimeException) t;
-            if (t instanceof Error)
-                throw (Error) t;
-            throw new RuntimeException(t);
+        } catch (Exception e) {
+            throw rethrow(e);
         }
     }
 
@@ -360,17 +328,27 @@ public final class CapsuleLauncher {
     private static Object get(Object obj, Field field) {
         try {
             return field.get(obj);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
+        } catch (Exception e) {
+            throw rethrow(e);
         }
     }
 
     private static void set(Object obj, Field field, Object value) {
         try {
             field.set(obj, value);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError();
+        } catch (Exception e) {
+            throw rethrow(e);
         }
+    }
+
+    private static RuntimeException rethrow(Throwable t) {
+        while (t instanceof InvocationTargetException)
+            t = ((InvocationTargetException) t).getTargetException();
+        if (t instanceof RuntimeException)
+            throw (RuntimeException) t;
+        if (t instanceof Error)
+            throw (Error) t;
+        throw new RuntimeException(t);
     }
     //</editor-fold>
 }

@@ -7,18 +7,14 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
-import capsule.DependencyManager;
 import co.paralleluniverse.capsule.Jar;
+import co.paralleluniverse.capsule.test.CapsuleTestUtils;
+import co.paralleluniverse.capsule.test.CapsuleTestUtils.StringPrintStream;
+import static co.paralleluniverse.capsule.test.CapsuleTestUtils.*;
+import co.paralleluniverse.common.ZipFS;
 import com.google.common.jimfs.Jimfs;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -39,21 +35,14 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.jar.JarInputStream;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import org.apache.maven.model.Dependency;
-import org.apache.maven.model.Exclusion;
-import org.apache.maven.model.Model;
-import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
 import org.junit.After;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 import org.junit.Before;
 import static com.google.common.truth.Truth.*;
-import static org.mockito.Mockito.*;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
+import org.joor.Reflect;
+//import static org.mockito.Mockito.*;
 
 public class CapsuleTest {
     /*
@@ -68,17 +57,15 @@ public class CapsuleTest {
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
 
     private Properties props;
-    private Map<String, List<Path>> deps;
 
     @Before
     public void setUp() throws Exception {
-        accessible(Capsule.class.getDeclaredField("CACHE_DIR")).set(null, cache);
-
         props = new Properties(System.getProperties());
-        accessible(Capsule.class.getDeclaredField("PROPERTIES")).set(null, props);
-        props.setProperty("capsule.no_dep_manager", "true");
+        setProperties(props);
+        setCacheDir(cache);
+        resetOutputStreams();
 
-        deps = null;
+        TestCapsule.reset();
     }
 
     @After
@@ -104,7 +91,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
@@ -156,7 +143,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assertEquals(args, getAppArgs(pb));
@@ -181,7 +168,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
         Path javaHome = path(capsule.getJavaHome().toString()); // different FS
 
@@ -201,43 +188,45 @@ public class CapsuleTest {
 
     @Test
     public void testLogLevel() throws Exception {
+        setSTDERR(DEVNULL);
+
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Extract-Capsule", "false")
                 .setAttribute("Capsule-Log-Level", "verbose");
 
-        Capsule capsule = newCapsule(jar, null);
-        assertTrue(capsule.isLogging(2));
-        assertTrue(!capsule.isLogging(3));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(2));
+        assertTrue(!Capsule.isLogging(3));
 
         props.setProperty("capsule.log", "none");
-        capsule = newCapsule(jar, null);
-        assertTrue(capsule.isLogging(0));
-        assertTrue(!capsule.isLogging(1));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(0));
+        assertTrue(!Capsule.isLogging(1));
 
         props.setProperty("capsule.log", "quiet");
-        capsule = newCapsule(jar, null);
-        assertTrue(capsule.isLogging(1));
-        assertTrue(!capsule.isLogging(2));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(1));
+        assertTrue(!Capsule.isLogging(2));
 
         props.setProperty("capsule.log", "");
-        capsule = newCapsule(jar, null);
-        assertTrue(capsule.isLogging(1));
-        assertTrue(!capsule.isLogging(2));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(1));
+        assertTrue(!Capsule.isLogging(2));
 
         props.setProperty("capsule.log", "verbose");
-        capsule = newCapsule(jar, null);
-        assertTrue(capsule.isLogging(2));
-        assertTrue(!capsule.isLogging(3));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(2));
+        assertTrue(!Capsule.isLogging(3));
 
         props.setProperty("capsule.log", "debug");
-        capsule = newCapsule(jar, null);
-        assertTrue(capsule.isLogging(3));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(3));
     }
 
     @Test
     public void testCapsuleJavaHome() throws Exception {
-        props.setProperty("capsule.java.home", "/my/java/home");
+        props.setProperty("capsule.java.home", "/my/1.7.0.jdk/home");
 
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
@@ -247,10 +236,10 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        assertEquals("/my/java/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""), pb.command().get(0));
+        assertEquals("/my/1.7.0.jdk/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""), pb.command().get(0));
     }
 
     @Test
@@ -265,34 +254,10 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assertEquals("/my/java/home/gogo", pb.command().get(0));
-    }
-
-    @Test
-    public void whenNoNameAndPomTakeIdFromPom() throws Exception {
-        Model pom = newPom();
-        pom.setGroupId("com.acme");
-        pom.setArtifactId("foo");
-        pom.setVersion("1.0");
-
-        Jar jar = newCapsuleJar()
-                .setAttribute("Application-Class", "com.acme.Foo")
-                .setAttribute("Extract-Capsule", "false")
-                .addEntry("foo.jar", emptyInputStream())
-                .addEntry("lib/a.jar", emptyInputStream())
-                .addEntry("pom.xml", toInputStream(pom));
-
-        List<String> args = list("hi", "there");
-        List<String> cmdLine = list();
-
-        Capsule capsule = newCapsule(jar, null);
-        capsule.prepareForLaunch(cmdLine, args);
-
-        String appId = capsule.getAppId();
-        assertEquals("com.acme_foo_1.0", appId);
     }
 
     @Test
@@ -310,7 +275,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -346,7 +311,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -373,7 +338,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -389,19 +354,18 @@ public class CapsuleTest {
     public void testNativesWithDeps() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
-                .setListAttribute("Linux", "Native-Dependencies", list("com.acme:baz-linux:3.4,libbaz.so"))
-                .setListAttribute("Windows", "Native-Dependencies", list("com.acme:baz-win:3.4,libbaz.dll"))
-                .setListAttribute("MacOS", "Native-Dependencies", list("com.acme:baz-macos:3.4,libbaz.dylib"))
+                .setListAttribute("Linux", "Native-Dependencies", list("com.acme:baz-linux:3.4=libbaz.so"))
+                .setListAttribute("Windows", "Native-Dependencies", list("com.acme:baz-win:3.4=libbaz.dll"))
+                .setListAttribute("MacOS", "Native-Dependencies", list("com.acme:baz-macos:3.4=libbaz.dylib"))
                 .addEntry("foo.jar", emptyInputStream())
                 .addEntry("lib/a.so", emptyInputStream())
                 .addEntry("lib/b.so", emptyInputStream())
                 .addEntry("lib/c.jar", emptyInputStream())
                 .addEntry("lib/d.jar", emptyInputStream());
 
-        DependencyManager dm = mock(DependencyManager.class);
-        Path bazLinuxPath = mockDep(dm, "com.acme:baz-linux:3.4", "so");
-        Path bazWindowsPath = mockDep(dm, "com.acme:baz-win:3.4", "dll");
-        Path bazMacPath = mockDep(dm, "com.acme:baz-macos:3.4", "dylib");
+        Path bazLinuxPath = mockDep("com.acme:baz-linux:3.4", "so");
+        Path bazWindowsPath = mockDep("com.acme:baz-win:3.4", "dll");
+        Path bazMacPath = mockDep("com.acme:baz-macos:3.4", "dylib");
 
         Files.createDirectories(bazLinuxPath.getParent());
         Files.createFile(bazLinuxPath);
@@ -412,7 +376,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, dm);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -443,7 +407,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -470,7 +434,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Xbootclasspath:/foo/bar");
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -494,15 +458,13 @@ public class CapsuleTest {
                 .addEntry("lib/b.jar", emptyInputStream())
                 .addEntry("lib/c.jar", emptyInputStream());
 
-        DependencyManager dm = mock(DependencyManager.class);
-
-        List<Path> barPath = mockDep(dm, "com.acme:bar:1.2", "jar", "com.acme:bar:1.2");
-        List<Path> bazPath = mockDep(dm, "com.acme:baz:3.4", "jar", "com.acme:baz:3.4");
+        List<Path> barPath = mockDep("com.acme:bar:1.2", "jar", "com.acme:bar:1.2");
+        List<Path> bazPath = mockDep("com.acme:baz:3.4", "jar", "com.acme:baz:3.4");
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, dm);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -528,7 +490,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -544,44 +506,22 @@ public class CapsuleTest {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setListAttribute("Dependencies", deps)
+                .setListAttribute("App-Class-Path", list("com.acme:wat:5.8", "com.acme:woo"))
                 .addEntry("foo.jar", emptyInputStream());
 
-        DependencyManager dm = mock(DependencyManager.class);
+        final List<Path> paths = new ArrayList<>();
+        paths.add(mockDep("com.acme:bar:1.2", "jar"));
+        paths.addAll(mockDep("com.acme:baz:3.4:jdk8", "jar", "com.google:guava:18.0"));
+        paths.add(mockDep("com.acme:wat:5.8", "jar"));
+        paths.addAll(mockDep("com.acme:woo", "jar", "org.apache:tomcat:8.0", "io.jetty:jetty:123.0"));
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, dm);
-        capsule.prepareForLaunch(cmdLine, args);
+        Capsule capsule = newCapsule(jar);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        verify(dm).resolveDependencies(deps, "jar");
-    }
-
-    @Test
-    public void testPomDependencies1() throws Exception {
-        List<String> deps = list("com.acme:bar:1.2", "com.acme:baz:3.4:jdk8(org.asd:qqq,com.gogo:bad)");
-
-        Model pom = newPom();
-        pom.setGroupId("com.acme");
-        pom.setArtifactId("foo");
-        pom.setVersion("1.0");
-        for (String dep : deps)
-            pom.addDependency(coordsToDependency(dep));
-
-        Jar jar = newCapsuleJar()
-                .setAttribute("Application-Class", "com.acme.Foo")
-                .addEntry("foo.jar", emptyInputStream())
-                .addEntry("pom.xml", toInputStream(pom));
-
-        DependencyManager dm = mock(DependencyManager.class);
-
-        List<String> args = list("hi", "there");
-        List<String> cmdLine = list();
-
-        Capsule capsule = newCapsule(jar, dm);
-        capsule.prepareForLaunch(cmdLine, args);
-
-        verify(dm).resolveDependencies(deps, "jar");
+        assert_().that(getClassPath(pb)).has().allFrom(paths);
     }
 
     public void whenDepManagerThenDontResolveEmbeddedDeps() throws Exception {
@@ -591,15 +531,14 @@ public class CapsuleTest {
                 .addEntry("foo.jar", emptyInputStream())
                 .addEntry("bar-1.2.jar", emptyInputStream());
 
-        DependencyManager dm = mock(DependencyManager.class);
-        Path barPath = mockDep(dm, "com.acme:bar:1.2", "jar");
+        Path barPath = mockDep("com.acme:bar:1.2", "jar");
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        ProcessBuilder pb = newCapsule(jar, dm).prepareForLaunch(cmdLine, args);
+        ProcessBuilder pb = newCapsule(jar).prepareForLaunch(cmdLine, args);
 
         assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().noneOf(appCache.resolve("bar-1.2.jar"));
         assert_().that(paths(getOption(pb, "-Xbootclasspath"))).has().item(barPath);
@@ -618,7 +557,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -644,7 +583,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assertEquals("x", getProperty(pb, "foo"));
@@ -655,23 +594,28 @@ public class CapsuleTest {
 
     @Test
     public void testPlatformSepcific() throws Exception {
+        props.setProperty("capsule.java.home", "/my/1.8.0.jdk/home");
+
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Linux", "System-Properties", "bar baz=33 foo=y os=lin")
                 .setAttribute("MacOS", "System-Properties", "bar baz=33 foo=y os=mac")
                 .setAttribute("Windows", "System-Properties", "bar baz=33 foo=y os=win")
+                .setAttribute("Java-8", "System-Properties", "jjj=8")
+                .setAttribute("Java-7", "System-Properties", "jjj=7")
                 .addEntry("foo.jar", emptyInputStream());
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assertEquals("x", getProperty(pb, "foo"));
         assertEquals("", getProperty(pb, "bar"));
         assertEquals("", getProperty(pb, "zzz"));
         assertEquals("33", getProperty(pb, "baz"));
+        assertEquals("8", getProperty(pb, "jjj"));
 
         if (Capsule.isWindows())
             assertEquals("win", getProperty(pb, "os"));
@@ -693,7 +637,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Xms15");
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assertTrue(getJvmArgs(pb).contains("-Xmx100"));
@@ -711,13 +655,12 @@ public class CapsuleTest {
                 .setAttribute("Native-Agents", "na1=c=3,d=4 na2")
                 .addEntry("foo.jar", emptyInputStream());
 
-        DependencyManager dm = mock(DependencyManager.class);
-        Path barPath = mockDep(dm, "com.acme:bar", "jar", "com.acme:bar:1.2").get(0);
+        Path barPath = mockDep("com.acme:bar", "jar", "com.acme:bar:1.2").get(0);
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, dm);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -746,7 +689,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz");
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assertEquals("x", getProperty(pb, "foo"));
@@ -776,7 +719,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        newCapsule(jar, null).prepareForLaunch(cmdLine, args);
+        newCapsule(jar).prepareForLaunch(cmdLine, args);
     }
 
     @Test
@@ -785,9 +728,7 @@ public class CapsuleTest {
                 .setAttribute("Main-Class", "com.acme.Bar")
                 .addEntry("com/acme/Bar.class", emptyInputStream());
 
-        DependencyManager dm = mock(DependencyManager.class);
-        Path barPath = mockDep(dm, "com.acme:bar:1.2", "jar");
-        when(dm.getLatestVersion("com.acme:bar:1.2", "jar")).thenReturn("com.acme:bar:1.2");
+        Path barPath = mockDep("com.acme:bar:1.2", "jar");
 
         Files.createDirectories(barPath.getParent());
         bar.write(barPath);
@@ -798,7 +739,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, dm);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assert_().that(getClassPath(pb)).has().item(barPath);
@@ -823,7 +764,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("AcmeFoo_1.0");
@@ -845,13 +786,12 @@ public class CapsuleTest {
                 .addEntry("scr.bat", emptyInputStream())
                 .addEntry("foo.jar", emptyInputStream());
 
-        DependencyManager dm = mock(DependencyManager.class);
-        Path barPath = mockDep(dm, "com.acme:bar:1.2", "jar");
+        Path barPath = mockDep("com.acme:bar:1.2", "jar");
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(jar, dm);
+        Capsule capsule = newCapsule(jar);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
@@ -881,13 +821,75 @@ public class CapsuleTest {
     }
 
     @Test
-    public void testCustomCapsule() throws Exception {
+    public void testSimpleCaplet1() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Main-Class", "MyCapsule")
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10")
                 .addClass(MyCapsule.class);
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
+
+        Path capsuleJar = absolutePath("capsule.jar");
+        jar.write(capsuleJar);
+        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar);
+
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertEquals("x", getProperty(pb, "foo"));
+        assertEquals("", getProperty(pb, "bar"));
+        assertEquals("", getProperty(pb, "zzz"));
+        assertEquals("44", getProperty(pb, "baz"));
+
+        assertTrue(getJvmArgs(pb).contains("-Xmx3000"));
+        assertTrue(!getJvmArgs(pb).contains("-Xmx100"));
+        assertTrue(getJvmArgs(pb).contains("-Xms15"));
+        assertTrue(!getJvmArgs(pb).contains("-Xms10"));
+    }
+
+    @Test
+    public void testSimpleCaplet2() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setListAttribute("Caplets", list("MyCapsule"))
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .addClass(MyCapsule.class);
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
+
+        Path capsuleJar = absolutePath("capsule.jar");
+        jar.write(capsuleJar);
+        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar);
+
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assertEquals("x", getProperty(pb, "foo"));
+        assertEquals("", getProperty(pb, "bar"));
+        assertEquals("", getProperty(pb, "zzz"));
+        assertEquals("44", getProperty(pb, "baz"));
+
+        assertTrue(getJvmArgs(pb).contains("-Xmx3000"));
+        assertTrue(!getJvmArgs(pb).contains("-Xmx100"));
+        assertTrue(getJvmArgs(pb).contains("-Xms15"));
+        assertTrue(!getJvmArgs(pb).contains("-Xms10"));
+    }
+
+    @Test
+    public void testEmbeddedCaplet() throws Exception {
+        Jar bar = newCapsuleJar()
+                .setListAttribute("Caplets", list("MyCapsule"))
+                .addClass(MyCapsule.class);
+
+        Jar jar = newCapsuleJar()
+                .setListAttribute("Caplets", list("com.acme:mycapsule:0.9"))
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "bar baz=33 foo=y")
+                .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .addEntry("mycapsule-0.9.jar", bar.toByteArray());
 
         List<String> args = list("hi", "there");
         List<String> cmdLine = list("-Dfoo=x", "-Dzzz", "-Xms15");
@@ -929,9 +931,7 @@ public class CapsuleTest {
                 .addEntry("lib/b.class", emptyInputStream())
                 .addEntry("META-INF/x.txt", emptyInputStream());
 
-        DependencyManager dm = mock(DependencyManager.class);
-        Path fooPath = mockDep(dm, "com.acme:foo", "jar", "com.acme:foo:1.0").get(0);
-        when(dm.getLatestVersion("com.acme:foo", "jar")).thenReturn("com.acme.foo:1.0");
+        Path fooPath = mockDep("com.acme:foo", "jar", "com.acme:foo:1.0").get(0);
 
         Files.createDirectories(fooPath.getParent());
         app.write(fooPath);
@@ -939,9 +939,11 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(wrapper, dm).setTarget("com.acme:foo");
+        Capsule capsule = newCapsule(wrapper).setTarget("com.acme:foo");
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
+        assertTrue(capsule.hasCaplet("MyCapsule"));
+        
         // dumpFileSystem(fs);
         assertTrue(pb != null);
 
@@ -997,7 +999,7 @@ public class CapsuleTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsule(wrapper, null).setTarget(fooPath);
+        Capsule capsule = newCapsule(wrapper).setTarget(fooPath);
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         // dumpFileSystem(fs);
@@ -1042,7 +1044,192 @@ public class CapsuleTest {
         Path fooPath = path("foo-1.0.jar");
         app.write(fooPath);
 
-        newCapsule(wrapper, null).setTarget(fooPath);
+        newCapsule(wrapper).setTarget(fooPath);
+    }
+
+    @Test
+    public void testProcessCommandLineOptions() throws Exception {
+        List<String> args = new ArrayList<>(list("-java-home", "/foo/bar", "-reset", "-jvm-args=a b c", "-java-cmd", "gogo", "hi", "there"));
+        List<String> jvmArgs = list("-Dcapsule.java.cmd=wow");
+
+        processCmdLineOptions(args, jvmArgs);
+
+        assertEquals("/foo/bar", props.getProperty("capsule.java.home"));
+        assertEquals("true", props.getProperty("capsule.reset"));
+        assertEquals("a b c", props.getProperty("capsule.jvm.args"));
+        assertEquals(null, props.getProperty("capsule.java.cmd")); // overriden
+        assertEquals(list("hi", "there"), args);
+    }
+
+    private static void processCmdLineOptions(List<String> args, List<String> jvmArgs) {
+        Reflect.on(Capsule.class).call("processCmdLineOptions", args, jvmArgs);
+    }
+
+    @Test
+    public void testTrampoline() throws Exception {
+        props.setProperty("capsule.java.home", "/my/1.7.0.jdk/home");
+        props.setProperty("capsule.trampoline", "true");
+
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Extract-Capsule", "false")
+                .addEntry("foo.jar", emptyInputStream());
+
+        Class<?> capsuleClass = loadCapsule(jar);
+        setProperties(capsuleClass, props);
+        StringPrintStream out = setSTDOUT(capsuleClass, new StringPrintStream());
+
+        int exit = main0(capsuleClass, "hi", "there!");
+
+        assertEquals(0, exit);
+        String res = out.toString();
+        assert_().that(res).matches("[^\n]+\n\\z"); // a single line, teminated with a newline
+        assert_().that(res).startsWith("/my/1.7.0.jdk/home/bin/java" + (Capsule.isWindows() ? ".exe" : ""));
+        assert_().that(res).endsWith("com.acme.Foo hi there!\n");
+    }
+
+    private static int main0(Class<?> clazz, String... args) {
+        try {
+            return (Integer) accessible(actualCapsuleClass(clazz).getDeclaredMethod("main0", String[].class)).invoke(null, (Object) args);
+        } catch (Exception ex) {
+            throw rethrow(ex);
+        }
+    }
+
+    private static boolean runActions(Object capsule, List<String> args) {
+        try {
+            Class<?> clazz = actualCapsuleClass(capsule.getClass());
+            return (Boolean) accessible(clazz.getDeclaredMethod("runActions", clazz, List.class)).invoke(null, capsule, args);
+        } catch (Exception ex) {
+            throw rethrow(ex);
+        }
+    }
+
+    @Test
+    public void testPrintHelp() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Application-Version", "12.34")
+                .addEntry("foo.jar", emptyInputStream());
+
+        props.setProperty("capsule.help", "");
+
+        Class<?> capsuleClass = loadCapsule(jar);
+        setProperties(capsuleClass, props);
+        StringPrintStream out = setSTDERR(capsuleClass, new StringPrintStream());
+
+        Object capsule = newCapsule(capsuleClass);
+        boolean found = runActions(capsule, null);
+
+        String res = out.toString();
+        assert_().that(found).isTrue();
+        assert_().that(res).contains("USAGE: ");
+    }
+
+    @Test
+    public void testPrintCapsuleVersion() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Application-Version", "12.34")
+                .addEntry("foo.jar", emptyInputStream());
+
+        props.setProperty("capsule.version", "");
+
+        Class<?> capsuleClass = loadCapsule(jar);
+        setProperties(capsuleClass, props);
+        StringPrintStream out = setSTDOUT(capsuleClass, new StringPrintStream());
+
+        Object capsule = newCapsule(capsuleClass);
+        boolean found = runActions(capsule, null);
+
+        String res = out.toString();
+        assert_().that(found).isTrue();
+        assert_().that(res).contains("Application com.acme.Foo_12.34");
+        assert_().that(res).contains("Version: 12.34");
+    }
+
+    @Test
+    public void testPrintModes() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("Application-Version", "12.34")
+                .setAttribute("ModeX", "System-Properties", "bar baz=55 foo=w")
+                .setAttribute("ModeX", "Description", "This is a secret mode")
+                .setAttribute("ModeY", "Description", "This is another secret mode")
+                .setAttribute("ModeZ", "Foo", "xxx")
+                .setAttribute("ModeX-Linux", "System-Properties", "bar baz=55 foo=w os=lin")
+                .setAttribute("ModeX-MacOS", "System-Properties", "bar baz=55 foo=w os=mac")
+                .setAttribute("ModeX-Windows", "System-Properties", "bar baz=55 foo=w os=win")
+                .setAttribute("ModeY-Java-15", "Description", "This is a secret mode")
+                .addEntry("foo.jar", emptyInputStream());
+
+        props.setProperty("capsule.modes", "");
+
+        Class<?> capsuleClass = loadCapsule(jar);
+        setProperties(capsuleClass, props);
+        StringPrintStream out = setSTDOUT(capsuleClass, new StringPrintStream());
+
+        Object capsule = newCapsule(capsuleClass);
+        boolean found = runActions(capsule, null);
+
+        String res = out.toString();
+        assert_().that(found).isTrue();
+        assert_().that(res).contains("* ModeX: This is a secret mode");
+        assert_().that(res).contains("* ModeY: This is another secret mode");
+        assert_().that(res).contains("* ModeZ");
+        assert_().that(res).doesNotContain("* ModeX-Linux");
+        assert_().that(res).doesNotContain("* ModeY-Java-15");
+    }
+
+    @Test
+    public void testMerge() throws Exception {
+        Jar wrapper = newCapsuleJar()
+                .setAttribute("Caplets", "MyCapsule")
+                .setAttribute("System-Properties", "p1=555")
+                .addClass(MyCapsule.class);
+
+        Jar app = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setAttribute("System-Properties", "p1=111")
+                .setListAttribute("App-Class-Path", list("lib/a.jar"))
+                .addClass(Capsule.class)
+                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("a.class", emptyInputStream())
+                .addEntry("b.txt", emptyInputStream())
+                .addEntry("lib/a.jar", emptyInputStream())
+                .addEntry("lib/b.class", emptyInputStream())
+                .addEntry("META-INF/x.txt", emptyInputStream());
+
+        Class<?> capsuleClass = loadCapsule(wrapper);
+        setProperties(capsuleClass, props);
+
+        Path fooPath = mockDep(capsuleClass, "com.acme:foo", "jar", "com.acme:foo:1.0").get(0);
+        Files.createDirectories(fooPath.getParent());
+        app.write(fooPath);
+
+        props.setProperty("capsule.merge", "out.jar");
+        props.setProperty("capsule.log", "verbose");
+
+        int exit = main0(capsuleClass, "com.acme:foo");
+
+        assertEquals(0, exit);
+        assertTrue(Files.isRegularFile(path("out.jar")));
+        Jar out = new Jar(path("out.jar"));
+        
+        assert_().that(out.getAttribute("Main-Class")).isEqualTo("TestCapsule");
+        assert_().that(out.getListAttribute("Caplets")).isEqualTo(list("MyCapsule"));
+        assert_().that(out.getMapAttribute("System-Properties", "")).isEqualTo(map("p1", "111"));
+        
+        FileSystem jar = ZipFS.newZipFileSystem(path("out.jar"));
+        assertTrue(Files.isRegularFile(jar.getPath("Capsule.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("TestCapsule.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("MyCapsule.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("foo.jar")));
+        assertTrue(Files.isRegularFile(jar.getPath("a.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("b.txt")));
+        assertTrue(Files.isRegularFile(jar.getPath("lib/a.jar")));
+        assertTrue(Files.isRegularFile(jar.getPath("lib/b.class")));
+        assertTrue(Files.isRegularFile(jar.getPath("META-INF/x.txt")));
     }
     //</editor-fold>
 
@@ -1053,6 +1240,10 @@ public class CapsuleTest {
         int[] ver;
 
         ver = Capsule.parseJavaVersion("1.8.0");
+        assertArrayEquals(ver, ints(1, 8, 0, 0, 0));
+        assertEquals("1.8.0", Capsule.toJavaVersionString(ver));
+
+        ver = Capsule.parseJavaVersion("1.8");
         assertArrayEquals(ver, ints(1, 8, 0, 0, 0));
         assertEquals("1.8.0", Capsule.toJavaVersionString(ver));
 
@@ -1093,6 +1284,7 @@ public class CapsuleTest {
         assertEquals("1.7.0", Capsule.isJavaDir("1.7.0.jdk"));
         assertEquals("1.8.0", Capsule.isJavaDir("jdk1.8.0.jdk"));
         assertEquals("1.7.0", Capsule.isJavaDir("java-7-openjdk-amd64"));
+        assertEquals("1.8.0", Capsule.isJavaDir("java-8-oracle"));
     }
 
     @Test
@@ -1148,21 +1340,84 @@ public class CapsuleTest {
     }
 
     @Test
+    @SuppressWarnings("LocalVariableHidesMemberVariable")
+    public void testDependencyToLocalJar() throws Exception {
+        FileSystem fs;
+        Path root, lib, group, file;
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        lib = Files.createDirectory(root.resolve("lib"));
+        group = Files.createDirectory(lib.resolve("com.acme"));
+        file = Files.createFile(group.resolve("foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        lib = Files.createDirectory(root.resolve("lib"));
+        file = Files.createFile(lib.resolve("com.acme-foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        lib = Files.createDirectory(root.resolve("lib"));
+        file = Files.createFile(lib.resolve("foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        group = Files.createDirectory(root.resolve("com.acme"));
+        file = Files.createFile(group.resolve("foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        file = Files.createFile(root.resolve("com.acme-foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+
+        fs = Jimfs.newFileSystem();
+        root = Files.createDirectories(fs.getPath("test"));
+        file = Files.createFile(root.resolve("foo-3.1.mmm"));
+
+        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+    }
+
+    private static Path dependencyToLocalJar(Path root, String dep, String type) {
+        return Reflect.on(Capsule.class).call("dependencyToLocalJar", root, dep, type).get();
+    }
+
+    @Test
     public void testExpandVars1() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo");
 
-        Capsule capsule = newCapsule(jar, null);
+        props.setProperty("a.b.c", "777");
+        props.setProperty("my.prop", "888");
+
+        Capsule capsule = newCapsule(jar);
         capsule.prepareForLaunch(null, null);
 
         String cj = absolutePath("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId();
 
-        assertEquals(cj + "abc" + cj + "def" + cj, capsule.expand("$CAPSULE_JAR" + "abc" + "$CAPSULE_JAR" + "def" + "$CAPSULE_JAR"));
-        assertEquals(cid + "abc" + cid + "def" + cid, capsule.expand("$CAPSULE_APP" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_APP"));
-        assertEquals(cd + "abc" + cd + "def" + cd, capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_DIR" + "def" + "$CAPSULE_DIR"));
-        assertEquals(cd + "abc" + cid + "def" + cj, capsule.expand("$CAPSULE_DIR" + "abc" + "$CAPSULE_APP" + "def" + "$CAPSULE_JAR"));
+        assertEquals(cj + "abc" + cj + "def " + cj, expand(capsule, "${CAPSULE_JAR}" + "abc" + "${CAPSULE_JAR}" + "def" + " $CAPSULE_JAR"));
+        assertEquals(cid + " abc" + cid + "def" + cid, expand(capsule, "$CAPSULE_APP" + " abc" + "${CAPSULE_APP}" + "def" + "${CAPSULE_APP}"));
+        assertEquals(cd + "abc " + cd + " def" + cd, expand(capsule, "${CAPSULE_DIR}" + "abc " + "$CAPSULE_DIR" + " def" + "${CAPSULE_DIR}"));
+        assertEquals(cd + "abc" + cid + "def" + cj + "888777", expand(capsule, "${CAPSULE_DIR}" + "abc" + "${CAPSULE_APP}" + "def" + "${CAPSULE_JAR}${my.prop}${a.b.c}"));
+        assertEquals("888", expand(capsule, "${my.prop}"));
+        assertEquals(cj, expand(capsule, "$CAPSULE_JAR"));
+
+        try {
+            expand(capsule, "${foo.bar.baz}");
+            fail();
+        } catch (RuntimeException e) {
+        }
     }
 
     @Test
@@ -1171,19 +1426,27 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("Extract-Capsule", "false");
 
-        Capsule capsule = newCapsule(jar, null);
+        Capsule capsule = newCapsule(jar);
         capsule.prepareForLaunch(null, null);
 
         String cj = absolutePath("capsule.jar").toString();
         String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
         String cid = capsule.getAppId();
 
-        assertEquals(cj + "xxx" + cj + "xxx" + cj, capsule.expand("$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR" + "xxx" + "$CAPSULE_JAR"));
-        assertEquals(cid + "xxx" + cid + "xxx" + cid, capsule.expand("$CAPSULE_APP" + "xxx" + "$CAPSULE_APP" + "xxx" + "$CAPSULE_APP"));
+        assertEquals(cj + "xxx " + cj + " xxx " + cj, expand(capsule, "${CAPSULE_JAR}" + "xxx " + "$CAPSULE_JAR" + " xxx " + "$CAPSULE_JAR"));
+        assertEquals(cid + " xxx" + cid + "xxx " + cid, expand(capsule, "$CAPSULE_APP" + " xxx" + "${CAPSULE_APP}" + "xxx " + "$CAPSULE_APP"));
         try {
-            capsule.expand("$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR" + "xxx" + "$CAPSULE_DIR");
+            expand(capsule, "${CAPSULE_DIR}" + "xxx" + "${CAPSULE_DIR}" + "xxx" + "${CAPSULE_DIR}");
             fail();
         } catch (IllegalStateException e) {
+        }
+    }
+
+    private String expand(Capsule c, String s) {
+        try {
+            return (String) accessible(Capsule.class.getDeclaredMethod("expand", String.class)).invoke(c, s);
+        } catch (ReflectiveOperationException e) {
+            throw rethrow(e);
         }
     }
 
@@ -1197,15 +1460,73 @@ public class CapsuleTest {
     }
 
     @Test
-    public void splitTest() throws Exception {
-        assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.split("ab,cd  ef g, hij kl  ", "[,\\s]\\s*"));
+    public void testParseAttribute() {
+        assertEquals("abcd 123", Capsule.parse("abcd 123", Capsule.T_STRING()));
+        assertEquals(true, Capsule.parse("TRUE", Capsule.T_BOOL()));
+        assertEquals(true, Capsule.parse("true", Capsule.T_BOOL()));
+        assertEquals(false, Capsule.parse("FALSE", Capsule.T_BOOL()));
+        assertEquals(false, Capsule.parse("false", Capsule.T_BOOL()));
+        assertEquals(15L, (long) Capsule.parse("15", Capsule.T_LONG()));
+        try {
+            Capsule.parse("15abs", Capsule.T_LONG());
+            fail();
+        } catch (RuntimeException e) {
+        }
+        assertEquals(1.2, Capsule.parse("1.2", Capsule.T_DOUBLE()), 0.0001);
+        try {
+            Capsule.parse("1.2a", Capsule.T_DOUBLE());
+            fail();
+        } catch (RuntimeException e) {
+        }
 
-        assertEquals(stringMap("ab", "1",
+        assertEquals(list("abcd", "123"), Capsule.parse("abcd 123", Capsule.T_LIST(Capsule.T_STRING())));
+        assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.parse("ab cd  ef g hij kl  ", Capsule.T_LIST(Capsule.T_STRING())));
+        assertEquals(list(true, false, true, false), Capsule.parse("TRUE false true FALSE", Capsule.T_LIST(Capsule.T_BOOL())));
+        assertEquals(list(123L, 456L, 7L), Capsule.parse("123 456  7", Capsule.T_LIST(Capsule.T_LONG())));
+        assertEquals(list(1.23, 3.45), Capsule.parse("1.23 3.45", Capsule.T_LIST(Capsule.T_DOUBLE())));
+
+        assertEquals(map("ab", "1",
                 "cd", "xx",
                 "ef", "32",
                 "g", "xx",
                 "hij", "",
-                "kl", ""), Capsule.split("ab=1,cd  ef=32 g, hij= kl=  ", '=', "[,\\s]\\s*", "xx"));
+                "kl", ""), Capsule.parse("ab=1 cd  ef=32 g hij= kl=  ", Capsule.T_MAP(Capsule.T_STRING(), "xx")));
+        try {
+            Capsule.parse("ab=1 cd  ef=32 g hij= kl=  ", Capsule.T_MAP(Capsule.T_STRING(), null));
+            fail();
+        } catch (Exception e) {
+        }
+
+        assertEquals(map("ab", true, "cd", true, "ef", false, "g", true), Capsule.parse("ab=true cd  ef=false  g", Capsule.T_MAP(Capsule.T_BOOL(), true)));
+        try {
+            Capsule.parse("ab=true cd  ef=false  g", Capsule.T_MAP(Capsule.T_BOOL(), null));
+            fail();
+        } catch (Exception e) {
+        }
+
+        assertEquals(map("ab", 12L, "cd", 17L, "ef", 54L, "g", 17L), Capsule.parse("ab=12 cd  ef=54  g", Capsule.T_MAP(Capsule.T_LONG(), 17)));
+        try {
+            Capsule.parse("ab=12 cd  ef=54  g", Capsule.T_MAP(Capsule.T_LONG(), null));
+            fail();
+        } catch (Exception e) {
+        }
+        try {
+            Capsule.parse("ab=12 cd=xy  ef=54  g=z", Capsule.T_MAP(Capsule.T_LONG(), 17));
+            fail();
+        } catch (Exception e) {
+        }
+
+        assertEquals(map("ab", 12.0, "cd", 100.0, "ef", 5.4, "g", 100.0), Capsule.parse("ab=12 cd  ef=5.4  g", Capsule.T_MAP(Capsule.T_DOUBLE(), 100)));
+        try {
+            Capsule.parse("ab=12.1 cd  ef=5.4  g", Capsule.T_MAP(Capsule.T_DOUBLE(), null));
+            fail();
+        } catch (Exception e) {
+        }
+        try {
+            Capsule.parse("ab=12 cd=xy ef=54  g=z", Capsule.T_MAP(Capsule.T_DOUBLE(), 17.0));
+            fail();
+        } catch (Exception e) {
+        }
     }
 
     @Test
@@ -1231,28 +1552,28 @@ public class CapsuleTest {
     //<editor-fold defaultstate="collapsed" desc="Utilities">
     /////////// Utilities ///////////////////////////////////
     // may be called once per test (always writes jar into /capsule.jar)
-    private Capsule newCapsule(Jar jar, DependencyManager dependencyManager) {
-        try {
-            Path capsuleJar = path("capsule.jar");
-            jar.write(capsuleJar);
-            final String mainClass = jar.getAttribute("Main-Class");
-            final Class<?> clazz = Class.forName(mainClass);
-            accessible(Capsule.class.getDeclaredField("DEPENDENCY_MANAGER")).set(null, dependencyManager);
-            accessible(Capsule.class.getDeclaredField("PROFILE")).set(null, 10); // disable profiling even when log=debug
+    private Capsule newCapsule(Jar jar) {
+        return (Capsule) CapsuleTestUtils.newCapsule(jar, path("capsule.jar"));
+    }
 
-            Constructor<?> ctor = accessible(clazz.getDeclaredConstructor(Path.class));
-            return (Capsule) ctor.newInstance(capsuleJar);
-        } catch (InvocationTargetException e) {
-            throw new RuntimeException(e.getCause());
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        }
+    private Class<?> loadCapsule(Jar jar) throws IOException {
+        jar = makeRealCapsuleJar(jar);
+        return CapsuleTestUtils.loadCapsule(jar, path("capsule.jar"));
+    }
+
+    private Object newCapsule(Class<?> capsuleClass) {
+        return CapsuleTestUtils.newCapsule(capsuleClass, path("capsule.jar"));
     }
 
     private Jar newCapsuleJar() {
         return new Jar()
                 .setAttribute("Manifest-Version", "1.0")
                 .setAttribute("Main-Class", "TestCapsule");
+    }
+
+    private Jar makeRealCapsuleJar(Jar jar) throws IOException {
+        return jar.addClass(Capsule.class)
+                .addClass(TestCapsule.class);
     }
 
     private Capsule setTarget(Capsule capsule, String artifact) {
@@ -1273,27 +1594,12 @@ public class CapsuleTest {
         }
     }
 
-    private Model newPom() {
-        return new Model();
-    }
-
     private Path path(String first, String... more) {
         return fs.getPath(first, more);
     }
 
     private Path absolutePath(String first, String... more) {
         return fs.getPath(first, more).toAbsolutePath();
-    }
-
-    private InputStream toInputStream(Model model) {
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            new MavenXpp3Writer().write(baos, model);
-            baos.close();
-            return new ByteArrayInputStream(baos.toByteArray());
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
     }
 
     private InputStream emptyInputStream() {
@@ -1450,58 +1756,32 @@ public class CapsuleTest {
         return xs;
     }
 
-    private static Map<String, String> stringMap(String... ss) {
-        final Map<String, String> m = new HashMap<>();
+    @SuppressWarnings("unchecked")
+    private static <K, V> Map<K, V> map(Object... ss) {
+        final Map<K, V> m = new HashMap<>();
         for (int i = 0; i < ss.length / 2; i++)
-            m.put(ss[i * 2], ss[i * 2 + 1]);
+            m.put((K) ss[i * 2], (V) ss[i * 2 + 1]);
         return Collections.unmodifiableMap(m);
     }
 
-    private static <T extends AccessibleObject> T accessible(T x) {
-        if (!x.isAccessible())
-            x.setAccessible(true);
-
-        if (x instanceof Field) {
-            Field field = (Field) x;
-            if ((field.getModifiers() & Modifier.FINAL) != 0) {
-                try {
-                    Field modifiersField = Field.class.getDeclaredField("modifiers");
-                    modifiersField.setAccessible(true);
-                    modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-                } catch (ReflectiveOperationException e) {
-                    throw new AssertionError(e);
-                }
-            }
-        }
-
-        return x;
+    private Path mockDep(String dep, String type) {
+        return mockDep(dep, type, dep).get(0);
     }
 
-    private Path mockDep(DependencyManager dm, String dep, String type) {
-        return mockDep(dm, dep, type, dep).get(0);
+    private List<Path> mockDep(String dep, String type, String... artifacts) {
+        return mockDep(TestCapsule.class, dep, type, artifacts);
     }
 
-    private List<Path> mockDep(DependencyManager dm, String dep, String type, String... artifacts) {
+    private List<Path> mockDep(Class<?> testCapsuleClass, String dep, String type, String... artifacts) {
         List<Path> as = new ArrayList<>(artifacts.length);
         for (String a : artifacts)
             as.add(artifact(a, type));
 
-        if (deps == null)
-            this.deps = new HashMap<>();
-        deps.put(dep, as);
-
-        when(dm.resolveDependency(dep, type)).thenReturn(as);
-        when(dm.resolveDependencies(anyList(), eq(type))).thenAnswer(new Answer<List<Path>>() {
-            @Override
-            public List<Path> answer(InvocationOnMock invocation) throws Throwable {
-                List<String> coords = (List<String>) invocation.getArguments()[0];
-                List<Path> res = new ArrayList<>();
-                for (String dep : coords)
-                    res.addAll(deps.get(dep));
-
-                return res;
-            }
-        });
+        try {
+            testCapsuleClass.getMethod("mock", String.class, String.class, List.class).invoke(null, dep, type, as);
+        } catch (ReflectiveOperationException e) {
+            throw rethrow(e);
+        }
 
         return as;
     }
@@ -1513,49 +1793,6 @@ public class CapsuleTest {
         String artifactDir = artifact.split("-")[0]; // arbitrary
         String version = coords[2] + (coords.length > 3 ? "-" + coords[3] : "");
         return cache.resolve("deps").resolve(group).resolve(artifactDir).resolve(artifact + "-" + version + '.' + type);
-    }
-
-    private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(\\)]+):(?<artifactId>[^:\\(\\)]+)(:(?<version>[^:\\(\\)]*))?(:(?<classifier>[^:\\(\\)]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
-
-    static Dependency coordsToDependency(final String depString) {
-        final Matcher m = PAT_DEPENDENCY.matcher(depString);
-        if (!m.matches())
-            throw new IllegalArgumentException("Could not parse dependency: " + depString);
-
-        Dependency d = new Dependency();
-        d.setGroupId(m.group("groupId"));
-        d.setArtifactId(m.group("artifactId"));
-        String version = m.group("version");
-        if (version == null || version.isEmpty())
-            version = "[0,)";
-        d.setVersion(version);
-        d.setClassifier(m.group("classifier"));
-        d.setScope("runtime");
-        for (Exclusion ex : getExclusions(depString))
-            d.addExclusion(ex);
-        return d;
-    }
-
-    static Collection<Exclusion> getExclusions(String depString) {
-        final Matcher m = PAT_DEPENDENCY.matcher(depString);
-        if (!m.matches())
-            throw new IllegalArgumentException("Could not parse dependency: " + depString);
-
-        if (m.group("exclusions") == null || m.group("exclusions").isEmpty())
-            return Collections.emptyList();
-
-        final List<String> exclusionPatterns = Arrays.asList(m.group("exclusions").split(","));
-        final List<Exclusion> exclusions = new ArrayList<Exclusion>();
-        for (String expat : exclusionPatterns) {
-            String[] coords = expat.trim().split(":");
-            if (coords.length != 2)
-                throw new IllegalArgumentException("Illegal exclusion dependency coordinates: " + depString + " (in exclusion " + expat + ")");
-            Exclusion ex = new Exclusion();
-            ex.setGroupId(coords[0]);
-            ex.setArtifactId(coords[1]);
-            exclusions.add(ex);
-        }
-        return exclusions;
     }
 
     private static void dumpFileSystem(FileSystem fs) {
@@ -1574,20 +1811,5 @@ public class CapsuleTest {
     }
 
     private static final String PS = System.getProperty("path.separator");
-
-    private static boolean isCI() {
-        return (isEnvTrue("CI") || isEnvTrue("CONTINUOUS_INTEGRATION") || isEnvTrue("TRAVIS"));
-    }
-
-    private static boolean isEnvTrue(String envVar) {
-        final String ev = System.getenv(envVar);
-        if (ev == null)
-            return false;
-        try {
-            return Boolean.parseBoolean(ev);
-        } catch (Exception e) {
-            return false;
-        }
-    }
     //</editor-fold>
 }

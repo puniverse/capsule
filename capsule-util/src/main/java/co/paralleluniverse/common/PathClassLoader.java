@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
+ * Capsule
+ * Copyright (c) 2014-2015, Parallel Universe Software Co. All rights reserved.
  * 
  * This program and the accompanying materials are licensed under the terms 
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
+
 package co.paralleluniverse.common;
 
 import java.io.IOException;
@@ -105,7 +107,7 @@ public class PathClassLoader extends FlexibleClassLoader {
     @Override
     protected Enumeration<URL> findResources1(String name) {
         try {
-            List<URL> urls = new ArrayList<>();
+            final List<URL> urls = new ArrayList<>();
             for (Object o : paths) {
                 final Path p = resolve(o, name);
                 if (Files.exists(p))

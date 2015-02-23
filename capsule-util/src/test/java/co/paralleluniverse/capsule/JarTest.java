@@ -1,6 +1,6 @@
 /*
  * Capsule
- * Copyright (c) 2014, Parallel Universe Software Co. and Contributors. All rights reserved.
+ * Copyright (c) 2014-2015, Parallel Universe Software Co. and Contributors. All rights reserved.
  * 
  * This program and the accompanying materials are licensed under the terms 
  * of the Eclipse Public License v1.0, available at
@@ -185,13 +185,19 @@ public class JarTest {
 
         ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
-                .addEntries((Path) null, myDir)
+                .addEntries((Path) null, myDir, new Jar.Filter() {
+
+                    @Override
+                    public boolean filter(String entryName) {
+                        return !"db/w".equals(entryName);
+                    }
+                })
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
         assertTrue(getEntry(toInput(res), Paths.get("da", "x")) != null);
         assertTrue(getEntry(toInput(res), Paths.get("da", "y")) != null);
-        assertTrue(getEntry(toInput(res), Paths.get("db", "w")) != null);
+        assertTrue(getEntry(toInput(res), Paths.get("db", "w")) == null);
         assertTrue(getEntry(toInput(res), Paths.get("db", "z")) != null);
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
@@ -211,13 +217,19 @@ public class JarTest {
 
         ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
-                .addEntries(Paths.get("d1", "d2"), myDir)
+                .addEntries(Paths.get("d1", "d2"), myDir, new Jar.Filter() {
+
+                    @Override
+                    public boolean filter(String entryName) {
+                        return !"d1/d2/db/w".equals(entryName);
+                    }
+                })
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
         assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "da", "x")) != null);
         assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "da", "y")) != null);
-        assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "db", "w")) != null);
+        assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "db", "w")) == null);
         assertTrue(getEntry(toInput(res), Paths.get("d1", "d2", "db", "z")) != null);
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
@@ -309,7 +321,13 @@ public class JarTest {
 
         ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
-                .addPackageOf(clazz)
+                .addPackageOf(clazz, new Jar.Filter() {
+
+                    @Override
+                    public boolean filter(String entryName) {
+                        return !"co/paralleluniverse/common/FlexibleClassLoader.class".equals(entryName);
+                    }
+                })
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
@@ -317,6 +335,38 @@ public class JarTest {
 
         assertTrue(getEntry(toInput(res), pp.resolve(clazz.getSimpleName() + ".class")) != null);
         assertTrue(getEntry(toInput(res), pp.resolve("ProcessUtil.class")) != null);
+        assertTrue(getEntry(toInput(res), pp.resolve("FlexibleClassLoader.class")) == null);
+
+        Manifest man2 = toInput(res).getManifest();
+        assertEquals("1234", man2.getMainAttributes().getValue("Foo"));
+    }
+
+    @Test
+    public void testAddPackage2() throws Exception {
+        FileSystem fs = Jimfs.newFileSystem();
+        Path jarPath = fs.getPath("test.jar");
+
+        final Class clazz = JarClassLoader.class;
+
+        new Jar().addPackageOf(clazz).write(jarPath);
+
+        ByteArrayOutputStream res = new Jar()
+                .setAttribute("Foo", "1234")
+                .addPackageOf(new JarClassLoader(jarPath, true).loadClass(clazz.getName()), new Jar.Filter() {
+
+                    @Override
+                    public boolean filter(String entryName) {
+                        return !"co/paralleluniverse/common/FlexibleClassLoader.class".equals(entryName);
+                    }
+                })
+                .write(new ByteArrayOutputStream());
+
+        // printEntries(toInput(res));
+        final Path pp = Paths.get(clazz.getPackage().getName().replace('.', '/'));
+
+        assertTrue(getEntry(toInput(res), pp.resolve(clazz.getSimpleName() + ".class")) != null);
+        assertTrue(getEntry(toInput(res), pp.resolve("ProcessUtil.class")) != null);
+        assertTrue(getEntry(toInput(res), pp.resolve("FlexibleClassLoader.class")) == null);
 
         Manifest man2 = toInput(res).getManifest();
         assertEquals("1234", man2.getMainAttributes().getValue("Foo"));

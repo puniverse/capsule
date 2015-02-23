@@ -1,6 +1,6 @@
 /*
  * Capsule
- * Copyright (c) 2014, Parallel Universe Software Co. All rights reserved.
+ * Copyright (c) 2014-2015, Parallel Universe Software Co. All rights reserved.
  * 
  * This program and the accompanying materials are licensed under the terms 
  * of the Eclipse Public License v1.0, available at
@@ -18,10 +18,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.nio.file.FileSystem;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,19 +40,23 @@ import java.util.jar.Manifest;
 import java.util.jar.Pack200;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import static co.paralleluniverse.common.ZipFS.newZipFileSystem;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.Collection;
+import java.util.zip.ZipException;
 
 /**
  * A JAR file that can be easily modified.
  * This class is not thread-safe.
  */
 public class Jar {
-    private static final String MANIFEST_NAME = java.util.jar.JarFile.MANIFEST_NAME;
+    public static interface Filter {
+        boolean filter(String entryName);
+    }
+
+    private static final String MANIFEST_NAME = "META-INF/MANIFEST.MF"; // java.util.jar.JarFile.MANIFEST_NAME
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
     private OutputStream os;
     private final Manifest manifest;
-    private final Path jar;
     private final JarInputStream jis;
     private JarOutputStream jos;
     private Pack200.Packer packer;
@@ -60,11 +64,12 @@ public class Jar {
     private Path jarPrefixFile;
     private boolean sealed;
 
+    //<editor-fold defaultstate="collapsed" desc="Constructors">
+    /////////// Constructors ///////////////////////////////////
     /**
      * Creates a new, empty, JAR
      */
     public Jar() {
-        this.jar = null;
         this.jis = null;
         this.manifest = new Manifest();
     }
@@ -74,8 +79,7 @@ public class Jar {
      * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
      */
     public Jar(InputStream jar) throws IOException {
-        this.jar = null;
-        this.jis = jar instanceof JarInputStream ? (JarInputStream) jar : new JarInputStream(jar);
+        this.jis = jar instanceof JarInputStream ? (JarInputStream) jar : newJarInputStream(jar);
         this.manifest = new Manifest(jis.getManifest());
     }
 
@@ -84,9 +88,8 @@ public class Jar {
      * Modifications will not be made to the original JAR file, but to a new copy, which is then written with {@link #write(OutputStream) write()}.
      */
     public Jar(Path jar) throws IOException {
-        this.jar = jar;
-        this.jis = null;
-        this.manifest = getManifest(jar);
+        this.jis = newJarInputStream(Files.newInputStream(jar));
+        this.manifest = new Manifest(jis.getManifest());
     }
 
     /**
@@ -109,11 +112,13 @@ public class Jar {
      * Creates a copy
      */
     public Jar(Jar jar) {
-        this.jar = jar.jar;
         this.jis = jar.jis;
         this.manifest = new Manifest(jar.manifest);
     }
+    //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Manifest">
+    /////////// Manifest ///////////////////////////////////
     /**
      * Returns the manifest of this JAR. Modifications to the manifest will be reflected in the written JAR, provided they are done
      * before any entries are added with {@code addEntry()}.
@@ -169,7 +174,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setListAttribute(String name, List<String> values) {
+    public Jar setListAttribute(String name, Collection<?> values) {
         return setAttribute(name, join(values));
     }
 
@@ -183,7 +188,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setListAttribute(String section, String name, List<String> values) {
+    public Jar setListAttribute(String section, String name, Collection<?> values) {
         return setAttribute(section, name, join(values));
     }
 
@@ -196,7 +201,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setMapAttribute(String name, Map<String, String> values) {
+    public Jar setMapAttribute(String name, Map<String, ?> values) {
         return setAttribute(name, join(values));
     }
 
@@ -210,7 +215,7 @@ public class Jar {
      * @return {@code this}
      * @throws IllegalStateException if entries have been added or the JAR has been written prior to calling this methods.
      */
-    public Jar setMapAttribute(String section, String name, Map<String, String> values) {
+    public Jar setMapAttribute(String section, String name, Map<String, ?> values) {
         return setAttribute(section, name, join(values));
     }
 
@@ -279,7 +284,10 @@ public class Jar {
     public Map<String, String> getMapAttribute(String section, String name, String defaultValue) {
         return mapSplit(getAttribute(section, name), defaultValue);
     }
+    //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Entries">
+    /////////// Entries ///////////////////////////////////
     /**
      * Adds an entry to this JAR.
      *
@@ -381,18 +389,41 @@ public class Jar {
      *
      * @param path     the path within the JAR where the root of the directory will be placed, or {@code null} for the JAR's root
      * @param dirOrZip the directory to add as an entry or a zip/JAR file whose contents will be extracted and added as entries
+     * @param filter   a filter to select particular classes
      * @return {@code this}
      */
-    public Jar addEntries(Path path, Path dirOrZip) throws IOException {
+    public Jar addEntries(Path path, Path dirOrZip, Filter filter) throws IOException {
         if (Files.isDirectory(dirOrZip))
-            addDir(path, dirOrZip, true);
+            addDir(path, dirOrZip, filter, true);
         else {
-            try (FileSystem zipfs = newZipFileSystem(dirOrZip)) {
-                for (Path root : zipfs.getRootDirectories())
-                    addDir(path, root, true);
+            try (JarInputStream jis1 = newJarInputStream(Files.newInputStream(dirOrZip))) {
+                addEntries(path, jis1, filter);
             }
         }
         return this;
+    }
+
+    /**
+     * Adds a directory (with all its subdirectories) or the contents of a zip/JAR to this JAR.
+     *
+     * @param path     the path within the JAR where the root of the directory will be placed, or {@code null} for the JAR's root
+     * @param dirOrZip the directory to add as an entry or a zip/JAR file whose contents will be extracted and added as entries
+     * @return {@code this}
+     */
+    public Jar addEntries(Path path, Path dirOrZip) throws IOException {
+        return addEntries(path, dirOrZip, null);
+    }
+
+    /**
+     * Adds a directory (with all its subdirectories) or the contents of a zip/JAR to this JAR.
+     *
+     * @param path     the path within the JAR where the root of the directory/zip will be placed, or {@code null} for the JAR's root
+     * @param dirOrZip the directory to add as an entry or a zip/JAR file whose contents will be extracted and added as entries
+     * @param filter   a filter to select particular classes
+     * @return {@code this}
+     */
+    public Jar addEntries(String path, Path dirOrZip, Filter filter) throws IOException {
+        return addEntries(path != null ? Paths.get(path) : null, dirOrZip, filter);
     }
 
     /**
@@ -403,7 +434,7 @@ public class Jar {
      * @return {@code this}
      */
     public Jar addEntries(String path, Path dirOrZip) throws IOException {
-        return addEntries(path != null ? Paths.get(path) : null, dirOrZip);
+        return addEntries(path, dirOrZip, null);
     }
 
     /**
@@ -414,13 +445,26 @@ public class Jar {
      * @return {@code this}
      */
     public Jar addEntries(Path path, ZipInputStream zip) throws IOException {
+        return addEntries(path, zip, null);
+    }
+
+    /**
+     * Adds the contents of the zip/JAR contained in the given byte array to this JAR.
+     *
+     * @param path   the path within the JAR where the root of the zip will be placed, or {@code null} for the JAR's root
+     * @param zip    the contents of the zip/JAR file
+     * @param filter a filter to select particular classes
+     * @return {@code this}
+     */
+    public Jar addEntries(Path path, ZipInputStream zip, Filter filter) throws IOException {
         beginWriting();
         try (ZipInputStream zis = zip) {
             for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
                 final String target = path != null ? path.resolve(entry.getName()).toString() : entry.getName();
                 if (target.equals(MANIFEST_NAME))
                     continue;
-                addEntryNoClose(jos, target, zis);
+                if (filter == null || filter.filter(target))
+                    addEntryNoClose(jos, target, zis);
             }
         }
         return this;
@@ -433,19 +477,40 @@ public class Jar {
      * @return {@code this}
      */
     public Jar addPackageOf(Class<?> clazz) throws IOException {
+        return addPackageOf(clazz, null);
+    }
+
+    /**
+     * Adds the contents of a Java package to this JAR.
+     *
+     * @param clazz  a class whose package we wish to add to the JAR.
+     * @param filter a filter to select particular classes
+     * @return {@code this}
+     */
+    public Jar addPackageOf(Class<?> clazz, Filter filter) throws IOException {
         try {
             final String path = clazz.getPackage().getName().replace('.', '/');
             URL dirURL = clazz.getClassLoader().getResource(path);
             if (dirURL != null && dirURL.getProtocol().equals("file"))
-                addDir(Paths.get(path), Paths.get(dirURL.toURI()), false);
+                addDir(Paths.get(path), Paths.get(dirURL.toURI()), filter, false);
             else {
                 if (dirURL == null) // In case of a jar file, we can't actually find a directory.
                     dirURL = clazz.getClassLoader().getResource(clazz.getName().replace('.', '/') + ".class");
 
                 if (dirURL.getProtocol().equals("jar")) {
-                    String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf('!'));
-                    try (FileSystem zipfs = newZipFileSystem(Paths.get(jarPath))) {
-                        addDir(Paths.get(path), zipfs.getPath(path), false);
+                    final URI jarUri = new URI(dirURL.getPath().substring(0, dirURL.getPath().indexOf('!')));
+                    try (JarInputStream jis1 = newJarInputStream(Files.newInputStream(Paths.get(jarUri)))) {
+                        for (JarEntry entry; (entry = jis1.getNextJarEntry()) != null;) {
+                            try {
+                                if (entry.getName().startsWith(path + '/')) {
+                                    if (filter == null || filter.filter(entry.getName()))
+                                        addEntryNoClose(jos, entry.getName(), jis1);
+                                }
+                            } catch (ZipException e) {
+                                if (!e.getMessage().startsWith("duplicate entry"))
+                                    throw e;
+                            }
+                        }
                     }
                 } else
                     throw new AssertionError();
@@ -456,7 +521,7 @@ public class Jar {
         }
     }
 
-    private void addDir(final Path path, final Path dir1, final boolean recursive) throws IOException {
+    private void addDir(final Path path, final Path dir1, final Filter filter, final boolean recursive) throws IOException {
         final Path dir = dir1.toAbsolutePath();
         Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
             @Override
@@ -468,13 +533,37 @@ public class Jar {
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 final Path p = dir.relativize(file.toAbsolutePath());
                 final Path target = path != null ? path.resolve(p.toString()) : p;
-                if (!target.toString().equals(MANIFEST_NAME))
-                    addEntry(target, file);
+                if (!target.toString().equals(MANIFEST_NAME)) {
+                    if (filter == null || filter.filter(target.toString()))
+                        addEntry(target, file);
+                }
                 return FileVisitResult.CONTINUE;
             }
         });
     }
 
+    private static void addEntry(JarOutputStream jarOut, String path, InputStream is) throws IOException {
+        jarOut.putNextEntry(new JarEntry(path));
+        copy(is, jarOut);
+        jarOut.closeEntry();
+    }
+
+    private static void addEntryNoClose(JarOutputStream jarOut, String path, InputStream is) throws IOException {
+        jarOut.putNextEntry(new JarEntry(path));
+        copy0(is, jarOut);
+        jarOut.closeEntry();
+    }
+
+    private static void addEntry(JarOutputStream jarOut, String path, byte[] data) throws IOException {
+        jarOut.putNextEntry(new JarEntry(path));
+        jarOut.write(data);
+        jarOut.flush();
+        jarOut.closeEntry();
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Jar File Properties">
+    /////////// Jar File Properties ///////////////////////////////////
     /**
      * Sets a {@link Pack200} packer to use when writing the JAR.
      *
@@ -528,7 +617,10 @@ public class Jar {
         this.jarPrefixFile = file;
         return this;
     }
+    //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Writing">
+    /////////// Writing ///////////////////////////////////
     /**
      * Sets an {@link OutputStream} to which the JAR will be written.
      * If used, this method must be called before any entries have been added or the JAR written. Calling this method prevents this
@@ -580,9 +672,7 @@ public class Jar {
         if (getAttribute(ATTR_MANIFEST_VERSION) == null)
             setAttribute(ATTR_MANIFEST_VERSION, "1.0");
         jos = new JarOutputStream(os, manifest);
-        if (jar != null)
-            addEntries((Path) null, jar);
-        else if (jis != null)
+        if (jis != null)
             addEntries(null, jis);
     }
 
@@ -668,49 +758,7 @@ public class Jar {
             throw new AssertionError();
         }
     }
-
-    private static void addEntry(JarOutputStream jarOut, String path, InputStream is) throws IOException {
-        jarOut.putNextEntry(new JarEntry(path));
-        copy(is, jarOut);
-        jarOut.closeEntry();
-    }
-
-    private static void addEntryNoClose(JarOutputStream jarOut, String path, InputStream is) throws IOException {
-        jarOut.putNextEntry(new JarEntry(path));
-        copy0(is, jarOut);
-        jarOut.closeEntry();
-    }
-
-    private static void addEntry(JarOutputStream jarOut, String path, byte[] data) throws IOException {
-        jarOut.putNextEntry(new JarEntry(path));
-        jarOut.write(data);
-        jarOut.flush();
-        jarOut.closeEntry();
-    }
-
-    private static void copy(InputStream is, OutputStream os) throws IOException {
-        try {
-            copy0(is, os);
-        } finally {
-            is.close();
-        }
-    }
-
-    private static Manifest getManifest(Path jarFile) throws IOException {
-        try (FileSystem zipfs = newZipFileSystem(jarFile)) {
-            final Path p = zipfs.getPath(MANIFEST_NAME);
-            if (!Files.exists(p))
-                return null;
-            return new Manifest(Files.newInputStream(p));
-        }
-    }
-
-    private static void copy0(InputStream is, OutputStream os) throws IOException {
-        final byte[] buffer = new byte[1024];
-        for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
-            os.write(buffer, 0, bytesRead);
-        os.flush();
-    }
+    //</editor-fold>
 
     /**
      * Turns a {@code String} into an {@code InputStream} containing the string's encoded characters.
@@ -723,31 +771,58 @@ public class Jar {
         return new ByteArrayInputStream(str.getBytes(charset));
     }
 
-    private static String join(List<String> list, String separator) {
+    //<editor-fold defaultstate="collapsed" desc="Utils">
+    /////////// Utils ///////////////////////////////////
+    private static JarInputStream newJarInputStream(InputStream in) throws IOException {
+        return new co.paralleluniverse.common.JarInputStream(in);
+    }
+
+    private static ZipInputStream newZipInputStream(InputStream in) throws IOException {
+        return new co.paralleluniverse.common.ZipInputStream(in);
+    }
+
+    private static void copy(InputStream is, OutputStream os) throws IOException {
+        try {
+            copy0(is, os);
+        } finally {
+            is.close();
+        }
+    }
+
+    private static void copy0(InputStream is, OutputStream os) throws IOException {
+        final byte[] buffer = new byte[1024];
+        for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
+            os.write(buffer, 0, bytesRead);
+        os.flush();
+    }
+
+    private static String join(Collection<?> list, String separator) {
         if (list == null)
             return null;
         StringBuilder sb = new StringBuilder();
-        for (String element : list)
-            sb.append(element).append(separator);
-        sb.delete(sb.length() - separator.length(), sb.length());
+        for (Object element : list)
+            sb.append(element.toString()).append(separator);
+        if (!list.isEmpty())
+            sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
     }
 
-    private static String join(Map<String, String> map, char kvSeparator, String separator) {
+    private static String join(Map<String, ?> map, char kvSeparator, String separator) {
         if (map == null)
             return null;
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : map.entrySet())
-            sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue()).append(separator);
-        sb.delete(sb.length() - separator.length(), sb.length());
+        for (Map.Entry<String, ?> entry : map.entrySet())
+            sb.append(entry.getKey()).append(kvSeparator).append(entry.getValue().toString()).append(separator);
+        if (!map.isEmpty())
+            sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
     }
 
-    private static String join(List<String> list) {
+    private static String join(Collection<?> list) {
         return join(list, " ");
     }
 
-    private static String join(Map<String, String> map) {
+    private static String join(Map<String, ?> map) {
         return join(map, '=', " ");
     }
 
@@ -803,4 +878,9 @@ public class Jar {
             return null;
         return s.substring(i + 1);
     }
+
+    private static Path nullPath() {
+        return null;
+    }
+        //</editor-fold>
 }
