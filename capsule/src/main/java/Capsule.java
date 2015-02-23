@@ -1113,11 +1113,10 @@ public class Capsule implements Runnable {
             if (pid > 0)
                 System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
 
-            if (isInheritIoBug())
-                pipeIoStreams();
-
             postlaunch(child);
 
+            if (isInheritIoBug())
+                pipeIoStreams();
             oc.child.waitFor();
         }
 
