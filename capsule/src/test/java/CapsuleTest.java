@@ -195,33 +195,33 @@ public class CapsuleTest {
                 .setAttribute("Extract-Capsule", "false")
                 .setAttribute("Capsule-Log-Level", "verbose");
 
-        Capsule capsule = newCapsule(jar);
-        assertTrue(capsule.isLogging(2));
-        assertTrue(!capsule.isLogging(3));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(2));
+        assertTrue(!Capsule.isLogging(3));
 
         props.setProperty("capsule.log", "none");
-        capsule = newCapsule(jar);
-        assertTrue(capsule.isLogging(0));
-        assertTrue(!capsule.isLogging(1));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(0));
+        assertTrue(!Capsule.isLogging(1));
 
         props.setProperty("capsule.log", "quiet");
-        capsule = newCapsule(jar);
-        assertTrue(capsule.isLogging(1));
-        assertTrue(!capsule.isLogging(2));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(1));
+        assertTrue(!Capsule.isLogging(2));
 
         props.setProperty("capsule.log", "");
-        capsule = newCapsule(jar);
-        assertTrue(capsule.isLogging(1));
-        assertTrue(!capsule.isLogging(2));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(1));
+        assertTrue(!Capsule.isLogging(2));
 
         props.setProperty("capsule.log", "verbose");
-        capsule = newCapsule(jar);
-        assertTrue(capsule.isLogging(2));
-        assertTrue(!capsule.isLogging(3));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(2));
+        assertTrue(!Capsule.isLogging(3));
 
         props.setProperty("capsule.log", "debug");
-        capsule = newCapsule(jar);
-        assertTrue(capsule.isLogging(3));
+        newCapsule(jar);
+        assertTrue(Capsule.isLogging(3));
     }
 
     @Test
