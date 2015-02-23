@@ -68,6 +68,9 @@ public class CapsuleLauncherTest {
         assertEquals("just a string", capsule.getAttribute(Attribute.named("Unregisterd-Attribute")));
 
         // dumpFileSystem(fs);
+        
+        assertTrue(capsule.getProperties() != null);
+        
         assertEquals(args, getAppArgs(pb));
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");

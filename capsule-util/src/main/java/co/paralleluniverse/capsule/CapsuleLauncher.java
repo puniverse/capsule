@@ -219,6 +219,8 @@ public final class CapsuleLauncher {
                 switch (method.getName()) {
                     case "getVersion":
                         return get("VERSION");
+                    case "getProperties":
+                        return get("PROPERTIES");
                     case "getAttribute":
                         return getMethod(clazz, "getAttribute", Map.Entry.class).invoke(capsule, ((Attribute) args[0]).toEntry());
                     case "hasAttribute":

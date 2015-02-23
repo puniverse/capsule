@@ -33,16 +33,6 @@ public interface Capsule {
     String getAppId();
 
     /**
-     * The application's name
-     */
-    String getAppName();
-
-    /**
-     * The app's version or {@code null} if unversioned.
-     */
-    String getAppVersion();
-
-    /**
      * Returns the capsule's supported modes.
      */
     Set<String> getModes();
