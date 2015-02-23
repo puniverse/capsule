@@ -3201,7 +3201,9 @@ public class Capsule implements Runnable {
     /**
      * Deletes the given file or directory (even if nonempty).
      */
-    protected static void delete(Path path) throws IOException {
+    static void delete(Path path) throws IOException {
+        if (!Files.exists(path))
+            return;
         if (Files.isDirectory(path)) {
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(path)) {
                 for (Path f : ds)
@@ -3214,7 +3216,7 @@ public class Capsule implements Runnable {
     /**
      * Copies the source file or directory (recursively) to the target location.
      */
-    protected static void copy(Path source, Path target) throws IOException {
+    static void copy(Path source, Path target) throws IOException {
         Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES, StandardCopyOption.REPLACE_EXISTING);
         if (Files.isDirectory(source)) {
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(source)) {
@@ -3244,7 +3246,7 @@ public class Capsule implements Runnable {
      * Copies the input stream to the output stream.
      * Neither stream is closed when the method returns.
      */
-    protected static void copy(InputStream is, OutputStream out) throws IOException {
+    static void copy(InputStream is, OutputStream out) throws IOException {
         final byte[] buffer = new byte[1024];
         for (int bytesRead; (bytesRead = is.read(buffer)) != -1;)
             out.write(buffer, 0, bytesRead);
