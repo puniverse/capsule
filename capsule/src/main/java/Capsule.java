@@ -292,12 +292,12 @@ public class Capsule implements Runnable {
             final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
             try {
                 Thread.currentThread().setContextClassLoader(MY_CLASSLOADER);
-                final Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile());
+                Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile());
                 clearContext();
                 if (capsule.isEmptyCapsule() && !args.isEmpty()) {
                     processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
                     if (!args.isEmpty())
-                        capsule.setTarget(args.remove(0));
+                        capsule = capsule.setTarget(args.remove(0));
                 }
                 CAPSULE = capsule.oc; // TODO: capsule or oc ???
             } finally {
