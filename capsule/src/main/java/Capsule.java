@@ -4445,6 +4445,7 @@ public class Capsule implements Runnable {
     @SuppressWarnings("unchecked")
     private static Class<? extends Capsule> loadCapsule(ClassLoader cl, String capsuleClass, String name) {
         try {
+            log(LOG_DEBUG, "Loading capsule class " + capsuleClass + " using class loader " + toString(cl));
             final Class<?> clazz = cl.loadClass(capsuleClass);
             if (!isCapsuleClass(clazz))
                 throw new RuntimeException(name + " does not appear to be a valid capsule.");
@@ -4484,6 +4485,12 @@ public class Capsule implements Runnable {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static String toString(ClassLoader cl) {
+        return cl == null ? "null"
+                : cl.toString() + (cl instanceof URLClassLoader ? ("{" + Arrays.toString(((URLClassLoader) cl).getURLs()) + "}") : "")
+                + " --> " + toString(cl.getParent());
     }
     //</editor-fold>
 
