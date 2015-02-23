@@ -280,6 +280,7 @@ public class Capsule implements Runnable {
     /////////// Main ///////////////////////////////////
     protected static final PrintStream STDOUT = System.out;
     protected static final PrintStream STDERR = System.err;
+    private static final ThreadLocal<Integer> LOG_LEVEL = new ThreadLocal<>();
     private static Properties PROPERTIES = System.getProperties();
     private static final String OS = getProperty0(PROP_OS_NAME).toLowerCase();
     private static final String PLATFORM = getOS();
@@ -541,7 +542,6 @@ public class Capsule implements Runnable {
     private /*final*/ Path jarFile;      // never null
     private /*final*/ String appId;      // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
-    private /*final*/ int logLevel;
 
     private Path javaHome;
     private Path cacheDir;
@@ -556,9 +556,9 @@ public class Capsule implements Runnable {
     private List<Path> tmpFiles = new ArrayList<>();
     private Process child;
     // Error reporting
-    private static String contextType_;
-    private static String contextKey_;
-    private static String contextValue_;
+    private static final ThreadLocal<String> contextType_ = new ThreadLocal<>();
+    private static final ThreadLocal<String> contextKey_ = new ThreadLocal<>();
+    private static final ThreadLocal<String> contextValue_ = new ThreadLocal<>();
 
     //<editor-fold defaultstate="collapsed" desc="Constructors">
     /////////// Constructors ///////////////////////////////////
@@ -597,7 +597,7 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Could not read JAR file " + jarFile, e);
         }
 
-        oc.logLevel = chooseLogLevel(); // temporary
+        setLogLevel(chooseLogLevel()); // temporary
 
         log(LOG_VERBOSE, "Jar: " + jarFile);
         log(LOG_VERBOSE, "Platform: " + PLATFORM);
@@ -605,7 +605,7 @@ public class Capsule implements Runnable {
         loadCaplets();
         this.wrapper = isEmptyCapsule();
 
-        oc.logLevel = chooseLogLevel(); // temporary
+        setLogLevel(chooseLogLevel()); // temporary
         time("Load class", START, start);
         time("Read JAR in constructor", start);
 
@@ -701,7 +701,7 @@ public class Capsule implements Runnable {
 
     private void finalizeCapsule0() {
         validateManifest(oc.manifest);
-        oc.logLevel = chooseLogLevel();
+        setLogLevel(chooseLogLevel());
         oc.mode = chooseMode1();
         initAppId();
 
@@ -897,13 +897,6 @@ public class Capsule implements Runnable {
      */
     protected final String getAppId() {
         return oc.appId;
-    }
-
-    /**
-     * Capsule's log level
-     */
-    protected final int getLogLevel() {
-        return oc.logLevel;
     }
     //</editor-fold>
 
@@ -4150,6 +4143,18 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
+    private static void setLogLevel(int level) {
+        LOG_LEVEL.set(level);
+    }
+
+    /**
+     * Capsule's log level
+     */
+    protected static final int getLogLevel() {
+        final Integer level = LOG_LEVEL.get();
+        return level != null ? level : LOG_NONE;
+    }
+
     /**
      * Chooses and returns the capsules log level.
      */
@@ -4185,19 +4190,19 @@ public class Capsule implements Runnable {
     /**
      * Tests if the given log level is currently being logged.
      */
-    protected final boolean isLogging(int level) {
-        return level <= oc.logLevel;
+    protected static final boolean isLogging(int level) {
+        return level <= getLogLevel();
     }
 
     /**
      * Prints a message to stderr if the given log-level is being logged.
      */
-    protected final void log(int level, String str) {
+    protected static final void log(int level, String str) {
         if (isLogging(level))
             STDERR.println(LOG_PREFIX + str);
     }
 
-    private void println(String str) {
+    private static void println(String str) {
         log(LOG_QUIET, str);
     }
 
@@ -4213,24 +4218,24 @@ public class Capsule implements Runnable {
 //        STDERR.println("setContext: " + type + " " + key + " " + value);
 //        Thread.dumpStack();
 
-        contextType_ = type;
-        contextKey_ = key;
-        contextValue_ = value != null ? value.toString() : null;
+        contextType_.set(type);
+        contextKey_.set(key);
+        contextValue_.set(value != null ? value.toString() : null);
     }
 
     private static String getContext() {
         return contextType_ + " " + contextKey_ + ": " + contextValue_;
     }
 
-    private long clock() {
+    private static long clock() {
         return isLogging(PROFILE) ? System.nanoTime() : 0;
     }
 
-    private void time(String op, long start) {
+    private static void time(String op, long start) {
         time(op, start, isLogging(PROFILE) ? System.nanoTime() : 0);
     }
 
-    private void time(String op, long start, long stop) {
+    private static void time(String op, long start, long stop) {
         if (isLogging(PROFILE))
             log(PROFILE, "PROFILE " + op + " " + ((stop - start) / 1_000_000) + "ms");
     }
