@@ -289,14 +289,20 @@ public class Capsule implements Runnable {
 
     final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
-            final Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile());
-            clearContext();
-            if (capsule.isEmptyCapsule() && !args.isEmpty()) {
-                processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
-                if (!args.isEmpty())
-                    capsule.setTarget(args.remove(0));
+            final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
+            try {
+                Thread.currentThread().setContextClassLoader(MY_CLASSLOADER);
+                final Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile());
+                clearContext();
+                if (capsule.isEmptyCapsule() && !args.isEmpty()) {
+                    processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
+                    if (!args.isEmpty())
+                        capsule.setTarget(args.remove(0));
+                }
+                CAPSULE = capsule.oc; // TODO: capsule or oc ???
+            } finally {
+                Thread.currentThread().setContextClassLoader(ccl);
             }
-            CAPSULE = capsule.oc; // TODO: capsule or oc ???
         }
         return CAPSULE;
     }
@@ -4382,7 +4388,7 @@ public class Capsule implements Runnable {
 
     // visible for testing
     static Capsule newCapsule(ClassLoader cl, Path jarFile) {
-        return (Capsule)newCapsule0(cl, jarFile);
+        return (Capsule) newCapsule0(cl, jarFile);
     }
 
     private static Object newCapsule0(ClassLoader cl, Path jarFile) {
@@ -4425,6 +4431,7 @@ public class Capsule implements Runnable {
     private static Capsule newCapsule(String capsuleClass, Capsule pred) {
         try {
             final Class<? extends Capsule> clazz = loadCapsule(Thread.currentThread().getContextClassLoader(), capsuleClass, capsuleClass);
+            assert getActualCapsuleClass(clazz) == Capsule.class;
             return accessible(clazz.getDeclaredConstructor(Capsule.class)).newInstance(pred);
         } catch (IncompatibleClassChangeError e) {
             throw new RuntimeException("Caplet " + capsuleClass + " is not compatible with this capsule (" + VERSION + ")");
@@ -4447,12 +4454,10 @@ public class Capsule implements Runnable {
         try {
             log(LOG_DEBUG, "Loading capsule class " + capsuleClass + " using class loader " + toString(cl));
             final Class<?> clazz = cl.loadClass(capsuleClass);
-            if (!isCapsuleClass(clazz))
+            final Class<Capsule> c = getActualCapsuleClass(clazz);
+            if (c == null)
                 throw new RuntimeException(name + " does not appear to be a valid capsule.");
 
-            Class<?> c = clazz;
-            while (!Capsule.class.getName().equals(c.getName()))
-                c = c.getSuperclass();
             if (c != Capsule.class) // i.e. it's the Capsule class but in a different classloader
                 accessible(c.getDeclaredField("PROPERTIES")).set(null, new Properties(PROPERTIES));
 
@@ -4468,10 +4473,12 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static boolean isCapsuleClass(Class<?> clazz) {
-        if (clazz == null)
-            return false;
-        return Capsule.class.getName().equals(clazz.getName()) || isCapsuleClass(clazz.getSuperclass());
+    @SuppressWarnings("unchecked")
+    private static Class<Capsule> getActualCapsuleClass(Class<?> clazz) {
+        Class<?> c = clazz;
+        while (c != null && !Capsule.class.getName().equals(c.getName()))
+            c = c.getSuperclass();
+        return (Class<Capsule>) c;
     }
 
     private static String getCapsuleVersion(Class<?> cls) {
