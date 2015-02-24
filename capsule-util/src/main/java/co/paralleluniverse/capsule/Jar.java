@@ -42,6 +42,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.Collection;
+import java.util.regex.Pattern;
 import java.util.zip.ZipException;
 
 /**
@@ -49,10 +50,6 @@ import java.util.zip.ZipException;
  * This class is not thread-safe.
  */
 public class Jar {
-    public static interface Filter {
-        boolean filter(String entryName);
-    }
-
     private static final String MANIFEST_NAME = "META-INF/MANIFEST.MF"; // java.util.jar.JarFile.MANIFEST_NAME
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
     private OutputStream os;
@@ -770,6 +767,35 @@ public class Jar {
     public static InputStream toInputStream(String str, Charset charset) {
         return new ByteArrayInputStream(str.getBytes(charset));
     }
+
+    //<editor-fold defaultstate="collapsed" desc="Filter">
+    /////////// Filter ///////////////////////////////////
+    public static interface Filter {
+        boolean filter(String entryName);
+    }
+
+    public static Filter matches(String regex) {
+        final Pattern p = Pattern.compile(regex);
+        return new Filter() {
+
+            @Override
+            public boolean filter(String entryName) {
+                return p.matcher(entryName).matches();
+            }
+        };
+    }
+
+    public static Filter notMatches(String regex) {
+        final Filter f = matches(regex);
+        return new Filter() {
+
+            @Override
+            public boolean filter(String entryName) {
+                return !f.filter(entryName);
+            }
+        };
+    }
+    //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Utils">
     /////////// Utils ///////////////////////////////////

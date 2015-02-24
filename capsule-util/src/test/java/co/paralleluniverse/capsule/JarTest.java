@@ -185,13 +185,7 @@ public class JarTest {
 
         ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
-                .addEntries((Path) null, myDir, new Jar.Filter() {
-
-                    @Override
-                    public boolean filter(String entryName) {
-                        return !"db/w".equals(entryName);
-                    }
-                })
+                .addEntries((Path) null, myDir, Jar.notMatches("db/w"))
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
@@ -217,13 +211,7 @@ public class JarTest {
 
         ByteArrayOutputStream res = new Jar()
                 .setAttribute("Foo", "1234")
-                .addEntries(Paths.get("d1", "d2"), myDir, new Jar.Filter() {
-
-                    @Override
-                    public boolean filter(String entryName) {
-                        return !"d1/d2/db/w".equals(entryName);
-                    }
-                })
+                .addEntries(Paths.get("d1", "d2"), myDir, Jar.notMatches("d1/d2/db/w"))
                 .write(new ByteArrayOutputStream());
 
         // printEntries(toInput(res));
