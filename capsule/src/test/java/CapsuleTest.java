@@ -944,6 +944,8 @@ public class CapsuleTest {
 
         assertTrue(capsule.hasCaplet("MyCapsule"));
         
+        assertTrue(capsule.toString() != null); // exercise toString
+        
         // dumpFileSystem(fs);
         assertTrue(pb != null);
 
