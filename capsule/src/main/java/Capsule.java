@@ -608,8 +608,8 @@ public class Capsule implements Runnable {
         log(LOG_VERBOSE, "Jar: " + jarFile);
         log(LOG_VERBOSE, "Platform: " + PLATFORM);
 
+        this.wrapper = isEmptyCapsule(); // must be done before loadCaplets, to init their wrapper field, but this implies the application must be specified in the manifest
         loadCaplets();
-        this.wrapper = isEmptyCapsule();
 
         setLogLevel(chooseLogLevel()); // temporary
         time("Load class", START, start);
