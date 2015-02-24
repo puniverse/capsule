@@ -779,13 +779,14 @@ public class Capsule implements Runnable {
                 for (Capsule c = sup; c != null; c = c.sup)
                     c.cc = cc;
             } else { // I'm in the middle
-                for (Capsule c = sup.cc; c != sup; c = c.sup) {
-                    if (c.sup == sup)
-                        c.sup = cc;
-                }
-                for (Capsule c = cc; c != this; c = c.sup)
-                    c.cc = sup.cc;
-                this.cc = sup.cc;
+                throw new IllegalArgumentException("Caplet cannot be inserted in the middle of the hierarchy");
+//                for (Capsule c = sup.cc; c != sup; c = c.sup) {
+//                    if (c.sup == sup)
+//                        c.sup = cc;
+//                }
+//                for (Capsule c = cc; c != this; c = c.sup)
+//                    c.cc = sup.cc;
+//                this.cc = sup.cc;
             }
         }
     }
@@ -3819,16 +3820,16 @@ public class Capsule implements Runnable {
         return (map != null && !map.isEmpty()) ? map : null;
     }
 
-    private static <K, V> Map<K, List<V>> multiput(Map<K, List<V>> map, K key, V value) {
-        List<V> list = map.get(key);
-        if (list == null) {
-            list = new ArrayList<>();
-            map.put(key, list);
-        }
-        list.add(value);
-        return map;
-    }
-
+//    private static <K, V> Map<K, List<V>> multiput(Map<K, List<V>> map, K key, V value) {
+//        List<V> list = map.get(key);
+//        if (list == null) {
+//            list = new ArrayList<>();
+//            map.put(key, list);
+//        }
+//        list.add(value);
+//        return map;
+//    }
+//
     private static <K, V> Map<K, List<V>> multiput(Map<K, List<V>> map, K key, List<V> values) {
         if (values == null)
             return map;
