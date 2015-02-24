@@ -33,7 +33,6 @@ public class CapsuleLauncherTest {
     private final FileSystem fs = Jimfs.newFileSystem();
     private final Path cache = fs.getPath("/cache");
     private final Path tmp = fs.getPath("/tmp");
-    private Properties props;
 
     @After
     public void tearDown() throws Exception {
@@ -57,7 +56,10 @@ public class CapsuleLauncherTest {
         List<String> args = list("hi", "there");
         List<String> cmdLine = list();
 
-        Capsule capsule = newCapsuleLauncher(jar).newCapsule();
+        Properties props = new Properties(System.getProperties());
+        props.setProperty("my.foo.prop", "zzzz");
+        
+        Capsule capsule = newCapsuleLauncher(jar).setProperties(props).newCapsule();
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
@@ -69,7 +71,7 @@ public class CapsuleLauncherTest {
 
         // dumpFileSystem(fs);
         
-        assertTrue(capsule.getProperties() != null);
+        assertEquals(capsule.getProperties().getProperty("my.foo.prop"), "zzzz");
         
         assertEquals(args, getAppArgs(pb));
 
@@ -106,6 +108,12 @@ public class CapsuleLauncherTest {
         assert_().that(getClassPath(pb)).has().item(appCache);
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         assert_().that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
+    }
+    
+    @Test
+    public void testEnableJMX() throws Exception {
+        assert_().that(CapsuleLauncher.enableJMX(list("a", "b"))).has().item("-Dcom.sun.management.jmxremote");
+        assert_().that(CapsuleLauncher.enableJMX(list("a", "-Dcom.sun.management.jmxremote", "b"))).isEqualTo(list("a", "-Dcom.sun.management.jmxremote", "b"));
     }
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
