@@ -8,6 +8,7 @@
  */
 package co.paralleluniverse.capsule;
 
+import static co.paralleluniverse.common.Exceptions.rethrow;
 import co.paralleluniverse.common.JarClassLoader;
 import co.paralleluniverse.common.JarInputStream;
 import java.io.IOException;
@@ -15,7 +16,6 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.file.Files;
@@ -339,16 +339,6 @@ public final class CapsuleLauncher {
         } catch (Exception e) {
             throw rethrow(e);
         }
-    }
-
-    private static RuntimeException rethrow(Throwable t) {
-        while (t instanceof InvocationTargetException)
-            t = ((InvocationTargetException) t).getTargetException();
-        if (t instanceof RuntimeException)
-            throw (RuntimeException) t;
-        if (t instanceof Error)
-            throw (Error) t;
-        throw new RuntimeException(t);
     }
     //</editor-fold>
 }

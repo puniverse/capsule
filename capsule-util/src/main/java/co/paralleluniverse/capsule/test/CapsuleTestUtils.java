@@ -9,6 +9,7 @@
 package co.paralleluniverse.capsule.test;
 
 import co.paralleluniverse.capsule.Jar;
+import co.paralleluniverse.common.Exceptions;
 import co.paralleluniverse.common.JarClassLoader;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -187,13 +188,7 @@ public final class CapsuleTestUtils {
     }
 
     public static RuntimeException rethrow(Throwable t) {
-        while (t instanceof InvocationTargetException)
-            t = ((InvocationTargetException) t).getTargetException();
-        if (t instanceof RuntimeException)
-            throw (RuntimeException) t;
-        if (t instanceof Error)
-            throw (Error) t;
-        throw new RuntimeException(t);
+        return Exceptions.rethrow(t);
     }
 
     public static final PrintStream DEVNULL = new PrintStream(new OutputStream() {

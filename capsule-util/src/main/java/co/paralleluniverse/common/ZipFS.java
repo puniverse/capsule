@@ -9,11 +9,11 @@
 
 package co.paralleluniverse.common;
 
+import static co.paralleluniverse.common.Exceptions.rethrow;
 import com.sun.nio.zipfs.ZipFileSystem;
 import com.sun.nio.zipfs.ZipFileSystemProvider;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
 import java.nio.file.spi.FileSystemProvider;
@@ -52,14 +52,10 @@ public final class ZipFS {
             throw new IllegalArgumentException("Can't create a ZIP file system nested in a ZIP file system. (" + path + " is nested in " + path.getFileSystem() + ")");
         try {
             return (ZipFileSystem) ZIP_FILE_SYSTEM_CONSTRUCTOR.newInstance(ZIP_FILE_SYSTEM_PROVIDER, path, Collections.emptyMap());
-        } catch (InvocationTargetException e) {
-            if (e.getCause() instanceof RuntimeException)
-                throw (RuntimeException) e.getCause();
-            if (e.getCause() instanceof Error)
-                throw (Error) e.getCause();
-            throw new RuntimeException(e.getCause());
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
+        } catch(Exception e) {
+            throw rethrow(e);
         }
     }
 
