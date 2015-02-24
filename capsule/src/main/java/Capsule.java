@@ -815,7 +815,7 @@ public class Capsule implements Runnable {
         return null;
     }
 
-    final <T extends Capsule> T getCallTarget(Class<T> clazz) {
+    protected final <T extends Capsule> T getCallTarget(Class<T> clazz) {
         /*
          * Here we're implementing both the "invokevirtual" and "invokespecial".
          * We want to somehow differentiate the case where the function is called directly -- and should, like invokevirtual, target cc, the
