@@ -3225,7 +3225,7 @@ public class Capsule implements Runnable {
         }
     }
 
-    private static void ensureExecutable(Path file) {
+    private static Path ensureExecutable(Path file) {
         if (!Files.isExecutable(file)) {
             try {
                 Set<PosixFilePermission> perms = Files.getPosixFilePermissions(file);
@@ -3239,6 +3239,7 @@ public class Capsule implements Runnable {
                 throw rethrow(e);
             }
         }
+        return file;
     }
 
     /**
