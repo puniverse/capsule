@@ -331,9 +331,10 @@ public class Capsule implements Runnable {
 
             return capsule.launch(args);
         } catch (Throwable t) {
-            if (capsule != null)
+            if (capsule != null) {
+                capsule.cleanup();
                 capsule.onError(t);
-            else
+            } else
                 printError(t, capsule);
             return 1;
         }
@@ -503,6 +504,8 @@ public class Capsule implements Runnable {
                     found = true;
                 }
             }
+            if (found)
+                capsule.cleanup();
             return found;
         } catch (InvocationTargetException e) {
             throw rethrow(e);
@@ -1081,17 +1084,14 @@ public class Capsule implements Runnable {
     private int launch(List<String> args) throws IOException, InterruptedException {
         verifyNonEmpty("Cannot launch a wrapper capsule.");
         final ProcessBuilder pb;
-        try {
-            final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
-            pb = prepareForLaunch(jvmArgs, args);
-            if (pb == null) { // can be null if prelaunch has been overridden by a subclass
-                log(LOG_VERBOSE, "Nothing to run");
-                return 0;
-            }
-        } catch (Exception t) {
-            cleanup();
-            throw t;
+
+        final List<String> jvmArgs = ManagementFactory.getRuntimeMXBean().getInputArguments();
+        pb = prepareForLaunch(jvmArgs, args);
+        if (pb == null) { // can be null if prelaunch has been overridden by a subclass
+            log(LOG_VERBOSE, "Nothing to run");
+            return 0;
         }
+
         clearContext();
 
         time("Total", START);
