@@ -1268,7 +1268,7 @@ public class Capsule implements Runnable {
 
         final ProcessBuilder pb = new ProcessBuilder();
         if (!buildScriptProcess(pb))
-            buildJavaProcess(pb, oc.jvmArgs_, oc.args_);
+            buildJavaProcess(pb, oc.jvmArgs_);
         return pb;
     }
 
@@ -1705,7 +1705,7 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Java Process">
     /////////// Java Process ///////////////////////////////////
-    private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine, List<String> args) {
+    private boolean buildJavaProcess(ProcessBuilder pb, List<String> cmdLine) {
         final List<String> command = pb.command();
 
         command.add(processOutgoingPath(getJavaExecutable()));
@@ -1724,7 +1724,7 @@ public class Capsule implements Runnable {
         final String mainClass = getMainClass(classPath);
 
         command.add("-classpath");
-        command.add(compileClassPath(handleLongClasspath(classPath, mainClass.length(), command, args)));
+        command.add(compileClassPath(handleLongClasspath(classPath, mainClass.length(), command, oc.args_)));
 
         command.add(mainClass);
         return true;
