@@ -1360,7 +1360,7 @@ public class Capsule implements Runnable {
     /**
      * Called after the application is launched by the capsule.
      * If this method returns a process, capsule will publish its pid (by setting a system property that may be queried by jcmd), await
-     * its termination, and exit, returning its exit value. If this method returns {@code null}, the capsule will exit immediately, 
+     * its termination, and exit, returning its exit value. If this method returns {@code null}, the capsule will exit immediately,
      * without waiting for the child process to terminate. This method is also allowed to never return.
      *
      * @param child the child process running the application
