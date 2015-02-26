@@ -1182,8 +1182,10 @@ public class Capsule implements Runnable {
 
     private void cleanup0() {
         try {
-            if (oc.child != null)
+            if (oc.child != null) {
                 oc.child.destroy();
+                oc.child.waitFor();
+            }
             oc.child = null;
         } catch (Exception t) {
             deshadow(t).printStackTrace(STDERR);
