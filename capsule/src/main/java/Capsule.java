@@ -85,7 +85,7 @@ import static java.util.Arrays.asList;
  * <p>
  * Caplets might consider overriding one of the following powerful methods:
  * {@link #attribute(Map.Entry) attribute}, {@link #getVarValue(String) getVarValue},
- * {@link #processOutgoingPath(Path) processOutgoingPath}, {@link #prelaunch(List) prelaunch}.
+ * {@link #processOutgoingPath(Path) processOutgoingPath}, {@link #prelaunch(List, List) prelaunch}.
  * <p>
  * For command line option handling, see {@link #OPTION(String, String, String, String) OPTION}.<br/>
  * Attributes should be registered with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE}.
@@ -1143,7 +1143,7 @@ public class Capsule implements Runnable {
         try {
             final ProcessBuilder pb;
             try {
-                pb = prelaunch(nullToEmpty(args));
+                pb = prelaunch(nullToEmpty(jvmArgs), nullToEmpty(args));
                 markCache();
                 return pb;
             } finally {
@@ -1229,14 +1229,15 @@ public class Capsule implements Runnable {
      * Caplets may override this method to display a message prior to launch, or to configure the process's IO streams.
      * For more elaborate manipulation of the Capsule's launched process, consider overriding {@link #buildProcess() buildProcess}.
      *
-     * @param args the application command-line arguments
+     * @param jvmArgs the JVM arguments listed on the command line
+     * @param args    the application command-line arguments
      * @return a configured {@code ProcessBuilder} (if {@code null}, the launch will be aborted).
      */
-    protected ProcessBuilder prelaunch(List<String> args) {
-        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.prelaunch(args) : prelaunch0(args);
+    protected ProcessBuilder prelaunch(List<String> jvmArgs, List<String> args) {
+        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.prelaunch(jvmArgs, args) : prelaunch0(jvmArgs, args);
     }
 
-    private ProcessBuilder prelaunch0(List<String> args) {
+    private ProcessBuilder prelaunch0(List<String> jvmArgs, List<String> args) {
         final ProcessBuilder pb = buildProcess();
         buildEnvironmentVariables(pb);
         pb.command().addAll(buildArgs(args));
@@ -1254,7 +1255,7 @@ public class Capsule implements Runnable {
      * <p>
      * This method should be overridden to add new types of processes the capsule can launch (like, say, Python scripts).
      * If all you want is to configure the returned {@link ProcessBuilder}, for example to set IO stream redirection,
-     * you should override {@link #prelaunch(List) prelaunch}.
+     * you should override {@link #prelaunch(List, List) prelaunch}.
      *
      * @return a {@code ProcessBuilder} (must never be {@code null}).
      */
