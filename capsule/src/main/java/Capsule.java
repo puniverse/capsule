@@ -1581,7 +1581,7 @@ public class Capsule implements Runnable {
 
     private void resetAppCache(Path dir) throws IOException {
         try {
-            log(LOG_DEBUG, "Creating cache for " + getJarFile() + " in " + dir.toAbsolutePath());
+            log(LOG_DEBUG, "(Re)Creating cache for " + getJarFile() + " in " + dir.toAbsolutePath());
             final Path lockFile = dir.resolve(LOCK_FILE_NAME);
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
                 for (Path f : ds) {
@@ -1612,9 +1612,11 @@ public class Capsule implements Runnable {
         Path extractedFile = dir.resolve(TIMESTAMP_FILE_NAME);
         if (!Files.exists(extractedFile))
             return false;
-        FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
-        FileTime jarTime = Files.getLastModifiedTime(getJarFile());
-        return extractedTime.compareTo(jarTime) >= 0;
+        final FileTime jarTime = Files.getLastModifiedTime(getJarFile());
+        final FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
+        final boolean fresh = extractedTime.compareTo(jarTime) >= 0;
+        log(LOG_DEBUG, "JAR timestamp: " + jarTime + " Cache timestamp: " + extractedTime + " (" + (fresh ? "fresh" : "stale") + ")");
+        return fresh;
     }
 
     /**
