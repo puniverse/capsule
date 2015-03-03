@@ -556,6 +556,8 @@ public class Capsule implements Runnable {
     private Path cacheDir;
     private Path appCache;
     private Path writableAppCache;
+
+    private boolean plainCache;
     private boolean cacheUpToDate;
     private FileLock appCacheLock;
 
@@ -1135,24 +1137,15 @@ public class Capsule implements Runnable {
     /////////// Launch ///////////////////////////////////
     // directly used by CapsuleLauncher
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
-        final long start = clock();
+
         oc.jvmArgs_ = nullToEmpty(jvmArgs); // hack
         oc.args_ = nullToEmpty(jvmArgs);    // hack
 
         log(LOG_VERBOSE, "Launching app " + getAppId() + (getMode() != null ? " in mode " + getMode() : ""));
-        try {
-            final ProcessBuilder pb;
-            try {
-                pb = prelaunch(nullToEmpty(jvmArgs), nullToEmpty(args));
-                markCache();
-                return pb;
-            } finally {
-                unlockAppCache();
-                time("prepareForLaunch", start);
-            }
-        } catch (IOException e) {
-            throw rethrow(e);
-        }
+        final long start = clock();
+        final ProcessBuilder pb = prelaunch(nullToEmpty(jvmArgs), nullToEmpty(args));
+        time("prepareForLaunch", start);
+        return pb;
     }
 
     /**
@@ -1240,10 +1233,16 @@ public class Capsule implements Runnable {
     }
 
     private ProcessBuilder prelaunch0(List<String> jvmArgs, List<String> args) {
-        final ProcessBuilder pb = buildProcess();
-        buildEnvironmentVariables(pb);
-        pb.command().addAll(buildArgs(args));
-        return pb;
+        try {
+            final ProcessBuilder pb = buildProcess();
+            buildEnvironmentVariables(pb);
+            pb.command().addAll(buildArgs(args));
+            cleanupCache(null);
+            return pb;
+        } catch (Throwable t) {
+            cleanupCache(t);
+            throw t;
+        }
     }
 
     /**
@@ -1555,13 +1554,14 @@ public class Capsule implements Runnable {
         if (getAppId() == null)
             return null;
 
+        oc.plainCache = true;
         try {
             final long start = clock();
             final Path dir = toAbsolutePath(getCacheDir().resolve(APP_CACHE_NAME).resolve(getAppId()));
             Files.createDirectories(dir, getPermissions(getExistingAncestor(dir)));
 
-            this.cacheUpToDate = isAppCacheUpToDate1(dir);
-            if (!cacheUpToDate) {
+            oc.cacheUpToDate = isAppCacheUpToDate1(dir);
+            if (!oc.cacheUpToDate) {
                 resetAppCache(dir);
                 if (shouldExtract())
                     extractCapsule(dir);
@@ -1571,7 +1571,10 @@ public class Capsule implements Runnable {
             time("buildAppCacheDir", start);
             return dir;
         } catch (IOException e) {
-            throw rethrow(e);
+            log(LOG_VERBOSE, "IOException while creating app cache: " + e.getMessage());
+            if (isLogging(LOG_VERBOSE))
+                e.printStackTrace(STDERR);
+            return null;
         }
     }
 
@@ -1639,8 +1642,21 @@ public class Capsule implements Runnable {
         }
     }
 
+    private void cleanupCache(Throwable exception) {
+        try {
+            try {
+                if (exception == null)
+                    markCache();
+            } finally {
+                unlockAppCache();
+            }
+        } catch (IOException e) {
+            throw rethrow(e);
+        }
+    }
+
     private void markCache() throws IOException {
-        if (oc.appCache == null || cacheUpToDate)
+        if (!oc.plainCache || oc.appCache == null || oc.cacheUpToDate)
             return;
         if (Files.isWritable(oc.appCache))
             Files.createFile(oc.appCache.resolve(TIMESTAMP_FILE_NAME));
@@ -1664,7 +1680,7 @@ public class Capsule implements Runnable {
     }
 
     private void unlockAppCache() throws IOException {
-        if (oc.appCache == null)
+        if (!oc.plainCache || oc.appCache == null)
             return;
         unlockAppCache(oc.appCache);
     }
@@ -1963,7 +1979,7 @@ public class Capsule implements Runnable {
         if (resolved.size() != deps.size())
             throw new RuntimeException("One of the native artifacts " + deps + " reolved to more than a single file or to none");
 
-        if (!cacheUpToDate) {
+        if (!oc.cacheUpToDate) {
             log(LOG_DEBUG, "Copying native libs to " + getWritableAppCache());
             try {
                 int i = 0;
