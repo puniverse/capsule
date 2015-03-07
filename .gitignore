@@ -13,4 +13,4 @@ _site/
 .gradle/
 .nb-gradle-properties
 Gemfile.lock
-/push_javadoc.sh
+/push_docs.sh
