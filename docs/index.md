@@ -1,11 +1,4 @@
 # *Capsule*<br/>Dead-Simple Packaging and Deployment for JVM Applications
-[![Build Status](http://img.shields.io/travis/puniverse/capsule.svg?style=flat)](https://travis-ci.org/puniverse/capsule) [![Coverage](https://coveralls.io/repos/puniverse/capsule/badge.svg?branch=master)](https://coveralls.io/r/puniverse/capsule?branch=master) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030) [![Version](https://img.shields.io/maven-central/v/co.paralleluniverse/capsule.svg?style=flat)](https://github.com/puniverse/capsule/releases) [![License](http://img.shields.io/badge/license-EPL-blue.svg?style=flat)](https://www.eclipse.org/legal/epl-v10.html)
-
-
-Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single JAR file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and agents. It can automatically download Maven dependencies when the program is first launched if you choose not to embed them in the capsule, and it can even automatically download a new version of your application when it is published to a Maven repository.
-
-In short, a capsule is a self-contained JAR that knows everything there is to know about how to run your application the way it's meant to run.
-
 
 ## Introduction
 
@@ -23,7 +16,7 @@ Caplets are classes that hook into the capsule and modify its behavior. By defau
 
 A caplet can be embedded in the capsule, or be packaged separately and used to wrap an existing capsule. While every caplet can be embedded or used as a wrapper, usually just one of the options makes sense.
 
-Here are some examples of caplets (some exist, some not yet):
+Here are some examples of caplets (some exist some don't):
 
 * Maven (embedded): this caplet can download the capsule's dependencies from a Maven repository prior to launch, and cache them so that they can be shared with other capsules. This can be used to reduce the capsule's size, "factor out" common dependencies (like an alternative JVM language runtime), or automatically update dependencies or even the application itself.
 * Containers (wrapper): this caplet launches a capsule inside a container
@@ -32,13 +25,14 @@ Here are some examples of caplets (some exist, some not yet):
 * ZooKeeper/etcd (embedded): reads application values from ZooKeeper/etcd instead of the manifest and uses them to configure the application.
 * Sandbox (wrapper): launches the capsule inside a secure JVM sandbox
 
+
 ### Cool Stuff You Can Do with Capsules
 
 * Have your JAR automatically choose an appropriate JVM version, set JVM flags, and add an embedded JAR to the boot class path.
 * Embed any required native libraries directly in the JAR, and Capsule automatically makes sure your application finds them.
-* Distribute your application as an "executable WAR": it can be deployed to a servlet container *or*, if executed directly, by use of the Maven caplet it will automatically download Jetty and deploy itself into the embedded container.
-* Distribute a Clojure application without embedding Clojure itself in the capsule, and have Clojure downloaded (by the Maven caplet) the first time the capsule is launched. The Clojure runtime will be cached shared among all Clojure capsules so it will only be downloaded once.
-* Distribute an Avatar.js application as a JAR containing only JavaScript files and the Maven caplet, and have Avatar (including its required native libraries) downloaded automatically the first time the application is launched. The Avatar runtime will be cached for later use and shared among other Avatar capsules.
+* Distribute your application as an "executable WAR": it can be deployed to a servlet container *or*, if executed directly, it will automatically download Jetty and deploy itself into the embedded container.
+* Distribute a Clojure application without embedding Clojure itself in the capsule, and have Clojure downloaded the first time the capsule is launched. The Clojure runtime will be cached shared among all Clojure capsules so it will only be downloaded once.
+* Distribute an Avatar.js application as a JAR containing only JavaScript files, and have Avatar (including its required native libraries) downloaded automatically the first time the application is launched. The Avatar runtime will be cached for later use and shared among other Avatar capules.
 * Use a caplet to turn any capsule into a Docker image or to launch it inside a Linux Container.
 * Use a caplet to turn any capsule into an OS-specific native application or daemon.
 
@@ -61,24 +55,6 @@ There are a few alternatives to packaging your application in a single JAR. [Mav
 The only distribution mechanism supporting JVM arguments and Java version selection is platform-dependent startup scripts. Even if your build tool can generate those for you, they would always require some form of installation by the user.
 
 With Capsule, you just distribute a single JAR and run it.
-
-### Getting Capsule
-
-[Download](https://github.com/puniverse/capsule/releases)
-
-or:
-
-    co.paralleluniverse:capsule:1.0-rc1
-
-on Maven Central.
-
-### Building Capsule
-
-    ./gradlew install
-
-### Support
-
-Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.google.com/forum/#!forum/capsule-user)
 
 ### Build-Tool Plugins
 
