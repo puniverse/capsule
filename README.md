@@ -91,7 +91,7 @@ Leiningen:
 
 ## User Guide
 
-## An Example
+### An Example
 
 Before we delve into the specifics of defining a Capsule distribution, let us look at an example of a working capsule. The configurations described below can be built using any JVM build tool. The complete usage example, with both Gradle and Maven build files, is found in the [capsule-demo](https://github.com/puniverse/capsule-demo) project.
 
