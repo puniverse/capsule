@@ -1,12 +1,6 @@
 # *Capsule*<br/>Dead-Simple Packaging and Deployment for JVM Applications
 [![Build Status](http://img.shields.io/travis/puniverse/capsule.svg?style=flat)](https://travis-ci.org/puniverse/capsule) [![Coverage](https://coveralls.io/repos/puniverse/capsule/badge.svg?branch=master)](https://coveralls.io/r/puniverse/capsule?branch=master) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030) [![Version](https://img.shields.io/maven-central/v/co.paralleluniverse/capsule.svg?style=flat)](https://github.com/puniverse/capsule/releases) [![License](http://img.shields.io/badge/license-EPL-blue.svg?style=flat)](https://www.eclipse.org/legal/epl-v10.html)
 
-
-Capsule is a dead-easy deployment package for standalone JVM applications. Capsule lets you package your entire application into a single JAR file and run it like this `java -jar app.jar`. That's it. You don't need platform-specific startup scripts, and no JVM flags: the application capsule contains all the JVM configuration options. It supports native libraries, custom boot class-path, and agents. It can automatically download Maven dependencies when the program is first launched if you choose not to embed them in the capsule, and it can even automatically download a new version of your application when it is published to a Maven repository.
-
-In short, a capsule is a self-contained JAR that knows everything there is to know about how to run your application the way it's meant to run.
-
-
 ## Introduction
 
 ### What is Capsule?
