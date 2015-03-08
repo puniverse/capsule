@@ -389,10 +389,6 @@ Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/ja
 ### Available Caplets
 
 * [capsule-maven](https://github.com/puniverse/capsule-maven) - Resolves artifacts against a Maven repository if not embedded in the capsule.
-<!--
-* [capsule-shield](https://github.com/puniverse/capsule-shield) - Runs a capsule inside a Linux Container (experimental)
-* [capsule-desktop](https://github.com/puniverse/capsule-desktop) - Turns capsules into native desktop apps (experimental).
--->
 
 ## Launching, Manipulating, and Creating Capsules programmatically
 
