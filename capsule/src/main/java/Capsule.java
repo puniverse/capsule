@@ -167,7 +167,6 @@ public class Capsule implements Runnable {
     protected static final Entry<String, String> ATTR_APP_CLASS = ATTRIBUTE("Application-Class", T_STRING(), null, true, "The main application class");
     protected static final Entry<String, String> ATTR_APP_ARTIFACT = ATTRIBUTE("Application", T_STRING(), null, true, "The Maven coordinates of the application's main JAR or the path of the main JAR within the capsule");
     private static final Entry<String, String> ATTR_SCRIPT = ATTRIBUTE("Application-Script", T_STRING(), null, true, "A startup script to be run *instead* of `Application-Class`, given as a path relative to the capsule's root");
-    private static final Entry<String, Boolean> ATTR_EXTRACT = ATTRIBUTE("Extract-Capsule", T_BOOL(), true, true, "Whether or not the capsule JAR will be extracted to the filesystem");
     protected static final Entry<String, String> ATTR_MIN_JAVA_VERSION = ATTRIBUTE("Min-Java-Version", T_STRING(), null, true, "The lowest Java version required to run the application");
     protected static final Entry<String, String> ATTR_JAVA_VERSION = ATTRIBUTE("Java-Version", T_STRING(), null, true, "The highest version of the Java installation required to run the application");
     protected static final Entry<String, Map<String, String>> ATTR_MIN_UPDATE_VERSION = ATTRIBUTE("Min-Update-Version", T_MAP(T_STRING(), null), null, true, "A space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required");
@@ -566,6 +565,7 @@ public class Capsule implements Runnable {
     private List<String> args_;
     private List<Path> tmpFiles = new ArrayList<>();
     private Process child;
+    private Collection<String> rootFiles;
     // Error reporting
     private static final ThreadLocal<String> contextType_ = new ThreadLocal<>();
     private static final ThreadLocal<String> contextKey_ = new ThreadLocal<>();
@@ -1494,8 +1494,6 @@ public class Capsule implements Runnable {
      * This capsule's cache directory, or {@code null} if capsule has been configured not to extract, or the app cache dir hasn't been set up yet.
      */
     protected final Path getAppCache() {
-        if (oc.appCache == null && shouldExtract())
-            oc.appCache = buildAppCacheDir();
         return oc.appCache;
     }
 
@@ -1507,7 +1505,11 @@ public class Capsule implements Runnable {
      * @throws IllegalStateException if the app cache hasn't been set up (yet).
      */
     protected final Path verifyAppCache() {
-        final Path dir = getAppCache();
+        Path dir = getAppCache();
+        if (dir == null) {
+            oc.appCache = buildAppCacheDir();
+            dir = getAppCache();
+        }
         if (dir == null) {
             String message = "Capsule not extracted.";
             if (getAppId() == null) {
@@ -1515,9 +1517,6 @@ public class Capsule implements Runnable {
                     message += " This is a wrapper capsule and the wrapped capsule hasn't been set (yet)";
                 else
                     message += " App ID has not been determined yet.";
-            } else {
-                if (!shouldExtract())
-                    message += " The " + name(ATTR_EXTRACT) + " attribute has been set to false";
             }
             throw new IllegalStateException(message);
         }
@@ -1563,8 +1562,7 @@ public class Capsule implements Runnable {
             oc.cacheUpToDate = isAppCacheUpToDate1(dir);
             if (!oc.cacheUpToDate) {
                 resetAppCache(dir);
-                if (shouldExtract())
-                    extractCapsule(dir);
+                extractCapsule(dir);
             } else
                 log(LOG_VERBOSE, "App cache " + dir + " is up to date.");
 
@@ -1576,10 +1574,6 @@ public class Capsule implements Runnable {
                 e.printStackTrace(STDERR);
             return null;
         }
-    }
-
-    private boolean shouldExtract() {
-        return getAttribute(ATTR_EXTRACT);
     }
 
     private void resetAppCache(Path dir) throws IOException {
@@ -1622,20 +1616,11 @@ public class Capsule implements Runnable {
         return fresh;
     }
 
-    /**
-     * Extracts the capsule's contents into the app cache directory.
-     * This method may be overridden to write additional files to the app cache.
-     */
-    protected void extractCapsule(Path dir) throws IOException {
-        if ((_ct = getCallTarget(Capsule.class)) != null)
-            _ct.extractCapsule(dir);
-        else
-            extractCapsule0(dir);
-    }
-
-    private void extractCapsule0(Path dir) throws IOException {
+    private void extractCapsule(Path dir) throws IOException {
         try {
             log(LOG_VERBOSE, "Extracting " + getJarFile() + " to app cache directory " + dir.toAbsolutePath());
+            if (isLogging(LOG_DEBUG))
+                Thread.dumpStack();
             extractJar(openJarInputStream(getJarFile()), dir);
         } catch (IOException e) {
             throw new IOException("Exception while extracting jar " + getJarFile() + " to app cache directory " + dir.toAbsolutePath(), e);
@@ -1702,9 +1687,6 @@ public class Capsule implements Runnable {
         if (script == null)
             return false;
 
-        if (getAppCache() == null)
-            throw new IllegalStateException("Cannot run the startup script " + script + " when the " + ATTR_EXTRACT + " attribute is set to false");
-
         setJavaHomeEnv(pb, getJavaHome());
 
         final List<Path> classPath = buildClassPath();
@@ -1732,7 +1714,6 @@ public class Capsule implements Runnable {
         command.add(processOutgoingPath(getJavaExecutable()));
 
         command.addAll(buildJVMArgs(cmdLine));
-        command.addAll(compileSystemProperties(buildSystemProperties(cmdLine)));
 
         addOption(command, "-Xbootclasspath:", compileClassPath(buildBootClassPath(cmdLine)));
         addOption(command, "-Xbootclasspath/p:", compileClassPath(resolve(getAttribute(ATTR_BOOT_CLASS_PATH_P))));
@@ -1743,6 +1724,8 @@ public class Capsule implements Runnable {
 
         final List<Path> classPath = buildClassPath();
         final String mainClass = getMainClass(classPath);
+
+        command.addAll(compileSystemProperties(buildSystemProperties(cmdLine))); // must be called after buildClassPath
 
         command.add("-classpath");
         command.add(compileClassPath(handleLongClasspath(classPath, mainClass.length(), command, oc.args_)));
@@ -1828,8 +1811,8 @@ public class Capsule implements Runnable {
         if (!isWrapperOfNonCapsule()) {
             if (getAttribute(ATTR_CAPSULE_IN_CLASS_PATH))
                 classPath.add(getJarFile());
-            else if (getAppCache() == null)
-                throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the " + ATTR_EXTRACT + " attribute is also set to false");
+            else
+                verifyAppCache();
         }
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
@@ -1858,6 +1841,8 @@ public class Capsule implements Runnable {
                 addAllIfAbsent(classPath, resolve(sp));
         }
 
+        if (getAppCache() == null && hasRootFiles("jar"))
+            verifyAppCache();
         if (getAppCache() != null)
             addAllIfAbsent(classPath, nullToEmpty(getDefaultCacheClassPath()));
 
@@ -1868,6 +1853,7 @@ public class Capsule implements Runnable {
     }
 
     private List<Path> getDefaultCacheClassPath() {
+        assert getAppCache() != null;
         final List<Path> cp = new ArrayList<Path>(listDir(getAppCache(), "*.jar", true));
         cp.add(0, getAppCache());
         return cp;
@@ -1919,7 +1905,7 @@ public class Capsule implements Runnable {
         if (hasAttribute(ATTR_SECURITY_MANAGER))
             systemProperties.put(PROP_JAVA_SECURITY_MANAGER, getAttribute(ATTR_SECURITY_MANAGER));
 
-        // Capsule properties
+        // Capsule properties (must come last b/c of getAppCache)
         if (getAppId() != null) {
             if (getAppCache() != null)
                 systemProperties.put(PROP_CAPSULE_DIR, processOutgoingPath(getAppCache()));
@@ -1950,6 +1936,8 @@ public class Capsule implements Runnable {
             libraryPath.addAll(0, sanitize(resolve(verifyAppCache(), getAttribute(ATTR_LIBRARY_PATH_P))));
             libraryPath.addAll(sanitize(resolve(verifyAppCache(), getAttribute(ATTR_LIBRARY_PATH_A))));
         }
+        if (getAppCache() == null && hasRootFiles(getNativeLibExtension()))
+            verifyAppCache();
         if (getAppCache() != null)
             libraryPath.add(getAppCache());
         return libraryPath;
@@ -2059,14 +2047,8 @@ public class Capsule implements Runnable {
         for (Map.Entry<String, String> agent : agents0.entrySet()) {
             final String agentName = agent.getKey();
             final String agentOptions = agent.getValue();
-            try {
-                final Path agentPath = first(resolve(agentName + (java ? "" : ("." + getNativeLibExtension()))));
-                agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? agentOptions : ""));
-            } catch (IllegalStateException e) {
-                if (getAppCache() == null && isThrownByCapsule(e))
-                    throw new RuntimeException("Cannot run the embedded agent " + agentName + " when the " + ATTR_EXTRACT + " attribute is set to false", e);
-                throw e;
-            }
+            final Path agentPath = first(resolve(agentName + (java ? "" : ("." + getNativeLibExtension()))));
+            agents.put(agentPath, ((agentOptions != null && !agentOptions.isEmpty()) ? agentOptions : ""));
         }
         time("buildAgents (" + (java ? "java" : "native") + ")", start);
         return emptyToNull(agents);
@@ -2869,6 +2851,32 @@ public class Capsule implements Runnable {
         if (fileName.startsWith("META-INF/"))
             return false;
         return true;
+    }
+
+    private boolean hasRootFiles(String type) {
+        final String suffix = '.' + type;
+        for (String f : getRootFiles()) {
+            if (f.endsWith(suffix))
+                return true;
+        }
+        return false;
+    }
+
+    private Collection<String> getRootFiles() {
+        if (rootFiles == null) {
+            final long start = clock();
+            try (ZipInputStream zis = openJarInputStream(getJarFile())) {
+                rootFiles = new ArrayList<>();
+                for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
+                    if (!entry.isDirectory() && !(entry.getName().contains("/") || entry.getName().contains("\\")))
+                        rootFiles.add(entry.getName());
+                }
+            } catch (IOException e) {
+                throw rethrow(e);
+            }
+            time("getRootFiles", start);
+        }
+        return rootFiles;
     }
 
     private Path mergeCapsule(Path wrapperCapsule, Path wrappedCapsule, Path outCapsule) throws IOException {
@@ -3699,11 +3707,12 @@ public class Capsule implements Runnable {
         String value = null;
         switch (var) {
             case VAR_CAPSULE_DIR:
-                if (getAppCache() == null)
-                    throw new IllegalStateException("Cannot resolve variable $" + var + "; capsule not expanded");
-                value = processOutgoingPath(getAppCache());
-                break;
-
+                try {
+                    value = processOutgoingPath(verifyAppCache());
+                    break;
+                } catch (IllegalStateException e) {
+                    throw new IllegalStateException("Cannot resolve variable $" + var, e);
+                }
             case VAR_CAPSULE_APP:
                 if (getAppId() == null)
                     throw new RuntimeException("Cannot resolve variable $" + var + " in an empty capsule.");

@@ -136,8 +136,7 @@ public class CapsuleTest {
     public void testNoExtract() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
-                .setAttribute("Extract-Capsule", "false")
-                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("foo.txt", emptyInputStream())
                 .addEntry("lib/a.jar", emptyInputStream());
 
         List<String> args = list("hi", "there");
@@ -943,9 +942,9 @@ public class CapsuleTest {
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assertTrue(capsule.hasCaplet("MyCapsule"));
-        
+
         assertTrue(capsule.toString() != null); // exercise toString
-        
+
         // dumpFileSystem(fs);
         assertTrue(pb != null);
 
@@ -1217,11 +1216,11 @@ public class CapsuleTest {
         assertEquals(0, exit);
         assertTrue(Files.isRegularFile(path("out.jar")));
         Jar out = new Jar(path("out.jar"));
-        
+
         assert_().that(out.getAttribute("Main-Class")).isEqualTo("TestCapsule");
         assert_().that(out.getListAttribute("Caplets")).isEqualTo(list("MyCapsule"));
         assert_().that(out.getMapAttribute("System-Properties", "")).isEqualTo(map("p1", "111"));
-        
+
         FileSystem jar = ZipFS.newZipFileSystem(path("out.jar"));
         assertTrue(Files.isRegularFile(jar.getPath("Capsule.class")));
         assertTrue(Files.isRegularFile(jar.getPath("TestCapsule.class")));
@@ -1419,28 +1418,6 @@ public class CapsuleTest {
             expand(capsule, "${foo.bar.baz}");
             fail();
         } catch (RuntimeException e) {
-        }
-    }
-
-    @Test
-    public void testExpandVars2() throws Exception {
-        Jar jar = newCapsuleJar()
-                .setAttribute("Application-Class", "com.acme.Foo")
-                .setAttribute("Extract-Capsule", "false");
-
-        Capsule capsule = newCapsule(jar);
-        capsule.prepareForLaunch(null, null);
-
-        String cj = absolutePath("capsule.jar").toString();
-        String cd = cache.resolve("apps").resolve("com.acme.Foo").toString();
-        String cid = capsule.getAppId();
-
-        assertEquals(cj + "xxx " + cj + " xxx " + cj, expand(capsule, "${CAPSULE_JAR}" + "xxx " + "$CAPSULE_JAR" + " xxx " + "$CAPSULE_JAR"));
-        assertEquals(cid + " xxx" + cid + "xxx " + cid, expand(capsule, "$CAPSULE_APP" + " xxx" + "${CAPSULE_APP}" + "xxx " + "$CAPSULE_APP"));
-        try {
-            expand(capsule, "${CAPSULE_DIR}" + "xxx" + "${CAPSULE_DIR}" + "xxx" + "${CAPSULE_DIR}");
-            fail();
-        } catch (IllegalStateException e) {
         }
     }
 
