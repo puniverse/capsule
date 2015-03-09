@@ -178,7 +178,7 @@ public class Capsule implements Runnable {
     protected static final Entry<String, List<String>> ATTR_JVM_ARGS = ATTRIBUTE("JVM-Args", T_LIST(T_STRING()), null, true, "A list of JVM arguments that will be used to launch the application's Java process");
     protected static final Entry<String, Map<String, String>> ATTR_SYSTEM_PROPERTIES = ATTRIBUTE("System-Properties", T_MAP(T_STRING(), ""), null, true, "A list of system properties that will be defined in the applications JVM; formatted \"prop=value\" or \"prop\"");
     protected static final Entry<String, List<String>> ATTR_APP_CLASS_PATH = ATTRIBUTE("App-Class-Path", T_LIST(T_STRING()), null, true, "A list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed");
-    protected static final Entry<String, String> ATTR_CAPSULE_IN_CLASS_PATH = ATTRIBUTE("Capsule-In-Class-Path", T_STRING(), "true", true, "Whether or not the capsule JAR itself is on the application's classpath");
+    protected static final Entry<String, Boolean> ATTR_CAPSULE_IN_CLASS_PATH = ATTRIBUTE("Capsule-In-Class-Path", T_BOOL(), true, true, "Whether or not the capsule JAR itself is on the application's classpath");
     protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH = ATTRIBUTE("Boot-Class-Path", T_LIST(T_STRING()), null, true, "A list of JARs, dependencies, and/or directories, relative to the capsule root, that will be used as the application's boot classpath");
     protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH_A = ATTRIBUTE("Boot-Class-Path-A", T_LIST(T_STRING()), null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath");
     protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH_P = ATTRIBUTE("Boot-Class-Path-P", T_LIST(T_STRING()), null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be prepended to the applications default boot classpath");
@@ -1826,7 +1826,7 @@ public class Capsule implements Runnable {
 
         // the capsule jar
         if (!isWrapperOfNonCapsule()) {
-            if (Boolean.parseBoolean(getAttribute(ATTR_CAPSULE_IN_CLASS_PATH)))
+            if (getAttribute(ATTR_CAPSULE_IN_CLASS_PATH))
                 classPath.add(getJarFile());
             else if (getAppCache() == null)
                 throw new IllegalStateException("Cannot set the " + ATTR_CAPSULE_IN_CLASS_PATH + " attribute to false when the " + ATTR_EXTRACT + " attribute is also set to false");
