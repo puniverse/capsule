@@ -173,7 +173,7 @@ which specifies the application's main class, or,
 
 or,
 
-    Script : [a platform specific startup shell/batch-script]
+    Application-Script : [a platform specific startup shell/batch-script]
 
 If a script is used, a different one should be listed for each OS type, as we'll see below.
 
@@ -205,13 +205,13 @@ A capsule is configured by attributes in its manifest. Manifest attributes speci
 
 It is possible to specify different values for each of the configurations -- to be selected at launch time -- by defining attributes in special manifest *sections*. Currently, there are three types of sections supported: OS, JRE version and mode. Manifest sections better allow a capsule to adapt to its environment, but are by no means necessary for most capsules.
 
-An OS section is selected based on the OS launching the capsule, and allows defining attributes that are different based on the OS; this is useful for specifying a launch script (in the `Script` attribute, or native libraries in the `Native-Dependencies`/`Native-Agents` attributes), but can be used for any attribute. The name of the section is the OS name, and can be one of: `Windows`, `MacOS`, `Linux`, `Solaris`, `Unix` or `POSIX`. The `Unix` section is in effect for any Unix-like system (including Linux and Solaris), and the `POSIX` section is in effect for Unix-like systems as well as MacOS. So a simple launch script can be defined so:
+An OS section is selected based on the OS launching the capsule, and allows defining attributes that are different based on the OS; this is useful for specifying a launch script (in the `Application-Script` attribute, or native libraries in the `Native-Dependencies`/`Native-Agents` attributes), but can be used for any attribute. The name of the section is the OS name, and can be one of: `Windows`, `MacOS`, `Linux`, `Solaris`, `Unix` or `POSIX`. The `Unix` section is in effect for any Unix-like system (including Linux and Solaris), and the `POSIX` section is in effect for Unix-like systems as well as MacOS. So a simple launch script can be defined so:
 
     Name: Windows
-    Script: run.bat
+    Application-Script: run.bat
 
     Name: POSIX
-    Script: run.sh
+    Application-Script: run.sh
 
 A JRE version section is selected based on the major Java version chosen by capsule to run the application (as we'll see later, a capsule can require a specific Java version, or a minimum version). This kind of section is rare, but can be useful for applications that might use different libraries depending on the JRE version used. This kind of section is named `Java-N`, where N is the major version number (6, 7, 8 etc.).
 
@@ -225,16 +225,16 @@ Modes are a little different, as they are not selected automatically, but by the
 To further specialize modes based on OS or JRE version, simply add `-` and the OS/JRE name to the modes, like so:
 
     Name: Windows
-    Script: run.bat
+    Application-Script: run.bat
 
     Name: POSIX
-    Script: run.sh
+    Application-Script: run.sh
 
     Name: Special-Windows
-    Script: special.bat
+    Application-Script: special.bat
 
     Name: Special-POSIX
-    Script: special.sh
+    Application-Script: special.sh
 
 A mode is selected by adding `-Dcapsule.mode=[mode name]` to the capsule's launch command line. Mode names are case insensitive. A capsule's modes can be listed by adding `-Dcapsule.modes` to the command line.
 
@@ -317,7 +317,7 @@ Remember that values listed in all these configuration values can contain the `$
 
 ### Scripts
 
-While Capsule mostly makes startup scripts unnecessary, in some circumstances they can be useful. Capsule allows placing platform-specific scripts into the capsule JAR, and executing them instead of launching a JVM and running `Application-Class`. The `Script` attribute specifies the location (relative to the capsule JAR's root) of the script, and should generally by defined in a platform-specific section.
+While Capsule mostly makes startup scripts unnecessary, in some circumstances they can be useful. Capsule allows placing platform-specific scripts into the capsule JAR, and executing them instead of launching a JVM and running `Application-Class`. The `Application-Script` attribute specifies the location (relative to the capsule JAR's root) of the script, and should generally by defined in a platform-specific section.
 
 The scripts can make use of the `CAPSULE_DIR` environment variable to locate capsule files. In addition, Capsule will choose the JVM installation based on the version requirements, and set the `JAVA_HOME` environment variable for the script appropriately.
 
@@ -405,7 +405,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Application-Name`: the human-readable name of the application
 * `Application-Class`: the application's main class
 * `Application`: the Maven coordinates of the application's main JAR or the path of the main JAR within the capsule
-* `Script`: a startup script to be run *instead* of `Application-Class`, given as a path relative to the capsule's root
+* `Application-Script`: a startup script to be run *instead* of `Application-Class`, given as a path relative to the capsule's root
 * `Min-Java-Version`: the lowest Java version required to run the application; Capsule will look for an appropriate installation
 * `Min-Update-Version`: a space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required
 * `Java-Version`: the highest version of the Java installation required to run the application; Capsule will look for an appropriate installation
