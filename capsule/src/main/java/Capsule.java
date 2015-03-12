@@ -1620,7 +1620,7 @@ public class Capsule implements Runnable {
         try {
             log(LOG_VERBOSE, "Extracting " + getJarFile() + " to app cache directory " + dir.toAbsolutePath());
             if (isLogging(LOG_DEBUG))
-                Thread.dumpStack();
+                new Exception("Stack trace").printStackTrace(STDERR);
             extractJar(openJarInputStream(getJarFile()), dir);
         } catch (IOException e) {
             throw new IOException("Exception while extracting jar " + getJarFile() + " to app cache directory " + dir.toAbsolutePath(), e);
