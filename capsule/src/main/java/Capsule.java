@@ -249,10 +249,14 @@ public class Capsule implements Runnable {
     private static final String OS_MACOS = "macos";
     private static final String OS_LINUX = "linux";
     private static final String OS_SOLARIS = "solaris";
+    private static final String OS_BSD = "bsd";
+    private static final String OS_AIX = "aix";
+    private static final String OS_HP_UX = "hp-ux";
     private static final String OS_UNIX = "unix";
     private static final String OS_POSIX = "posix";
+    private static final String OS_VMS = "vms";
 
-    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_UNIX, OS_POSIX);
+    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_BSD, OS_AIX, OS_POSIX, OS_UNIX, OS_POSIX, OS_VMS);
 
     // logging
     private static final String LOG_PREFIX = "CAPSULE: ";
@@ -2469,6 +2473,8 @@ public class Capsule implements Runnable {
     }
 
     private String getPlatformAttribute(String mode, String attr) {
+        if (PLATFORM == null)
+            return null;
         String value = null;
         if (value == null)
             value = getAttributes(manifest, mode, PLATFORM).getValue(attr);
@@ -3051,34 +3057,44 @@ public class Capsule implements Runnable {
      * Tests whether the current OS is Windows.
      */
     protected static final boolean isWindows() {
-        return OS.startsWith("windows");
+        return PLATFORM == OS_WINDOWS;
     }
 
     /**
      * Tests whether the current OS is MacOS.
      */
     protected static final boolean isMac() {
-        return OS.startsWith("mac");
+        return PLATFORM == OS_MACOS;
     }
 
     /**
      * Tests whether the current OS is UNIX/Linux.
      */
     protected static final boolean isUnix() {
-        return OS.contains("nux") || OS.contains("solaris") || OS.contains("aix");
+        return PLATFORM == OS_LINUX || PLATFORM == OS_SOLARIS || PLATFORM == OS_BSD
+                || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX;
     }
 
     private static String getOS() {
-        if (isWindows())
+        if (OS.startsWith("windows"))
             return OS_WINDOWS;
-        if (isMac())
+        if (OS.startsWith("mac"))
             return OS_MACOS;
-        if (OS.contains("solaris"))
-            return OS_SOLARIS;
-        if (isUnix())
+        if (OS.contains("linux"))
             return OS_LINUX;
-        else
-            throw new RuntimeException("Unrecognized OS: " + System.getProperty(PROP_OS_NAME));
+        if (OS.contains("solaris") || OS.contains("sunos") || OS.contains("illumos"))
+            return OS_SOLARIS;
+        if (OS.contains("bsd"))
+            return OS_BSD;
+        if (OS.contains("aix"))
+            return OS_AIX;
+        if (OS.contains("hp-ux"))
+            return OS_HP_UX;
+        if (OS.contains("vms"))
+            return OS_VMS;
+
+        log(LOG_QUIET, "WARNING Unrecognized OS: " + System.getProperty(PROP_OS_NAME));
+        return null;
     }
 
     /**
