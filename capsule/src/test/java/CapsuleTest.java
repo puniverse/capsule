@@ -1090,20 +1090,11 @@ public class CapsuleTest {
     }
 
     private static int main0(Class<?> clazz, String... args) {
-        try {
-            return (Integer) accessible(actualCapsuleClass(clazz).getDeclaredMethod("main0", String[].class)).invoke(null, (Object) args);
-        } catch (Exception ex) {
-            throw rethrow(ex);
-        }
+        return Reflect.on(clazz).call("main0", (Object) args).get();
     }
 
     private static boolean runActions(Object capsule, List<String> args) {
-        try {
-            Class<?> clazz = actualCapsuleClass(capsule.getClass());
-            return (Boolean) accessible(clazz.getDeclaredMethod("runActions", clazz, List.class)).invoke(null, capsule, args);
-        } catch (Exception ex) {
-            throw rethrow(ex);
-        }
+        return Reflect.on(capsule.getClass()).call("runActions", capsule, args).get();
     }
 
     @Test
@@ -1422,11 +1413,7 @@ public class CapsuleTest {
     }
 
     private String expand(Capsule c, String s) {
-        try {
-            return (String) accessible(Capsule.class.getDeclaredMethod("expand", String.class)).invoke(c, s);
-        } catch (ReflectiveOperationException e) {
-            throw rethrow(e);
-        }
+        return Reflect.on(c).call("expand", s).get();
     }
 
     @Test
@@ -1556,21 +1543,11 @@ public class CapsuleTest {
     }
 
     private Capsule setTarget(Capsule capsule, String artifact) {
-        try {
-            accessible(Capsule.class.getDeclaredMethod("setTarget", String.class)).invoke(capsule, artifact);
-            return capsule;
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
-        }
+        return Reflect.on(capsule).call("setTarget", artifact).get();
     }
 
     private Capsule setTarget(Capsule capsule, Path jar) {
-        try {
-            accessible(Capsule.class.getDeclaredMethod("setTarget", Path.class)).invoke(capsule, jar);
-            return capsule;
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
-        }
+        return Reflect.on(capsule).call("setTarget", jar).get();
     }
 
     private Path path(String first, String... more) {
