@@ -237,7 +237,6 @@ public class Capsule implements Runnable {
     private static final String LOCK_FILE_NAME = ".lock";
     private static final String TIMESTAMP_FILE_NAME = ".extracted";
     private static final String CACHE_NONE = "NONE";
-    private static final Object DEFAULT = new Object();
     private static final String SEPARATOR_DOT = "\\.";
     private static final Path WINDOWS_PROGRAM_FILES_1 = Paths.get("C:", "Program Files");
     private static final Path WINDOWS_PROGRAM_FILES_2 = Paths.get("C:", "Program Files (x86)");
