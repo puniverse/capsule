@@ -3013,15 +3013,6 @@ public class Capsule implements Runnable {
         throw new IllegalArgumentException("Path " + p + " is not local to app cache " + getAppCache());
     }
 
-    private static String expandCommandLinePath(String str) {
-        if (str == null)
-            return null;
-//        if (isWindows())
-//            return str;
-//        else
-        return str.startsWith("~/") ? str.replace("~", getProperty(PROP_USER_HOME)) : str;
-    }
-
     private static Path toFriendlyPath(Path p) {
         if (p.isAbsolute()) {
             Path rel = p.getFileSystem().getPath("").toAbsolutePath().relativize(p);
