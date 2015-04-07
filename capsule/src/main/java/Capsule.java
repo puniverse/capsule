@@ -3043,6 +3043,7 @@ public class Capsule implements Runnable {
     /**
      * Tests whether the current OS is Windows.
      */
+    @SuppressWarnings("StringEquality")
     protected static final boolean isWindows() {
         return PLATFORM == OS_WINDOWS;
     }
@@ -3050,6 +3051,7 @@ public class Capsule implements Runnable {
     /**
      * Tests whether the current OS is MacOS.
      */
+    @SuppressWarnings("StringEquality")
     protected static final boolean isMac() {
         return PLATFORM == OS_MACOS;
     }
@@ -3057,6 +3059,7 @@ public class Capsule implements Runnable {
     /**
      * Tests whether the current OS is UNIX/Linux.
      */
+    @SuppressWarnings("StringEquality")
     protected static final boolean isUnix() {
         return PLATFORM == OS_LINUX || PLATFORM == OS_SOLARIS || PLATFORM == OS_BSD
                 || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX;
