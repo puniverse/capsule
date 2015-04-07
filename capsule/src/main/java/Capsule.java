@@ -870,12 +870,12 @@ public class Capsule implements Runnable {
         if (!getClass().equals(Capsule.class) || !wrapper)
             return false;
         for (Object attr : manifest.getMainAttributes().keySet()) {
-            if (ATTRIBS.containsKey(attr.toString())) // (!isCommonAttribute(attr.toString()))
+            if (ATTRIBS.containsKey(attr.toString()))
                 return false;
         }
         for (Attributes atts : manifest.getEntries().values()) {
             for (Object attr : atts.keySet()) {
-                if (ATTRIBS.containsKey(attr.toString())) // (!isCommonAttribute(attr.toString()))
+                if (ATTRIBS.containsKey(attr.toString()))
                     return false;
             }
         }
