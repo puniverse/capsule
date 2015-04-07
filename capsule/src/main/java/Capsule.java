@@ -1737,25 +1737,6 @@ public class Capsule implements Runnable {
         return true;
     }
 
-    private List<Path> handleLongClasspath(List<Path> cp, int extra, List<?>... args) {
-        if (!isWindows())
-            return cp; // why work hard if we know the problem only exists on Windows?
-
-        long len = extra + getStringsLength(cp) + cp.size();
-        for (List<?> list : args)
-            len += getStringsLength(list) + list.size();
-
-        if (len >= getMaxCommandLineLength()) {
-            log(LOG_DEBUG, "Command line length: " + len);
-            if (isTrampoline())
-                throw new RuntimeException("Command line too long and trampoline requested.");
-            final Path pathingJar = addTempFile(createPathingJar(getTempDir(), cp));
-            log(LOG_VERBOSE, "Writing classpath: " + cp + " to pathing JAR: " + pathingJar);
-            return singletonList(pathingJar);
-        } else
-            return cp;
-    }
-
     /**
      * Returns the path to the executable that will be used to launch Java.
      * The default implementation uses the {@code capsule.java.cmd} property or the {@code JAVACMD} environment variable,
@@ -3183,41 +3164,6 @@ public class Capsule implements Runnable {
         is.reset();
         return is;
     }
-
-    // visible for testing
-    static Path createPathingJar(Path dir, List<Path> cp) {
-        try {
-            dir = dir.toAbsolutePath();
-            final List<String> paths = createPathingClassPath(dir, cp);
-
-            final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
-            final Manifest man = new Manifest();
-            man.getMainAttributes().putValue(ATTR_MANIFEST_VERSION, "1.0");
-            man.getMainAttributes().putValue(ATTR_CLASS_PATH, join(paths, " "));
-            new JarOutputStream(Files.newOutputStream(pathingJar), man).close();
-
-            return pathingJar;
-        } catch (IOException e) {
-            throw new RuntimeException("Pathing JAR creation failed", e);
-        }
-    }
-
-    private static List<String> createPathingClassPath(Path dir, List<Path> cp) {
-        boolean allPathsHaveSameRoot = true;
-        for (Path p : cp) {
-            if (!dir.getRoot().equals(p.getRoot()))
-                allPathsHaveSameRoot = false;
-        }
-
-        final List<String> paths = new ArrayList<>(cp.size());
-        for (Path p : cp) { // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file URLs
-            if (allPathsHaveSameRoot)
-                paths.add(dir.relativize(p).toString());
-            else
-                paths.add(p.toUri().toString());
-        }
-        return paths;
-    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="File Utils">
@@ -4308,6 +4254,65 @@ public class Capsule implements Runnable {
 
     private void onError0(Throwable t) {
         printError(t, this);
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Windows">
+    /////////// Windows ///////////////////////////////////
+    //<editor-fold defaultstate="collapsed" desc="Long Classpath - Pathing JAR">
+    /////////// Long Classpath - Pathing JAR ///////////////////////////////////
+    private List<Path> handleLongClasspath(List<Path> cp, int extra, List<?>... args) {
+        if (!isWindows())
+            return cp; // why work hard if we know the problem only exists on Windows?
+
+        long len = extra + getStringsLength(cp) + cp.size();
+        for (List<?> list : args)
+            len += getStringsLength(list) + list.size();
+
+        if (len >= getMaxCommandLineLength()) {
+            log(LOG_DEBUG, "Command line length: " + len);
+            if (isTrampoline())
+                throw new RuntimeException("Command line too long and trampoline requested.");
+            final Path pathingJar = addTempFile(createPathingJar(getTempDir(), cp));
+            log(LOG_VERBOSE, "Writing classpath: " + cp + " to pathing JAR: " + pathingJar);
+            return singletonList(pathingJar);
+        } else
+            return cp;
+    }
+
+    // visible for testing
+    static Path createPathingJar(Path dir, List<Path> cp) {
+        try {
+            dir = dir.toAbsolutePath();
+            final List<String> paths = createPathingClassPath(dir, cp);
+
+            final Path pathingJar = Files.createTempFile(dir, "capsule_pathing_jar", ".jar");
+            final Manifest man = new Manifest();
+            man.getMainAttributes().putValue(ATTR_MANIFEST_VERSION, "1.0");
+            man.getMainAttributes().putValue(ATTR_CLASS_PATH, join(paths, " "));
+            new JarOutputStream(Files.newOutputStream(pathingJar), man).close();
+
+            return pathingJar;
+        } catch (IOException e) {
+            throw new RuntimeException("Pathing JAR creation failed", e);
+        }
+    }
+
+    private static List<String> createPathingClassPath(Path dir, List<Path> cp) {
+        boolean allPathsHaveSameRoot = true;
+        for (Path p : cp) {
+            if (!dir.getRoot().equals(p.getRoot()))
+                allPathsHaveSameRoot = false;
+        }
+
+        final List<String> paths = new ArrayList<>(cp.size());
+        for (Path p : cp) { // In order to use the Class-Path attribute, we must either relativize the paths, or specifiy them as file URLs
+            if (allPathsHaveSameRoot)
+                paths.add(dir.relativize(p).toString());
+            else
+                paths.add(p.toUri().toString());
+        }
+        return paths;
     }
     //</editor-fold>
 
