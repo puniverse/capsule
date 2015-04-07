@@ -1427,72 +1427,75 @@ public class CapsuleTest {
 
     @Test
     public void testParseAttribute() {
-        assertEquals("abcd 123", Capsule.parse("abcd 123", Capsule.T_STRING()));
-        assertEquals(true, Capsule.parse("TRUE", Capsule.T_BOOL()));
-        assertEquals(true, Capsule.parse("true", Capsule.T_BOOL()));
-        assertEquals(false, Capsule.parse("FALSE", Capsule.T_BOOL()));
-        assertEquals(false, Capsule.parse("false", Capsule.T_BOOL()));
-        assertEquals(15L, (long) Capsule.parse("15", Capsule.T_LONG()));
+        assertEquals("abcd 123", Capsule.parse("abcd 123", Capsule.T_STRING(), null));
+        assertEquals(true, Capsule.parse("TRUE", Capsule.T_BOOL(), null));
+        assertEquals(true, Capsule.parse("true", Capsule.T_BOOL(), null));
+        assertEquals(false, Capsule.parse("FALSE", Capsule.T_BOOL(), null));
+        assertEquals(false, Capsule.parse("false", Capsule.T_BOOL(), null));
+        assertEquals(15L, (long) Capsule.parse("15", Capsule.T_LONG(), null));
         try {
-            Capsule.parse("15abs", Capsule.T_LONG());
+            Capsule.parse("15abs", Capsule.T_LONG(), null);
             fail();
         } catch (RuntimeException e) {
         }
-        assertEquals(1.2, Capsule.parse("1.2", Capsule.T_DOUBLE()), 0.0001);
+        assertEquals(1.2, Capsule.parse("1.2", Capsule.T_DOUBLE(), null), 0.0001);
         try {
-            Capsule.parse("1.2a", Capsule.T_DOUBLE());
+            Capsule.parse("1.2a", Capsule.T_DOUBLE(), null);
             fail();
         } catch (RuntimeException e) {
         }
 
-        assertEquals(list("abcd", "123"), Capsule.parse("abcd 123", Capsule.T_LIST(Capsule.T_STRING())));
-        assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.parse("ab cd  ef g hij kl  ", Capsule.T_LIST(Capsule.T_STRING())));
-        assertEquals(list(true, false, true, false), Capsule.parse("TRUE false true FALSE", Capsule.T_LIST(Capsule.T_BOOL())));
-        assertEquals(list(123L, 456L, 7L), Capsule.parse("123 456  7", Capsule.T_LIST(Capsule.T_LONG())));
-        assertEquals(list(1.23, 3.45), Capsule.parse("1.23 3.45", Capsule.T_LIST(Capsule.T_DOUBLE())));
+        assertEquals(list("abcd", "123"), Capsule.parse("abcd 123", Capsule.T_LIST(Capsule.T_STRING()), null));
+        assertEquals(list("ab", "cd", "ef", "g", "hij", "kl"), Capsule.parse("ab cd  ef g hij kl  ", Capsule.T_LIST(Capsule.T_STRING()), null));
+        assertEquals(list(true, false, true, false), Capsule.parse("TRUE false true FALSE", Capsule.T_LIST(Capsule.T_BOOL()), null));
+        assertEquals(list(123L, 456L, 7L), Capsule.parse("123 456  7", Capsule.T_LIST(Capsule.T_LONG()), null));
+        assertEquals(list(1.23, 3.45), Capsule.parse("1.23 3.45", Capsule.T_LIST(Capsule.T_DOUBLE()), null));
 
         assertEquals(map("ab", "1",
                 "cd", "xx",
                 "ef", "32",
                 "g", "xx",
                 "hij", "",
-                "kl", ""), Capsule.parse("ab=1 cd  ef=32 g hij= kl=  ", Capsule.T_MAP(Capsule.T_STRING(), "xx")));
+                "kl", ""), Capsule.parse("ab=1 cd  ef=32 g hij= kl=  ", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_STRING(), "xx"), null));
         try {
-            Capsule.parse("ab=1 cd  ef=32 g hij= kl=  ", Capsule.T_MAP(Capsule.T_STRING(), null));
+            Capsule.parse("ab=1 cd  ef=32 g hij= kl=  ", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_STRING(), null), null);
             fail();
         } catch (Exception e) {
         }
 
-        assertEquals(map("ab", true, "cd", true, "ef", false, "g", true), Capsule.parse("ab=true cd  ef=false  g", Capsule.T_MAP(Capsule.T_BOOL(), true)));
+        assertEquals(map("ab", true, "cd", true, "ef", false, "g", true), Capsule.parse("ab=true cd  ef=false  g", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_BOOL(), true), null));
         try {
-            Capsule.parse("ab=true cd  ef=false  g", Capsule.T_MAP(Capsule.T_BOOL(), null));
+            Capsule.parse("ab=true cd  ef=false  g", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_BOOL(), null), null);
             fail();
         } catch (Exception e) {
         }
 
-        assertEquals(map("ab", 12L, "cd", 17L, "ef", 54L, "g", 17L), Capsule.parse("ab=12 cd  ef=54  g", Capsule.T_MAP(Capsule.T_LONG(), 17)));
+        assertEquals(map("ab", 12L, "cd", 17L, "ef", 54L, "g", 17L), Capsule.parse("ab=12 cd  ef=54  g", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_LONG(), 17), null));
         try {
-            Capsule.parse("ab=12 cd  ef=54  g", Capsule.T_MAP(Capsule.T_LONG(), null));
+            Capsule.parse("ab=12 cd  ef=54  g", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_LONG(), null), null);
             fail();
         } catch (Exception e) {
         }
         try {
-            Capsule.parse("ab=12 cd=xy  ef=54  g=z", Capsule.T_MAP(Capsule.T_LONG(), 17));
+            Capsule.parse("ab=12 cd=xy  ef=54  g=z", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_LONG(), 17), null);
             fail();
         } catch (Exception e) {
         }
 
-        assertEquals(map("ab", 12.0, "cd", 100.0, "ef", 5.4, "g", 100.0), Capsule.parse("ab=12 cd  ef=5.4  g", Capsule.T_MAP(Capsule.T_DOUBLE(), 100)));
+        assertEquals(map("ab", 12.0, "cd", 100.0, "ef", 5.4, "g", 100.0), Capsule.parse("ab=12 cd  ef=5.4  g", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_DOUBLE(), 100), null));
         try {
-            Capsule.parse("ab=12.1 cd  ef=5.4  g", Capsule.T_MAP(Capsule.T_DOUBLE(), null));
+            Capsule.parse("ab=12.1 cd  ef=5.4  g", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_DOUBLE(), null), null);
             fail();
         } catch (Exception e) {
         }
         try {
-            Capsule.parse("ab=12 cd=xy ef=54  g=z", Capsule.T_MAP(Capsule.T_DOUBLE(), 17.0));
+            Capsule.parse("ab=12 cd=xy ef=54  g=z", Capsule.T_MAP(Capsule.T_STRING(), Capsule.T_DOUBLE(), 17.0), null);
             fail();
         } catch (Exception e) {
         }
+
+        assertEquals(map(12.3, 12L, 1.01, 17L, 2.05, 54L, 4.0, 17L), Capsule.parse("12.3=12 1.01  2.05=54  4.0", Capsule.T_MAP(Capsule.T_DOUBLE(), Capsule.T_LONG(), 17), null));
+
     }
 
     @Test

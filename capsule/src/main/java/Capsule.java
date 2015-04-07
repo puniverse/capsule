@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -161,36 +162,36 @@ public class Capsule implements Runnable {
     /** The application's unique ID. E.g. {@code "com.acme.bestwordprocessor"} */
     protected static final Entry<String, String> ATTR_APP_ID = ATTRIBUTE("Application-Id", T_STRING(), null, false, "The application's name");
     protected static final Entry<String, String> ATTR_APP_VERSION = ATTRIBUTE("Application-Version", T_STRING(), null, false, "The application's version string");
-    protected static final Entry<String, List<String>> ATTR_CAPLETS = ATTRIBUTE("Caplets", T_LIST(T_STRING()), null, false, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
+    protected static final Entry<String, List<String>> ATTR_CAPLETS = ATTRIBUTE("Caplets", T_LIST(T_FILE()), null, false, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
     private static final Entry<String, String> ATTR_LOG_LEVEL = ATTRIBUTE("Capsule-Log-Level", T_STRING(), null, false, "The capsule's default log level");
     private static final Entry<String, String> ATTR_MODE_DESC = ATTRIBUTE("Description", T_STRING(), null, true, "Contains the description of its respective mode");
     protected static final Entry<String, String> ATTR_APP_CLASS = ATTRIBUTE("Application-Class", T_STRING(), null, true, "The main application class");
-    protected static final Entry<String, String> ATTR_APP_ARTIFACT = ATTRIBUTE("Application", T_STRING(), null, true, "The Maven coordinates of the application's main JAR or the path of the main JAR within the capsule");
-    private static final Entry<String, String> ATTR_SCRIPT = ATTRIBUTE("Application-Script", T_STRING(), null, true, "A startup script to be run *instead* of `Application-Class`, given as a path relative to the capsule's root");
+    protected static final Entry<String, String> ATTR_APP_ARTIFACT = ATTRIBUTE("Application", T_FILE(), null, true, "The Maven coordinates of the application's main JAR or the path of the main JAR within the capsule");
+    private static final Entry<String, String> ATTR_SCRIPT = ATTRIBUTE("Application-Script", T_FILE(), null, true, "A startup script to be run *instead* of `Application-Class`, given as a path relative to the capsule's root");
     protected static final Entry<String, String> ATTR_MIN_JAVA_VERSION = ATTRIBUTE("Min-Java-Version", T_STRING(), null, true, "The lowest Java version required to run the application");
     protected static final Entry<String, String> ATTR_JAVA_VERSION = ATTRIBUTE("Java-Version", T_STRING(), null, true, "The highest version of the Java installation required to run the application");
-    protected static final Entry<String, Map<String, String>> ATTR_MIN_UPDATE_VERSION = ATTRIBUTE("Min-Update-Version", T_MAP(T_STRING(), null), null, true, "A space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required");
+    protected static final Entry<String, Map<String, String>> ATTR_MIN_UPDATE_VERSION = ATTRIBUTE("Min-Update-Version", T_MAP(T_STRING(), T_STRING(), null), null, true, "A space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required");
     protected static final Entry<String, Boolean> ATTR_JDK_REQUIRED = ATTRIBUTE("JDK-Required", T_BOOL(), false, true, "Whether or not a JDK is required to launch the application");
     private static final Entry<String, List<String>> ATTR_ARGS = ATTRIBUTE("Args", T_LIST(T_STRING()), null, true,
             "A list of command line arguments to be passed to the application; the UNIX shell-style special variables (`$*`, `$1`, `$2`, ...) can refer to the actual arguments passed on the capsule's command line; if no special var is used, the listed values will be prepended to the supplied arguments (i.e., as if `$*` had been listed last).");
-    private static final Entry<String, Map<String, String>> ATTR_ENV = ATTRIBUTE("Environment-Variables", T_MAP(T_STRING(), null), null, true, "A list of environment variables that will be put in the applications environment; formatted \"var=value\" or \"var\"");
+    private static final Entry<String, Map<String, String>> ATTR_ENV = ATTRIBUTE("Environment-Variables", T_MAP(T_STRING(), T_STRING(), null), null, true, "A list of environment variables that will be put in the applications environment; formatted \"var=value\" or \"var\"");
     protected static final Entry<String, List<String>> ATTR_JVM_ARGS = ATTRIBUTE("JVM-Args", T_LIST(T_STRING()), null, true, "A list of JVM arguments that will be used to launch the application's Java process");
-    protected static final Entry<String, Map<String, String>> ATTR_SYSTEM_PROPERTIES = ATTRIBUTE("System-Properties", T_MAP(T_STRING(), ""), null, true, "A list of system properties that will be defined in the applications JVM; formatted \"prop=value\" or \"prop\"");
+    protected static final Entry<String, Map<String, String>> ATTR_SYSTEM_PROPERTIES = ATTRIBUTE("System-Properties", T_MAP(T_STRING(), T_STRING(), ""), null, true, "A list of system properties that will be defined in the applications JVM; formatted \"prop=value\" or \"prop\"");
     protected static final Entry<String, List<String>> ATTR_APP_CLASS_PATH = ATTRIBUTE("App-Class-Path", T_LIST(T_STRING()), null, true, "A list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed");
     protected static final Entry<String, Boolean> ATTR_CAPSULE_IN_CLASS_PATH = ATTRIBUTE("Capsule-In-Class-Path", T_BOOL(), true, true, "Whether or not the capsule JAR itself is on the application's classpath");
-    protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH = ATTRIBUTE("Boot-Class-Path", T_LIST(T_STRING()), null, true, "A list of JARs, dependencies, and/or directories, relative to the capsule root, that will be used as the application's boot classpath");
-    protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH_A = ATTRIBUTE("Boot-Class-Path-A", T_LIST(T_STRING()), null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath");
-    protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH_P = ATTRIBUTE("Boot-Class-Path-P", T_LIST(T_STRING()), null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be prepended to the applications default boot classpath");
-    protected static final Entry<String, List<String>> ATTR_LIBRARY_PATH_A = ATTRIBUTE("Library-Path-A", T_LIST(T_STRING()), null, true, "A list of JARs and/or directories, relative to the capsule root, to be appended to the default native library path");
-    protected static final Entry<String, List<String>> ATTR_LIBRARY_PATH_P = ATTRIBUTE("Library-Path-P", T_LIST(T_STRING()), null, true, "a list of JARs and/or directories, relative to the capsule root, to be prepended to the default native library path");
-    protected static final Entry<String, String> ATTR_SECURITY_MANAGER = ATTRIBUTE("Security-Manager", T_STRING(), null, true, "The name of a class that will serve as the application's security-manager");
+    protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH = ATTRIBUTE("Boot-Class-Path", T_LIST(T_FILE()), null, true, "A list of JARs, dependencies, and/or directories, relative to the capsule root, that will be used as the application's boot classpath");
+    protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH_A = ATTRIBUTE("Boot-Class-Path-A", T_LIST(T_FILE()), null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath");
+    protected static final Entry<String, List<String>> ATTR_BOOT_CLASS_PATH_P = ATTRIBUTE("Boot-Class-Path-P", T_LIST(T_FILE()), null, true, "A list of JARs dependencies, and/or directories, relative to the capsule root, that will be prepended to the applications default boot classpath");
+    protected static final Entry<String, List<String>> ATTR_LIBRARY_PATH_A = ATTRIBUTE("Library-Path-A", T_LIST(T_FILE()), null, true, "A list of JARs and/or directories, relative to the capsule root, to be appended to the default native library path");
+    protected static final Entry<String, List<String>> ATTR_LIBRARY_PATH_P = ATTRIBUTE("Library-Path-P", T_LIST(T_FILE()), null, true, "a list of JARs and/or directories, relative to the capsule root, to be prepended to the default native library path");
+    protected static final Entry<String, String> ATTR_SECURITY_MANAGER = ATTRIBUTE("Security-Manager", T_FILE(), null, true, "The name of a class that will serve as the application's security-manager");
     protected static final Entry<String, String> ATTR_SECURITY_POLICY = ATTRIBUTE("Security-Policy", T_STRING(), null, true, "A security policy file, relative to the capsule root, that will be used as the security policy");
     protected static final Entry<String, String> ATTR_SECURITY_POLICY_A = ATTRIBUTE("Security-Policy-A", T_STRING(), null, true, "A security policy file, relative to the capsule root, that will be appended to the default security policy");
-    protected static final Entry<String, Map<String, String>> ATTR_JAVA_AGENTS = ATTRIBUTE("Java-Agents", T_MAP(T_STRING(), ""), null, true, "A list of Java agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency");
-    protected static final Entry<String, Map<String, String>> ATTR_NATIVE_AGENTS = ATTRIBUTE("Native-Agents", T_MAP(T_STRING(), ""), null, true,
+    protected static final Entry<String, Map<String, String>> ATTR_JAVA_AGENTS = ATTRIBUTE("Java-Agents", T_MAP(T_FILE(), T_STRING(), ""), null, true, "A list of Java agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a JAR relative to the capsule root, or a Maven coordinate of a dependency");
+    protected static final Entry<String, Map<String, String>> ATTR_NATIVE_AGENTS = ATTRIBUTE("Native-Agents", T_MAP(T_FILE(), T_STRING(), ""), null, true,
             "A list of native JVMTI agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a native library, without the platform-specific suffix, relative to the capsule root. The native library file(s) can be embedded in the capsule or listed as Maven native dependencies using the Native-Dependencies-... attributes.");
-    protected static final Entry<String, List<String>> ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", T_LIST(T_STRING()), null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
-    protected static final Entry<String, Map<String, String>> ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", T_MAP(T_STRING(), ""), null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
+    protected static final Entry<String, List<String>> ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", T_LIST(T_FILE()), null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
+    protected static final Entry<String, Map<String, String>> ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", T_MAP(T_FILE(), T_FILE(), ""), null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
 
     // outgoing
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
@@ -554,6 +555,7 @@ public class Capsule implements Runnable {
     private /*final*/ Path jarFile;      // never null
     private /*final*/ String appId;      // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
+    private /*final*/ Path applicationJar;
 
     private Path javaHome;
     private Path cacheDir;
@@ -694,7 +696,7 @@ public class Capsule implements Runnable {
         time("Read JAR in setTarget", start);
 
         if (!isCapsule)
-            manifest.getMainAttributes().putValue(ATTR_APP_ARTIFACT.getKey(), jar.toString());
+            this.applicationJar = jar;
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             insertAfter(loadTargetCapsule(cc.getClass().getClassLoader(), jar).cc);
@@ -1695,7 +1697,7 @@ public class Capsule implements Runnable {
     private Path getScript() {
         final String s = getAttribute(ATTR_SCRIPT);
         try {
-            return s != null ? sanitize(verifyAppCache().resolve(s.replace('/', FILE_SEPARATOR_CHAR))) : null;
+            return s != null ? verifyAppCache().resolve(s) : null;
         } catch (Exception e) {
             throw new RuntimeException("Could not start script " + s, e);
         }
@@ -1744,7 +1746,7 @@ public class Capsule implements Runnable {
         final List<Path> classPath = buildClassPath();
         final String mainClass = getMainClass(classPath);
 
-        command.addAll(compileSystemProperties(buildSystemProperties(cmdLine))); // must be called after buildClassPath
+        command.addAll(compileSystemProperties(buildSystemProperties(cmdLine))); // must be called after buildClassPath and all resolutions
 
         command.add("-classpath");
         command.add(compileClassPath(handleLongClasspath(classPath, mainClass.length(), command, oc.args_)));
@@ -1820,7 +1822,7 @@ public class Capsule implements Runnable {
                 throw new IllegalArgumentException("Glob pattern not allowed in " + ATTR_APP_ARTIFACT + " attribute.");
             final List<Path> app = isWrapperOfNonCapsule()
                     ? singletonList(toAbsolutePath(path(getAttribute(ATTR_APP_ARTIFACT))))
-                    : resolve(getAttribute(ATTR_APP_ARTIFACT));
+                    : resolve(sanitize(getAttribute(ATTR_APP_ARTIFACT)));
             classPath.addAll(app);
             final Path jar = app.get(0);
             final Manifest man = getManifest(jar);
@@ -1829,7 +1831,7 @@ public class Capsule implements Runnable {
                 try {
                     p = path(new URL(e).toURI());
                 } catch (MalformedURLException | URISyntaxException ex) {
-                    p = jar.getParent().resolve(path(e.replace('/', FILE_SEPARATOR_CHAR)));
+                    p = jar.getParent().resolve(path(toNativePath(e)));
                 }
                 if (!classPath.contains(p))
                     classPath.add(isWrapperOfNonCapsule() ? toAbsolutePath(p) : sanitize(p));
@@ -1933,8 +1935,8 @@ public class Capsule implements Runnable {
 
         resolveNativeDependencies();
         if (hasAttribute(ATTR_LIBRARY_PATH_P) || hasAttribute(ATTR_LIBRARY_PATH_A)) {
-            libraryPath.addAll(0, sanitize(resolve(verifyAppCache(), getAttribute(ATTR_LIBRARY_PATH_P))));
-            libraryPath.addAll(sanitize(resolve(verifyAppCache(), getAttribute(ATTR_LIBRARY_PATH_A))));
+            libraryPath.addAll(0, resolve(verifyAppCache(), getAttribute(ATTR_LIBRARY_PATH_P)));
+            libraryPath.addAll(resolve(verifyAppCache(), getAttribute(ATTR_LIBRARY_PATH_A)));
         }
         if (getAppCache() == null && hasRootFiles(getNativeLibExtension()))
             verifyAppCache();
@@ -1974,7 +1976,7 @@ public class Capsule implements Runnable {
                 for (Map.Entry<String, String> e : depsAndRename.entrySet()) {
                     final Path lib = resolved.get(i);
                     final String rename = emptyToNull(e.getValue());
-                    Files.copy(lib, sanitize(getWritableAppCache().resolve(rename != null ? rename : lib.getFileName().toString())));
+                    Files.copy(lib, getWritableAppCache().resolve(rename != null ? rename : lib.getFileName().toString()));
                     i++;
                 }
             } catch (IOException e) {
@@ -2235,6 +2237,13 @@ public class Capsule implements Runnable {
             return (T) id;
         }
 
+        if (ATTR_APP_ARTIFACT == attr) {
+            String artifact = attribute00(ATTR_APP_ARTIFACT);
+            if (artifact == null && applicationJar != null)
+                artifact = applicationJar.toString();
+            return (T) artifact;
+        }
+
         if (ATTR_APP_NAME == attr) {
             String name = attribute00(ATTR_APP_NAME);
             if (name == null)
@@ -2443,7 +2452,7 @@ public class Capsule implements Runnable {
 
     private <T> T parseAttribute(String attr, T type, String s) {
         try {
-            return parse(expand(s), type);
+            return parse(expand(s), type, this);
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Error parsing attribute " + attr + ". Expected " + typeString(type) + " but was: " + s, e);
         }
@@ -2507,11 +2516,20 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Attribute Types and Parsing">
     /////////// Attribute Types and Parsing ///////////////////////////////////
+    private static final String T_FILE = "FILE";
+
     /**
-     * Represents the attribute type {@code  String}
+     * Represents the attribute type {@code String}
      */
     protected static final String T_STRING() {
         return "";
+    }
+
+    /**
+     * Represents an attribute type that contains a file path, dependency or class name
+     */
+    protected static final String T_FILE() {
+        return T_FILE;
     }
 
     /**
@@ -2538,7 +2556,7 @@ public class Capsule implements Runnable {
     /**
      * A {@code List} of type {@code type}
      *
-     * @param type One of {@link #T_STRING() T_STRING}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE}
+     * @param type One of {@link #T_STRING() T_STRING}, {@link #T_FILE() T_FILE}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE}
      */
     protected static final <E> List<E> T_LIST(E type) {
         return singletonList(type);
@@ -2547,21 +2565,28 @@ public class Capsule implements Runnable {
     /**
      * A {@code Set} of type {@code type}
      *
-     * @param type One of {@link #T_STRING() T_STRING}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE}
+     * @param type One of {@link #T_STRING() T_STRING}, {@link #T_FILE() T_FILE}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE}
      */
     protected static final <E> Set<E> T_SET(E type) {
         return singleton(type);
     }
 
     /**
-     * A {@code Map} from {@code String} to type {@code type}
+     * A {@code Map} from type {@code keyType} to type {@code valType}
      *
-     * @param type         One of {@link #T_STRING() T_STRING}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE}
+     * @param keyType      One of {@link #T_STRING() T_STRING}, {@link #T_FILE() T_FILE}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE}
+     * @param valType      One of {@link #T_STRING() T_STRING}, {@link #T_FILE() T_FILE}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE}
      * @param defaultValue The default value for a key without a value in the attribute string, or {@code null} if all keys must explicitly specify a value.
      */
     @SuppressWarnings("unchecked")
-    protected static final <E> Map<String, E> T_MAP(E type, E defaultValue) {
-        return (Map<String, E>) (defaultValue != null ? singletonMap(T_STRING(), promote(defaultValue, type)) : singletonMap(null, type));
+    protected static final <K, V> Map<K, V> T_MAP(K keyType, V valType, V defaultValue) {
+        if (defaultValue != null) {
+            final Map<K, V> map = new LinkedHashMap<>();
+            map.put(keyType, valType);
+            map.put(null, promote(defaultValue, valType));
+            return map;
+        } else
+            return singletonMap(keyType, valType);
     }
 
     @SuppressWarnings("unchecked")
@@ -2593,10 +2618,11 @@ public class Capsule implements Runnable {
             return collType + " of " + typeString(etype) + " in the form \"v1 v2 ...\"";
         } else if (type instanceof Map) {
             final Map.Entry<String, ?> desc = ((Map<String, ?>) type).entrySet().iterator().next();
-            final Object etype = desc.getValue();
-            return "map of String to " + typeString(etype) + " in the form \"k1=v1 k2=v2 ...\"";
+            final Object ktype = desc.getKey();
+            final Object vtype = desc.getValue();
+            return "map of " + typeString(ktype) + " to " + typeString(vtype) + " in the form \"k1=v1 k2=v2 ...\"";
         } else
-            return type.getClass().getSimpleName();
+            return type == T_FILE ? "path, dependency or class" : type.getClass().getSimpleName();
     }
 
     @SuppressWarnings("unchecked")
@@ -2614,36 +2640,43 @@ public class Capsule implements Runnable {
 
     @SuppressWarnings("unchecked")
     // visible for testing
-    static <T> T parse(String s, T type) {
+    static <T> T parse(String s, T type, Capsule capsule) {
+        if (s == null)
+            return null;
         if (type instanceof Collection) {
             final Object etype = ((Collection<?>) type).iterator().next();
             final List<String> slist = parse(s);
-            if (type instanceof List && etype instanceof String)
-                return (T) slist;
+//            if (type instanceof List && etype instanceof String)
+//                return (T) slist;
             final Collection<Object> coll = type instanceof Set ? new HashSet<>() : new ArrayList<>();
             for (String se : slist)
-                coll.add(parse(se, etype));
+                coll.add(parse(se, etype, capsule));
             return (T) coll;
         } else if (type instanceof Map) {
-            final Map.Entry<String, ?> desc = ((Map<String, ?>) type).entrySet().iterator().next();
-            final Object etype = desc.getValue();
-            final Object defaultValue = desc.getKey() != null ? desc.getValue() : null;
+            final Iterator<Map.Entry<?, ?>> it = ((Map) type).entrySet().iterator();
+            final Map.Entry<?, ?> desc = it.next();
+            final Object ktype = desc.getKey();
+            final Object vtype = desc.getValue();
+            final Object defaultValue = it.hasNext() ? it.next().getValue() : null;
             final String sdefaultValue = defaultValue != null ? defaultValue.toString() : null;
+
             final Map<String, String> smap = parse(s, sdefaultValue);
-            if (etype instanceof String)
-                return (T) smap;
-            final Map<String, Object> map = new HashMap<>();
+//            if (ktype instanceof String && vtype instanceof String)
+//                return (T) smap;
+            final Map<Object, Object> map = new HashMap<>();
             for (Map.Entry<String, String> se : smap.entrySet())
-                map.put(se.getKey(), parsePrimitive(se.getValue(), etype));
+                map.put(parsePrimitive(se.getKey(), ktype, capsule), parsePrimitive(se.getValue(), vtype, capsule));
             return (T) map;
         } else
-            return parsePrimitive(s, type);
+            return parsePrimitive(s, type, capsule);
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T parsePrimitive(String s, T type) {
+    private static <T> T parsePrimitive(String s, T type, Capsule capsule) {
         if (s == null)
             return null;
+        if (type == T_FILE)
+            return (T) capsule.sanitize(s);
         if (type instanceof String)
             return (T) s;
         if (type instanceof Boolean)
@@ -2747,15 +2780,18 @@ public class Capsule implements Runnable {
             final List<Path> res;
 
             final boolean isDependency = isDependency(p);
+            if (!isDependency)
+                p = toNativePath(p);
+
             final Path path;
             if (!isDependency && (path = Paths.get(p)).isAbsolute())
-                res = singletonList(sanitize(path));
+                res = singletonList(path);
             else if (isDependency)
                 res = resolveDependency(p, "jar");
             else if (isGlob(p))
                 res = listDir(verifyAppCache(), p, false);
             else
-                res = singletonList(sanitize(verifyAppCache().resolve(p)));
+                res = singletonList(verifyAppCache().resolve(sanitize(p)));
 
             log(LOG_DEBUG, "resolve " + p + " -> " + res);
             if (res == null || res.isEmpty())
@@ -2995,22 +3031,27 @@ public class Capsule implements Runnable {
         return aps;
     }
 
-    private List<Path> sanitize(List<Path> ps) {
-        if (ps == null)
+    private Path sanitize(Path p) {
+        if (p == null)
             return null;
-        final List<Path> aps = new ArrayList<Path>(ps.size());
-        for (Path p : ps)
-            aps.add(sanitize(p));
-        return aps;
+        final Path path = p.normalize();
+        if (p.isAbsolute()) {
+            if (getAppCache() != null && path.startsWith(getAppCache()))
+                return path;
+            if (path.startsWith(getJavaHome()) || path.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
+                return path;
+        } else if (!path.startsWith(".."))
+            return path;
+
+        throw new IllegalArgumentException("Path " + p + " is not local to app cache " + getAppCache());
     }
 
-    private Path sanitize(Path p) {
-        final Path path = p.toAbsolutePath().normalize();
-        if (getAppCache() != null && path.startsWith(getAppCache()))
-            return path;
-        if (path.startsWith(getJavaHome()) || path.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
-            return path;
-        throw new IllegalArgumentException("Path " + p + " is not local to app cache " + getAppCache());
+    private String sanitize(String p) {
+        if (p.contains("/") || p.contains(FILE_SEPARATOR)) {
+            p = toNativePath(p);
+            sanitize(Paths.get(p));
+        }
+        return p;
     }
 
     private static Path toFriendlyPath(Path p) {
@@ -4363,6 +4404,15 @@ public class Capsule implements Runnable {
                 e.printStackTrace(STDERR);
         }
     }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Graceful Shutdown">
+    /////////// Graceful Shutdown ///////////////////////////////////
+    private void listenForShutdown() {
+        new Thread(this, "shutdown-request").start();
+
+    }
+    //</editor-fold>
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="POSIX">
