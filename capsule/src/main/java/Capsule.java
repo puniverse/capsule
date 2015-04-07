@@ -541,6 +541,7 @@ public class Capsule implements Runnable {
     //</editor-fold>
 
     private static Map<String, List<Path>> JAVA_HOMES; // an optimization trick (can be injected by CapsuleLauncher)
+    private final Map<String, String> threads = new HashMap<>();
 
     // fields marked /*final*/ are effectively final after finalizeCapsule
     private /*final*/ Capsule oc;  // first in chain
@@ -1108,7 +1109,7 @@ public class Capsule implements Runnable {
             pb.command().remove("-D" + PROP_TRAMPOLINE);
             STDOUT.println(join(pb.command(), " "));
         } else {
-            Runtime.getRuntime().addShutdownHook(new Thread(this));
+            Runtime.getRuntime().addShutdownHook(new Thread(this, "cleanup"));
 
             if (!isInheritIoBug())
                 pb.inheritIO();
@@ -1136,6 +1137,33 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
+    //<editor-fold defaultstate="collapsed" desc="Threads">
+    /////////// Threads ///////////////////////////////////
+    private void startThread(String name, String method) {
+        threads.put(name, method);
+        new Thread(this, name).start();
+    }
+
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    @Override
+    public final void run() {
+        final String methodName = threads.get(Thread.currentThread().getName());
+        if (methodName != null) {
+            try {
+                getMethod(Capsule.class, methodName).invoke(this);
+                return;
+            } catch (ReflectiveOperationException e) {
+                throw rethrow(e);
+            }
+        }
+
+        // shutdown hook
+        cleanup();
+    }
+    //</editor-fold>
+
     //<editor-fold defaultstate="collapsed" desc="Launch">
     /////////// Launch ///////////////////////////////////
     // directly used by CapsuleLauncher
@@ -1149,18 +1177,6 @@ public class Capsule implements Runnable {
         final ProcessBuilder pb = prelaunch(nullToEmpty(jvmArgs), nullToEmpty(args));
         time("prepareForLaunch", start);
         return pb;
-    }
-
-    /**
-     * @deprecated marked deprecated to exclude from javadoc
-     */
-    @Override
-    public final void run() {
-        if (isInheritIoBug() && pipeIoStream())
-            return;
-
-        // shutdown hook
-        cleanup();
     }
 
     /**
@@ -4323,25 +4339,21 @@ public class Capsule implements Runnable {
     }
 
     private void pipeIoStreams() {
-        new Thread(this, "pipe-out").start();
-        new Thread(this, "pipe-err").start();
-        new Thread(this, "pipe-in").start();
+        startThread("pipe-out", "pipeStreamOut");
+        startThread("pipe-err", "pipeStreamErr");
+        startThread("pipe-in", "pipeStreamIn");
     }
 
-    private boolean pipeIoStream() {
-        switch (Thread.currentThread().getName()) {
-            case "pipe-out":
-                pipe(child.getInputStream(), STDOUT);
-                return true;
-            case "pipe-err":
-                pipe(child.getErrorStream(), STDERR);
-                return true;
-            case "pipe-in":
-                pipe(System.in, child.getOutputStream());
-                return true;
-            default:
-                return false;
-        }
+    private void pipeStreamOut() {
+        pipe(child.getInputStream(), STDOUT);
+    }
+
+    private void pipeStreamErr() {
+        pipe(child.getErrorStream(), STDERR);
+    }
+
+    private void pipeStreamIn() {
+        pipe(System.in, child.getOutputStream());
     }
 
     private void pipe(InputStream in, OutputStream out) {
