@@ -1329,7 +1329,7 @@ public class Capsule implements Runnable {
 //        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.getLocalAddress() : getLocalAddress0();
 //    }
     private InetSocketAddress getLocalAddress() {
-        return new InetSocketAddress("127.0.0.1", 0);
+        return new InetSocketAddress(0);
     }
     //</editor-fold>
 
