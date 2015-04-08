@@ -9,6 +9,7 @@
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -30,6 +31,7 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -1146,6 +1148,7 @@ public class Capsule implements Runnable {
         }
     }
 
+    @SuppressWarnings("empty-statement")
     private int launch(List<String> args) throws IOException, InterruptedException {
         verifyNonEmpty("Cannot launch a wrapper capsule.");
         final ProcessBuilder pb;
@@ -1180,8 +1183,17 @@ public class Capsule implements Runnable {
 
                 if (isInheritIoBug())
                     pipeIoStreams();
-                if (getAttribute(ATTR_AGENT))
-                    startServer();
+                if (socket != null) {
+                    try {
+                        startServer();
+                        while (receive())
+                            ;
+                    } catch (IOException e) {
+                        log(LOG_QUIET, "IOException: " + e.getMessage());
+                        if (isLogging(LOG_VERBOSE))
+                            e.printStackTrace(STDERR);
+                    }
+                }
 
                 oc.child.waitFor();
             }
@@ -1208,6 +1220,9 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Agent">
     /////////// Agent ///////////////////////////////////
+    /**
+     * Called on a capsule agent instance in the application process.
+     */
     protected void agent(Instrumentation inst) {
         if (agentCalled)
             return;
@@ -1232,10 +1247,12 @@ public class Capsule implements Runnable {
         }
 
         if (ATTR_SYSTEM_PROPERTIES == attr) {
-            final Map<String, String> props = new HashMap<>(cast(ATTR_SYSTEM_PROPERTIES, value));
-            props.put(PROP_ADDRESS, address.getHostAddress());
-            props.put(PROP_PORT, Integer.toString(port));
-            return (T) props;
+            if (address != null) {
+                final Map<String, String> props = new HashMap<>(cast(ATTR_SYSTEM_PROPERTIES, value));
+                props.put(PROP_ADDRESS, address.getHostAddress());
+                props.put(PROP_PORT, Integer.toString(port));
+                return (T) props;
+            }
         }
 
         return value;
@@ -1257,16 +1274,22 @@ public class Capsule implements Runnable {
         }
     }
 
-    private void startServer() {
+    private void startServer() throws IOException {
         try (ServerSocket server = (ServerSocket) socket) {
             server.setSoTimeout(SOCKET_TIMEOUT);
             log(LOG_VERBOSE, "Waiting for client to connect...");
             final Socket s = server.accept();
-            this.socket = s;
-            this.socketOutput = new ObjectOutputStream(s.getOutputStream());
-            this.socketInput = new ObjectInputStream(s.getInputStream());
-            log(LOG_VERBOSE, "Client connected");
+            if (!openSocketStreams(s)) {
+                this.socket = s;
+                log(LOG_VERBOSE, "Client connected");
+            } else {
+                ((ServerSocket)socket).close();
+                this.socket = null;
+            }
         } catch (IOException e) {
+            this.socket = null;
+            this.address = null;
+            this.port = 0;
             throw rethrow(e);
         }
     }
@@ -1278,29 +1301,50 @@ public class Capsule implements Runnable {
         try {
             this.address = InetAddress.getByName(getProperty(PROP_ADDRESS));
             this.port = Integer.valueOf(getProperty(PROP_PORT));
-            log(LOG_VERBOSE, "Connecting to server...");
             final Socket s = new Socket();
+            log(LOG_VERBOSE, "Connecting to server...");
             s.connect(new InetSocketAddress(address, port), SOCKET_TIMEOUT);
 //            final long deadline = System.nanoTime() + (SOCKET_TIMEOUT * 1_000_000);
 //            for (;;) {
 //                s.connect(new InetSocketAddress(address, port), (int) Math.max(0L, (deadline - System.nanoTime()) / 1_000_000));
 //            }
-            this.socketOutput = new ObjectOutputStream(s.getOutputStream());
-            this.socketInput = new ObjectInputStream(s.getInputStream());
-            log(LOG_VERBOSE, "Client connected");
-            startThread("capsule-comm", "clientLoop");
+            if (openSocketStreams(s)) {
+                this.socket = s;
+                log(LOG_VERBOSE, "Client connected");
+                startThread("capsule-comm", "clientLoop");
+            } else
+                this.socket = null;
         } catch (IOException e) {
+            this.socket = null;
+            this.address = null;
+            this.port = 0;
             throw rethrow(e);
         }
     }
 
-    private void clientLoop() throws Exception {
-        for (;;) {
-            final int message = socketInput.readInt();
-            final Object payload = socketInput.readObject();
-            log(LOG_VERBOSE, "Message received" + message + " : " + payload);
-            receive(message, payload);
+    private boolean openSocketStreams(Socket s) throws IOException {
+        try {
+            s.setSoTimeout(SOCKET_TIMEOUT);
+            this.socketOutput = new ObjectOutputStream(s.getOutputStream());
+            this.socketInput = new ObjectInputStream(s.getInputStream());
+            s.setSoTimeout(0);
+            return true;
+        } catch (SocketTimeoutException e) {
+            log(LOG_VERBOSE, "Socket timed out");
+            try {
+                this.address = null;
+                this.port = 0;
+                s.close();
+            } catch (IOException ex) {
+            }
+            return false;
         }
+    }
+
+    @SuppressWarnings("empty-statement")
+    private void clientLoop() throws Exception {
+        while (receive())
+            ;
     }
 
     private void send(int message, Object payload) throws IOException {
@@ -1310,6 +1354,20 @@ public class Capsule implements Runnable {
         socketOutput.writeInt(message);
         socketOutput.writeObject(payload);
         socketOutput.flush();
+    }
+
+    private boolean receive() throws IOException {
+        try {
+            final int message = socketInput.readInt();
+            final Object payload = socketInput.readObject();
+            log(LOG_VERBOSE, "Message received" + message + " : " + payload);
+            receive(message, payload);
+            return true;
+        } catch (EOFException e) {
+            return false;
+        } catch (ClassNotFoundException e) {
+            throw new IOException(e);
+        }
     }
 
 //    protected void receive(int message, Object payload) {
@@ -1376,7 +1434,6 @@ public class Capsule implements Runnable {
     /////////// Launch ///////////////////////////////////
     // directly used by CapsuleLauncher
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
-
         oc.jvmArgs_ = nullToEmpty(jvmArgs); // hack
         oc.args_ = nullToEmpty(jvmArgs);    // hack
 
@@ -1470,7 +1527,7 @@ public class Capsule implements Runnable {
 
     private ProcessBuilder prelaunch0(List<String> jvmArgs, List<String> args) {
         try {
-            if (getAttribute(ATTR_AGENT))
+            if (!isTrampoline() && getAttribute(ATTR_AGENT))
                 prepareServer();
             final ProcessBuilder pb = buildProcess();
             buildEnvironmentVariables(pb);
