@@ -1160,6 +1160,7 @@ public class Capsule implements Runnable {
             throw new IllegalStateException("A thread by the name " + name + " has already been registered.");
         threads.put(name, method);
         final Thread t = new Thread(this, name);
+        t.setDaemon(true);
         t.start();
         return t;
     }
