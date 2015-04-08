@@ -212,7 +212,8 @@ project (':capsule') {
 
     jar {
         manifest {
-            attributes('Main-Class' : 'Capsule')
+            attributes('Main-Class'    : 'Capsule',
+                       'Premain-Class' : 'Capsule')
         }
     }
 

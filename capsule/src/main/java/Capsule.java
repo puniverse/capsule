@@ -12,15 +12,24 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.Reader;
+import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -151,6 +160,8 @@ public class Capsule implements Runnable {
     private static final String PROP_CAPSULE_JAVA_HOME = OPTION("capsule.java.home", null, null, "Sets the location of the Java home (JVM installation directory) to use; If \'current\' forces the use of the JVM that launched the capsule.");
     private static final String PROP_CAPSULE_JAVA_CMD = OPTION("capsule.java.cmd", null, null, "Sets the path to the Java executable to use.");
     private static final String PROP_JVM_ARGS = OPTION("capsule.jvm.args", null, null, "Sets additional JVM arguments to use when running the application.");
+    private static final String PROP_PORT = "capsule.port";
+    private static final String PROP_ADDRESS = "capsule.address";
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
     private static final String PROP_PROFILE = "capsule.profile";
 
@@ -172,6 +183,7 @@ public class Capsule implements Runnable {
     protected static final Entry<String, String> ATTR_JAVA_VERSION = ATTRIBUTE("Java-Version", T_STRING(), null, true, "The highest version of the Java installation required to run the application");
     protected static final Entry<String, Map<String, String>> ATTR_MIN_UPDATE_VERSION = ATTRIBUTE("Min-Update-Version", T_MAP(T_STRING(), T_STRING(), null), null, true, "A space-separated key-value ('=' separated) list mapping Java versions to the minimum update version required");
     protected static final Entry<String, Boolean> ATTR_JDK_REQUIRED = ATTRIBUTE("JDK-Required", T_BOOL(), false, true, "Whether or not a JDK is required to launch the application");
+    protected static final Entry<String, Boolean> ATTR_AGENT = ATTRIBUTE("Capsule-Agent", T_BOOL(), false, true, "Whether this capsule should inject itself as an agent into the application.");
     private static final Entry<String, List<String>> ATTR_ARGS = ATTRIBUTE("Args", T_LIST(T_STRING()), null, true,
             "A list of command line arguments to be passed to the application; the UNIX shell-style special variables (`$*`, `$1`, `$2`, ...) can refer to the actual arguments passed on the capsule's command line; if no special var is used, the listed values will be prepended to the supplied arguments (i.e., as if `$*` had been listed last).");
     private static final Entry<String, Map<String, String>> ATTR_ENV = ATTRIBUTE("Environment-Variables", T_MAP(T_STRING(), T_STRING(), null), null, true, "A list of environment variables that will be put in the applications environment; formatted \"var=value\" or \"var\"");
@@ -192,6 +204,8 @@ public class Capsule implements Runnable {
             "A list of native JVMTI agents used by the application; formatted \"agent\" or \"agent=arg1,arg2...\", where agent is either the path to a native library, without the platform-specific suffix, relative to the capsule root. The native library file(s) can be embedded in the capsule or listed as Maven native dependencies using the Native-Dependencies-... attributes.");
     protected static final Entry<String, List<String>> ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", T_LIST(T_FILE()), null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
     protected static final Entry<String, Map<String, String>> ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", T_MAP(T_FILE(), T_FILE(), ""), null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
+
+    private static final int MESSAGE_EXIT = 1;
 
     // outgoing
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
@@ -244,6 +258,7 @@ public class Capsule implements Runnable {
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
     private static final Permission PERM_UNSAFE_OVERRIDE = new RuntimePermission("unsafeOverride");
+    private static final int SOCKET_TIMEOUT = 1000;
 
     private static final String OS_WINDOWS = "windows";
     private static final String OS_MACOS = "macos";
@@ -260,6 +275,7 @@ public class Capsule implements Runnable {
 
     // logging
     private static final String LOG_PREFIX = "CAPSULE: ";
+    private static final String LOG_AGENT_PREFIX = "CAPSULE AGENT: ";
     protected static final int LOG_NONE = 0;
     protected static final int LOG_QUIET = 1;
     protected static final int LOG_VERBOSE = 2;
@@ -289,6 +305,7 @@ public class Capsule implements Runnable {
     private static final String PLATFORM = getOS();
     private static Path CACHE_DIR;
     private static Capsule CAPSULE;
+    private static boolean AGENT;
 
     final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
@@ -297,7 +314,7 @@ public class Capsule implements Runnable {
                 Thread.currentThread().setContextClassLoader(MY_CLASSLOADER);
                 Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile());
                 clearContext();
-                if (capsule.isEmptyCapsule() && !args.isEmpty()) {
+                if ((AGENT || capsule.isEmptyCapsule()) && args != null && !args.isEmpty()) {
                     processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
                     if (!args.isEmpty())
                         capsule = capsule.setTarget(args.remove(0));
@@ -343,8 +360,26 @@ public class Capsule implements Runnable {
         }
     }
 
+    public static void premain(String agentArgs, Instrumentation inst) {
+        AGENT = true;
+        PROPERTIES = new Properties(System.getProperties());
+        Capsule capsule = null;
+        try {
+            processOptions();
+            capsule = myCapsule(agentArgs != null ? new ArrayList<>(split(agentArgs, "\\s+")) : null);
+            for (Capsule c = capsule.cc; c != null; c = c.sup)
+                c.agent(inst);
+        } catch (Throwable t) {
+            if (capsule != null) {
+                capsule.cleanup();
+                capsule.onError(t);
+            } else
+                printError(t, capsule);
+        }
+    }
+
     private static void printError(Throwable t, Capsule capsule) {
-        STDERR.print("CAPSULE EXCEPTION: " + t.getMessage());
+        STDERR.print((AGENT ? "CAPSULE AGENT" : "CAPSULE") + " EXCEPTION: " + t.getMessage());
         if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
             STDERR.print(" while processing " + getContext());
         if (getLogLevel(getProperty0(PROP_LOG_LEVEL)) >= LOG_VERBOSE) {
@@ -572,10 +607,18 @@ public class Capsule implements Runnable {
     private List<Path> tmpFiles = new ArrayList<>();
     private Process child;
     private Collection<String> rootFiles;
+    private boolean agentCalled;
     // Error reporting
     private static final ThreadLocal<String> contextType_ = new ThreadLocal<>();
     private static final ThreadLocal<String> contextKey_ = new ThreadLocal<>();
     private static final ThreadLocal<String> contextValue_ = new ThreadLocal<>();
+
+    //
+    private Object socket;
+    private InetAddress address;
+    private int port;
+    private ObjectInput socketInput;
+    private ObjectOutput socketOutput;
 
     //<editor-fold defaultstate="collapsed" desc="Constructors">
     /////////// Constructors ///////////////////////////////////
@@ -923,6 +966,13 @@ public class Capsule implements Runnable {
     protected final String getAppId() {
         return oc.appId;
     }
+
+    /**
+     * Is this the Capsule instance running as an agent in the application?
+     */
+    public boolean isAgent() {
+        return AGENT;
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
@@ -1130,6 +1180,9 @@ public class Capsule implements Runnable {
 
                 if (isInheritIoBug())
                     pipeIoStreams();
+                if (getAttribute(ATTR_AGENT))
+                    startServer();
+
                 oc.child.waitFor();
             }
         }
@@ -1150,6 +1203,133 @@ public class Capsule implements Runnable {
     private void verifyNonEmpty(String message) {
         if (isEmptyCapsule())
             throw new IllegalArgumentException(message);
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Agent">
+    /////////// Agent ///////////////////////////////////
+    protected void agent(Instrumentation inst) {
+        if (agentCalled)
+            return;
+        this.agentCalled = true;
+
+        if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null)
+            startClient();
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T agentAttributes(Entry<String, T> attr, T value) {
+        if (ATTR_AGENT == attr) // prevent infinite recursion
+            return value;
+        if (!getAttribute(ATTR_AGENT))
+            return value;
+
+        if (ATTR_JAVA_AGENTS == attr) {
+            final Map<String, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
+            assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
+            agents.put(findOwnJarFile().toString(), isWrapperCapsule() ? getJarFile().toString() : "");
+            return (T) agents;
+        }
+
+        if (ATTR_SYSTEM_PROPERTIES == attr) {
+            final Map<String, String> props = new HashMap<>(cast(ATTR_SYSTEM_PROPERTIES, value));
+            props.put(PROP_ADDRESS, address.getHostAddress());
+            props.put(PROP_PORT, Integer.toString(port));
+            return (T) props;
+        }
+
+        return value;
+    }
+
+    private void prepareServer() {
+        try {
+            log(LOG_VERBOSE, "Starting capsule server.");
+            InetSocketAddress sa = getLocalAddress();
+            final ServerSocket server = new ServerSocket(sa.getPort(), 5, sa.getAddress());
+            sa = (InetSocketAddress) server.getLocalSocketAddress();
+            this.address = sa.getAddress();
+            this.port = sa.getPort();
+
+            this.socket = server;
+            log(LOG_VERBOSE, "Binding capsule server at: " + address.getHostAddress() + ":" + port);
+        } catch (IOException e) {
+            throw rethrow(e);
+        }
+    }
+
+    private void startServer() {
+        try (ServerSocket server = (ServerSocket) socket) {
+            server.setSoTimeout(SOCKET_TIMEOUT);
+            log(LOG_VERBOSE, "Waiting for client to connect...");
+            final Socket s = server.accept();
+            this.socket = s;
+            this.socketOutput = new ObjectOutputStream(s.getOutputStream());
+            this.socketInput = new ObjectInputStream(s.getInputStream());
+            log(LOG_VERBOSE, "Client connected");
+        } catch (IOException e) {
+            throw rethrow(e);
+        }
+    }
+
+    private void startClient() {
+        log(LOG_VERBOSE, "Starting capsule client: " + getProperty(PROP_ADDRESS) + ":" + getProperty(PROP_PORT));
+        if (getProperty(PROP_ADDRESS) == null || getProperty(PROP_PORT) == null)
+            throw new IllegalStateException("Comm channel not defined");
+        try {
+            this.address = InetAddress.getByName(getProperty(PROP_ADDRESS));
+            this.port = Integer.valueOf(getProperty(PROP_PORT));
+            log(LOG_VERBOSE, "Connecting to server...");
+            final Socket s = new Socket();
+            s.connect(new InetSocketAddress(address, port), SOCKET_TIMEOUT);
+//            final long deadline = System.nanoTime() + (SOCKET_TIMEOUT * 1_000_000);
+//            for (;;) {
+//                s.connect(new InetSocketAddress(address, port), (int) Math.max(0L, (deadline - System.nanoTime()) / 1_000_000));
+//            }
+            this.socketOutput = new ObjectOutputStream(s.getOutputStream());
+            this.socketInput = new ObjectInputStream(s.getInputStream());
+            log(LOG_VERBOSE, "Client connected");
+            startThread("capsule-comm", "clientLoop");
+        } catch (IOException e) {
+            throw rethrow(e);
+        }
+    }
+
+    private void clientLoop() throws Exception {
+        for (;;) {
+            final int message = socketInput.readInt();
+            final Object payload = socketInput.readObject();
+            log(LOG_VERBOSE, "Message received" + message + " : " + payload);
+            receive(message, payload);
+        }
+    }
+
+    private void send(int message, Object payload) throws IOException {
+        if (socketOutput == null)
+            throw new IOException("comm channel not defined");
+        log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
+        socketOutput.writeInt(message);
+        socketOutput.writeObject(payload);
+        socketOutput.flush();
+    }
+
+//    protected void receive(int message, Object payload) {
+//        if ((_ct = getCallTarget(Capsule.class)) != null)
+//            _ct.receive(message, payload);
+//        else
+//            receive0(message, payload);
+//    }
+    private void receive(int message, Object payload) {
+        switch (message) {
+            case MESSAGE_EXIT:
+                System.exit((Integer) payload);
+        }
+    }
+
+//    protected InetSocketAddress getLocalAddress() {
+//        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.getLocalAddress() : getLocalAddress0();
+//    }
+    private InetSocketAddress getLocalAddress() {
+        return new InetSocketAddress("127.0.0.1", 0);
     }
     //</editor-fold>
 
@@ -1223,7 +1403,16 @@ public class Capsule implements Runnable {
     private void cleanup0() {
         try {
             if (oc.child != null) {
-                oc.child.destroy();
+                if (isWindows()) {
+                    try {
+                        send(MESSAGE_EXIT, 1);
+                    } catch (Exception e) {
+                        if (isLogging(LOG_VERBOSE))
+                            e.printStackTrace(STDERR);
+                        oc.child.destroy();
+                    }
+                } else
+                    oc.child.destroy();
                 oc.child.waitFor();
             }
             oc.child = null;
@@ -1281,6 +1470,8 @@ public class Capsule implements Runnable {
 
     private ProcessBuilder prelaunch0(List<String> jvmArgs, List<String> args) {
         try {
+            if (getAttribute(ATTR_AGENT))
+                prepareServer();
             final ProcessBuilder pb = buildProcess();
             buildEnvironmentVariables(pb);
             pb.command().addAll(buildArgs(args));
@@ -1904,7 +2095,7 @@ public class Capsule implements Runnable {
 
         // command line overrides everything
         for (String option : cmdLine) {
-            if (option.startsWith("-D") && !isCapsuleOption(option.substring(2)))
+            if (option.startsWith("-D") && (!isCapsuleOption(option.substring(2)) || getAttribute(ATTR_AGENT)))
                 addSystemProperty(option.substring(2), systemProperties);
         }
 
@@ -2254,38 +2445,40 @@ public class Capsule implements Runnable {
     /////////// Attributes ///////////////////////////////////
     @SuppressWarnings("unchecked")
     private <T> T attribute0(Entry<String, T> attr) {
+        T value;
+
         if (ATTR_APP_ID == attr) {
             String id = attribute00(ATTR_APP_ID);
             if (id == null && getManifestAttribute(ATTR_IMPLEMENTATION_TITLE) != null)
                 id = getManifestAttribute(ATTR_IMPLEMENTATION_TITLE);
             if (id == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
                 id = getAppArtifactId(getAttribute(ATTR_APP_ARTIFACT));
-            return (T) id;
-        }
-
-        if (ATTR_APP_ARTIFACT == attr) {
+            value = (T) id;
+        } else if (ATTR_APP_ARTIFACT == attr) {
             String artifact = attribute00(ATTR_APP_ARTIFACT);
             if (artifact == null && applicationJar != null)
                 artifact = applicationJar.toString();
-            return (T) artifact;
-        }
-
-        if (ATTR_APP_NAME == attr) {
+            value = (T) artifact;
+        } else if (ATTR_APP_NAME == attr) {
             String name = attribute00(ATTR_APP_NAME);
             if (name == null)
                 name = getManifestAttribute(ATTR_IMPLEMENTATION_TITLE);
-            return (T) name;
-        }
-
-        if (ATTR_APP_VERSION == attr) {
+            value = (T) name;
+        } else if (ATTR_APP_VERSION == attr) {
             String ver = attribute00(ATTR_APP_VERSION);
             if (ver == null && getManifestAttribute(ATTR_IMPLEMENTATION_VERSION) != null)
                 ver = getManifestAttribute(ATTR_IMPLEMENTATION_VERSION);
             if (ver == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
                 ver = getAppArtifactVersion(getAttribute(ATTR_APP_ARTIFACT));
-            return (T) ver;
-        }
-        return attribute00(attr);
+            value = (T) ver;
+        } else
+            value = attribute00(attr);
+
+        // various modifications:
+        value = windowsAttributes(attr, value);
+        value = agentAttributes(attr, value);
+
+        return value;
     }
 
     /*
@@ -4283,7 +4476,7 @@ public class Capsule implements Runnable {
      */
     protected static final void log(int level, String str) {
         if (isLogging(level))
-            STDERR.println(LOG_PREFIX + str);
+            STDERR.println((AGENT ? LOG_AGENT_PREFIX : LOG_PREFIX) + str);
     }
 
     private static void println(String str) {
@@ -4341,6 +4534,18 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Windows">
     /////////// Windows ///////////////////////////////////
+    @SuppressWarnings("unchecked")
+    private <T> T windowsAttributes(Entry<String, T> attr, T value) {
+        if (!isWindows())
+            return value;
+
+        if (ATTR_AGENT == attr) {
+            return (T) Boolean.TRUE;
+        }
+
+        return value;
+    }
+
     //<editor-fold defaultstate="collapsed" desc="Long Classpath - Pathing JAR">
     /////////// Long Classpath - Pathing JAR ///////////////////////////////////
     private List<Path> handleLongClasspath(List<Path> cp, int extra, List<?>... args) {
