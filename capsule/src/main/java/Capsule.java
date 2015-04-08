@@ -1169,18 +1169,25 @@ public class Capsule implements Runnable {
      */
     @Override
     public final void run() {
-        final String methodName = threads.get(Thread.currentThread().getName());
-        if (methodName != null) {
-            try {
-                getMethod(Capsule.class, methodName).invoke(this);
-                return;
-            } catch (ReflectiveOperationException e) {
-                throw rethrow(e);
+        final String threadName = Thread.currentThread().getName();
+        try {
+            final String methodName = threads.get(threadName);
+            if (methodName != null) {
+                try {
+                    getMethod(Capsule.class, methodName).invoke(this);
+                    return;
+                } catch (ReflectiveOperationException e) {
+                    throw rethrow(e);
+                }
             }
-        }
 
-        // shutdown hook
-        cleanup();
+            // shutdown hook
+            cleanup();
+        } catch (Throwable e) {
+            log(LOG_QUIET, "Exception on thread " + threadName + ": " + e.getMessage());
+            e.printStackTrace(STDERR);
+            throw rethrow(e);
+        }
     }
     //</editor-fold>
 
@@ -4402,19 +4409,19 @@ public class Capsule implements Runnable {
         startThread("pipe-in", "pipeStreamIn");
     }
 
-    private void pipeStreamOut() {
+    private void pipeStreamOut() throws IOException {
         pipe(child.getInputStream(), STDOUT);
     }
 
-    private void pipeStreamErr() {
+    private void pipeStreamErr() throws IOException {
         pipe(child.getErrorStream(), STDERR);
     }
 
-    private void pipeStreamIn() {
+    private void pipeStreamIn() throws IOException {
         pipe(System.in, child.getOutputStream());
     }
 
-    private void pipe(InputStream in, OutputStream out) {
+    private void pipe(InputStream in, OutputStream out) throws IOException {
         try (OutputStream out1 = out) {
             final byte[] buf = new byte[1024];
             int read;
@@ -4422,12 +4429,8 @@ public class Capsule implements Runnable {
                 out.write(buf, 0, read);
                 out.flush();
             }
-        } catch (Throwable e) {
-            if (isLogging(LOG_VERBOSE))
-                e.printStackTrace(STDERR);
         }
     }
-    //</editor-fold>
 
     //</editor-fold>
     //</editor-fold>
