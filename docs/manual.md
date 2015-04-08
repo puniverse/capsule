@@ -1,4 +1,9 @@
-# *Capsule*<br/>Dead-Simple Packaging and Deployment for JVM Applications
+---
+layout: page
+title: User Guide
+---
+
+.toc.
 
 ## Introduction
 
