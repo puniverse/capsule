@@ -1142,6 +1142,8 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Threads">
     /////////// Threads ///////////////////////////////////
     private void startThread(String name, String method) {
+        if (threads.containsKey(name))
+            throw new IllegalStateException("A thread by the name " + name + " has already been registered.");
         threads.put(name, method);
         new Thread(this, name).start();
     }
