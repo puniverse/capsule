@@ -904,6 +904,13 @@ public class Capsule implements Runnable {
     }
 
     /**
+     * The OS platform.
+     */
+    protected final String getPlatform() {
+        return PLATFORM;
+    }
+
+    /**
      * This capsule's JAR file.
      */
     protected final Path getJarFile() {
