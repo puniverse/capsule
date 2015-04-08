@@ -4429,15 +4429,8 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Graceful Shutdown">
-    /////////// Graceful Shutdown ///////////////////////////////////
-    private void listenForShutdown() {
-        new Thread(this, "shutdown-request").start();
-
-    }
     //</editor-fold>
     //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="POSIX">
     /////////// POSIX ///////////////////////////////////
     private static int getPid(Process p) {
