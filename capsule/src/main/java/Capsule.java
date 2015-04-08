@@ -1135,6 +1135,8 @@ public class Capsule implements Runnable {
             throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
         final List<String> cmdline = new ArrayList<>(pb.command());
         cmdline.remove("-D" + PROP_TRAMPOLINE);
+        for (int i = 0; i < cmdline.size(); i++)
+            cmdline.set(i, "'" + cmdline.get(i) + "'");
         return join(cmdline, " ");
     }
 
