@@ -1218,179 +1218,6 @@ public class Capsule implements Runnable {
     }
     //</editor-fold>
 
-    //<editor-fold defaultstate="collapsed" desc="Agent">
-    /////////// Agent ///////////////////////////////////
-    /**
-     * Called on a capsule agent instance in the application process.
-     */
-    protected void agent(Instrumentation inst) {
-        if (agentCalled)
-            return;
-        this.agentCalled = true;
-
-        if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null)
-            startClient();
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> T agentAttributes(Entry<String, T> attr, T value) {
-        if (ATTR_AGENT == attr) // prevent infinite recursion
-            return value;
-        if (!getAttribute(ATTR_AGENT))
-            return value;
-
-        if (ATTR_JAVA_AGENTS == attr) {
-            final Map<String, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
-            assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
-            agents.put(findOwnJarFile().toString(), isWrapperCapsule() ? getJarFile().toString() : "");
-            return (T) agents;
-        }
-
-        if (ATTR_SYSTEM_PROPERTIES == attr) {
-            if (address != null) {
-                final Map<String, String> props = new HashMap<>(cast(ATTR_SYSTEM_PROPERTIES, value));
-                props.put(PROP_ADDRESS, address.getHostAddress());
-                props.put(PROP_PORT, Integer.toString(port));
-                return (T) props;
-            }
-        }
-
-        return value;
-    }
-
-    private void prepareServer() {
-        try {
-            log(LOG_VERBOSE, "Starting capsule server.");
-            InetSocketAddress sa = getLocalAddress();
-            final ServerSocket server = new ServerSocket(sa.getPort(), 5, sa.getAddress());
-            sa = (InetSocketAddress) server.getLocalSocketAddress();
-            this.address = sa.getAddress();
-            this.port = sa.getPort();
-
-            this.socket = server;
-            log(LOG_VERBOSE, "Binding capsule server at: " + address.getHostAddress() + ":" + port);
-        } catch (IOException e) {
-            throw rethrow(e);
-        }
-    }
-
-    private void startServer() throws IOException {
-        try (ServerSocket server = (ServerSocket) socket) {
-            server.setSoTimeout(SOCKET_TIMEOUT);
-            log(LOG_VERBOSE, "Waiting for client to connect...");
-            final Socket s = server.accept();
-            if (!openSocketStreams(s)) {
-                this.socket = s;
-                log(LOG_VERBOSE, "Client connected");
-            } else {
-                ((ServerSocket)socket).close();
-                this.socket = null;
-            }
-        } catch (IOException e) {
-            this.socket = null;
-            this.address = null;
-            this.port = 0;
-            throw rethrow(e);
-        }
-    }
-
-    private void startClient() {
-        log(LOG_VERBOSE, "Starting capsule client: " + getProperty(PROP_ADDRESS) + ":" + getProperty(PROP_PORT));
-        if (getProperty(PROP_ADDRESS) == null || getProperty(PROP_PORT) == null)
-            throw new IllegalStateException("Comm channel not defined");
-        try {
-            this.address = InetAddress.getByName(getProperty(PROP_ADDRESS));
-            this.port = Integer.valueOf(getProperty(PROP_PORT));
-            final Socket s = new Socket();
-            log(LOG_VERBOSE, "Connecting to server...");
-            s.connect(new InetSocketAddress(address, port), SOCKET_TIMEOUT);
-//            final long deadline = System.nanoTime() + (SOCKET_TIMEOUT * 1_000_000);
-//            for (;;) {
-//                s.connect(new InetSocketAddress(address, port), (int) Math.max(0L, (deadline - System.nanoTime()) / 1_000_000));
-//            }
-            if (openSocketStreams(s)) {
-                this.socket = s;
-                log(LOG_VERBOSE, "Client connected");
-                startThread("capsule-comm", "clientLoop");
-            } else
-                this.socket = null;
-        } catch (IOException e) {
-            this.socket = null;
-            this.address = null;
-            this.port = 0;
-            throw rethrow(e);
-        }
-    }
-
-    private boolean openSocketStreams(Socket s) throws IOException {
-        try {
-            s.setSoTimeout(SOCKET_TIMEOUT);
-            this.socketOutput = new ObjectOutputStream(s.getOutputStream());
-            this.socketInput = new ObjectInputStream(s.getInputStream());
-            s.setSoTimeout(0);
-            return true;
-        } catch (SocketTimeoutException e) {
-            log(LOG_VERBOSE, "Socket timed out");
-            try {
-                this.address = null;
-                this.port = 0;
-                s.close();
-            } catch (IOException ex) {
-            }
-            return false;
-        }
-    }
-
-    @SuppressWarnings("empty-statement")
-    private void clientLoop() throws Exception {
-        while (receive())
-            ;
-    }
-
-    private void send(int message, Object payload) throws IOException {
-        if (socketOutput == null)
-            throw new IOException("comm channel not defined");
-        log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
-        socketOutput.writeInt(message);
-        socketOutput.writeObject(payload);
-        socketOutput.flush();
-    }
-
-    private boolean receive() throws IOException {
-        try {
-            final int message = socketInput.readInt();
-            final Object payload = socketInput.readObject();
-            log(LOG_VERBOSE, "Message received" + message + " : " + payload);
-            receive(message, payload);
-            return true;
-        } catch (EOFException e) {
-            return false;
-        } catch (ClassNotFoundException e) {
-            throw new IOException(e);
-        }
-    }
-
-//    protected void receive(int message, Object payload) {
-//        if ((_ct = getCallTarget(Capsule.class)) != null)
-//            _ct.receive(message, payload);
-//        else
-//            receive0(message, payload);
-//    }
-    private void receive(int message, Object payload) {
-        switch (message) {
-            case MESSAGE_EXIT:
-                System.exit((Integer) payload);
-        }
-    }
-
-//    protected InetSocketAddress getLocalAddress() {
-//        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.getLocalAddress() : getLocalAddress0();
-//    }
-    private InetSocketAddress getLocalAddress() {
-        return new InetSocketAddress(0);
-    }
-    //</editor-fold>
-
     //<editor-fold defaultstate="collapsed" desc="Threads">
     /////////// Threads ///////////////////////////////////
     private Thread startThread(String name, String method) {
@@ -1665,6 +1492,179 @@ public class Capsule implements Runnable {
 
     private Process postlaunch0(Process child) {
         return child;
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="Agent">
+    /////////// Agent ///////////////////////////////////
+    /**
+     * Called on a capsule agent instance in the application process.
+     */
+    protected void agent(Instrumentation inst) {
+        if (agentCalled)
+            return;
+        this.agentCalled = true;
+
+        if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null)
+            startClient();
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T agentAttributes(Entry<String, T> attr, T value) {
+        if (ATTR_AGENT == attr) // prevent infinite recursion
+            return value;
+        if (!getAttribute(ATTR_AGENT))
+            return value;
+
+        if (ATTR_JAVA_AGENTS == attr) {
+            final Map<String, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
+            assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
+            agents.put(findOwnJarFile().toString(), isWrapperCapsule() ? getJarFile().toString() : "");
+            return (T) agents;
+        }
+
+        if (ATTR_SYSTEM_PROPERTIES == attr) {
+            if (address != null) {
+                final Map<String, String> props = new HashMap<>(cast(ATTR_SYSTEM_PROPERTIES, value));
+                props.put(PROP_ADDRESS, address.getHostAddress());
+                props.put(PROP_PORT, Integer.toString(port));
+                return (T) props;
+            }
+        }
+
+        return value;
+    }
+
+    private void prepareServer() {
+        try {
+            log(LOG_VERBOSE, "Starting capsule server.");
+            InetSocketAddress sa = getLocalAddress();
+            final ServerSocket server = new ServerSocket(sa.getPort(), 5, sa.getAddress());
+            sa = (InetSocketAddress) server.getLocalSocketAddress();
+            this.address = sa.getAddress();
+            this.port = sa.getPort();
+
+            this.socket = server;
+            log(LOG_VERBOSE, "Binding capsule server at: " + address.getHostAddress() + ":" + port);
+        } catch (IOException e) {
+            throw rethrow(e);
+        }
+    }
+
+    private void startServer() throws IOException {
+        try (ServerSocket server = (ServerSocket) socket) {
+            server.setSoTimeout(SOCKET_TIMEOUT);
+            log(LOG_VERBOSE, "Waiting for client to connect...");
+            final Socket s = server.accept();
+            if (!openSocketStreams(s)) {
+                this.socket = s;
+                log(LOG_VERBOSE, "Client connected");
+            } else {
+                ((ServerSocket) socket).close();
+                this.socket = null;
+            }
+        } catch (IOException e) {
+            this.socket = null;
+            this.address = null;
+            this.port = 0;
+            throw rethrow(e);
+        }
+    }
+
+    private void startClient() {
+        log(LOG_VERBOSE, "Starting capsule client: " + getProperty(PROP_ADDRESS) + ":" + getProperty(PROP_PORT));
+        if (getProperty(PROP_ADDRESS) == null || getProperty(PROP_PORT) == null)
+            throw new IllegalStateException("Comm channel not defined");
+        try {
+            this.address = InetAddress.getByName(getProperty(PROP_ADDRESS));
+            this.port = Integer.valueOf(getProperty(PROP_PORT));
+            final Socket s = new Socket();
+            log(LOG_VERBOSE, "Connecting to server...");
+            s.connect(new InetSocketAddress(address, port), SOCKET_TIMEOUT);
+//            final long deadline = System.nanoTime() + (SOCKET_TIMEOUT * 1_000_000);
+//            for (;;) {
+//                s.connect(new InetSocketAddress(address, port), (int) Math.max(0L, (deadline - System.nanoTime()) / 1_000_000));
+//            }
+            if (openSocketStreams(s)) {
+                this.socket = s;
+                log(LOG_VERBOSE, "Client connected");
+                startThread("capsule-comm", "clientLoop");
+            } else
+                this.socket = null;
+        } catch (IOException e) {
+            this.socket = null;
+            this.address = null;
+            this.port = 0;
+            throw rethrow(e);
+        }
+    }
+
+    private boolean openSocketStreams(Socket s) throws IOException {
+        try {
+            s.setSoTimeout(SOCKET_TIMEOUT);
+            this.socketOutput = new ObjectOutputStream(s.getOutputStream());
+            this.socketInput = new ObjectInputStream(s.getInputStream());
+            s.setSoTimeout(0);
+            return true;
+        } catch (SocketTimeoutException e) {
+            log(LOG_VERBOSE, "Socket timed out");
+            try {
+                this.address = null;
+                this.port = 0;
+                s.close();
+            } catch (IOException ex) {
+            }
+            return false;
+        }
+    }
+
+    @SuppressWarnings("empty-statement")
+    private void clientLoop() throws Exception {
+        while (receive())
+            ;
+    }
+
+    private void send(int message, Object payload) throws IOException {
+        if (socketOutput == null)
+            throw new IOException("comm channel not defined");
+        log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
+        socketOutput.writeInt(message);
+        socketOutput.writeObject(payload);
+        socketOutput.flush();
+    }
+
+    private boolean receive() throws IOException {
+        try {
+            final int message = socketInput.readInt();
+            final Object payload = socketInput.readObject();
+            log(LOG_VERBOSE, "Message received" + message + " : " + payload);
+            receive(message, payload);
+            return true;
+        } catch (EOFException e) {
+            return false;
+        } catch (ClassNotFoundException e) {
+            throw new IOException(e);
+        }
+    }
+
+//    protected void receive(int message, Object payload) {
+//        if ((_ct = getCallTarget(Capsule.class)) != null)
+//            _ct.receive(message, payload);
+//        else
+//            receive0(message, payload);
+//    }
+    private void receive(int message, Object payload) {
+        switch (message) {
+            case MESSAGE_EXIT:
+                System.exit((Integer) payload);
+        }
+    }
+
+//    protected InetSocketAddress getLocalAddress() {
+//        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.getLocalAddress() : getLocalAddress0();
+//    }
+    private InetSocketAddress getLocalAddress() {
+        return new InetSocketAddress(0);
     }
     //</editor-fold>
 
