@@ -2322,6 +2322,11 @@ public class Capsule implements Runnable {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private static <T> T cast(Entry<String, T> attr, Object value) {
+        return (T) value;
+    }
+
     /**
      * Returns an attribute's name.
      */
