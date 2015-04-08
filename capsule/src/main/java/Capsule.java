@@ -89,7 +89,7 @@ import static java.util.Arrays.asList;
  * {@link #processOutgoingPath(Path) processOutgoingPath}, {@link #prelaunch(List, List) prelaunch}.
  * <p>
  * For command line option handling, see {@link #OPTION(String, String, String, String) OPTION}.<br/>
- * Attributes should be registered with {@link #ATTRIBUTE(String, String, boolean, String) ATTRIBUTE}.
+ * Attributes should be registered with {@link #ATTRIBUTE(String, Object, Object, boolean, String)  ATTRIBUTE}.
  *
  * @author pron
  */
@@ -2272,7 +2272,7 @@ public class Capsule implements Runnable {
      * @param attrName     the attribute's name
      * @param type         the attribute's type, obtained by calling one (or a combination) of the "type" methods:
      *                     {@link #T_STRING() T_STRING}, {@link #T_BOOL() T_BOOL}, {@link #T_LONG() T_LONG}, {@link #T_DOUBLE() T_DOUBLE},
-     *                     {@link #T_LIST(Object) T_LIST}, {@link #T_MAP(Object, Object) T_MAP}, {@link #T_SET(Object) T_SET}
+     *                     {@link #T_LIST(Object) T_LIST}, {@link #T_MAP(Object, Object, Object) T_MAP}, {@link #T_SET(Object) T_SET}
      * @param defaultValue the attribute's default value, or {@code null} for none; a {@code null} value for collection or map types will be transformed into the type's empty value (i.e. empty list, empty map, etc.)
      * @param allowModal   whether the attribute is modal (i.e. can be specified per mode); if {@code false}, then the attribute is only allowed in the manifest's main section.
      * @param description  a description of the attribute
