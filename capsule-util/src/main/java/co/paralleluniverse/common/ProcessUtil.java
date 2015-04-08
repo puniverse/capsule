@@ -6,7 +6,6 @@
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-
 package co.paralleluniverse.common;
 
 import com.sun.tools.attach.AttachNotSupportedException;
@@ -58,6 +57,35 @@ public final class ProcessUtil {
         }
     }
 
+    /**
+     * Connects to a child JVM process
+     *
+     * @param p          the process to which to connect
+     * @param startAgent whether to installed the JMX agent in the target process if not already in place
+     * @return an {@link MBeanServerConnection} to the process's MBean server
+     */
+    public static MBeanServerConnection getMBeanServerConnection(Process p, boolean startAgent) {
+        try {
+            final JMXServiceURL serviceURL = getLocalConnectorAddress(p, startAgent);
+            final JMXConnector connector = JMXConnectorFactory.connect(serviceURL);
+            final MBeanServerConnection mbsc = connector.getMBeanServerConnection();
+            return mbsc;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Returns the JMX connector address of a child process.
+     *
+     * @param p          the process to which to connect
+     * @param startAgent whether to installed the JMX agent in the target process if not already in place
+     * @return a {@link JMXServiceURL} to the process's MBean server
+     */
+    public static JMXServiceURL getLocalConnectorAddress(Process p, boolean startAgent) {
+        return getLocalConnectorAddress(Integer.toString(getPid(p)), startAgent);
+    }
+
     private static JMXServiceURL getLocalConnectorAddress(String id, boolean startAgent) {
         VirtualMachine vm = null;
         try {
@@ -83,21 +111,6 @@ public final class ProcessUtil {
                 e.addSuppressed(ex);
             }
             throw e instanceof RuntimeException ? (RuntimeException) e : new RuntimeException(e);
-        }
-    }
-
-    public static JMXServiceURL getLocalConnectorAddress(Process p, boolean startAgent) {
-        return getLocalConnectorAddress(Integer.toString(getPid(p)), startAgent);
-    }
-
-    public static MBeanServerConnection getMBeanServerConnection(Process p, boolean startAgent) {
-        try {
-            final JMXServiceURL serviceURL = getLocalConnectorAddress(p, startAgent);
-            final JMXConnector connector = JMXConnectorFactory.connect(serviceURL);
-            final MBeanServerConnection mbsc = connector.getMBeanServerConnection();
-            return mbsc;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
     }
 
