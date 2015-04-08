@@ -1510,9 +1510,9 @@ public class Capsule implements Runnable {
         if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null) {
             startClient();
 
-            final JMXServiceURL jmxurl = startJMXServer();
-            if (jmxurl != null)
-                send(MESSAGE_JMX, jmxurl);
+//            final JMXServiceURL jmxurl = startJMXServer();
+//            if (jmxurl != null)
+//                send(MESSAGE_JMX, jmxurl);
         }
     }
 
@@ -1679,9 +1679,9 @@ public class Capsule implements Runnable {
             case MESSAGE_EXIT:
                 System.exit((Integer) payload);
                 break;
-            case MESSAGE_JMX:
-                connectToJMX((JMXServiceURL) payload);
-                break;
+//            case MESSAGE_JMX:
+//                connectToJMX((JMXServiceURL) payload);
+//                break;
         }
     }
 
