@@ -1105,12 +1105,9 @@ public class Capsule implements Runnable {
         time("Total", START);
         log(LOG_VERBOSE, join(pb.command(), " ") + (pb.directory() != null ? " (Running in " + pb.directory() + ")" : ""));
 
-        if (isTrampoline()) {
-            if (hasAttribute(ATTR_ENV))
-                throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
-            pb.command().remove("-D" + PROP_TRAMPOLINE);
-            STDOUT.println(join(pb.command(), " "));
-        } else {
+        if (isTrampoline())
+            STDOUT.println(trampolineString(pb));
+        else {
             Runtime.getRuntime().addShutdownHook(new Thread(this, "cleanup"));
 
             if (!isInheritIoBug())
@@ -1131,6 +1128,14 @@ public class Capsule implements Runnable {
         }
 
         return oc.child != null ? oc.child.exitValue() : 0;
+    }
+
+    private String trampolineString(ProcessBuilder pb) {
+        if (hasAttribute(ATTR_ENV))
+            throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
+        final List<String> cmdline = new ArrayList<>(pb.command());
+        cmdline.remove("-D" + PROP_TRAMPOLINE);
+        return join(cmdline, " ");
     }
 
     private void verifyNonEmpty(String message) {
