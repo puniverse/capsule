@@ -80,6 +80,12 @@ import java.util.zip.ZipInputStream;
 import java.util.Properties;
 import static java.util.Collections.*;
 import static java.util.Arrays.asList;
+import javax.management.MBeanServerConnection;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXConnectorServerFactory;
+import javax.management.remote.JMXServiceURL;
 
 /**
  * An application capsule.
@@ -208,6 +214,7 @@ public class Capsule implements Runnable {
     protected static final Entry<String, Map<String, String>> ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", T_MAP(T_FILE(), T_FILE(), ""), null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
 
     private static final int MESSAGE_EXIT = 1;
+    private static final int MESSAGE_JMX = 2;
 
     // outgoing
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
@@ -1288,13 +1295,8 @@ public class Capsule implements Runnable {
         try {
             if (oc.child != null) {
                 if (isWindows()) {
-                    try {
-                        send(MESSAGE_EXIT, 1);
-                    } catch (Exception e) {
-                        if (isLogging(LOG_VERBOSE))
-                            e.printStackTrace(STDERR);
+                    if (!send(MESSAGE_EXIT, 1))
                         oc.child.destroy();
-                    }
                 } else
                     oc.child.destroy();
                 oc.child.waitFor();
@@ -1505,8 +1507,13 @@ public class Capsule implements Runnable {
             return;
         this.agentCalled = true;
 
-        if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null)
+        if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null) {
             startClient();
+
+            final JMXServiceURL jmxurl = startJMXServer();
+            if (jmxurl != null)
+                send(MESSAGE_JMX, jmxurl);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -1624,7 +1631,21 @@ public class Capsule implements Runnable {
             ;
     }
 
-    private void send(int message, Object payload) throws IOException {
+    private boolean send(int message, Object payload) {
+        if (socketOutput == null)
+            return false;
+        try {
+            send0(message, payload);
+            return true;
+        } catch (IOException e) {
+            log(LOG_VERBOSE, "Sending of message " + message + ": " + payload + " failed - " + e.getMessage());
+            if (isLogging(LOG_VERBOSE))
+                e.printStackTrace(STDERR);
+            return false;
+        }
+    }
+
+    private void send0(int message, Object payload) throws IOException {
         if (socketOutput == null)
             throw new IOException("comm channel not defined");
         log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
@@ -1657,6 +1678,10 @@ public class Capsule implements Runnable {
         switch (message) {
             case MESSAGE_EXIT:
                 System.exit((Integer) payload);
+                break;
+            case MESSAGE_JMX:
+                connectToJMX((JMXServiceURL) payload);
+                break;
         }
     }
 
@@ -4706,6 +4731,39 @@ public class Capsule implements Runnable {
             return pidField.getInt(p);
         } catch (Exception e) {
             return -1;
+        }
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="JMX">
+    /////////// JMX ///////////////////////////////////
+    private JMXServiceURL startJMXServer() {
+        try {
+            log(LOG_VERBOSE, "Starting JMXConnectorServer");
+            final JMXConnectorServer jmxServer = JMXConnectorServerFactory.newJMXConnectorServer(new JMXServiceURL("rmi", null, 0), null, ManagementFactory.getPlatformMBeanServer());
+            jmxServer.start();
+            log(LOG_VERBOSE, "JMXConnectorServer started JMX at " + jmxServer.getAddress());
+            return jmxServer.getAddress();
+        } catch (IOException e) {
+            log(LOG_VERBOSE, "JMXConnectorServer failed: " + e.getMessage());
+            if (isLogging(LOG_VERBOSE))
+                e.printStackTrace(STDERR);
+            return null;
+        }
+    }
+
+    private MBeanServerConnection connectToJMX(JMXServiceURL url) {
+        try {
+            log(LOG_VERBOSE, "Connecting to JMX server at: " + url);
+            final JMXConnector connect = JMXConnectorFactory.connect(url);
+            final MBeanServerConnection mbsc = connect.getMBeanServerConnection();
+            log(LOG_VERBOSE, "JMX Connection sucessful");
+            return mbsc;
+        } catch (Exception e) {
+            log(LOG_VERBOSE, "JMX Connection failed: " + e.getMessage());
+            if (isLogging(LOG_VERBOSE))
+                e.printStackTrace(STDERR);
+            return null;
         }
     }
     //</editor-fold>
