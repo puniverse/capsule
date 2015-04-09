@@ -1728,6 +1728,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Capsule Cache">
     /////////// Capsule Cache ///////////////////////////////////
     /**
+     * For internal use; subject to change/removal.
      * @deprecated exclude from javadocs
      */
     protected Path getCacheDir() {
@@ -2477,7 +2478,8 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Dependency Resolution">
     /////////// Dependency Resolution ///////////////////////////////////
     /**
-     * @deprecated marked deprecated to exclude from javadoc.
+     * For internal use; subject to change/removal.
+     * @deprecated exclude from javadocs
      */
     protected List<Path> resolveDependencies(List<String> coords, String type) {
         final long start = clock();
@@ -2502,7 +2504,8 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * @deprecated marked deprecated to exclude from javadoc.
+     * For internal use; subject to change/removal.
+     * @deprecated exclude from javadocs
      */
     protected List<Path> resolveDependency(String coords, String type) {
         final long start = clock();
@@ -4329,7 +4332,8 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * @deprecated marked deprecated to exclude from javadoc. Visible for testing
+     * For internal use; subject to change/removal.
+     * @deprecated exclude from javadocs
      */
     ClassLoader newClassLoader(ClassLoader parent, List<Path> ps) {
         return newClassLoader0(parent, ps);
