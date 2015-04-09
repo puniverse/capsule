@@ -1731,7 +1731,7 @@ public class Capsule implements Runnable {
      * For internal use; subject to change/removal.
      * @deprecated exclude from javadocs
      */
-    protected Path getCacheDir() {
+    protected final Path getCacheDir() {
         if (oc.cacheDir == null) {
             Path cache = CACHE_DIR;
             if (cache != null) {
