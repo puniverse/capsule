@@ -4437,6 +4437,13 @@ public class Capsule implements Runnable {
         throw new RuntimeException(t);
     }
 
+    private static void close(Object c) {
+        try {
+            ((AutoCloseable) c).close();
+        } catch (Exception ex) {
+        }
+    }
+
     /**
      * Executes a command and returns its output as a list of lines.
      * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
