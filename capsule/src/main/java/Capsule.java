@@ -1664,13 +1664,18 @@ public class Capsule implements Runnable {
         }
     }
 
-//    protected void receive(int message, Object payload) {
-//        if ((_ct = getCallTarget(Capsule.class)) != null)
-//            _ct.receive(message, payload);
-//        else
-//            receive0(message, payload);
-//    }
-    private void receive(int message, Object payload) {
+    /**
+     * For internal use; subject to change/removal.
+     * @deprecated exclude from javadocs
+     */
+    protected void receive(int message, Object payload) {
+        if ((_ct = getCallTarget(Capsule.class)) != null)
+            _ct.receive(message, payload);
+        else
+            receive0(message, payload);
+    }
+
+    private void receive0(int message, Object payload) {
         switch (message) {
             case MESSAGE_EXIT:
                 System.exit((Integer) payload);
@@ -1681,10 +1686,15 @@ public class Capsule implements Runnable {
         }
     }
 
-//    protected InetSocketAddress getLocalAddress() {
-//        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.getLocalAddress() : getLocalAddress0();
-//    }
-    private InetSocketAddress getLocalAddress() {
+    /**
+     * For internal use; subject to change/removal.
+     * @deprecated exclude from javadocs
+     */
+    protected InetSocketAddress getLocalAddress() {
+        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.getLocalAddress() : getLocalAddress0();
+    }
+
+    private InetSocketAddress getLocalAddress0() {
         return new InetSocketAddress(0);
     }
     //</editor-fold>
