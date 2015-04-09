@@ -1588,10 +1588,6 @@ public class Capsule implements Runnable {
             final Socket s = new Socket();
             log(LOG_VERBOSE, "Connecting to server...");
             s.connect(new InetSocketAddress(address, port), SOCKET_TIMEOUT);
-//            final long deadline = System.nanoTime() + (SOCKET_TIMEOUT * 1_000_000);
-//            for (;;) {
-//                s.connect(new InetSocketAddress(address, port), (int) Math.max(0L, (deadline - System.nanoTime()) / 1_000_000));
-//            }
             if (openSocketStreams(s)) {
                 this.socket = s;
                 log(LOG_VERBOSE, "Client connected");
