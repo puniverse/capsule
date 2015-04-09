@@ -1188,7 +1188,7 @@ public class Capsule implements Runnable {
 
                 if (isInheritIoBug())
                     pipeIoStreams();
-                if (socket != null) {
+                if (oc.socket != null) {
                     try {
                         startServer();
                         while (receive())
@@ -1501,9 +1501,9 @@ public class Capsule implements Runnable {
      * Called on a capsule agent instance in the application process.
      */
     protected void agent(Instrumentation inst) {
-        if (agentCalled)
+        if (oc.agentCalled)
             return;
-        this.agentCalled = true;
+        oc.agentCalled = true;
 
         if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null) {
             startClient();
@@ -1529,10 +1529,10 @@ public class Capsule implements Runnable {
         }
 
         if (ATTR_SYSTEM_PROPERTIES == attr) {
-            if (address != null) {
+            if (oc.address != null) {
                 final Map<String, String> props = new HashMap<>(cast(ATTR_SYSTEM_PROPERTIES, value));
-                props.put(PROP_ADDRESS, address.getHostAddress());
-                props.put(PROP_PORT, Integer.toString(port));
+                props.put(PROP_ADDRESS, oc.address.getHostAddress());
+                props.put(PROP_PORT, Integer.toString(oc.port));
                 return (T) props;
             }
         }
@@ -1546,32 +1546,26 @@ public class Capsule implements Runnable {
             InetSocketAddress sa = getLocalAddress();
             final ServerSocket server = new ServerSocket(sa.getPort(), 5, sa.getAddress());
             sa = (InetSocketAddress) server.getLocalSocketAddress();
-            this.address = sa.getAddress();
-            this.port = sa.getPort();
-
-            this.socket = server;
-            log(LOG_VERBOSE, "Binding capsule server at: " + address.getHostAddress() + ":" + port);
+            oc.address = sa.getAddress();
+            oc.port = sa.getPort();
+            oc.socket = server;
+            log(LOG_VERBOSE, "Binding capsule server at: " + oc.address.getHostAddress() + ":" + oc.port);
         } catch (IOException e) {
             throw rethrow(e);
         }
     }
 
     private void startServer() throws IOException {
-        try (ServerSocket server = (ServerSocket) socket) {
+        try (ServerSocket server = (ServerSocket) oc.socket) {
             server.setSoTimeout(SOCKET_TIMEOUT);
             log(LOG_VERBOSE, "Waiting for client to connect...");
             final Socket s = server.accept();
-            if (!openSocketStreams(s)) {
-                this.socket = s;
-                log(LOG_VERBOSE, "Client connected");
-            } else {
-                ((ServerSocket) socket).close();
-                this.socket = null;
-            }
+            openSocketStreams(s);
+            oc.socket = s;
+            log(LOG_VERBOSE, "Client connected");
         } catch (IOException e) {
-            this.socket = null;
-            this.address = null;
-            this.port = 0;
+            log(LOG_VERBOSE, "Client connection failed.");
+            closeComm();
             throw rethrow(e);
         }
     }
@@ -1581,42 +1575,45 @@ public class Capsule implements Runnable {
         if (getProperty(PROP_ADDRESS) == null || getProperty(PROP_PORT) == null)
             throw new IllegalStateException("Comm channel not defined");
         try {
-            this.address = InetAddress.getByName(getProperty(PROP_ADDRESS));
-            this.port = Integer.valueOf(getProperty(PROP_PORT));
+            oc.address = InetAddress.getByName(getProperty(PROP_ADDRESS));
+            oc.port = Integer.valueOf(getProperty(PROP_PORT));
             final Socket s = new Socket();
-            log(LOG_VERBOSE, "Connecting to server...");
-            s.connect(new InetSocketAddress(address, port), SOCKET_TIMEOUT);
-            if (openSocketStreams(s)) {
-                this.socket = s;
-                log(LOG_VERBOSE, "Client connected");
-                startThread("capsule-comm", "clientLoop");
-            } else
-                this.socket = null;
+            s.connect(new InetSocketAddress(oc.address, oc.port), SOCKET_TIMEOUT);
+            openSocketStreams(s);
+            oc.socket = s;
+            log(LOG_VERBOSE, "Client connected,");
+            startThread("capsule-comm", "clientLoop");
         } catch (IOException e) {
-            this.socket = null;
-            this.address = null;
-            this.port = 0;
+            log(LOG_VERBOSE, "Client connection failed.");
+            closeComm();
             throw rethrow(e);
         }
     }
 
-    private boolean openSocketStreams(Socket s) throws IOException {
+    private void openSocketStreams(Socket s) throws IOException {
         try {
             s.setSoTimeout(SOCKET_TIMEOUT);
-            this.socketOutput = new ObjectOutputStream(s.getOutputStream());
-            this.socketInput = new ObjectInputStream(s.getInputStream());
+            oc.socketOutput = new ObjectOutputStream(s.getOutputStream());
+            oc.socketInput = new ObjectInputStream(s.getInputStream());
             s.setSoTimeout(0);
-            return true;
         } catch (SocketTimeoutException e) {
             log(LOG_VERBOSE, "Socket timed out");
-            try {
-                this.address = null;
-                this.port = 0;
-                s.close();
-            } catch (IOException ex) {
-            }
-            return false;
+            close(s);
+            oc.socketOutput = null;
+            oc.socketInput = null;
+            throw e;
         }
+    }
+
+    private void closeComm() {
+        if (oc.socket != null) {
+            close(oc.socket);
+            oc.socket = null;
+        }
+        oc.address = null;
+        oc.port = 0;
+        oc.socketOutput = null;
+        oc.socketInput = null;
     }
 
     @SuppressWarnings("empty-statement")
@@ -1626,7 +1623,7 @@ public class Capsule implements Runnable {
     }
 
     private boolean send(int message, Object payload) {
-        if (socketOutput == null)
+        if (oc.socketOutput == null)
             return false;
         try {
             send0(message, payload);
@@ -1640,18 +1637,18 @@ public class Capsule implements Runnable {
     }
 
     private void send0(int message, Object payload) throws IOException {
-        if (socketOutput == null)
+        if (oc.socketOutput == null)
             throw new IOException("comm channel not defined");
         log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
-        socketOutput.writeInt(message);
-        socketOutput.writeObject(payload);
-        socketOutput.flush();
+        oc.socketOutput.writeInt(message);
+        oc.socketOutput.writeObject(payload);
+        oc.socketOutput.flush();
     }
 
     private boolean receive() throws IOException {
         try {
-            final int message = socketInput.readInt();
-            final Object payload = socketInput.readObject();
+            final int message = oc.socketInput.readInt();
+            final Object payload = oc.socketInput.readObject();
             log(LOG_VERBOSE, "Message received" + message + " : " + payload);
             receive(message, payload);
             return true;
@@ -4757,7 +4754,7 @@ public class Capsule implements Runnable {
 
         try {
             log(LOG_VERBOSE, "Starting JMXConnectorServer");
-            
+
             final Properties agentProps = sun.misc.VMSupport.getAgentProperties();
             if (agentProps.get(LOCAL_CONNECTOR_ADDRESS_PROP) == null) {
                 log(LOG_VERBOSE, "Starting management agent");
@@ -4768,7 +4765,6 @@ public class Capsule implements Runnable {
 //            final JMXConnectorServer jmxServer = JMXConnectorServerFactory.newJMXConnectorServer(new JMXServiceURL("rmi", null, 0), null, ManagementFactory.getPlatformMBeanServer());
 //            jmxServer.start(); // prevents the app from shutting down (requires jmxServer.stop())
 //            final JMXServiceURL url = jmxServer.getAddress();
-            
             log(LOG_VERBOSE, "JMXConnectorServer started JMX at " + url);
             return url;
         } catch (Exception e) {
