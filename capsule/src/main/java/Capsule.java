@@ -1594,13 +1594,13 @@ public class Capsule implements Runnable {
         try {
             s.setSoTimeout(SOCKET_TIMEOUT);
             oc.socketOutput = new ObjectOutputStream(s.getOutputStream());
+            oc.socketOutput.flush();
             oc.socketInput = new ObjectInputStream(s.getInputStream());
             s.setSoTimeout(0);
-        } catch (SocketTimeoutException e) {
-            log(LOG_VERBOSE, "Socket timed out");
+        } catch (IOException e) {
+            if (e instanceof SocketTimeoutException)
+                log(LOG_VERBOSE, "Socket timed out");
             close(s);
-            oc.socketOutput = null;
-            oc.socketInput = null;
             throw e;
         }
     }
