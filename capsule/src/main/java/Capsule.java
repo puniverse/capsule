@@ -554,6 +554,7 @@ public class Capsule implements Runnable {
     // visible for testing
     @SuppressWarnings("unchecked")
     static final boolean runActions(Capsule capsule, List<String> args) {
+        verifyAgent(false);
         try {
             boolean found = false;
             for (Map.Entry<String, Object[]> entry : OPTIONS.entrySet()) {
@@ -625,12 +626,14 @@ public class Capsule implements Runnable {
     private FileLock appCacheLock;
 
     // Some very limited state
+    private int lifecycleStage;
     private List<String> jvmArgs_;
     private List<String> args_;
     private List<Path> tmpFiles = new ArrayList<>();
     private Process child;
     private Collection<String> rootFiles;
     private boolean agentCalled;
+    private MBeanServerConnection jmxConnection;
     // Error reporting
     private static final ThreadLocal<String> contextType_ = new ThreadLocal<>();
     private static final ThreadLocal<String> contextKey_ = new ThreadLocal<>();
@@ -818,6 +821,20 @@ public class Capsule implements Runnable {
 
     protected final boolean isEmptyCapsule() {
         return !hasAttribute(ATTR_APP_ARTIFACT) && !hasAttribute(ATTR_APP_CLASS) && !hasAttribute(ATTR_SCRIPT);
+    }
+
+    private void setStage(int stage) {
+        this.lifecycleStage = stage;
+    }
+
+    private void verifyAtStage(int stage) {
+        if (lifecycleStage != stage)
+            throw new IllegalStateException("This operation is not available at this stage in the capsule's lifecycle.");
+    }
+
+    protected final void verifyAfterStage(int stage) {
+        if (lifecycleStage <= stage)
+            throw new IllegalStateException("This operation is not available at this stage in the capsule's lifecycle.");
     }
     //</editor-fold>
 
@@ -1171,6 +1188,8 @@ public class Capsule implements Runnable {
 
     @SuppressWarnings("empty-statement")
     private int launch(List<String> args) throws IOException, InterruptedException {
+        verifyAgent(false);
+        setStage(STAGE_LAUNCH);
         verifyNonEmpty("Cannot launch a wrapper capsule.");
         final ProcessBuilder pb;
 
@@ -1196,28 +1215,22 @@ public class Capsule implements Runnable {
 
             oc.child = pb.start();
             oc.child = postlaunch(oc.child);
+            if (oc.child == null)
+                return 0;
 
-            if (oc.child != null) {
-                final int pid = getPid(oc.child);
-                if (pid > 0)
-                    System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
+            setStage(STAGE_LIFTOFF);
+            final int pid = getPid(oc.child);
+            if (pid > 0)
+                System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
 
-                if (isInheritIoBug())
-                    pipeIoStreams();
-                if (oc.socket != null) {
-                    try {
-                        startServer();
-                        while (receive())
-                            ;
-                    } catch (IOException e) {
-                        log(LOG_QUIET, "IOException: " + e.getMessage());
-                        if (isLogging(LOG_VERBOSE))
-                            e.printStackTrace(STDERR);
-                    }
-                }
+            if (isInheritIoBug())
+                pipeIoStreams();
+            if (oc.socket != null)
+                startServer();
+            liftoff();
+            receiveLoop();
 
-                oc.child.waitFor();
-            }
+            oc.child.waitFor();
         }
 
         return oc.child != null ? oc.child.exitValue() : 0;
@@ -1282,6 +1295,7 @@ public class Capsule implements Runnable {
     /////////// Launch ///////////////////////////////////
     // directly used by CapsuleLauncher
     final ProcessBuilder prepareForLaunch(List<String> jvmArgs, List<String> args) {
+        verifyAgent(false);
         oc.jvmArgs_ = nullToEmpty(jvmArgs); // hack
         oc.args_ = nullToEmpty(jvmArgs);    // hack
 
@@ -1495,7 +1509,7 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Called after the application is launched by the capsule.
+     * Called after the application has been launched by the capsule.
      * If this method returns a process, capsule will publish its pid (by setting a system property that may be queried by jcmd), await
      * its termination, and exit, returning its exit value. If this method returns {@code null}, the capsule will exit immediately,
      * without waiting for the child process to terminate. This method is also allowed to never return.
@@ -1509,10 +1523,28 @@ public class Capsule implements Runnable {
     private Process postlaunch0(Process child) {
         return child;
     }
+
+    /**
+     * Called after the application has been launched by the capsule and {@link #postlaunch(Process) postlauch} has returned a non-null process.
+     */
+    protected void liftoff() {
+        if ((_ct = getCallTarget(Capsule.class)) != null)
+            _ct.liftoff();
+        else
+            liftoff0();
+    }
+
+    private void liftoff0() {
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Agent">
     /////////// Agent ///////////////////////////////////
+    private static void verifyAgent(boolean isAgent) {
+        if (AGENT != isAgent)
+            throw new IllegalStateException("This operation is only available when " + (isAgent ? "agent" : "non-agent"));
+    }
+
     /**
      * Called on a capsule agent instance in the application process.
      */
@@ -1521,13 +1553,8 @@ public class Capsule implements Runnable {
             return;
         oc.agentCalled = true;
 
-        if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null) {
+        if (getProperty(PROP_ADDRESS) != null || getProperty(PROP_PORT) != null)
             startClient();
-
-//            final JMXServiceURL jmxurl = startJMXServer();
-//            if (jmxurl != null)
-//                send(MESSAGE_JMX, jmxurl);
-        }
     }
 
     @SuppressWarnings("unchecked")
@@ -1580,9 +1607,9 @@ public class Capsule implements Runnable {
             oc.socket = s;
             log(LOG_VERBOSE, "Client connected");
         } catch (IOException e) {
-            log(LOG_VERBOSE, "Client connection failed.");
+            log(LOG_QUIET, "Client connection failed.");
+            printError(e);
             closeComm();
-            throw rethrow(e);
         }
     }
 
@@ -1598,11 +1625,11 @@ public class Capsule implements Runnable {
             openSocketStreams(s);
             oc.socket = s;
             log(LOG_VERBOSE, "Client connected,");
-            startThread("capsule-comm", "clientLoop");
+            startThread("capsule-comm", "receiveLoop");
         } catch (IOException e) {
-            log(LOG_VERBOSE, "Client connection failed.");
+            log(LOG_QUIET, "Client connection failed.");
+            printError(e);
             closeComm();
-            throw rethrow(e);
         }
     }
 
@@ -1622,10 +1649,9 @@ public class Capsule implements Runnable {
     }
 
     private void closeComm() {
-        if (oc.socket != null) {
+        if (oc.socket != null)
             close(oc.socket);
-            oc.socket = null;
-        }
+        oc.socket = null;
         oc.address = null;
         oc.port = 0;
         oc.socketOutput = null;
@@ -1633,12 +1659,18 @@ public class Capsule implements Runnable {
     }
 
     @SuppressWarnings("empty-statement")
-    private void clientLoop() throws Exception {
-        while (receive())
-            ;
+    private void receiveLoop() {
+        try {
+            while (receive())
+                ;
+        } catch (IOException e) {
+            printError(e);
+        }
     }
 
     private boolean send(int message, Object payload) {
+        if (!AGENT)
+            verifyAfterStage(STAGE_LAUNCH);
         if (oc.socketOutput == null)
             return false;
         try {
@@ -1646,7 +1678,7 @@ public class Capsule implements Runnable {
             return true;
         } catch (IOException e) {
             log(LOG_VERBOSE, "Sending of message " + message + ": " + payload + " failed - " + e.getMessage());
-            if (isLogging(LOG_VERBOSE))
+            if (isLogging(LOG_DEBUG))
                 e.printStackTrace(STDERR);
             return false;
         }
@@ -1662,6 +1694,10 @@ public class Capsule implements Runnable {
     }
 
     private boolean receive() throws IOException {
+        if (!AGENT)
+            verifyAfterStage(STAGE_LAUNCH);
+        if (oc.socket == null)
+            return false;
         try {
             final int message = oc.socketInput.readInt();
             final Object payload = oc.socketInput.readObject();
@@ -1675,25 +1711,22 @@ public class Capsule implements Runnable {
         }
     }
 
-    /**
-     * For internal use; subject to change/removal.
-     * @deprecated exclude from javadocs
-     */
-    protected void receive(int message, Object payload) {
-        if ((_ct = getCallTarget(Capsule.class)) != null)
-            _ct.receive(message, payload);
-        else
-            receive0(message, payload);
-    }
-
-    private void receive0(int message, Object payload) {
+    private void receive(int message, Object payload) {
         switch (message) {
             case MESSAGE_EXIT:
                 System.exit((Integer) payload);
                 break;
-//            case MESSAGE_JMX:
-//                connectToJMX((JMXServiceURL) payload);
-//                break;
+            case MESSAGE_START_JMX:
+                if (AGENT) {
+                    final JMXServiceURL jmxurl = startJMXServer();
+                    if (jmxurl != null)
+                        send(MESSAGE_JMX_URL, jmxurl);
+                }
+                break;
+            case MESSAGE_JMX_URL:
+                if (!AGENT)
+                    this.jmxConnection = connectToJMX((JMXServiceURL) payload);
+                break;
         }
     }
 
@@ -4804,6 +4837,24 @@ public class Capsule implements Runnable {
                 e.printStackTrace(STDERR);
             return null;
         }
+    }
+
+    /**
+     * Returns an {@link MBeanServerConnection} to the application's {@code MBeanServer}.
+     * This method may only be called within {@link #liftoff() }.
+     */
+    protected final MBeanServerConnection getMBeanServerConnection() {
+        verifyAgent(false);
+        verifyAfterStage(STAGE_LAUNCH);
+        if (jmxConnection == null) {
+            send(MESSAGE_START_JMX, null);
+            try {
+                receive();
+            } catch (IOException e) {
+                printError(e);
+            }
+        }
+        return jmxConnection;
     }
     //</editor-fold>
 
