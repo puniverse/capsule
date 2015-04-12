@@ -389,11 +389,11 @@ public class Capsule implements Runnable {
                 capsule.cleanup();
                 capsule.onError(t);
             } else
-                printError(t, capsule);
+                printError(t);
         }
     }
 
-    private static void printError(Throwable t, Capsule capsule) {
+    private static void printError(Throwable t) {
         STDERR.print((AGENT ? "CAPSULE AGENT" : "CAPSULE") + " EXCEPTION: " + t.getMessage());
         if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
             STDERR.print(" while processing " + getContext());
@@ -402,8 +402,16 @@ public class Capsule implements Runnable {
             deshadow(t).printStackTrace(STDERR);
         } else
             STDERR.println(" (for stack trace, run with -D" + PROP_LOG_LEVEL + "=verbose)");
-        if (t instanceof IllegalArgumentException)
-            printHelp(capsule != null ? capsule.isWrapperCapsule() : true);
+    }
+
+    private static void printError(Throwable t, Capsule capsule) {
+        printError(t);
+        if (!AGENT && t instanceof IllegalArgumentException)
+            printUsage(capsule);
+    }
+
+    private static void printUsage(Capsule capsule) {
+        printHelp(capsule != null ? capsule.isWrapperCapsule() : true);
     }
 
     //<editor-fold defaultstate="collapsed" desc="Run Other Capsule">
@@ -1264,7 +1272,7 @@ public class Capsule implements Runnable {
             cleanup();
         } catch (Throwable e) {
             log(LOG_QUIET, "Exception on thread " + threadName + ": " + e.getMessage());
-            e.printStackTrace(STDERR);
+            printError(e);
             throw rethrow(e);
         }
     }
