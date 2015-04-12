@@ -211,9 +211,6 @@ public class Capsule implements Runnable {
     protected static final Entry<String, List<String>> ATTR_DEPENDENCIES = ATTRIBUTE("Dependencies", T_LIST(T_FILE()), null, true, "A list of Maven dependencies given as groupId:artifactId:version[(excludeGroupId:excludeArtifactId,...)]");
     protected static final Entry<String, Map<String, String>> ATTR_NATIVE_DEPENDENCIES = ATTRIBUTE("Native-Dependencies", T_MAP(T_FILE(), T_FILE(), ""), null, true, "A list of Maven dependencies consisting of native library artifacts; each item can be a comma separated pair, with the second component being a new name to give the download artifact");
 
-    private static final int MESSAGE_EXIT = 1;
-    private static final int MESSAGE_JMX = 2;
-
     // outgoing
     private static final String VAR_CAPSULE_APP = "CAPSULE_APP";
     private static final String VAR_CAPSULE_DIR = "CAPSULE_DIR";
@@ -267,6 +264,7 @@ public class Capsule implements Runnable {
     private static final Permission PERM_UNSAFE_OVERRIDE = new RuntimePermission("unsafeOverride");
     private static final int SOCKET_TIMEOUT = 1000;
 
+    // Operating systems
     private static final String OS_WINDOWS = "windows";
     private static final String OS_MACOS = "macos";
     private static final String OS_LINUX = "linux";
@@ -279,6 +277,11 @@ public class Capsule implements Runnable {
     private static final String OS_VMS = "vms";
 
     private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_BSD, OS_AIX, OS_POSIX, OS_UNIX, OS_POSIX, OS_VMS);
+
+    // Lifecycle
+    private static final int STAGE_NONE = 0;
+    private static final int STAGE_LAUNCH = 1;
+    private static final int STAGE_LIFTOFF = 2;
 
     // logging
     private static final String LOG_PREFIX = "CAPSULE: ";
@@ -300,6 +303,11 @@ public class Capsule implements Runnable {
     private static final int ATTRIB_DEFAULT = 1;
     private static final int ATTRIB_MODAL = 2;
     private static final int ATTRIB_DESC = 3;
+
+    // messages
+    private static final int MESSAGE_EXIT = 1;
+    private static final int MESSAGE_START_JMX = 2;
+    private static final int MESSAGE_JMX_URL = 3;
     //</editor-fold>
 
     //<editor-fold desc="Main">
