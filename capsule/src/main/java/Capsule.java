@@ -1322,11 +1322,7 @@ public class Capsule implements Runnable {
     private void cleanup0() {
         try {
             if (oc.child != null) {
-                if (isWindows()) {
-                    if (!send(MESSAGE_EXIT, 1))
-                        oc.child.destroy();
-                } else
-                    oc.child.destroy();
+                killChild();
                 oc.child.waitFor();
             }
             oc.child = null;
@@ -1342,6 +1338,14 @@ public class Capsule implements Runnable {
             }
         }
         oc.tmpFiles.clear();
+    }
+
+    private void killChild() {
+        if (isWindows()) {
+            if (!send(MESSAGE_EXIT, 1))
+                oc.child.destroy();
+        } else
+            oc.child.destroy();
     }
 
     protected final Path addTempFile(Path p) {
