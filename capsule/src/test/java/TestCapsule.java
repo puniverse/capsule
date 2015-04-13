@@ -55,9 +55,18 @@ public class TestCapsule extends Capsule {
     }
 
     @Override
-    protected List<Path> resolveDependency(String coords, String type) {
+    protected List<Path> resolve0(Object x) {
+        if(x instanceof Pair)
+            return DEPS.get((Pair)x);
+        return super.resolve0(x); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    protected Object lookup0(String x, String type) {
         if (DEPS == null)
-            return super.resolveDependency(coords, type);
-        return DEPS.get(new Pair(coords, type));
+            return super.lookup0(x, type);
+        if (x.contains(":"))
+            return new Pair(x, type);
+        return super.lookup0(x, type); //To change body of generated methods, choose Tools | Templates.
     }
 }

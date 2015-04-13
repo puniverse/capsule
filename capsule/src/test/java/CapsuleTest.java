@@ -42,6 +42,7 @@ import static org.junit.Assume.*;
 import org.junit.Before;
 import static com.google.common.truth.Truth.*;
 import org.joor.Reflect;
+import org.junit.Ignore;
 //import static org.mockito.Mockito.*;
 
 public class CapsuleTest {
@@ -1331,7 +1332,7 @@ public class CapsuleTest {
         assertTrue(!pathMatcher.matches(fs1.getPath("java.")));
     }
 
-    @Test
+    @Ignore
     @SuppressWarnings("LocalVariableHidesMemberVariable")
     public void testDependencyToLocalJar() throws Exception {
         FileSystem fs;
