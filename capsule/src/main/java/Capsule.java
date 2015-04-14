@@ -3152,8 +3152,6 @@ public class Capsule implements Runnable {
         if (x == null)
             return null;
 
-        Object res = null;
-
         final boolean isDependency = isDependency(x);
         if (!isDependency) {
             if (!x.contains("."))
@@ -3161,6 +3159,7 @@ public class Capsule implements Runnable {
             x = toNativePath(x);
         }
 
+        final Object res;
         final Path path;
         if (!isDependency && (path = Paths.get(x)).isAbsolute())
             res = path;
