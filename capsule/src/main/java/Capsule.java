@@ -2353,7 +2353,7 @@ public class Capsule implements Runnable {
                 int i = 0;
                 for (Map.Entry<Object, String> e : depsAndRename.entrySet()) {
                     final Path lib = resolved.get(i);
-                    final String rename = emptyToNull(sanitize(e.getValue()));
+                    final String rename = emptyToNull(e.getValue());
                     Files.copy(lib, getWritableAppCache().resolve(rename != null ? rename : lib.getFileName().toString()));
                     i++;
                 }
