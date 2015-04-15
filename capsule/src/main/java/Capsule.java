@@ -730,7 +730,7 @@ public class Capsule implements Runnable {
 
     final Capsule setTarget(String target) {
         verifyCanCallSetTarget();
-        final Path jar = isDependency(target) ? firstOrNull(resolve(lookup(target, "jar"))) : toAbsolutePath(Paths.get(target));
+        final Path jar = isDependency(target) ? firstOrNull(resolve(lookup(target, "jar", null))) : toAbsolutePath(Paths.get(target));
         if (jar == null)
             throw new RuntimeException(target + " not found.");
         return setTarget(jar);
@@ -3121,13 +3121,14 @@ public class Capsule implements Runnable {
     /////////// Paths ///////////////////////////////////
     /**
      * Converts a string file/dependency descriptor listed in the manifest to an opaque file descriptor used in attributes of type {@link #T_FILE() T_FILE}).
-     * @param x    the file/dependency descriptor
-     * @param type the file type (extension), needed only for artifact coordinates; if {@code null}, the default ({@code jar}) is used.
+     * @param x           the file/dependency descriptor
+     * @param type        the file type (extension), needed only for artifact coordinates; if {@code null}, the default ({@code jar}) is used.
+     * @param attrContext the attribute containing the file reference to look up; may be {@code null}
      * @return an opaque file descriptor that will later be resolved
      */
-    protected final Object lookup(String x, String type) {
+    protected final Object lookup(String x, String type, Entry<String, String> attrContext) {
         final Object res = cc.lookup0(x, type != null ? type : "jar");
-        log(LOG_DEBUG, "lookup " + x + " -> " + res);
+        log(LOG_DEBUG, "lookup " + x + "(" + type + ", " + name(attrContext) + ") -> " + res);
         if (res == null)
             throw new RuntimeException("Lookup for " + x + " has failed.");
         return res;
@@ -3137,7 +3138,7 @@ public class Capsule implements Runnable {
      * Same as {@link #lookup(String, String) lookup(x, null)}
      */
     protected final Object lookup(String x) {
-        return lookup(x, null);
+        return lookup(x, null, null);
     }
 
     /**
