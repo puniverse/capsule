@@ -2630,7 +2630,9 @@ public class Capsule implements Runnable {
         if (name(ATTR_CAPLETS).equals(name(attr)))
             return attribute0(attr);
         try {
-            final T value = cc.attribute(attr);
+            T value = cc.attribute(attr);
+            if(hasFILE_T(type(attr)))
+                value = lookup(value, attr);
             setContext("attribute", name(attr), value);
             return value;
         } catch (Exception e) {
@@ -3018,7 +3020,7 @@ public class Capsule implements Runnable {
         if (s == null)
             return null;
         if (type instanceof AtomicReference)
-            return (T) capsule.lookup(capsule.sanitize(s), ((AtomicReference<String>) type).get());
+            return (T) capsule.sanitize(s);
         if (type instanceof String)
             return (T) s;
         if (type instanceof Boolean)
@@ -3028,19 +3030,6 @@ public class Capsule implements Runnable {
         if (type instanceof Double)
             return (T) (Double) Double.parseDouble(s);
         throw new IllegalArgumentException("Unsupported primitive attribute type: " + type.getClass().getName());
-    }
-
-    private static boolean hasFILE_T(Object type) {
-        if (type instanceof Collection) {
-            final Object etype = ((Collection<?>) type).iterator().next();
-            return hasFILE_T(etype);
-        } else if (type instanceof Map) {
-            final Map.Entry<String, ?> desc = ((Map<String, ?>) type).entrySet().iterator().next();
-            final Object ktype = desc.getKey();
-            final Object vtype = desc.getValue();
-            return hasFILE_T(ktype) || hasFILE_T(vtype);
-        } else
-            return type instanceof AtomicReference;
     }
 
     @SuppressWarnings("unchecked")
@@ -3063,6 +3052,53 @@ public class Capsule implements Runnable {
 
     private static Map<String, String> parse(String value, String defaultValue) {
         return split(value, '=', "\\s+", defaultValue);
+    }
+    //</editor-fold>
+
+    //<editor-fold defaultstate="collapsed" desc="T_FILE handling">
+    /////////// T_FILE handling ///////////////////////////////////
+    private static boolean hasFILE_T(Object type) {
+        if (type instanceof Collection) {
+            final Object etype = ((Collection<?>) type).iterator().next();
+            return hasFILE_T(etype);
+        } else if (type instanceof Map) {
+            final Map.Entry<String, ?> desc = ((Map<String, ?>) type).entrySet().iterator().next();
+            final Object ktype = desc.getKey();
+            final Object vtype = desc.getValue();
+            return hasFILE_T(ktype) || hasFILE_T(vtype);
+        } else
+            return type instanceof AtomicReference;
+    }
+
+    private <T> T lookup(Object o, Entry<String, T> attrib) {
+        return lookup(o, type(attrib), attrib);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T lookup(Object o, T type, Entry<String, ?> attrib) {
+        if (o == null)
+            return null;
+        if (type instanceof Collection) {
+            final Object etype = ((Collection<?>) type).iterator().next();
+            final Collection<?> coll0 = (Collection<?>) o;
+            final Collection<Object> coll = type instanceof Set ? new LinkedHashSet<>() : new ArrayList<>();
+            for (Object e : coll0)
+                coll.add(e instanceof String ? lookup(e, etype, attrib) : e);
+            return (T) coll;
+        } else if (type instanceof Map) {
+            final Iterator<Map.Entry<?, ?>> it = ((Map) type).entrySet().iterator();
+            final Map.Entry<?, ?> desc = it.next();
+            final Object ktype = desc.getKey();
+            final Object vtype = desc.getValue();
+            final Map<?, ?> map0 = (Map<?, ?>)o;
+            final Map<Object, Object> map = new HashMap<>();
+            for (Map.Entry<?, ?> e : map0.entrySet())
+                map.put(lookup(e.getKey(), ktype, attrib), lookup(e.getValue(), vtype, attrib));
+            return (T) map;
+        } else if (type instanceof AtomicReference) {
+            return (T)(o instanceof String ? lookup((String)o, ((AtomicReference<String>) type).get(), attrib) : o);
+        } else
+            return (T) o;
     }
     //</editor-fold>
 
