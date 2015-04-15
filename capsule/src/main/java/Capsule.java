@@ -2980,8 +2980,8 @@ public class Capsule implements Runnable {
         return d;
     }
 
-    @SuppressWarnings("unchecked")
     // visible for testing
+    @SuppressWarnings("unchecked")
     static <T> T parse(String s, T type, Capsule capsule) {
         if (s == null)
             return null;
