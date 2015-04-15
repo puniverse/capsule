@@ -3168,7 +3168,7 @@ public class Capsule implements Runnable {
         else if (isGlob(x))
             res = listDir(verifyAppCache(), x, false);
         else
-            res = path(sanitize(x));
+            res = path(x);
 
         return res;
     }
