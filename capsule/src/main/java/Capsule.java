@@ -1921,6 +1921,10 @@ public class Capsule implements Runnable {
         }
         return oc.writableAppCache;
     }
+    
+    private boolean hasWritableAppCache() {
+        return oc.writableAppCache != null && !oc.writableAppCache.equals(getAppCache());
+    }
 
     /**
      * Returns the path of the application cache (this is the directory where the capsule is extracted if necessary).
@@ -2314,6 +2318,8 @@ public class Capsule implements Runnable {
             verifyAppCache();
         if (getAppCache() != null)
             libraryPath.add(getAppCache());
+        if(hasWritableAppCache())
+            libraryPath.add(getWritableAppCache());
         return libraryPath;
     }
 
