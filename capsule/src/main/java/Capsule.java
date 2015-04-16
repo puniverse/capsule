@@ -630,8 +630,8 @@ public class Capsule implements Runnable {
     private boolean cacheUpToDate;
     private FileLock appCacheLock;
 
-    // Some very limited state
     private int lifecycleStage;
+    private String appArtifactMainClass;
     private List<String> jvmArgs_;
     private List<String> args_;
     private List<Path> tmpFiles = new ArrayList<>();
@@ -770,7 +770,7 @@ public class Capsule implements Runnable {
         time("Read JAR in setTarget", start);
 
         if (!isCapsule)
-            this.applicationJar = jar;
+            oc.applicationJar = jar;
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             insertAfter(loadTargetCapsule(cc.getClass().getClassLoader(), jar).cc);
@@ -2192,31 +2192,11 @@ public class Capsule implements Runnable {
         }
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
-            if (isGlob(getAttribute(ATTR_APP_ARTIFACT)))
+            final String artifact = getAttribute(ATTR_APP_ARTIFACT);
+            if (isGlob(artifact))
                 throw new IllegalArgumentException("Glob pattern not allowed in " + ATTR_APP_ARTIFACT + " attribute.");
-            Object app;
-            if (isWrapperOfNonCapsule())
-                app = toAbsolutePath(path(getAttribute(ATTR_APP_ARTIFACT)));
-            else {
-                app = lookup(getAttribute(ATTR_APP_ARTIFACT));
-                if (app instanceof Path) // i.e. not a dependency
-                    app = first(resolve(app));
-            }
+            final Object app = lookup(isWrapperOfNonCapsule() ? toAbsolutePath(path(artifact)).toString() : sanitize(artifact), ATTR_APP_ARTIFACT);
             classPath.add(app);
-            if (app instanceof Path) { // add JAR's manifest's Class-Path
-                final Path jar = (Path) app;
-                final Manifest man = getManifest(jar);
-                for (String e : nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CLASS_PATH)))) {
-                    Path p;
-                    try {
-                        p = path(new URL(e).toURI());
-                    } catch (MalformedURLException | URISyntaxException ex) {
-                        p = jar.getParent().resolve(path(toNativePath(e)));
-                    }
-                    if (!classPath.contains(p))
-                        classPath.add(isWrapperOfNonCapsule() ? toAbsolutePath(p) : sanitize(p));
-                }
-            }
         }
 
         addAllIfAbsent(classPath, getAttribute(ATTR_APP_CLASS_PATH));
@@ -2416,14 +2396,10 @@ public class Capsule implements Runnable {
         log(LOG_DEBUG, "getMainClass: " + classPath);
         String mainClass = getAttribute(ATTR_APP_CLASS);
         if (mainClass == null && hasAttribute(ATTR_APP_ARTIFACT))
-            mainClass = getMainClass(getAppArtifactJarFromClasspath(classPath));
+            mainClass = oc.appArtifactMainClass;
         if (mainClass == null)
             throw new RuntimeException("Jar " + first(classPath).toAbsolutePath() + " does not have a main class defined in the manifest.");
         return mainClass;
-    }
-
-    private Path getAppArtifactJarFromClasspath(List<Path> classPath) {
-        return first(classPath).equals(getJarFile()) ? classPath.get(1) : first(classPath);
     }
     //</editor-fold>
 
@@ -2547,8 +2523,8 @@ public class Capsule implements Runnable {
             value = (T) id;
         } else if (ATTR_APP_ARTIFACT == attr) {
             String artifact = attribute00(ATTR_APP_ARTIFACT);
-            if (artifact == null && applicationJar != null)
-                artifact = applicationJar.toString();
+            if (artifact == null && oc.applicationJar != null)
+                artifact = oc.applicationJar.toString();
             value = (T) artifact;
         } else if (ATTR_APP_NAME == attr) {
             String name = attribute00(ATTR_APP_NAME);
@@ -2602,7 +2578,7 @@ public class Capsule implements Runnable {
     }
 
     private static <T> Entry<String, T> attr(String name) {
-        return new AbstractMap.SimpleImmutableEntry<String, T>(name, null);
+        return entry(name, null);
     }
 
     /**
@@ -2621,7 +2597,7 @@ public class Capsule implements Runnable {
         try {
             T value = cc.attribute(attr);
             if (hasFILE_T(type(attr)))
-                value = lookupInAttribute(value, attr, value);
+                value = lookupInAttribute(value, attr);
             setContext("attribute", name(attr), value);
             return value;
         } catch (Exception e) {
@@ -3061,8 +3037,8 @@ public class Capsule implements Runnable {
             return type instanceof AtomicReference;
     }
 
-    private <T> T lookupInAttribute(Object o, Entry<String, T> attrib, T value) {
-        return lookupInAttribute(o, type(attrib), attrib, value);
+    private <T> T lookupInAttribute(T value, Entry<String, T> attrib) {
+        return lookupInAttribute(value, type(attrib), attrib, value);
     }
 
     @SuppressWarnings("unchecked")
@@ -3154,7 +3130,7 @@ public class Capsule implements Runnable {
      * @param context     if the attribute {@code attrContext} is a map, the value associated with {@code x}'s respective key; otherwise, {@code null}.
      * @return an opaque file descriptor that will later be resolved
      */
-    protected final <T> Object lookup(String x, String type, Entry<String, T> attrContext, Object context) {
+    protected final Object lookup(String x, String type, Entry<String, ?> attrContext, Object context) {
         Object res = cc.lookup0(x, type != null ? type : "jar", attrContext, context);
 
         log(LOG_DEBUG, "lookup " + x + "(" + type + ", " + name(attrContext) + ") -> " + res);
@@ -3171,14 +3147,21 @@ public class Capsule implements Runnable {
     }
 
     /**
+     * Same as {@link #lookup(String, String, Entry, Object) lookup(x, null, attrContext, null)}
+     */
+    protected final Object lookup(String x, Entry<String, ?> attrContext) {
+        return lookup(x, null, attrContext, null);
+    }
+
+    /**
      * For internal use; subject to change/removal.
      * @deprecated exclude from javadocs
      */
-    protected <T> Object lookup0(Object x, String type, Entry<String, T> attrContext, Object context) {
+    protected Object lookup0(Object x, String type, Entry<String, ?> attrContext, Object context) {
         return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.lookup0(x, type, attrContext, context) : lookup00(x, type, attrContext, context);
     }
 
-    private <T> Object lookup00(Object x, String type, Entry<String, T> attrContext, Object context) {
+    private Object lookup00(Object x, String type, Entry<String, ?> attrContext, Object context) {
         if (x instanceof String) {
             String desc = (String) x;
 
@@ -3190,31 +3173,41 @@ public class Capsule implements Runnable {
             }
 
             final Path path;
-            if (!isDependency && (path = Paths.get(desc)).isAbsolute())
-                x = path;
-            else if (isDependency)
+            if (isDependency)
                 x = dependencyToLocalJar(getJarFile(), desc, type);
             else if (isGlob(desc))
                 x = listDir(verifyAppCache(), desc, false);
             else
                 x = path(desc);
         }
+        if (x == null)
+            return null;
 
         if (ATTR_NATIVE_DEPENDENCIES.equals(attrContext)) {
-            if (x != null && type != null && !"jar".equals(type)) {
+            if (type != null && !"jar".equals(type)) {
                 if (x instanceof Entry)
                     x = ((Entry<?, ?>) x).getValue();
 
                 x = new Object[]{x, context};
-                x = new AbstractMap.SimpleEntry<Entry<String, ?>, Object>(attrContext, x);
-                return x;
+                x = mutableEntry(attrContext, x);
             }
+        } else if (ATTR_APP_ARTIFACT.equals(attrContext)) {
+            if (!(x instanceof Entry))
+                x = mutableEntry(attrContext, x);
         }
 
         return x;
     }
 
-    private List<Path> resolve(Object x) {
+    /**
+     * Resolves a file descriptor returned from {@code lookup}.
+     * This method may have side effects, such as writing to the file system (but they should be idempotent).
+     * It is not allowed to access the paths returned from this method on the file system.
+     *
+     * @param x the value returned from {@code lookup}
+     * @return the resolved paths
+     */
+    protected final List<Path> resolve(Object x) {
         final List<Path> res = cc.resolve0(x);
         log(LOG_DEBUG, "resolve " + x + " -> " + res);
         if (res == null)
@@ -3293,9 +3286,38 @@ public class Capsule implements Runnable {
                     }
                 }
 
-                return singletonList(res);
-            } else
-                return resolve(x);
+                x = res;
+            } else if (ATTR_APP_ARTIFACT.equals(attr)) {
+                Path jar;
+                if (x instanceof Path)
+                    jar = (Path) x;
+                else if (x instanceof List && firstOrNull((List<?>) x) instanceof Path)
+                    jar = (Path) firstOrNull((List<?>) x);
+                else
+                    jar = firstOrNull(resolve(x));
+                if (jar != null) {
+                    final List<Path> res = new ArrayList<>();
+                    res.add(jar);
+                    if (!jar.isAbsolute())
+                        jar = verifyAppCache().resolve(jar);
+
+                    final Manifest man = getManifest(jar);
+                    oc.appArtifactMainClass = getMainClass(man);
+                    // add JAR's manifest's Class-Path
+                    for (String e : nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CLASS_PATH)))) {
+                        Path p;
+                        try {
+                            p = path(new URL(e).toURI());
+                        } catch (MalformedURLException | URISyntaxException ex) {
+                            p = jar.getParent().resolve(path(toNativePath(e)));
+                        }
+                        if (!res.contains(p))
+                            res.add(isWrapperOfNonCapsule() ? toAbsolutePath(p) : sanitize(p));
+                    }
+                    x = res;
+                }
+            }
+            return resolve(x);
         }
 
         throw new RuntimeException("Could not resolve item " + x);
@@ -4412,6 +4434,14 @@ public class Capsule implements Runnable {
                 m.put(entry.getKey(), entry.getValue());
         }
         return m;
+    }
+
+    private static <K, V> Entry<K, V> entry(K k, V v) {
+        return new AbstractMap.SimpleImmutableEntry<K, V>(k, v);
+    }
+
+    private static <K, V> Entry<K, V> mutableEntry(K k, V v) {
+        return new AbstractMap.SimpleEntry<K, V>(k, v);
     }
 
     @SafeVarargs

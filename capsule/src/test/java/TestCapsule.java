@@ -62,7 +62,7 @@ public class TestCapsule extends Capsule {
     }
 
     @Override
-    protected <T> Object lookup0(Object o, String type, Map.Entry<String, T> attrContext, Object context) {
+    protected Object lookup0(Object o, String type, Map.Entry<String, ?> attrContext, Object context) {
         if (DEPS == null)
             return super.lookup0(o, type, attrContext, context);
         if (o instanceof String) {
