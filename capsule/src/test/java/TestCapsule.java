@@ -56,17 +56,20 @@ public class TestCapsule extends Capsule {
 
     @Override
     protected List<Path> resolve0(Object x) {
-        if(x instanceof Pair)
-            return DEPS.get((Pair)x);
+        if (x instanceof Pair)
+            return DEPS.get((Pair) x);
         return super.resolve0(x); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    protected Object lookup0(String x, String type) {
+    protected <T> Object lookup0(Object o, String type, Map.Entry<String, T> attrContext, Object context) {
         if (DEPS == null)
-            return super.lookup0(x, type);
-        if (x.contains(":"))
-            return new Pair(x, type);
-        return super.lookup0(x, type); //To change body of generated methods, choose Tools | Templates.
+            return super.lookup0(o, type, attrContext, context);
+        if (o instanceof String) {
+            String x = (String) o;
+            if (x.contains(":"))
+                o = new Pair(x, type);
+        }
+        return super.lookup0(o, type, attrContext, context); //To change body of generated methods, choose Tools | Templates.
     }
 }

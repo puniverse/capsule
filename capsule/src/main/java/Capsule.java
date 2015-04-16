@@ -104,7 +104,7 @@ import javax.management.remote.JMXServiceURL;
  * <p>
  * Caplets might consider overriding one of the following powerful methods:
  * {@link #attribute(Map.Entry) attribute}, {@link #getVarValue(String) getVarValue},
- * {@link #processOutgoingPath(Path) processOutgoingPath}, {@link #prelaunch(List, List) prelaunch}.
+ * {@link #prelaunch(List, List) prelaunch}.
  * <p>
  * For command line option handling, see {@link #OPTION(String, String, String, String) OPTION}.<br/>
  * Attributes should be registered with {@link #ATTRIBUTE(String, Object, Object, boolean, String)  ATTRIBUTE}.
@@ -730,7 +730,7 @@ public class Capsule implements Runnable {
 
     final Capsule setTarget(String target) {
         verifyCanCallSetTarget();
-        final Path jar = isDependency(target) ? firstOrNull(resolve(lookup(target, "jar", null))) : toAbsolutePath(Paths.get(target));
+        final Path jar = isDependency(target) ? firstOrNull(resolve(lookup(target))) : toAbsolutePath(Paths.get(target));
         if (jar == null)
             throw new RuntimeException(target + " not found.");
         return setTarget(jar);
@@ -1921,7 +1921,7 @@ public class Capsule implements Runnable {
         }
         return oc.writableAppCache;
     }
-    
+
     private boolean hasWritableAppCache() {
         return oc.writableAppCache != null && !oc.writableAppCache.equals(getAppCache());
     }
@@ -2124,7 +2124,7 @@ public class Capsule implements Runnable {
         getAttribute(ATTR_APP_ARTIFACT);
         for (Map.Entry<String, Object[]> attr : ATTRIBS.entrySet()) {
             if (hasFILE_T(attr.getValue()[ATTRIB_TYPE]))
-                getAttribute(attr);
+                getAttribute(attr(attr.getKey()));
         }
         time("lookupAllDependencies", start);
     }
@@ -2318,7 +2318,7 @@ public class Capsule implements Runnable {
             verifyAppCache();
         if (getAppCache() != null)
             libraryPath.add(getAppCache());
-        if(hasWritableAppCache())
+        if (hasWritableAppCache())
             libraryPath.add(getWritableAppCache());
         return libraryPath;
     }
@@ -2332,35 +2332,13 @@ public class Capsule implements Runnable {
 
     private List<Path> getPlatformNativeLibraryPath0() {
         // WARNING: this assumes the platform running the app (say a different Java home), has the same java.library.path.
-        return toPath(asList(getProperty(PROP_JAVA_LIBRARY_PATH).split(PATH_SEPARATOR)));
+        final List<String> ps = split(getProperty(PROP_JAVA_LIBRARY_PATH), PATH_SEPARATOR);
+        ps.remove(".");
+        return toPath(ps);
     }
 
     private void resolveNativeDependencies() {
-        final Map<Object, String> depsAndRename = getAttribute(ATTR_NATIVE_DEPENDENCIES);
-        if (depsAndRename == null || depsAndRename.isEmpty())
-            return;
-        verifyAppCache();
-
-        final List<Object> deps = new ArrayList<Object>(depsAndRename.keySet());
-        log(LOG_VERBOSE, "Resolving native libs " + deps);
-        final List<Path> resolved = nullToEmpty(resolve(deps));
-        if (resolved.size() != deps.size())
-            throw new RuntimeException("One of the native artifacts " + deps + " reolved to more than a single file or to none");
-
-        if (!oc.cacheUpToDate) {
-            log(LOG_DEBUG, "Copying native libs to " + getWritableAppCache());
-            try {
-                int i = 0;
-                for (Map.Entry<Object, String> e : depsAndRename.entrySet()) {
-                    final Path lib = resolved.get(i);
-                    final String rename = emptyToNull(e.getValue());
-                    Files.copy(lib, getWritableAppCache().resolve(rename != null ? rename : lib.getFileName().toString()));
-                    i++;
-                }
-            } catch (IOException e) {
-                throw new RuntimeException("Exception while copying native libs", e);
-            }
-        }
+        resolve(getAttribute(ATTR_NATIVE_DEPENDENCIES).keySet());
     }
     //</editor-fold>
 
@@ -2435,6 +2413,7 @@ public class Capsule implements Runnable {
     }
 
     private String getMainClass(List<Path> classPath) {
+        log(LOG_DEBUG, "getMainClass: " + classPath);
         String mainClass = getAttribute(ATTR_APP_CLASS);
         if (mainClass == null && hasAttribute(ATTR_APP_ARTIFACT))
             mainClass = getMainClass(getAppArtifactJarFromClasspath(classPath));
@@ -2619,7 +2598,11 @@ public class Capsule implements Runnable {
                 throw new IllegalStateException("Attribute " + attrName + " has a conflicting registration: " + Arrays.toString(old));
         }
         ATTRIBS.put(attrName, conf);
-        return new AbstractMap.SimpleImmutableEntry<String, T>(attrName, null);
+        return attr(attrName);
+    }
+
+    private static <T> Entry<String, T> attr(String name) {
+        return new AbstractMap.SimpleImmutableEntry<String, T>(name, null);
     }
 
     /**
@@ -2637,8 +2620,8 @@ public class Capsule implements Runnable {
             return attribute0(attr);
         try {
             T value = cc.attribute(attr);
-            if(hasFILE_T(type(attr)))
-                value = lookup(value, attr);
+            if (hasFILE_T(type(attr)))
+                value = lookupInAttribute(value, attr, value);
             setContext("attribute", name(attr), value);
             return value;
         } catch (Exception e) {
@@ -2655,6 +2638,8 @@ public class Capsule implements Runnable {
      * Returns an attribute's name.
      */
     protected final String name(Entry<String, ?> attribute) {
+        if (attribute == null)
+            return null;
         return attribute.getKey();
     }
 
@@ -3076,12 +3061,12 @@ public class Capsule implements Runnable {
             return type instanceof AtomicReference;
     }
 
-    private <T> T lookup(Object o, Entry<String, T> attrib) {
-        return lookup(o, type(attrib), attrib);
+    private <T> T lookupInAttribute(Object o, Entry<String, T> attrib, T value) {
+        return lookupInAttribute(o, type(attrib), attrib, value);
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T lookup(Object o, T type, Entry<String, ?> attrib) {
+    private <T, T1> T lookupInAttribute(Object o, T type, Entry<String, T1> attrib, T1 value) {
         if (o == null)
             return null;
         if (type instanceof Collection) {
@@ -3089,20 +3074,20 @@ public class Capsule implements Runnable {
             final Collection<?> coll0 = (Collection<?>) o;
             final Collection<Object> coll = type instanceof Set ? new LinkedHashSet<>() : new ArrayList<>();
             for (Object e : coll0)
-                coll.add(e instanceof String ? lookup(e, etype, attrib) : e);
+                coll.add(e instanceof String ? lookupInAttribute(e, etype, attrib, value) : e);
             return (T) coll;
         } else if (type instanceof Map) {
             final Iterator<Map.Entry<?, ?>> it = ((Map) type).entrySet().iterator();
             final Map.Entry<?, ?> desc = it.next();
             final Object ktype = desc.getKey();
             final Object vtype = desc.getValue();
-            final Map<?, ?> map0 = (Map<?, ?>)o;
+            final Map<?, ?> map0 = (Map<?, ?>) o;
             final Map<Object, Object> map = new HashMap<>();
             for (Map.Entry<?, ?> e : map0.entrySet())
-                map.put(lookup(e.getKey(), ktype, attrib), lookup(e.getValue(), vtype, attrib));
+                map.put(lookupInAttribute(e.getKey(), ktype, attrib, value), lookupInAttribute(e.getValue(), vtype, attrib, value));
             return (T) map;
         } else if (type instanceof AtomicReference) {
-            return (T)(o instanceof String ? lookup((String)o, ((AtomicReference<String>) type).get(), attrib) : o);
+            return (T) (o instanceof String ? lookup((String) o, ((AtomicReference<String>) type).get(), attrib, (value instanceof Map ? ((Map<Object, Object>) value).get(o) : null)) : o);
         } else
             return (T) o;
     }
@@ -3166,10 +3151,12 @@ public class Capsule implements Runnable {
      * @param x           the file/dependency descriptor
      * @param type        the file type (extension), needed only for artifact coordinates; if {@code null}, the default ({@code jar}) is used.
      * @param attrContext the attribute containing the file reference to look up; may be {@code null}
+     * @param context     if the attribute {@code attrContext} is a map, the value associated with {@code x}'s respective key; otherwise, {@code null}.
      * @return an opaque file descriptor that will later be resolved
      */
-    protected final Object lookup(String x, String type, Entry<String, String> attrContext) {
-        final Object res = cc.lookup0(x, type != null ? type : "jar");
+    protected final <T> Object lookup(String x, String type, Entry<String, T> attrContext, Object context) {
+        Object res = cc.lookup0(x, type != null ? type : "jar", attrContext, context);
+
         log(LOG_DEBUG, "lookup " + x + "(" + type + ", " + name(attrContext) + ") -> " + res);
         if (res == null)
             throw new RuntimeException("Lookup for " + x + " has failed.");
@@ -3177,43 +3164,54 @@ public class Capsule implements Runnable {
     }
 
     /**
-     * Same as {@link #lookup(String, String) lookup(x, null)}
+     * Same as {@link #lookup(String, String, Entry, Object) lookup(x, null, null, null)}
      */
     protected final Object lookup(String x) {
-        return lookup(x, null, null);
+        return lookup(x, null, null, null);
     }
 
     /**
      * For internal use; subject to change/removal.
      * @deprecated exclude from javadocs
      */
-    protected Object lookup0(String x, String type) {
-        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.lookup0(x, type) : lookup00(x, type);
+    protected <T> Object lookup0(Object x, String type, Entry<String, T> attrContext, Object context) {
+        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.lookup0(x, type, attrContext, context) : lookup00(x, type, attrContext, context);
     }
 
-    private Object lookup00(String x, String type) {
-        if (x == null)
-            return null;
+    private <T> Object lookup00(Object x, String type, Entry<String, T> attrContext, Object context) {
+        if (x instanceof String) {
+            String desc = (String) x;
 
-        final boolean isDependency = isDependency(x);
-        if (!isDependency) {
-            if (!x.contains("."))
-                x += "." + type;
-            x = toNativePath(x);
+            final boolean isDependency = isDependency(desc);
+            if (!isDependency) {
+                if (!desc.contains("."))
+                    desc += "." + type;
+                desc = toNativePath(desc);
+            }
+
+            final Path path;
+            if (!isDependency && (path = Paths.get(desc)).isAbsolute())
+                x = path;
+            else if (isDependency)
+                x = dependencyToLocalJar(getJarFile(), desc, type);
+            else if (isGlob(desc))
+                x = listDir(verifyAppCache(), desc, false);
+            else
+                x = path(desc);
         }
 
-        final Object res;
-        final Path path;
-        if (!isDependency && (path = Paths.get(x)).isAbsolute())
-            res = path;
-        else if (isDependency)
-            res = dependencyToLocalJar(getJarFile(), x, type);
-        else if (isGlob(x))
-            res = listDir(verifyAppCache(), x, false);
-        else
-            res = path(x);
+        if (ATTR_NATIVE_DEPENDENCIES.equals(attrContext)) {
+            if (x != null && type != null && !"jar".equals(type)) {
+                if (x instanceof Entry)
+                    x = ((Entry<?, ?>) x).getValue();
 
-        return res;
+                x = new Object[]{x, context};
+                x = new AbstractMap.SimpleEntry<Entry<String, ?>, Object>(attrContext, x);
+                return x;
+            }
+        }
+
+        return x;
     }
 
     private List<Path> resolve(Object x) {
@@ -3221,6 +3219,8 @@ public class Capsule implements Runnable {
         log(LOG_DEBUG, "resolve " + x + " -> " + res);
         if (res == null)
             throw new RuntimeException("Could not resolve " + x);
+        if (res.isEmpty())
+            log(LOG_VERBOSE, "WARNING resolve " + x + " was empty");
         return res;
     }
 
@@ -3252,18 +3252,50 @@ public class Capsule implements Runnable {
         if (x == null)
             return null;
 
+        if (x instanceof Collection) {
+            final List<Path> res = new ArrayList<>();
+            for (Object xe : ((Collection<?>) x))
+                res.addAll(resolve(xe));
+            return res;
+        }
+
         if (x instanceof Path) {
             Path p = (Path) x;
             p = p.isAbsolute() ? p : verifyAppCache().resolve(p);
-            p = p.normalize();
+            p = p.toAbsolutePath().normalize();
+
+            final Path currentJavaHome = Paths.get(System.getProperty(PROP_JAVA_HOME));
+            if (p.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
+                p = move(p, currentJavaHome, getJavaHome());
+
             return singletonList(p);
         }
 
-        if (x instanceof Collection) {
-            final List<Path> res = new ArrayList<>();
-            for (Object xe : ((List<?>) x))
-                res.addAll(resolve(xe));
-            return res;
+        if (x instanceof Entry) {
+            final Entry<Entry<String, ?>, ?> context = (Entry<Entry<String, ?>, ?>) x;
+            final Entry<String, ?> attr = context.getKey();
+            x = context.getValue();
+
+            if (ATTR_NATIVE_DEPENDENCIES.equals(attr)) {
+                final Object[] fileAndRename = (Object[]) x;
+                final Path lib = only(resolve(fileAndRename[0]));
+                final String rename = (String) fileAndRename[1];
+                Path res = lib;
+
+                if (!lib.startsWith(getWritableAppCache())) {
+                    try {
+                        res = getWritableAppCache().resolve(rename != null ? rename : lib.getFileName().toString());
+                        log(LOG_DEBUG, "Copying native lib " + lib + " to " + res);
+                        Files.copy(lib, res, StandardCopyOption.REPLACE_EXISTING);
+                        fileAndRename[0] = res;
+                    } catch (IOException e) {
+                        throw new RuntimeException("Exception while copying native libs", e);
+                    }
+                }
+                
+                return singletonList(res);
+            } else
+                return resolve(x);
         }
 
         throw new RuntimeException("Could not resolve item " + x);
@@ -3271,7 +3303,7 @@ public class Capsule implements Runnable {
 
     /**
      * Every path emitted by the capsule to the app's command line, system properties or environment variables is
-     * first passed through this method. Caplets that relocate files should override it.
+     * first passed through this method.
      *
      * @param p the path
      * @return the processed path
@@ -3283,11 +3315,7 @@ public class Capsule implements Runnable {
     private String processOutgoingPath0(Path p) {
         if (p == null)
             return null;
-        p = toAbsolutePath(p);
-
-        final Path currentJavaHome = Paths.get(System.getProperty(PROP_JAVA_HOME));
-        if (p.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
-            p = move(p, currentJavaHome, getJavaHome());
+        p = only(resolve(p));
 
         return p.toString();
     }
@@ -4346,6 +4374,14 @@ public class Capsule implements Runnable {
     private static <T> T firstOrNull(List<T> c) {
         if (c == null || c.isEmpty())
             return null;
+        return c.get(0);
+    }
+
+    private static <T> T only(List<T> c) {
+        if (c == null || c.isEmpty())
+            throw new IllegalArgumentException("Not found");
+        if (c.size() > 1)
+            throw new IllegalArgumentException("Expected a single element but found " + c.size() + ": " + c);
         return c.get(0);
     }
 
