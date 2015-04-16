@@ -3886,7 +3886,7 @@ public class Capsule implements Runnable {
             try {
                 Path homesDir = null;
                 for (Path d = Paths.get(getProperty(PROP_JAVA_HOME)); d != null; d = d.getParent()) {
-                    if (isJavaDir(d.getFileName().toString()) != null) {
+                    if (d.getFileName() != null && isJavaDir(d.getFileName().toString()) != null) {
                         homesDir = d.getParent();
                         break;
                     }
