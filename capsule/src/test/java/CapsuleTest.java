@@ -128,7 +128,6 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(appCache.resolve("d").resolve("f").resolve("y.txt")));
 
         assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
-        assert_().that(getClassPath(pb)).has().item(appCache);
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         assert_().that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
     }
@@ -180,7 +179,6 @@ public class CapsuleTest {
         assert_().that(javaHome.toString()).doesNotContain("jre");
         assert_().that(getClassPath(pb)).has().allOf(
                 javaHome.resolve("lib/tools.jar"),
-                appCache,
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"),
                 appCache.resolve("lib").resolve("b.jar"));
@@ -287,7 +285,6 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("e.txt")));
 
         assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
-        assert_().that(getClassPath(pb)).has().item(appCache);
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("b.jar"));
@@ -567,7 +564,6 @@ public class CapsuleTest {
 
         assert_().that(getClassPath(pb)).has().noneOf(absolutePath("capsule.jar"));
         assert_().that(getClassPath(pb)).has().allOf(
-                appCache,
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"),
                 appCache.resolve("lib").resolve("b.jar"));
@@ -798,7 +794,7 @@ public class CapsuleTest {
         assertEquals(list(appCache.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"),
                 pb.command());
 
-        assertEquals(getEnv(pb, "CLASSPATH"), absolutePath("capsule.jar") + PS + appCache + PS + appCache.resolve("foo.jar") + PS + barPath);
+        assertEquals(getEnv(pb, "CLASSPATH"), absolutePath("capsule.jar") + PS + appCache.resolve("foo.jar") + PS + barPath);
     }
 
     @Test
@@ -972,7 +968,6 @@ public class CapsuleTest {
 
         assert_().that(getClassPath(pb)).has().allOf(
                 fooPath,
-                appCache,
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"));
 
@@ -1304,35 +1299,15 @@ public class CapsuleTest {
     }
 
     @Test
-    public void testListDir() throws Exception {
-        Files.createDirectories(path("a", "b", "c"));
-        Files.createDirectories(path("a", "b1"));
-        Files.createDirectories(path("a", "b", "c1"));
-        Files.createFile(path("a", "x"));
-        Files.createFile(path("a", "b", "x"));
-        Files.createFile(path("a", "b1", "x"));
-        Files.createFile(path("a", "b", "c", "x"));
-        Files.createFile(path("a", "b", "c1", "x"));
-
-        assertEquals(list(path("a", "b"), path("a", "b1"), path("a", "x")),
-                Capsule.listDir(path("a"), null, false));
-        assertEquals(list(path("a", "x")),
-                Capsule.listDir(path("a"), null, true));
-        assertEquals(set(path("a", "x"), path("a", "b", "x"), path("a", "b1", "x"), path("a", "b", "c", "x"), path("a", "b", "c1", "x")),
-                set(Capsule.listDir(path("a"), "**", true)));
-        assertEquals(list(path("a", "b1", "x")),
-                Capsule.listDir(path("a"), "b?/*", false));
-    }
-
-    @Test
-    public void testGlob() throws Exception {
-        FileSystem fs1 = FileSystems.getDefault();
-        PathMatcher pathMatcher = fs1.getPathMatcher("glob:java{.exe,}");
-        assertTrue(pathMatcher.matches(fs1.getPath("java")));
-        assertTrue(pathMatcher.matches(fs1.getPath("java.exe")));
-        assertTrue(!pathMatcher.matches(fs1.getPath(".java.exe")));
-        assertTrue(!pathMatcher.matches(fs1.getPath("java.exe1")));
-        assertTrue(!pathMatcher.matches(fs1.getPath("java.")));
+    public void testGlobToRegex() throws Exception {
+        assertEquals(true, "abc/def".matches(Capsule.globToRegex("abc/def")));
+        assertEquals(true, "abc/def".matches(Capsule.globToRegex("*/d*")));
+        assertEquals(true, "abc/def".matches(Capsule.globToRegex("a*/d*")));
+        assertEquals(true, "abc/def".matches(Capsule.globToRegex("*/*")));
+        assertEquals(false, "abc/def".matches(Capsule.globToRegex("abc/d")));
+        assertEquals(false, "abc/def".matches(Capsule.globToRegex("*")));
+        assertEquals(false, "abc/def".matches(Capsule.globToRegex("d*")));
+        assertEquals(false, "abc/def".matches(Capsule.globToRegex("abc?d*")));
     }
 
     @Ignore

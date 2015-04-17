@@ -2182,8 +2182,6 @@ public class Capsule implements Runnable {
         if (!isWrapperOfNonCapsule()) {
             if (getAttribute(ATTR_CAPSULE_IN_CLASS_PATH))
                 classPath.add(getJarFile());
-            else
-                verifyAppCache();
         }
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
@@ -2195,23 +2193,12 @@ public class Capsule implements Runnable {
         }
 
         addAllIfAbsent(classPath, getAttribute(ATTR_APP_CLASS_PATH));
-
-        if (getAppCache() == null && hasRootFiles("jar"))
-            verifyAppCache();
-        if (getAppCache() != null)
-            addAllIfAbsent(classPath, nullToEmpty(getDefaultCacheClassPath()));
+        classPath.add(lookup("*.jar", ATTR_APP_CLASS_PATH));
 
         classPath.addAll(nullToEmpty(getAttribute(ATTR_DEPENDENCIES)));
 
         time("buildClassPath", start);
         return classPath;
-    }
-
-    private List<Path> getDefaultCacheClassPath() {
-        assert getAppCache() != null;
-        final List<Path> cp = new ArrayList<Path>(listDir(getAppCache(), "*.jar", true));
-        cp.add(0, getAppCache());
-        return cp;
     }
 
     /**
@@ -2289,7 +2276,7 @@ public class Capsule implements Runnable {
         resolveNativeDependencies();
         libraryPath.addAll(0, resolve(getAttribute(ATTR_LIBRARY_PATH_P)));
         libraryPath.addAll(resolve(getAttribute(ATTR_LIBRARY_PATH_A)));
-        if (getAppCache() == null && hasRootFiles(getNativeLibExtension()))
+        if (!listJar(getJarFile(), "*." + getNativeLibExtension(), true).isEmpty())
             verifyAppCache();
         if (getAppCache() != null)
             libraryPath.add(getAppCache());
@@ -3167,11 +3154,10 @@ public class Capsule implements Runnable {
                 desc = toNativePath(desc);
             }
 
-            final Path path;
             if (isDependency)
                 x = dependencyToLocalJar(getJarFile(), desc, type);
             else if (isGlob(desc))
-                x = listDir(verifyAppCache(), desc, false);
+                x = listJar(getJarFile(), desc, false);
             else
                 x = path(desc);
         }
@@ -3247,16 +3233,6 @@ public class Capsule implements Runnable {
             return res;
         }
 
-        if (x instanceof Path) {
-            Path p = simpleResolve((Path) x);
-
-            final Path currentJavaHome = Paths.get(System.getProperty(PROP_JAVA_HOME));
-            if (p.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
-                p = move(p, currentJavaHome, getJavaHome());
-
-            return singletonList(p);
-        }
-
         if (x instanceof Entry) {
             final Entry<Entry<String, ?>, ?> context = (Entry<Entry<String, ?>, ?>) x;
             final Entry<String, ?> attr = context.getKey();
@@ -3314,13 +3290,20 @@ public class Capsule implements Runnable {
             return resolve(x);
         }
 
+        Path p = simpleResolve(x);
+
+        if (p != null) {
+            final Path currentJavaHome = Paths.get(System.getProperty(PROP_JAVA_HOME));
+            if (p.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
+                p = move(p, currentJavaHome, getJavaHome());
+
+            return singletonList(p);
+        }
+
         throw new RuntimeException("Could not resolve item " + x);
     }
 
     private Path simpleResolve(Object x) {
-        if (x == null)
-            return null;
-
         if (x instanceof Path) {
             Path p = (Path) x;
             p = p.isAbsolute() ? p : verifyAppCache().resolve(p);
@@ -3328,6 +3311,16 @@ public class Capsule implements Runnable {
 
             return p;
         }
+
+        if (x instanceof URL) {
+            final URL url = (URL) x;
+            if ("jar".equals(url.getProtocol())) {
+                if (!path(getBefore(url.getPath(), '!')).toAbsolutePath().equals(getJarFile()))
+                    throw new AssertionError("URL " + url + " not pointing at capsule JAR " + getJarFile());
+                return simpleResolve(path(getAfter(url.getPath(), '!').substring(1)));
+            }
+        }
+        
         return null;
     }
 
@@ -3360,30 +3353,20 @@ public class Capsule implements Runnable {
         return true;
     }
 
-    private boolean hasRootFiles(String type) {
-        final String suffix = '.' + type;
-        for (String f : getRootFiles()) {
-            if (f.endsWith(suffix))
-                return true;
-        }
-        return false;
-    }
-
-    private Collection<String> getRootFiles() {
-        if (rootFiles == null) {
-            final long start = clock();
-            try (ZipInputStream zis = openJarInputStream(getJarFile())) {
-                rootFiles = new ArrayList<>();
-                for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
-                    if (!entry.isDirectory() && !(entry.getName().contains("/") || entry.getName().contains("\\")))
-                        rootFiles.add(entry.getName());
-                }
-            } catch (IOException e) {
-                throw rethrow(e);
+    private List<URL> listJar(Path jar, String glob, boolean regular) {
+        final long start = clock();
+        final List<URL> res = new ArrayList<>();
+        final Pattern p = Pattern.compile(globToRegex(glob));
+        try (ZipInputStream zis = openJarInputStream(jar)) {
+            for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
+                if ((!regular || !entry.isDirectory()) && p.matcher(entry.getName()).matches())
+                    res.add(new URL("jar", "", jar + "!/" + entry.getName())); // path(entry.getName())
             }
-            time("getRootFiles", start);
+        } catch (IOException e) {
+            throw rethrow(e);
         }
-        return rootFiles;
+        time("listJar", start);
+        return res;
     }
 
     private Path mergeCapsule(Path wrapperCapsule, Path wrappedCapsule, Path outCapsule) throws IOException {
@@ -3796,82 +3779,8 @@ public class Capsule implements Runnable {
         return attrs.toArray(new FileAttribute[attrs.size()]);
     }
 
-    /**
-     * Returns the contents of a directory. <br>
-     * Passing {@code null} as the glob pattern is the same as passing {@code "*"}
-     *
-     * @param dir     the directory
-     * @param glob    the glob pattern to use to filter the entries, or {@code null} if all entries are to be returned
-     * @param regular whether only regular files should be returned
-     */
-    protected static final List<Path> listDir(Path dir, String glob, boolean regular) {
-        return listDir(dir, glob, false, regular, new ArrayList<Path>());
-    }
-
-    private static List<Path> listDir(Path dir, String glob, boolean recursive, boolean regularFile, List<Path> res) {
-        return listDir(dir, splitGlob(glob), recursive, regularFile, res);
-    }
-
-    @SuppressWarnings("null")
-    private static List<Path> listDir(Path dir, List<String> globs, boolean recursive, boolean regularFile, List<Path> res) {
-        PathMatcher matcher = null;
-        if (globs != null) {
-            while (!globs.isEmpty() && "**".equals(first(globs))) {
-                recursive = true;
-                globs = globs.subList(1, globs.size());
-            }
-            if (!globs.isEmpty())
-                matcher = dir.getFileSystem().getPathMatcher("glob:" + first(globs));
-        }
-
-        final List<Path> ms = (matcher != null || recursive) ? new ArrayList<Path>() : res;
-        final List<Path> mds = matcher != null ? new ArrayList<Path>() : null;
-        final List<Path> rds = recursive ? new ArrayList<Path>() : null;
-
-        try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
-            for (Path f : fs) {
-                if (recursive && Files.isDirectory(f))
-                    rds.add(f);
-                if (matcher == null) {
-                    if (!regularFile || Files.isRegularFile(f))
-                        ms.add(f);
-                } else {
-                    if (matcher.matches(f.getFileName())) {
-                        if (globs.size() == 1 && (!regularFile || Files.isRegularFile(f)))
-                            ms.add(f);
-                        else if (Files.isDirectory(f))
-                            mds.add(f);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw rethrow(e);
-        }
-
-        sort(ms); // sort to give same reults on all platforms (hopefully)
-        if (res != ms) {
-            res.addAll(ms);
-
-            recurse:
-            for (List<Path> ds : asList(mds, rds)) {
-                if (ds == null)
-                    continue;
-                sort(ds);
-                final List<String> gls = (ds == mds ? globs.subList(1, globs.size()) : globs);
-                for (Path d : ds)
-                    listDir(d, gls, recursive, regularFile, res);
-            }
-        }
-
-        return res;
-    }
-
     private static boolean isGlob(String s) {
         return s.contains("*") || s.contains("?") || s.contains("{") || s.contains("[");
-    }
-
-    private static List<String> splitGlob(String glob) { // splits glob pattern by directory
-        return glob != null ? asList(glob.split(FILE_SEPARATOR_CHAR == '\\' ? "\\\\" : FILE_SEPARATOR)) : null;
     }
     //</editor-fold>
 
@@ -4319,6 +4228,97 @@ public class Capsule implements Runnable {
     private static <T> T xor(T x, T y) {
         assert x == null ^ y == null;
         return x != null ? x : y;
+    }
+
+    static String globToRegex(String pattern) {
+        // Based on Neil Traft: http://stackoverflow.com/a/17369948/750563
+        final String DOT = "[^/]"; // "." -- exclude slashes
+        final StringBuilder sb = new StringBuilder(pattern.length());
+        int inGroup = 0;
+        int inClass = 0;
+        int firstIndexInClass = -1;
+        char[] arr = pattern.toCharArray();
+        for (int i = 0; i < arr.length; i++) {
+            char ch = arr[i];
+            switch (ch) {
+                case '\\':
+                    if (++i >= arr.length) {
+                        sb.append('\\');
+                    } else {
+                        char next = arr[i];
+                        switch (next) {
+                            case ',':
+                                // escape not needed
+                                break;
+                            case 'Q':
+                            case 'E':
+                                // extra escape needed
+                                sb.append('\\');
+                            default:
+                                sb.append('\\');
+                        }
+                        sb.append(next);
+                    }
+                    break;
+                case '*':
+                    if (inClass == 0)
+                        sb.append(DOT + "*");
+                    else
+                        sb.append('*');
+                    break;
+                case '?':
+                    if (inClass == 0)
+                        sb.append(DOT);
+                    else
+                        sb.append('?');
+                    break;
+                case '[':
+                    inClass++;
+                    firstIndexInClass = i + 1;
+                    sb.append('[');
+                    break;
+                case ']':
+                    inClass--;
+                    sb.append(']');
+                    break;
+                case '.':
+                case '(':
+                case ')':
+                case '+':
+                case '|':
+                case '^':
+                case '$':
+                case '@':
+                case '%':
+                    if (inClass == 0 || (firstIndexInClass == i && ch == '^'))
+                        sb.append('\\');
+                    sb.append(ch);
+                    break;
+                case '!':
+                    if (firstIndexInClass == i)
+                        sb.append('^');
+                    else
+                        sb.append('!');
+                    break;
+                case '{':
+                    inGroup++;
+                    sb.append('(');
+                    break;
+                case '}':
+                    inGroup--;
+                    sb.append(')');
+                    break;
+                case ',':
+                    if (inGroup > 0)
+                        sb.append('|');
+                    else
+                        sb.append(',');
+                    break;
+                default:
+                    sb.append(ch);
+            }
+        }
+        return sb.toString();
     }
     //</editor-fold>
 
