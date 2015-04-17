@@ -4588,10 +4588,6 @@ public class Capsule implements Runnable {
         return value.isEmpty() || !"false".equalsIgnoreCase(value);
     }
 
-    private static boolean isThrownByCapsule(Exception e) {
-        return e.getStackTrace() != null && e.getStackTrace().length > 0 && e.getStackTrace()[0].getClassName().equals(Capsule.class.getName());
-    }
-
     private static Throwable deshadow(Throwable t) {
         return deshadow("capsule", t);
     }
