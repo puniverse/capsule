@@ -398,6 +398,8 @@ public class Capsule implements Runnable {
         }
     }
 
+    //<editor-fold defaultstate="collapsed" desc="Error Reporting">
+    /////////// Error Reporting ///////////////////////////////////
     private static void printError(Throwable t) {
         STDERR.print((AGENT ? "CAPSULE AGENT" : "CAPSULE") + " EXCEPTION: " + t.getMessage());
         if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
@@ -418,6 +420,7 @@ public class Capsule implements Runnable {
     private static void printUsage(Capsule capsule) {
         printHelp(capsule != null ? capsule.isWrapperCapsule() : true);
     }
+    //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Run Other Capsule">
     /////////// Run Other Capsule ///////////////////////////////////
