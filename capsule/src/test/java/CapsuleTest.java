@@ -1531,7 +1531,10 @@ public class CapsuleTest {
 
     private Class<?> loadCapsule(Jar jar) throws IOException {
         jar = makeRealCapsuleJar(jar);
-        return CapsuleTestUtils.loadCapsule(jar, path("capsule.jar"));
+        Class<?> clazz = CapsuleTestUtils.loadCapsule(jar, path("capsule.jar"));
+        setProperties(clazz, props);
+        setCacheDir(clazz, cache);
+        return clazz;
     }
 
     private Object newCapsule(Class<?> capsuleClass) {
