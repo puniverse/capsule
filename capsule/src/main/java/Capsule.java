@@ -2168,13 +2168,13 @@ public class Capsule implements Runnable {
     private String compileClassPath(List<Path> cp) {
         if (isEmpty(cp))
             return null;
-        return join(processOutgoingPath(cp), PATH_SEPARATOR);
+        return join(cp, PATH_SEPARATOR);
     }
 
     private List<String> compileAgents(String clo, Map<Path, String> agents) {
         final List<String> command = new ArrayList<>();
         for (Map.Entry<Path, String> agent : nullToEmpty(agents).entrySet())
-            command.add(clo + processOutgoingPath(agent.getKey()) + (agent.getValue().isEmpty() ? "" : ("=" + agent.getValue())));
+            command.add(clo + first(resolve(agent.getKey())) + (agent.getValue().isEmpty() ? "" : ("=" + agent.getValue())));
         return command;
     }
 
@@ -3328,32 +3328,14 @@ public class Capsule implements Runnable {
         throw new RuntimeException("Could not resolve item " + x);
     }
 
-    /**
-     * Every path emitted by the capsule to the app's command line, system properties or environment variables is
-     * first passed through this method.
-     *
-     * @param p the path
-     * @return the processed path
-     */
-    protected String processOutgoingPath(Path p) {
-        return (_ct = getCallTarget(Capsule.class)) != null ? _ct.processOutgoingPath(p) : processOutgoingPath0(p);
-    }
-
-    private String processOutgoingPath0(Path p) {
-        if (p == null)
             return null;
         p = only(resolve(p));
 
         return p.toString();
     }
 
-    private List<String> processOutgoingPath(List<Path> ps) {
-        if (ps == null)
-            return null;
-        final List<String> res = new ArrayList<>(ps.size());
-        for (Path p : ps)
-            res.add(processOutgoingPath(p));
-        return res;
+    private String processOutgoingPath(Object p) {
+        return firstOrNull(resolve(p)).toString();
     }
     //</editor-fold>
 
