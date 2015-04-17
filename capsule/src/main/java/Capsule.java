@@ -316,7 +316,7 @@ public class Capsule implements Runnable {
     protected static final int LOG_QUIET = 1;
     protected static final int LOG_VERBOSE = 2;
     protected static final int LOG_DEBUG = 3;
-    private static final int PROFILE = Boolean.parseBoolean(System.getProperty(PROP_PROFILE, "false")) ? LOG_QUIET : LOG_DEBUG;
+    private static final int PROFILE = emptyOrTrue(System.getProperty(PROP_PROFILE)) ? LOG_QUIET : LOG_DEBUG;
     //</editor-fold>
 
     //<editor-fold desc="Main">
@@ -4572,7 +4572,10 @@ public class Capsule implements Runnable {
     }
 
     private static boolean systemPropertyEmptyOrTrue(String property) {
-        final String value = getProperty(property);
+        return emptyOrTrue(getProperty(property));
+    }
+
+    private static boolean emptyOrTrue(String value) {
         if (value == null)
             return false;
         return value.isEmpty() || Boolean.parseBoolean(value);
