@@ -3243,7 +3243,7 @@ public class Capsule implements Runnable {
         if (x instanceof Collection) {
             final List<Path> res = new ArrayList<>();
             for (Object xe : ((Collection<?>) x))
-                res.addAll(resolve(xe));
+                addAllIfAbsent(res, resolve(xe));
             return res;
         }
 
