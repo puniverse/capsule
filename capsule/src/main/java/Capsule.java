@@ -2063,17 +2063,8 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="Script Process">
     /////////// Script Process ///////////////////////////////////
-    private Path getScript() {
-        final Object s = getAttribute(ATTR_SCRIPT);
-        try {
-            return s != null ? firstOrNull(resolve(s)) : null;
-        } catch (Exception e) {
-            throw new RuntimeException("Could not start script " + s, e);
-        }
-    }
-
     private boolean buildScriptProcess(ProcessBuilder pb) {
-        final Path script = getScript();
+        final Object script = getAttribute(ATTR_SCRIPT);
         if (script == null)
             return false;
 
@@ -2083,7 +2074,6 @@ public class Capsule implements Runnable {
         resolveNativeDependencies();
         pb.environment().put(VAR_CLASSPATH, compileClassPath(resolve(classPath)));
 
-        ensureExecutable(script);
         pb.command().add(processOutgoingPath(script));
         return true;
     }
@@ -3192,11 +3182,11 @@ public class Capsule implements Runnable {
             if (type != null && !"jar".equals(type)) {
                 if (x instanceof Entry)
                     x = ((Entry<?, ?>) x).getValue();
-
                 x = new Object[]{x, context};
-                x = mutableEntry(attrContext, x);
             }
-        } else if (ATTR_APP_ARTIFACT.equals(attrContext)) {
+        }
+
+        if (asList(ATTR_APP_ARTIFACT, ATTR_SCRIPT, ATTR_NATIVE_DEPENDENCIES).contains(attrContext)) {
             if (!(x instanceof Entry))
                 x = mutableEntry(attrContext, x);
         }
@@ -3258,9 +3248,7 @@ public class Capsule implements Runnable {
         }
 
         if (x instanceof Path) {
-            Path p = (Path) x;
-            p = p.isAbsolute() ? p : verifyAppCache().resolve(p);
-            p = p.toAbsolutePath().normalize();
+            Path p = simpleResolve((Path) x);
 
             final Path currentJavaHome = Paths.get(System.getProperty(PROP_JAVA_HOME));
             if (p.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
@@ -3274,7 +3262,37 @@ public class Capsule implements Runnable {
             final Entry<String, ?> attr = context.getKey();
             x = context.getValue();
 
-            if (ATTR_NATIVE_DEPENDENCIES.equals(attr)) {
+            if (ATTR_APP_ARTIFACT.equals(attr)) {
+                Path jar;
+                if (x instanceof Path)
+                    jar = (Path) x;
+                else if (x instanceof List && firstOrNull((List<?>) x) instanceof Path)
+                    jar = (Path) firstOrNull((List<?>) x);
+                else
+                    jar = firstOrNull(resolve(x));
+                if (jar != null) {
+                    final List<Path> res = new ArrayList<>();
+                    res.add(jar);
+                    jar = simpleResolve(jar);
+
+                    final Manifest man = getManifest(jar);
+                    oc.appArtifactMainClass = getMainClass(man);
+                    // add JAR's manifest's Class-Path
+                    for (String e : nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CLASS_PATH)))) {
+                        Path p;
+                        try {
+                            p = path(new URL(e).toURI());
+                        } catch (MalformedURLException | URISyntaxException ex) {
+                            p = jar.getParent().resolve(path(toNativePath(e)));
+                        }
+                        if (!res.contains(p))
+                            res.add(isWrapperOfNonCapsule() ? toAbsolutePath(p) : sanitize(p));
+                    }
+                    x = res;
+                }
+            } else if (ATTR_SCRIPT.equals(attr)) {
+                ensureExecutable(simpleResolve(x));
+            } else if (ATTR_NATIVE_DEPENDENCIES.equals(attr)) {
                 final Object[] fileAndRename = (Object[]) x;
                 final Path lib = only(resolve(fileAndRename[0]));
                 final String rename = (String) fileAndRename[1];
@@ -3292,35 +3310,6 @@ public class Capsule implements Runnable {
                 }
 
                 x = res;
-            } else if (ATTR_APP_ARTIFACT.equals(attr)) {
-                Path jar;
-                if (x instanceof Path)
-                    jar = (Path) x;
-                else if (x instanceof List && firstOrNull((List<?>) x) instanceof Path)
-                    jar = (Path) firstOrNull((List<?>) x);
-                else
-                    jar = firstOrNull(resolve(x));
-                if (jar != null) {
-                    final List<Path> res = new ArrayList<>();
-                    res.add(jar);
-                    if (!jar.isAbsolute())
-                        jar = verifyAppCache().resolve(jar);
-
-                    final Manifest man = getManifest(jar);
-                    oc.appArtifactMainClass = getMainClass(man);
-                    // add JAR's manifest's Class-Path
-                    for (String e : nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CLASS_PATH)))) {
-                        Path p;
-                        try {
-                            p = path(new URL(e).toURI());
-                        } catch (MalformedURLException | URISyntaxException ex) {
-                            p = jar.getParent().resolve(path(toNativePath(e)));
-                        }
-                        if (!res.contains(p))
-                            res.add(isWrapperOfNonCapsule() ? toAbsolutePath(p) : sanitize(p));
-                    }
-                    x = res;
-                }
             }
             return resolve(x);
         }
@@ -3328,10 +3317,18 @@ public class Capsule implements Runnable {
         throw new RuntimeException("Could not resolve item " + x);
     }
 
+    private Path simpleResolve(Object x) {
+        if (x == null)
             return null;
-        p = only(resolve(p));
 
-        return p.toString();
+        if (x instanceof Path) {
+            Path p = (Path) x;
+            p = p.isAbsolute() ? p : verifyAppCache().resolve(p);
+            p = p.toAbsolutePath().normalize();
+
+            return p;
+        }
+        return null;
     }
 
     private String processOutgoingPath(Object p) {
