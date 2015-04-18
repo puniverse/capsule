@@ -640,7 +640,6 @@ public class Capsule implements Runnable {
     private List<String> args_;
     private List<Path> tmpFiles = new ArrayList<>();
     private Process child;
-    private Collection<String> rootFiles;
     private boolean agentCalled;
     private MBeanServerConnection jmxConnection;
     // Error reporting
