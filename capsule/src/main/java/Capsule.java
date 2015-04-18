@@ -3352,14 +3352,14 @@ public class Capsule implements Runnable {
         return true;
     }
 
-    private List<URL> listJar(Path jar, String glob, boolean regular) {
+    private List<Path> listJar(Path jar, String glob, boolean regular) {
         final long start = clock();
-        final List<URL> res = new ArrayList<>();
+        final List<Path> res = new ArrayList<>();
         final Pattern p = Pattern.compile(globToRegex(glob));
         try (ZipInputStream zis = openJarInputStream(jar)) {
             for (ZipEntry entry; (entry = zis.getNextEntry()) != null;) {
                 if ((!regular || !entry.isDirectory()) && p.matcher(entry.getName()).matches())
-                    res.add(new URL("jar", "", jar + "!/" + entry.getName())); // path(entry.getName())
+                    res.add(path(entry.getName())); // new URL("jar", "", jar + "!/" + entry.getName())
             }
         } catch (IOException e) {
             throw rethrow(e);
