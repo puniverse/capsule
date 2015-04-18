@@ -627,7 +627,7 @@ public class Capsule implements Runnable {
 
     private Path javaHome;
     private Path cacheDir;
-    private Path appCache;
+    private Path appDir;
     private Path writableAppCache;
 
     private boolean plainCache;
@@ -1509,8 +1509,8 @@ public class Capsule implements Runnable {
                 env.put(var, e.getValue() != null ? e.getValue() : "");
         }
         if (getAppId() != null) {
-            if (getAppCache() != null)
-                env.put(VAR_CAPSULE_DIR, processOutgoingPath(getAppCache()));
+            if (getAppDir() != null)
+                env.put(VAR_CAPSULE_DIR, processOutgoingPath(getAppDir()));
             env.put(VAR_CAPSULE_JAR, processOutgoingPath(getJarFile()));
             env.put(VAR_CAPSULE_APP, getAppId());
         }
@@ -1877,22 +1877,22 @@ public class Capsule implements Runnable {
     /**
      * This capsule's cache directory, or {@code null} if capsule has been configured not to extract, or the app cache dir hasn't been set up yet.
      */
-    protected final Path getAppCache() {
-        return oc.appCache;
+    protected final Path getAppDir() {
+        return oc.appDir;
     }
 
     /**
      * Returns this capsule's cache directory.
-     * The difference between this method and {@link #getAppCache()} is that this method throws an exception if the app cache
-     * cannot be retrieved, while {@link #getAppCache()} returns {@code null}.
+     * The difference between this method and {@link #getAppDir()} is that this method throws an exception if the app cache
+     * cannot be retrieved, while {@link #getAppDir()} returns {@code null}.
      *
      * @throws IllegalStateException if the app cache hasn't been set up (yet).
      */
-    protected final Path verifyAppCache() {
-        Path dir = getAppCache();
+    protected final Path appDir() {
+        Path dir = getAppDir();
         if (dir == null) {
-            oc.appCache = buildAppCacheDir();
-            dir = getAppCache();
+            oc.appDir = buildAppCacheDir();
+            dir = getAppDir();
         }
         if (dir == null) {
             String message = "Capsule not extracted.";
@@ -1912,7 +1912,7 @@ public class Capsule implements Runnable {
      */
     protected final Path getWritableAppCache() {
         if (oc.writableAppCache == null) {
-            Path cache = getAppCache();
+            Path cache = getAppDir();
             if (cache == null || !Files.isWritable(cache)) {
                 try {
                     cache = addTempFile(Files.createTempDirectory(getTempDir(), "capsule-"));
@@ -1926,7 +1926,7 @@ public class Capsule implements Runnable {
     }
 
     private boolean hasWritableAppCache() {
-        return oc.writableAppCache != null && !oc.writableAppCache.equals(getAppCache());
+        return oc.writableAppCache != null && !oc.writableAppCache.equals(getAppDir());
     }
 
     /**
@@ -2029,10 +2029,10 @@ public class Capsule implements Runnable {
     }
 
     private void markCache() throws IOException {
-        if (!oc.plainCache || oc.appCache == null || oc.cacheUpToDate)
+        if (!oc.plainCache || oc.appDir == null || oc.cacheUpToDate)
             return;
-        if (Files.isWritable(oc.appCache))
-            Files.createFile(oc.appCache.resolve(TIMESTAMP_FILE_NAME));
+        if (Files.isWritable(oc.appDir))
+            Files.createFile(oc.appDir.resolve(TIMESTAMP_FILE_NAME));
     }
 
     private void lockAppCache(Path dir) throws IOException {
@@ -2053,9 +2053,9 @@ public class Capsule implements Runnable {
     }
 
     private void unlockAppCache() throws IOException {
-        if (!oc.plainCache || oc.appCache == null)
+        if (!oc.plainCache || oc.appDir == null)
             return;
-        unlockAppCache(oc.appCache);
+        unlockAppCache(oc.appDir);
     }
     //</editor-fold>
 
@@ -2247,8 +2247,8 @@ public class Capsule implements Runnable {
 
         // Capsule properties (must come last b/c of getAppCache)
         if (getAppId() != null) {
-            if (getAppCache() != null)
-                systemProperties.put(PROP_CAPSULE_DIR, processOutgoingPath(getAppCache()));
+            if (getAppDir() != null)
+                systemProperties.put(PROP_CAPSULE_DIR, processOutgoingPath(getAppDir()));
             systemProperties.put(PROP_CAPSULE_JAR, processOutgoingPath(getJarFile()));
             systemProperties.put(PROP_CAPSULE_APP, getAppId());
         }
@@ -2275,9 +2275,9 @@ public class Capsule implements Runnable {
         libraryPath.addAll(0, resolve(getAttribute(ATTR_LIBRARY_PATH_P)));
         libraryPath.addAll(resolve(getAttribute(ATTR_LIBRARY_PATH_A)));
         if (!listJar(getJarFile(), "*." + getNativeLibExtension(), true).isEmpty())
-            verifyAppCache();
-        if (getAppCache() != null)
-            libraryPath.add(getAppCache());
+            appDir();
+        if (getAppDir() != null)
+            libraryPath.add(getAppDir());
         if (hasWritableAppCache())
             libraryPath.add(getWritableAppCache());
         return libraryPath;
@@ -3304,7 +3304,7 @@ public class Capsule implements Runnable {
     private Path simpleResolve(Object x) {
         if (x instanceof Path) {
             Path p = (Path) x;
-            p = p.isAbsolute() ? p : verifyAppCache().resolve(p);
+            p = p.isAbsolute() ? p : appDir().resolve(p);
             p = p.toAbsolutePath().normalize();
 
             return p;
@@ -3486,14 +3486,14 @@ public class Capsule implements Runnable {
             return null;
         final Path path = p.normalize();
         if (p.isAbsolute()) {
-            if (getAppCache() != null && path.startsWith(getAppCache()))
+            if (getAppDir() != null && path.startsWith(getAppDir()))
                 return path;
             if (path.startsWith(getJavaHome()) || path.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
                 return path;
         } else if (!path.startsWith(".."))
             return path;
 
-        throw new IllegalArgumentException("Path " + p + " is not local to app cache " + getAppCache());
+        throw new IllegalArgumentException("Path " + p + " is not local to app cache " + getAppDir());
     }
 
     private String sanitize(String p) {
@@ -4103,7 +4103,7 @@ public class Capsule implements Runnable {
         switch (var) {
             case VAR_CAPSULE_DIR:
                 try {
-                    value = processOutgoingPath(verifyAppCache());
+                    value = processOutgoingPath(appDir());
                     break;
                 } catch (IllegalStateException e) {
                     throw new IllegalStateException("Cannot resolve variable $" + var, e);
