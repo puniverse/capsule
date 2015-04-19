@@ -1580,7 +1580,7 @@ public class Capsule implements Runnable {
         if (ATTR_JAVA_AGENTS == attr) {
             final Map<Object, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
             assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
-            agents.put(findOwnJarFile().toString(), isWrapperCapsule() ? getJarFile().toString() : "");
+            agents.put(processOutgoingPath(findOwnJarFile()), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
             return (T) agents;
         }
 
@@ -2079,7 +2079,7 @@ public class Capsule implements Runnable {
     private Path setJavaHomeEnv(ProcessBuilder pb, Path javaHome) {
         if (javaHome == null)
             return null;
-        pb.environment().put(VAR_JAVA_HOME, javaHome.toString());
+        pb.environment().put(VAR_JAVA_HOME, processOutgoingPath(javaHome));
         return javaHome;
     }
     //</editor-fold>
