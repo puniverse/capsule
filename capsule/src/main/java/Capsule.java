@@ -155,6 +155,7 @@ public class Capsule implements Runnable {
     private static final long START = System.nanoTime();
     private static final Map<String, Object[]> OPTIONS = new LinkedHashMap<>(20);
     private static final Map<String, Object[]> ATTRIBS = new LinkedHashMap<>(60);
+    private static Properties PROPERTIES = new Properties(System.getProperties());
 
     // standard values
     private static final String PROP_JAVA_VERSION = "java.version";
@@ -193,7 +194,7 @@ public class Capsule implements Runnable {
     private static final String OS_POSIX = "posix";
     private static final String OS_VMS = "vms";
 
-    private static final String OS = System.getProperty(PROP_OS_NAME).toLowerCase();
+    private static final String OS = getProperty(PROP_OS_NAME).toLowerCase();
 
     private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_BSD, OS_AIX, OS_POSIX, OS_UNIX, OS_POSIX, OS_VMS);
     private static final String PLATFORM = getOS();
@@ -323,7 +324,6 @@ public class Capsule implements Runnable {
     protected static final PrintStream STDOUT = System.out;
     protected static final PrintStream STDERR = System.err;
     private static final ThreadLocal<Integer> LOG_LEVEL = new ThreadLocal<>();
-    private static Properties PROPERTIES = System.getProperties();
     private static Path CACHE_DIR;
     private static Capsule CAPSULE;
     private static boolean AGENT;
@@ -1878,6 +1878,12 @@ public class Capsule implements Runnable {
      * This capsule's cache directory, or {@code null} if capsule has been configured not to extract, or the app cache dir hasn't been set up yet.
      */
     protected final Path getAppDir() {
+        return oc.appDir;
+    }
+
+    private Path getOrCreateAppDir() {
+        if (oc.appDir == null)
+            oc.appDir = buildAppCacheDir();
         return oc.appDir;
     }
 
