@@ -3329,7 +3329,7 @@ public class Capsule implements Runnable {
     }
 
     private String processOutgoingPath(Object p) {
-        return firstOrNull(resolve(p)).toString();
+        return toString(firstOrNull(resolve(p)));
     }
     //</editor-fold>
 
@@ -4150,8 +4150,19 @@ public class Capsule implements Runnable {
 
     //<editor-fold defaultstate="collapsed" desc="String Utils">
     /////////// String Utils ///////////////////////////////////
-    private static String toString(Object obj) {
-        return obj != null ? obj.toString() : null;
+    private static String toString(Object o) {
+        if (o == null)
+            return null;
+        if (o instanceof Path)
+            return toString((Path) o);
+        return o.toString();
+    }
+
+    private static String toString(Path p) {
+        String s = p.toString();
+        if (FILE_SEPARATOR_CHAR != '/' && isUnix())
+            s = s.replace(FILE_SEPARATOR_CHAR, '/');
+        return s;
     }
 
     private static List<String> split(String str, String separator) {
@@ -4193,7 +4204,7 @@ public class Capsule implements Runnable {
         StringBuilder sb = new StringBuilder();
         for (Object e : coll) {
             if (e != null)
-                sb.append(e).append(separator);
+                sb.append(toString(e)).append(separator);
         }
         sb.delete(sb.length() - separator.length(), sb.length());
         return sb.toString();
