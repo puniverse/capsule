@@ -1895,11 +1895,7 @@ public class Capsule implements Runnable {
      * @throws IllegalStateException if the app cache hasn't been set up (yet).
      */
     protected final Path appDir() {
-        Path dir = getAppDir();
-        if (dir == null) {
-            oc.appDir = buildAppCacheDir();
-            dir = getAppDir();
-        }
+        final Path dir = getOrCreateAppDir();
         if (dir == null) {
             String message = "Capsule not extracted.";
             if (getAppId() == null) {
@@ -1918,7 +1914,7 @@ public class Capsule implements Runnable {
      */
     protected final Path getWritableAppCache() {
         if (oc.writableAppCache == null) {
-            Path cache = getAppDir();
+            Path cache = getOrCreateAppDir();
             if (cache == null || !Files.isWritable(cache)) {
                 try {
                     cache = addTempFile(Files.createTempDirectory(getTempDir(), "capsule-"));
