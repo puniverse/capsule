@@ -3290,14 +3290,19 @@ public class Capsule implements Runnable {
             return resolve(x);
         }
 
-        Path p = simpleResolve(x);
+        if (x instanceof Path && ((Path) x).isAbsolute()) {
+            Path p = ((Path) x).normalize();
 
-        if (p != null) {
+            //
             final Path currentJavaHome = Paths.get(System.getProperty(PROP_JAVA_HOME));
             if (p.startsWith(Paths.get(System.getProperty(PROP_JAVA_HOME))))
                 p = move(p, currentJavaHome, getJavaHome());
 
             return singletonList(p);
+        } else {
+            final Path p = simpleResolve(x);
+            if (p != null)
+                return resolve(p);
         }
 
         throw new RuntimeException("Could not resolve item " + x);
@@ -3320,7 +3325,7 @@ public class Capsule implements Runnable {
                 return simpleResolve(path(getAfter(url.getPath(), '!').substring(1)));
             }
         }
-        
+
         return null;
     }
 
@@ -4783,6 +4788,8 @@ public class Capsule implements Runnable {
 //        STDERR.println("setContext: " + type + " " + key + " " + value);
 //        Thread.dumpStack();
 
+        if (contextType_ == null)
+            return;
         contextType_.set(type);
         contextKey_.set(key);
         contextValue_.set(value != null ? value.toString() : null);
