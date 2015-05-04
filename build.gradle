@@ -101,8 +101,7 @@ subprojects {
     tasks.withType(JavaExec) {
         classpath += sourceSets.test.runtimeClasspath
     }
-
-    // cobertura.coverageFormats = ['html', 'xml'] // coveralls plugin depends on xml format report
+    
     jacocoTestReport {
         reports {
             xml.enabled = true // coveralls plugin depends on xml format report
