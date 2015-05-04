@@ -917,6 +917,19 @@ public class Capsule implements Runnable {
         return null;
     }
 
+    /**
+     * The first caplet in the caplet chain starting with the current one and going up (back) that is of the requested type.
+     */
+    protected final Capsule sup(String ClassName) {
+        for (Capsule c = this; c != null; c = c.sup) {
+            for (Class cls = c.getClass(); cls != null; cls = cls.getSuperclass()) {
+                if (ClassName.equals(cls.getName()))
+                    return c;
+            }
+        }
+        return null;
+    }
+
     protected final <T extends Capsule> T getCallTarget(Class<T> clazz) {
         /*
          * Here we're implementing both the "invokevirtual" and "invokespecial".
