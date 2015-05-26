@@ -1,3 +1,3 @@
 #!/bin/sh
 
-exec `java -Dcapsule.trampoline -jar $0` "$@"
+exec bash -c "exec $(java -Dcapsule.trampoline -jar $0) $@"
