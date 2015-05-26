@@ -1081,8 +1081,8 @@ public class CapsuleTest {
         assertEquals(0, exit);
         String res = out.toString();
         assert_().that(res).matches("[^\n]+\n\\z"); // a single line, teminated with a newline
-        assert_().that(res).startsWith("'" + "/my/1.7.0.jdk/home/bin/java" + (Capsule.isWindows() ? ".exe" : "") + "'");
-        assert_().that(res).endsWith("'com.acme.Foo' 'hi' 'there!'\n");
+        assert_().that(res).startsWith("\"" + "/my/1.7.0.jdk/home/bin/java" + (Capsule.isWindows() ? ".exe" : "") + "\"");
+        assert_().that(res).endsWith("\"com.acme.Foo\" \"hi\" \"there!\"\n");
     }
 
     private static int main0(Class<?> clazz, String... args) {
