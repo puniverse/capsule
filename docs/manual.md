@@ -276,7 +276,7 @@ The classpath, however, can be customized by the `App-Class-Path`/`Dependencies`
 
 For convenience, when specifying the class path, glob-pattern wildcards (`*`, `?`) may be used.
 
-In addition to setting the application classpath, you can also define its boot classpath. The `Boot-Class-Path` attribute is, similar to the `App-Class-Path` attribute, an ordered, space separated list of JARs and/or directories relative to the capsule's root and/or artifact coordinates, that will become the application's boot classpath. If you don't want to replace the default Java boot classpath, but simply to tweak it, The `Boot-Class-Path-P` attribute can be used to specify a classpath to be prepended to the default boot classpath, and the `Boot-Class-Path-P` attribute can specify a class path that will be appended to the default.
+In addition to setting the application classpath, you can also define its boot classpath. The `Boot-Class-Path` attribute is, similar to the `App-Class-Path` attribute, an ordered, space separated list of JARs and/or directories relative to the capsule's root and/or artifact coordinates, that will become the application's boot classpath. If you don't want to replace the default Java boot classpath, but simply to tweak it, The `Boot-Class-Path-P` attribute can be used to specify a classpath to be prepended to the default boot classpath, and the `Boot-Class-Path-A` attribute can specify a class path that will be appended to the default.
 
 If the capsule is launched with a `-Xbootclasspath` option, it will override any setting by the capsule's manifest.
 
