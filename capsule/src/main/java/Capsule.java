@@ -3902,8 +3902,9 @@ public class Capsule implements Runnable {
         fileName = fileName.toLowerCase();
         if ((fileName.startsWith("java-") || fileName.startsWith("jdk-") || fileName.startsWith("jre-"))
                 && (fileName.contains("-openjdk") || fileName.contains("-oracle"))) {
-            final Matcher m = Pattern.compile("^[^\\-]+-([0-9]+)-").matcher(fileName);
-            m.find();
+            final Matcher m = Pattern.compile("^[^\\-]+-([0-9\\.]+)-").matcher(fileName);
+            if (!m.find())
+                throw new RuntimeException("Cannot parse Java directory name: " + fileName);
             return shortJavaVersion(m.group(1));
         } else if (fileName.startsWith("jdk-") && (fileName.contains("-openjdk") || fileName.contains("-oracle"))) {
             final Matcher m = Pattern.compile("java-([0-9]+)-").matcher(fileName);
