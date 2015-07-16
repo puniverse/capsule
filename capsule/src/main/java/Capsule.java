@@ -93,7 +93,9 @@ import javax.management.remote.JMXServiceURL;
  * An application capsule.
  * <p>
  * This API is to be used by caplets (custom capsules) to programmatically (rather than declaratively) configure the capsule and possibly provide custom behavior.
- * <p>
+ *
+ * <h2>Writing Caplets</h2>
+ *
  * All non-final protected methods may be overridden by caplets. These methods will usually be called once, but they must be idempotent,
  * i.e. if called numerous times they must always return the same value, and produce the same effect as if called once.
  * <br>
