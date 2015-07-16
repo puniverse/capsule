@@ -626,6 +626,7 @@ public class Capsule implements Runnable {
     private /*final*/ Path applicationJar;
 
     private Path javaHome;
+    private String javaVersion;
     private Path cacheDir;
     private Path appDir;
     private Path writableAppCache;
@@ -2413,8 +2414,11 @@ public class Capsule implements Runnable {
      */
     protected final Path getJavaHome() {
         if (oc.javaHome == null) {
-            final Path jhome = chooseJavaHome();
-            oc.javaHome = jhome != null ? jhome : Paths.get(getProperty(PROP_JAVA_HOME));
+            Entry<String, Path> jhome = chooseJavaHome();
+            if (jhome == null)
+                jhome = entry(getProperty(PROP_JAVA_VERSION), Paths.get(getProperty(PROP_JAVA_HOME)));
+            oc.javaVersion = jhome.getKey();
+            oc.javaHome = jhome.getValue();
             log(LOG_VERBOSE, "Using JVM: " + oc.javaHome);
         }
         return oc.javaHome;
@@ -2423,18 +2427,18 @@ public class Capsule implements Runnable {
     /**
      * Chooses which Java installation to use for running the app.
      *
-     * @return the path of the Java installation to use for launching the app, or {@code null} if the current JVM is to be used.
+     * @return the path of the Java installation to use for launching the app and its version, or {@code null} if the current JVM is to be used.
      */
-    protected Path chooseJavaHome() {
+    protected Entry<String, Path> chooseJavaHome() {
         return (_ct = getCallTarget(Capsule.class)) != null ? _ct.chooseJavaHome() : chooseJavaHome0();
     }
 
-    private Path chooseJavaHome0() {
+    private Entry<String, Path> chooseJavaHome0() {
         final long start = clock();
         final String propJHome = emptyToNull(getProperty(PROP_CAPSULE_JAVA_HOME));
-        Path jhome = null;
+        Entry<String, Path> jhome = null;
         if (!"current".equals(propJHome)) {
-            jhome = propJHome != null ? Paths.get(propJHome) : null;
+            jhome = propJHome != null ? entry(getJavaVersion(Paths.get(propJHome)), Paths.get(propJHome)) : null;
             if (jhome == null && !isMatchingJavaVersion(getProperty(PROP_JAVA_VERSION), isJDK(Paths.get(getProperty(PROP_JAVA_HOME))))) {
                 final boolean jdk = getAttribute(ATTR_JDK_REQUIRED);
 
@@ -2453,12 +2457,12 @@ public class Capsule implements Runnable {
             }
         }
         time("chooseJavaHome", start);
-        return jhome != null ? jhome.toAbsolutePath() : jhome;
+        return jhome;
     }
 
-    private Path findJavaHome(boolean jdk) {
+    private Entry<String, Path> findJavaHome(boolean jdk) {
         Map<String, List<Path>> homes = nullToEmpty(getJavaHomes());
-        Path best = null;
+        Path bestPath = null;
         String bestVersion = null;
         for (Map.Entry<String, List<Path>> e : homes.entrySet()) {
             for (Path home : e.getValue()) {
@@ -2469,12 +2473,12 @@ public class Capsule implements Runnable {
                     if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
                         log(LOG_DEBUG, "JVM " + e.getValue() + " (version " + v + ") is best so far");
                         bestVersion = v;
-                        best = home;
+                        bestPath = home;
                     }
                 }
             }
         }
-        return best;
+        return bestVersion != null ? entry(bestVersion, bestPath) : null;
     }
 
     private boolean isMatchingJavaVersion(String javaVersion, boolean jdk) {
@@ -2767,7 +2771,7 @@ public class Capsule implements Runnable {
 
     private <T> T getAttribute0(String attr, T type) {
         T value = null;
-        final String majorJavaVersion = majorJavaVersion(getJavaVersion(oc.javaHome));
+        final String majorJavaVersion = majorJavaVersion(oc.javaVersion);
         if (manifest != null) {
             value = merge(value, parseAttribute(attr, type, getAttributes(manifest, null, null).getValue(attr)));
             if (majorJavaVersion != null)
