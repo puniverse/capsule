@@ -21,7 +21,7 @@ Here are some examples of caplets (some exist, some not yet):
 
 * Maven (embedded): this caplet can download the capsule's dependencies from a Maven repository prior to launch, and cache them so that they can be shared with other capsules. This can be used to reduce the capsule's size, "factor out" common dependencies (like an alternative JVM language runtime), or automatically update dependencies or even the application itself.
 * Containers (wrapper): this caplet launches a capsule inside a container
-* Native executables (wrapper): a caplet that turns a capsule into a native Windows/Mac/Linux native application.
+* Native executables (wrapper): a caplet that turns a capsule into a native Windows/Mac/Linux application.
 * Daemons (embedded): launches the capsule as a daemon/service
 * ZooKeeper/etcd (embedded): reads application values from ZooKeeper/etcd instead of the manifest and uses them to configure the application.
 * Sandbox (wrapper): launches the capsule inside a secure JVM sandbox
@@ -31,7 +31,7 @@ Here are some examples of caplets (some exist, some not yet):
 * Have your JAR automatically choose an appropriate JVM version, set JVM flags, and add an embedded JAR to the boot class path.
 * Embed any required native libraries directly in the JAR, and Capsule automatically makes sure your application finds them.
 * Distribute your application as an "executable WAR": it can be deployed to a servlet container *or*, if executed directly, by use of the Maven caplet it will automatically download Jetty and deploy itself into the embedded container.
-* Distribute a Clojure application without embedding Clojure itself in the capsule, and have Clojure downloaded (by the Maven caplet) the first time the capsule is launched. The Clojure runtime will be cached shared among all Clojure capsules so it will only be downloaded once.
+* Distribute a Clojure application without embedding Clojure itself in the capsule, and have Clojure downloaded (by the Maven caplet) the first time the capsule is launched. The Clojure runtime will be cached and shared among all Clojure capsules so it will only be downloaded once.
 * Distribute an Avatar.js application as a JAR containing only JavaScript files and the Maven caplet, and have Avatar (including its required native libraries) downloaded automatically the first time the application is launched. The Avatar runtime will be cached for later use and shared among other Avatar capsules.
 * Use a caplet to turn any capsule into a Docker image or to launch it inside a Linux Container.
 * Use a caplet to turn any capsule into an OS-specific native application or daemon.
@@ -191,7 +191,7 @@ By default, Capsule will extract the capsule JAR's contents -- except for class 
 
 The location of the cache directory is, by default, at `~/.capsule/` on Unix/Linux/Mac OS machines, and at `%USERPROFILE%\AppData\Local\capsule\` on Windows. The application caches are placed in the `apps/CAPSULE_ID` subdirectory of the cache.
 
-If the capsule fails to write to the cache directory (say, the user lacks permission), the cache will be placed in a in the default, platform specific, temp-file directory, and deleted upon the application's termination. Otherwise, the capsule will be extracted once. Following run will compare the JAR's modification date with that of the cache, and will re-write the cache only if the capsule JAR is younger. You can force re-extraction of the capsule with `-Dcapsule.reset=true`.
+If the capsule fails to write to the cache directory (say, the user lacks permission), the cache will be placed in a default, platform specific, temp-file directory, and deleted upon the application's termination. Otherwise, the capsule will be extracted once. The following run will compare the JAR's modification date with that of the cache, and will re-write the cache only if the capsule JAR is younger. You can force re-extraction of the capsule with `-Dcapsule.reset=true`.
 
 The location of the Capsule cache can be changed with environment variables: setting `CAPSULE_CACHE_NAME` determines the name of the topmost Capsule cache dir (i.e. "capsule" by default), while `CAPSULE_CACHE_DIR` can be used to set a precise path for the cache (e.g. `/tmp/capsule/`).
 
@@ -215,7 +215,7 @@ An OS section is selected based on the OS launching the capsule, and allows defi
 
 A JRE version section is selected based on the major Java version chosen by capsule to run the application (as we'll see later, a capsule can require a specific Java version, or a minimum version). This kind of section is rare, but can be useful for applications that might use different libraries depending on the JRE version used. This kind of section is named `Java-N`, where N is the major version number (6, 7, 8 etc.).
 
-Modes are a little different, as they are not selected automatically, but by the user when the capsule is launched. Modes are useful in providing different configurations the user can choose from, or even different applications within the same capsule. You define a mode by creating a section that has the mode's name. For obvios reasons, modes can't be named in a way that would confuse them with OS or JRE sections, so, for example, you can't name a mode "Windows", nor can you name it, `Java-9`. Here's an example of the `Special` mode:
+Modes are a little different, as they are not selected automatically, but by the user when the capsule is launched. Modes are useful in providing different configurations the user can choose from, or even different applications within the same capsule. You define a mode by creating a section that has the mode's name. For obvious reasons, modes can't be named in a way that would confuse them with OS or JRE sections, so, for example, you can't name a mode "Windows", nor can you name it, `Java-9`. Here's an example of the `Special` mode:
 
     Application-Class: foo.Main
 
@@ -289,7 +289,7 @@ The classpath, however, can be customized by the `App-Class-Path`/`Dependencies`
 
 For convenience, when specifying the class path, glob-pattern wildcards (`*`, `?`) may be used.
 
-In addition to setting the application classpath, you can also define its boot classpath. The `Boot-Class-Path` attribute is, similar to the `App-Class-Path` attribute, an ordered, space separated list of JARs and/or directories relative to the capsule's root and/or artifact coordinates, that will become the application's boot classpath. If you don't want to replace the default Java boot classpath, but simply to tweak it, The `Boot-Class-Path-P` attribute can be used to specify a classpath to be prepended to the default boot classpath, and the `Boot-Class-Path-P` attribute can specify a class path that will be appended to the default.
+In addition to setting the application classpath, you can also define its boot classpath. The `Boot-Class-Path` attribute is, similar to the `App-Class-Path` attribute, an ordered, space separated list of JARs and/or directories relative to the capsule's root and/or artifact coordinates, that will become the application's boot classpath. If you don't want to replace the default Java boot classpath, but simply to tweak it, The `Boot-Class-Path-P` attribute can be used to specify a classpath to be prepended to the default boot classpath, and the `Boot-Class-Path-A` attribute can specify a class path that will be appended to the default.
 
 If the capsule is launched with a `-Xbootclasspath` option, it will override any setting by the capsule's manifest.
 
