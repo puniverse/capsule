@@ -41,6 +41,7 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.*;
 import org.junit.Before;
 import static com.google.common.truth.Truth.*;
+import java.nio.file.Paths;
 import org.joor.Reflect;
 import org.junit.Ignore;
 //import static org.mockito.Mockito.*;
@@ -1308,6 +1309,12 @@ public class CapsuleTest {
         assertEquals(false, "abc/def".matches(Capsule.globToRegex("*")));
         assertEquals(false, "abc/def".matches(Capsule.globToRegex("d*")));
         assertEquals(false, "abc/def".matches(Capsule.globToRegex("abc?d*")));
+    }
+
+	@Test
+    public void testMove() throws Exception {
+        assertEquals(Paths.get("/c/d"), Capsule.move(Paths.get("/a/b"), Paths.get("/a/b"), Paths.get("/c/d/")));
+        assertEquals(Paths.get("/c/d/e"), Capsule.move(Paths.get("/a/b/e"), Paths.get("/a/b"), Paths.get("/c/d/")));
     }
 
     @Ignore
