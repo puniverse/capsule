@@ -323,7 +323,7 @@ public class Capsule implements Runnable {
     /////////// Main ///////////////////////////////////
     protected static final PrintStream STDOUT = System.out;
     protected static final PrintStream STDERR = System.err;
-    private static final ThreadLocal<Integer> LOG_LEVEL = new ThreadLocal<>();
+    private static final ThreadLocal<Integer> LOG_LEVEL = new InheritableThreadLocal<>();
     private static Path CACHE_DIR;
     private static Capsule CAPSULE;
     private static boolean AGENT;
@@ -373,7 +373,7 @@ public class Capsule implements Runnable {
             return capsule.launch(args);
         } catch (Throwable t) {
             if (capsule != null) {
-                capsule.cleanup();
+                capsule.cleanup1();
                 capsule.onError(t);
             } else
                 printError(t, capsule);
@@ -392,7 +392,7 @@ public class Capsule implements Runnable {
                 c.agent(inst);
         } catch (Throwable t) {
             if (capsule != null) {
-                capsule.cleanup();
+                capsule.cleanup1();
                 capsule.onError(t);
             } else
                 printError(t);
@@ -576,7 +576,7 @@ public class Capsule implements Runnable {
                 }
             }
             if (found)
-                capsule.cleanup();
+                capsule.cleanup1();
             return found;
         } catch (InvocationTargetException e) {
             throw rethrow(e);
@@ -1303,7 +1303,7 @@ public class Capsule implements Runnable {
             }
 
             // shutdown hook
-            cleanup();
+            cleanup1();
         } catch (Throwable e) {
             log(LOG_QUIET, "Exception on thread " + threadName + ": " + e.getMessage());
             printError(e);
@@ -1326,6 +1326,13 @@ public class Capsule implements Runnable {
         final ProcessBuilder pb = prelaunch(nullToEmpty(jvmArgs), nullToEmpty(args));
         time("prepareForLaunch", start);
         return pb;
+    }
+
+    private void cleanup1() {
+        log(LOG_VERBOSE, "Cleanup");
+        if (isLogging(LOG_DEBUG))
+            new Exception("Stack trace").printStackTrace(STDERR);
+        cleanup();
     }
 
     /**
@@ -1371,6 +1378,7 @@ public class Capsule implements Runnable {
     }
 
     protected final Path addTempFile(Path p) {
+        log(LOG_VERBOSE, "Creating temp file/dir " + p);
         oc.tmpFiles.add(p);
         return p;
     }
@@ -3717,6 +3725,7 @@ public class Capsule implements Runnable {
      * Deletes the given file or directory (even if nonempty).
      */
     static void delete(Path path) throws IOException {
+        log(LOG_DEBUG, "Deleting " + path);
         if (!Files.exists(path))
             return;
         if (Files.isDirectory(path)) {
