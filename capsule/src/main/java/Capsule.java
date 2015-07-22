@@ -112,6 +112,20 @@ import javax.management.remote.JMXServiceURL;
  * For command line option handling, see {@link #OPTION(String, String, String, String) OPTION}.<br/>
  * Attributes should be registered with {@link #ATTRIBUTE(String, Object, Object, boolean, String)  ATTRIBUTE}.
  *
+ * <h3>Handling Files</h3>
+ * 
+ * Capsule uses a two-staged <i>file resolution mechanism</i>. 
+ * 
+ * When a manifest property contains a reference to anything that might resolve to a file (or multiple files) -- e.g. the name of a Maven artifact --
+ * the string containing the reference is passed to the {@link #lookup(java.lang.String, java.lang.String, java.util.Map.Entry, java.lang.Object) lookup} method,
+ * which returns an opaque handle.
+ * 
+ * When the application launch command line is rendered (or any configuration file that is interpreted by an outside process), the file handles
+ * are passed to the {@link #resolve(java.lang.Object) resolve} method, which turns the handle into a list of {@code Path}s.
+ * 
+ * The operation of {@code lookup} and {@code resolve} can be customized by a caplet, but that process is intentionally left undocumented
+ * until that process is finalized.
+ *
  * @author pron
  */
 public class Capsule implements Runnable {
