@@ -267,6 +267,7 @@ public class Capsule implements Runnable {
     private static final String PROP_CAPSULE_JAVA_HOME = OPTION("capsule.java.home", null, null, "Sets the location of the Java home (JVM installation directory) to use; If \'current\' forces the use of the JVM that launched the capsule.");
     private static final String PROP_CAPSULE_JAVA_CMD = OPTION("capsule.java.cmd", null, null, "Sets the path to the Java executable to use.");
     private static final String PROP_JVM_ARGS = OPTION("capsule.jvm.args", null, null, "Sets additional JVM arguments to use when running the application.");
+    private static final String PROP_RUNTIME_CLASSPATH = OPTION("capsule.classpath", null, null, "Sets additional colon-separated entries that will be appended to the class path.");
     private static final String PROP_PORT = "capsule.port";
     private static final String PROP_ADDRESS = "capsule.address";
     private static final String PROP_TRAMPOLINE = "capsule.trampoline";
@@ -2234,6 +2235,19 @@ public class Capsule implements Runnable {
         classPath.add(lookup("*.jar", ATTR_APP_CLASS_PATH));
 
         classPath.addAll(nullToEmpty(getAttribute(ATTR_DEPENDENCIES)));
+
+        String runtimeClassPath = getProperty(PROP_RUNTIME_CLASSPATH);
+        log(LOG_VERBOSE, "Runtime class path: " + runtimeClassPath);
+        if (runtimeClassPath != null) {
+            for (String entry : split(runtimeClassPath, ":")) {
+                if (entry.isEmpty()) {
+                    continue;
+                }
+                Path abs = toAbsolutePath(Paths.get(entry));
+                log(LOG_DEBUG, "Adding entry " + abs);
+                classPath.add(abs);
+            }
+        }
 
         time("buildClassPath", start);
         return classPath;
