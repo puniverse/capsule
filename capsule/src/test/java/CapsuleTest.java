@@ -293,6 +293,82 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testRuntimeClassPath() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("App-Class-Path", list("lib/a.jar"))
+                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("lib/a.jar", emptyInputStream());
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+        props.setProperty("capsule.classpath", "/absolute/path/to.jar");
+
+        Capsule capsule = newCapsule(jar);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+        // Runtime path has been applied
+        assert_().that(getClassPath(pb)).has().item(absolutePath("/absolute/path/to.jar"));
+
+        // Runtime path hasn't interfered with other entries
+        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
+    }
+
+    @Test
+    public void testRuntimeClassWithEmptyString() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("App-Class-Path", list("lib/a.jar"))
+                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("lib/a.jar", emptyInputStream());
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+        props.setProperty("capsule.classpath", "");
+
+        Capsule capsule = newCapsule(jar);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+        // Runtime path hasn't interfered with other entries
+        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
+    }
+
+    @Test
+    public void testRuntimeClassWithEmptyComponents() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .setListAttribute("App-Class-Path", list("lib/a.jar"))
+                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("lib/a.jar", emptyInputStream());
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list();
+        props.setProperty("capsule.classpath", ":/absolute/path/to.jar::/absolute/path/other.jar");
+
+        Capsule capsule = newCapsule(jar);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
+
+        // Runtime path has been applied
+        assert_().that(getClassPath(pb)).has().item(absolutePath("/absolute/path/to.jar"));
+        assert_().that(getClassPath(pb)).has().item(absolutePath("/absolute/path/other.jar"));
+
+        // Runtime path hasn't interfered with other entries
+        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
+        assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
+    }
+
+    @Test
     public void testNatives1() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
