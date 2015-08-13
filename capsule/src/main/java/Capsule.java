@@ -4054,7 +4054,7 @@ public class Capsule implements Runnable {
         return true;
     }
 
-    private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)\\.(?<minor>\\d+)(?:\\.(?<patch>\\d+))?(_(?<update>\\d+))?(-(?<pre>[^-]+))?(-(?<build>.+))?");
+    private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)(\\.(?<minor>\\d+))?(?:\\.(?<patch>\\d+))?(_(?<update>\\d+))?(-(?<pre>[^-]+))?(-(?<build>.+))?");
 
     // visible for testing
     static int[] parseJavaVersion(String v) {
@@ -4066,6 +4066,10 @@ public class Capsule implements Runnable {
         ver[1] = toInt(m.group("minor"));
         ver[2] = toInt(m.group("patch"));
         ver[3] = toInt(m.group("update"));
+        if (ver[0] > 1 && ver[1] == 0) {
+            ver[1] = ver[0];
+            ver[0] = 1;
+        }
         final String pre = m.group("pre");
         if (pre != null) {
             if (pre.startsWith("rc"))

@@ -1226,6 +1226,10 @@ public class CapsuleTest {
     public void testParseJavaVersion() {
         int[] ver;
 
+        ver = Capsule.parseJavaVersion("8");
+        assertArrayEquals(ver, ints(1, 8, 0, 0, 0));
+        assertEquals("1.8.0", Capsule.toJavaVersionString(ver));
+
         ver = Capsule.parseJavaVersion("1.8.0");
         assertArrayEquals(ver, ints(1, 8, 0, 0, 0));
         assertEquals("1.8.0", Capsule.toJavaVersionString(ver));
