@@ -2854,7 +2854,7 @@ public class Capsule implements Runnable {
      * Represents an attribute type that contains a file path, dependency or class name
      */
     protected static final Object T_FILE() {
-        return T_FILE("jar");
+        return T_FILE("");
     }
 
     /**
@@ -3190,13 +3190,13 @@ public class Capsule implements Runnable {
 
             final boolean isDependency = isDependency(desc);
             if (!isDependency) {
-                if (!desc.contains("."))
+                if (!desc.contains(".") && !type.isEmpty())
                     desc += "." + type;
                 desc = toNativePath(desc);
             }
 
             if (isDependency)
-                x = dependencyToLocalJar(getJarFile(), desc, type);
+                x = dependencyToLocalJar(getJarFile(), desc, type.isEmpty() ? "jar" : type);
             else if (isGlob(desc))
                 x = listJar(getJarFile(), desc, false);
             else

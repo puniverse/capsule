@@ -68,7 +68,7 @@ public class TestCapsule extends Capsule {
         if (o instanceof String) {
             String x = (String) o;
             if (x.contains(":"))
-                o = new Pair(x, type);
+                o = new Pair(x, type.isEmpty() ? "jar" : type);
         }
         return super.lookup0(o, type, attrContext, context); //To change body of generated methods, choose Tools | Templates.
     }
