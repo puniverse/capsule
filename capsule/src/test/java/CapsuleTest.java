@@ -851,6 +851,10 @@ public class CapsuleTest {
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10")
+                .setListAttribute("App-Class-Path", list("lib/*"))
+                .addEntry("foo.jar", emptyInputStream())
+                .addEntry("lib/a.jar", emptyInputStream())
+                .addEntry("lib/b.jar", emptyInputStream())
                 .addClass(MyCapsule.class);
 
         List<String> args = list("hi", "there");
@@ -862,15 +866,23 @@ public class CapsuleTest {
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
-        assertEquals("x", getProperty(pb, "foo"));
-        assertEquals("", getProperty(pb, "bar"));
-        assertEquals("", getProperty(pb, "zzz"));
-        assertEquals("44", getProperty(pb, "baz"));
+        Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        assertTrue(getJvmArgs(pb).contains("-Xmx3000"));
-        assertTrue(!getJvmArgs(pb).contains("-Xmx100"));
-        assertTrue(getJvmArgs(pb).contains("-Xms15"));
-        assertTrue(!getJvmArgs(pb).contains("-Xms10"));
+        assert_().that(getProperty(pb, "foo")).isEqualTo("x");
+        assert_().that(getProperty(pb, "bar")).isEqualTo("");
+        assert_().that(getProperty(pb, "zzz")).isEqualTo("");
+        assert_().that(getProperty(pb, "baz")).isEqualTo("44");
+
+        assert_().that(getJvmArgs(pb)).has().item("-Xmx3000");
+        assert_().that(getJvmArgs(pb)).has().noneOf("-Xmx100");
+        assert_().that(getJvmArgs(pb)).has().item("-Xms15");
+        assert_().that(getJvmArgs(pb)).has().noneOf("-Xms10");
+
+        assert_().that(getClassPath(pb)).has().allOf(
+                fs.getPath("/foo/bar"),
+                appCache.resolve("foo.jar"),
+                appCache.resolve("lib").resolve("a.jar"),
+                appCache.resolve("lib").resolve("b.jar"));
     }
 
     @Test
@@ -1315,7 +1327,7 @@ public class CapsuleTest {
         assertEquals(false, "abc/def".matches(Capsule.globToRegex("abc?d*")));
     }
 
-	@Test
+    @Test
     public void testMove() throws Exception {
         assertEquals(Paths.get("/c/d"), Capsule.move(Paths.get("/a/b"), Paths.get("/a/b"), Paths.get("/c/d/")));
         assertEquals(Paths.get("/c/d/e"), Capsule.move(Paths.get("/a/b/e"), Paths.get("/a/b"), Paths.get("/c/d/")));

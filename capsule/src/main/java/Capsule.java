@@ -3154,7 +3154,7 @@ public class Capsule implements Runnable {
      * @return an opaque file descriptor that will later be resolved
      */
     protected final Object lookup(String x, String type, Entry<String, ?> attrContext, Object context) {
-        Object res = cc.lookup0(x, type != null ? type : "jar", attrContext, context);
+        Object res = cc.lookup0(x, nullToEmpty(type), attrContext, context);
 
         log(LOG_DEBUG, "lookup " + x + "(" + type + ", " + name(attrContext) + ") -> " + res);
         if (res == null)
@@ -4279,6 +4279,10 @@ public class Capsule implements Runnable {
         for (Object o : coll)
             len += o.toString().length();
         return len;
+    }
+
+    private static String nullToEmpty(String s) {
+        return s != null ? s : "";
     }
 
     private static String emptyToNull(String s) {

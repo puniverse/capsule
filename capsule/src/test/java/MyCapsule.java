@@ -8,6 +8,7 @@
  */
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -41,6 +42,11 @@ public class MyCapsule extends TestCapsule {
                 else if (arg.startsWith("-Xms"))
                     it.set("-Xms3");
             }
+            return (T) args;
+        }
+        if (attr == ATTR_APP_CLASS_PATH) {
+            final List<Object> args = new ArrayList<>(super.attribute(ATTR_APP_CLASS_PATH));
+            args.add(lookup("/foo/bar"));
             return (T) args;
         }
         return super.attribute(attr); //To change body of generated methods, choose Tools | Templates.
