@@ -1333,56 +1333,62 @@ public class CapsuleTest {
         assertEquals(Paths.get("/c/d/e"), Capsule.move(Paths.get("/a/b/e"), Paths.get("/a/b"), Paths.get("/c/d/")));
     }
 
-    @Ignore
-    @SuppressWarnings("LocalVariableHidesMemberVariable")
+    @Test
     public void testDependencyToLocalJar() throws Exception {
-        FileSystem fs;
-        Path root, lib, group, file;
+        Path jar = fs.getPath("foo.jar");
+        String file;
 
-        fs = Jimfs.newFileSystem();
-        root = Files.createDirectories(fs.getPath("test"));
-        lib = Files.createDirectory(root.resolve("lib"));
-        group = Files.createDirectory(lib.resolve("com.acme"));
-        file = Files.createFile(group.resolve("foo-3.1.mmm"));
+        file = "lib/com.acme/foo-3.1.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1", "mmm"));
 
-        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+        file = "lib/com.acme-foo-3.1.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1", "mmm"));
 
-        fs = Jimfs.newFileSystem();
-        root = Files.createDirectories(fs.getPath("test"));
-        lib = Files.createDirectory(root.resolve("lib"));
-        file = Files.createFile(lib.resolve("com.acme-foo-3.1.mmm"));
+        file = "lib/com.acme-foo-3.1.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1", "mmm"));
 
-        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+        file = "lib/com.acme-foo-3.1-big.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1:big", "mmm"));
 
-        fs = Jimfs.newFileSystem();
-        root = Files.createDirectories(fs.getPath("test"));
-        lib = Files.createDirectory(root.resolve("lib"));
-        file = Files.createFile(lib.resolve("foo-3.1.mmm"));
+        file = "lib/foo-3.1.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1", "mmm"));
 
-        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+        file = "com.acme/foo-3.1.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1", "mmm"));
 
-        fs = Jimfs.newFileSystem();
-        root = Files.createDirectories(fs.getPath("test"));
-        group = Files.createDirectory(root.resolve("com.acme"));
-        file = Files.createFile(group.resolve("foo-3.1.mmm"));
+        file = "com.acme-foo-3.1.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1", "mmm"));
 
-        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+        file = "com.acme-foo-3.1.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1", "mmm"));
 
-        fs = Jimfs.newFileSystem();
-        root = Files.createDirectories(fs.getPath("test"));
-        file = Files.createFile(root.resolve("com.acme-foo-3.1.mmm"));
+        file = "com.acme-foo-3.1-big.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1:big", "mmm"));
 
-        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
-
-        fs = Jimfs.newFileSystem();
-        root = Files.createDirectories(fs.getPath("test"));
-        file = Files.createFile(root.resolve("foo-3.1.mmm"));
-
-        assertEquals(file, dependencyToLocalJar(root, "com.acme:foo:3.1", "mmm"));
+        file = "foo-3.1.mmm";
+        writeJarWithFile(jar, file);
+        assertEquals(file, dependencyToLocalJar(jar, "com.acme:foo:3.1", "mmm"));
     }
 
-    private static Path dependencyToLocalJar(Path root, String dep, String type) {
-        return Reflect.on(Capsule.class).call("dependencyToLocalJar", root, dep, type).get();
+    private Path writeJarWithFile(Path path, String... entries) throws IOException {
+        Jar jar = newCapsuleJar();
+        for (String entry : entries)
+            jar.addEntry(entry, emptyInputStream());
+        jar.write(path);
+        return path;
+    }
+
+    private static String dependencyToLocalJar(Path jar, String dep, String type) {
+        return Reflect.on(Capsule.class).call("dependencyToLocalJar0", jar, dep, type).get();
     }
 
     @Test

@@ -3111,20 +3111,34 @@ public class Capsule implements Runnable {
         return lib.contains(":") && !lib.contains(":\\");
     }
 
+    private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(]+):(?<artifactId>[^:\\(]+)(:(?<version>\\(?[^:\\(]*))?(:(?<classifier>[^:\\(]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
+
     private Path dependencyToLocalJar(Path jar, String dep, String type) {
-        final String[] coords = dep.split(":");
-        final String group = coords[0];
-        final String artifact = coords[1];
-        final String version = coords.length > 2 ? (coords[2] + (coords.length > 3 ? "-" + coords[3] : "")) : null;
-        final String filename = artifact + (version != null && !version.isEmpty() ? '-' + version : "") + "." + type;
+        String res = dependencyToLocalJar0(jar, dep, type);
+        return res != null ? path(toNativePath(res)) : null;
+    }
+
+    private static String dependencyToLocalJar0(Path jar, String dep, String type) {
+        final Matcher m = PAT_DEPENDENCY.matcher(dep);
+        if (!m.matches())
+            throw new IllegalArgumentException("Could not parse dependency: " + dep);
+        final String group = emptyToNull(m.group("groupId"));
+        final String artifact = emptyToNull(m.group("artifactId"));
+        final String version = emptyToNull(m.group("version"));
+        final String classifier = emptyToNull(m.group("classifier"));
+
+        final String filename = artifact
+                + (version != null ? '-' + version : "")
+                + (classifier != null ? '-' + classifier : "")
+                + "." + type;
 
         final List<String> names = new ArrayList<>();
-        if (group != null && !group.isEmpty()) {
+        if (group != null) {
             names.add("lib/" + group + "/" + filename);
             names.add("lib/" + group + '-' + filename);
         }
         names.add("lib/" + filename);
-        if (group != null && !group.isEmpty()) {
+        if (group != null) {
             names.add(group + "/" + filename);
             names.add(group + '-' + filename);
         }
@@ -3139,7 +3153,7 @@ public class Capsule implements Runnable {
             throw rethrow(e);
         }
 
-        return index >= 0 ? path(toNativePath(names.get(index))) : null;
+        return index >= 0 ? names.get(index) : null;
     }
     //</editor-fold>
 
