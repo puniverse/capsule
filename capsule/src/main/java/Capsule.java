@@ -3396,6 +3396,11 @@ public class Capsule implements Runnable {
             if (entry.isDirectory() || !shouldExtractFile(entry.getName()))
                 continue;
 
+            if (Files.exists(targetDir.resolve(entry.getName()))) {
+                log(LOG_QUIET, "Warning: duplicate file " + entry.getName() + " in capsule");
+                continue;
+            }
+
             writeFile(targetDir, entry.getName(), jar);
         }
     }
