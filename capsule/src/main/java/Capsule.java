@@ -81,6 +81,7 @@ import static java.util.Collections.*;
 import static java.util.Arrays.asList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.RandomAccess;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
@@ -4462,16 +4463,23 @@ public class Capsule implements Runnable {
         return map;
     }
 
-    private static <T> T first(List<T> c) {
-        if (c == null || c.isEmpty())
-            throw new IllegalArgumentException("Not found");
-        return c.get(0);
+    private static boolean isEmpty(Iterable<?> c) {
+        if (c instanceof Collection)
+            return ((Collection<?>) c).isEmpty();
+        final Iterator<?> it = c.iterator();
+        return !it.hasNext();
     }
 
-    private static <T> T firstOrNull(List<T> c) {
-        if (c == null || c.isEmpty())
+    private static <T> T first(Iterable<T> c) {
+        if (c == null || isEmpty(c))
+            throw new IllegalArgumentException("Not found");
+        return (c instanceof List && c instanceof RandomAccess) ? ((List<T>)c).get(0) : c.iterator().next();
+    }
+
+    private static <T> T firstOrNull(Iterable<T> c) {
+        if (c == null || isEmpty(c))
             return null;
-        return c.get(0);
+        return (c instanceof List && c instanceof RandomAccess) ? ((List<T>)c).get(0) : c.iterator().next();
     }
 
     private static <T> T only(List<T> c) {
@@ -4718,7 +4726,7 @@ public class Capsule implements Runnable {
      * @param cmd the command
      * @return the lines output by the command
      */
-    protected static List<String> exec(String... cmd) throws IOException {
+    protected static Iterable<String> exec(String... cmd) throws IOException {
         return exec(-1, cmd);
     }
 
@@ -4731,7 +4739,7 @@ public class Capsule implements Runnable {
      * @param cmd      the command
      * @return the lines output by the command
      */
-    protected static List<String> exec(int numLines, String... cmd) throws IOException {
+    protected static Iterable<String> exec(int numLines, String... cmd) throws IOException {
         return exec(numLines, new ProcessBuilder(asList(cmd)));
     }
 
@@ -4743,7 +4751,7 @@ public class Capsule implements Runnable {
      * @param pb the {@link ProcessBuilder} that will be used to launch the command
      * @return the lines output by the command
      */
-    protected static List<String> exec(ProcessBuilder pb) throws IOException {
+    protected static Iterable<String> exec(ProcessBuilder pb) throws IOException {
         return exec(-1, pb);
     }
 
@@ -4756,7 +4764,7 @@ public class Capsule implements Runnable {
      * @param pb       the {@link ProcessBuilder} that will be used to launch the command
      * @return the lines output by the command
      */
-    protected static List<String> exec(int numLines, ProcessBuilder pb) throws IOException {
+    protected static Iterable<String> exec(int numLines, ProcessBuilder pb) throws IOException {
         final List<String> lines = new ArrayList<>();
         final Process p = pb.start();
 
