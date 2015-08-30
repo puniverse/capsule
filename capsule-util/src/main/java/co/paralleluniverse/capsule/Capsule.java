@@ -55,8 +55,7 @@ public interface Capsule {
     
     
     /**
-     * 
-     * @return 
+     * Returns a list of all caplet classes, in order.
      */
     List<Class<?>> getCaplets();
 
