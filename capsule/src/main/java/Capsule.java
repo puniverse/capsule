@@ -4760,7 +4760,7 @@ public class Capsule implements Runnable {
         final List<String> lines = new ArrayList<>();
         final Process p = pb.start();
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getErrorStream(), Charset.defaultCharset()))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream(), Charset.defaultCharset()))) {
             for (int i = 0; numLines < 0 || i < numLines; i++) {
                 final String line = reader.readLine();
                 if (line == null)
