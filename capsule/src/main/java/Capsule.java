@@ -947,6 +947,15 @@ public class Capsule implements Runnable {
         }
         return null;
     }
+    
+    // called by utils' Capsule
+    final List<Class<? extends Capsule>> getCaplets() {
+        final List<Class<? extends Capsule>> caplets = new ArrayList<>();
+        for (Capsule c = cc; c != null; c = c.sup)
+            caplets.add(c.getClass());
+        Collections.reverse(caplets);
+        return caplets;
+    }
 
     protected final <T extends Capsule> T getCallTarget(Class<T> clazz) {
         /*

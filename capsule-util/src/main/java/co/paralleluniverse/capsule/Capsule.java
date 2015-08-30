@@ -52,6 +52,13 @@ public interface Capsule {
      * Checks whether a caplet with the given class name is installed.
      */
     boolean hasCaplet(String name);
+    
+    
+    /**
+     * 
+     * @return 
+     */
+    List<Class<?>> getCaplets();
 
     /**
      * Creates a {@link ProcessBuilder} ready to use for launching the capsule.
