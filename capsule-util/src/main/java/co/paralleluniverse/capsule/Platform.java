@@ -18,16 +18,16 @@ import java.util.Objects;
 public final class Platform {
     private static final String PROP_OS_NAME = "os.name";
 
-    private static final String OS_WINDOWS = "windows";
-    private static final String OS_MACOS = "macos";
-    private static final String OS_LINUX = "linux";
-    private static final String OS_SOLARIS = "solaris";
-    private static final String OS_BSD = "bsd";
-    private static final String OS_AIX = "aix";
-    private static final String OS_HP_UX = "hp-ux";
-    private static final String OS_UNIX = "unix";
-    private static final String OS_POSIX = "posix";
-    private static final String OS_VMS = "vms";
+    public static final String OS_WINDOWS = "windows";
+    public static final String OS_MACOS = "macos";
+    public static final String OS_LINUX = "linux";
+    public static final String OS_SOLARIS = "solaris";
+    public static final String OS_BSD = "bsd";
+    public static final String OS_AIX = "aix";
+    public static final String OS_HP_UX = "hp-ux";
+    public static final String OS_UNIX = "unix";
+    public static final String OS_POSIX = "posix";
+    public static final String OS_VMS = "vms";
     
     private static final Platform MY_PLATFORM = new Platform(System.getProperty(PROP_OS_NAME));
 
