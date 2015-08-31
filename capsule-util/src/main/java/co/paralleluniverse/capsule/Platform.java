@@ -40,7 +40,7 @@ public final class Platform {
     
     public Platform(String os) {
         this.os = os.toLowerCase();
-        this.platform = getOS(os);
+        this.platform = getOS(this.os);
     }
 
     @Override
