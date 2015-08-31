@@ -412,13 +412,15 @@ public class Capsule implements Runnable {
                 capsule.cleanup1();
                 capsule.onError(t);
             } else
-                printError(t);
+                printError(LOG_QUIET, t);
         }
     }
 
     //<editor-fold defaultstate="collapsed" desc="Error Reporting">
     /////////// Error Reporting ///////////////////////////////////
-    private static void printError(Throwable t) {
+    private static void printError(int level, Throwable t) {
+        if (!isLogging(level))
+            return;
         STDERR.print((AGENT ? "CAPSULE AGENT" : "CAPSULE") + " EXCEPTION: " + t.getMessage());
         if (hasContext() && (t.getMessage() == null || t.getMessage().length() < 50))
             STDERR.print(" while processing " + getContext());
@@ -430,7 +432,7 @@ public class Capsule implements Runnable {
     }
 
     private static void printError(Throwable t, Capsule capsule) {
-        printError(t);
+        printError(LOG_QUIET, t);
         if (!AGENT && t instanceof IllegalArgumentException)
             printUsage(capsule);
     }
@@ -947,7 +949,7 @@ public class Capsule implements Runnable {
         }
         return null;
     }
-    
+
     // called by utils' Capsule
     final List<Class<? extends Capsule>> getCaplets() {
         final List<Class<? extends Capsule>> caplets = new ArrayList<>();
@@ -1333,7 +1335,7 @@ public class Capsule implements Runnable {
             cleanup1();
         } catch (Throwable e) {
             log(LOG_QUIET, "Exception on thread " + threadName + ": " + e.getMessage());
-            printError(e);
+            printError(LOG_QUIET, e);
             throw rethrow(e);
         }
     }
@@ -1402,6 +1404,11 @@ public class Capsule implements Runnable {
                 oc.child.destroy();
         } else
             oc.child.destroy();
+    }
+
+    private boolean isChildAlive() {
+        final Process child = oc.child;
+        return child != null && child.isAlive();
     }
 
     protected final Path addTempFile(Path p) {
@@ -1626,6 +1633,7 @@ public class Capsule implements Runnable {
             return value;
 
         if (ATTR_JAVA_AGENTS == attr) {
+            // add the capsule as an agent
             final Map<Object, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
             assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
             agents.put(processOutgoingPath(findOwnJarFile()), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
@@ -1637,6 +1645,7 @@ public class Capsule implements Runnable {
                 final Map<String, String> props = new HashMap<>(cast(ATTR_SYSTEM_PROPERTIES, value));
                 props.put(PROP_ADDRESS, oc.address.getHostAddress());
                 props.put(PROP_PORT, Integer.toString(oc.port));
+                props.put(PROP_LOG_LEVEL, Integer.toString(getLogLevel()));
                 return (T) props;
             }
         }
@@ -1668,9 +1677,11 @@ public class Capsule implements Runnable {
             oc.socket = s;
             log(LOG_VERBOSE, "Client connected");
         } catch (IOException e) {
-            log(LOG_QUIET, "Client connection failed.");
-            printError(e);
-            closeComm();
+            if (isChildAlive()) {
+                log(LOG_QUIET, "Client connection failed.");
+                printError(LOG_QUIET, e);
+                closeComm();
+            }
         }
     }
 
@@ -1688,8 +1699,8 @@ public class Capsule implements Runnable {
             log(LOG_VERBOSE, "Client connected,");
             startThread("capsule-comm", "receiveLoop");
         } catch (IOException e) {
-            log(LOG_QUIET, "Client connection failed.");
-            printError(e);
+            log(LOG_VERBOSE, "Client connection failed.");
+            printError(LOG_VERBOSE, e);
             closeComm();
         }
     }
@@ -1725,7 +1736,8 @@ public class Capsule implements Runnable {
             while (receive())
                 ;
         } catch (IOException e) {
-            printError(e);
+            if (isChildAlive())
+                printError(LOG_QUIET, e);
         }
     }
 
@@ -4489,13 +4501,13 @@ public class Capsule implements Runnable {
     private static <T> T first(Iterable<T> c) {
         if (c == null || isEmpty(c))
             throw new IllegalArgumentException("Not found");
-        return (c instanceof List && c instanceof RandomAccess) ? ((List<T>)c).get(0) : c.iterator().next();
+        return (c instanceof List && c instanceof RandomAccess) ? ((List<T>) c).get(0) : c.iterator().next();
     }
 
     private static <T> T firstOrNull(Iterable<T> c) {
         if (c == null || isEmpty(c))
             return null;
-        return (c instanceof List && c instanceof RandomAccess) ? ((List<T>)c).get(0) : c.iterator().next();
+        return (c instanceof List && c instanceof RandomAccess) ? ((List<T>) c).get(0) : c.iterator().next();
     }
 
     private static <T> T only(List<T> c) {
@@ -4834,6 +4846,13 @@ public class Capsule implements Runnable {
     }
 
     private static int getLogLevel(String level) {
+        try {
+            int l = Integer.parseInt(level);
+            if (l < 0)
+                throw new IllegalArgumentException("Unrecognized log level: " + level);
+            return l;
+        } catch (NumberFormatException e) {
+        }
         if (level == null || level.isEmpty())
             level = "QUIET";
         switch (level.toUpperCase()) {
@@ -5099,7 +5118,7 @@ public class Capsule implements Runnable {
             try {
                 receive();
             } catch (IOException e) {
-                printError(e);
+                printError(LOG_QUIET, e);
             }
         }
         return jmxConnection;
