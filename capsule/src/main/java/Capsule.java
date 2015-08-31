@@ -1407,8 +1407,8 @@ public class Capsule implements Runnable {
     }
 
     private boolean isChildAlive() {
-        final Process child = oc.child;
-        return child != null && child.isAlive();
+        final Process c = oc.child;
+        return c != null && isAlive(c);
     }
 
     protected final Path addTempFile(Path p) {
@@ -4746,6 +4746,16 @@ public class Capsule implements Runnable {
         }
     }
 
+    private static boolean isAlive(Process p) {
+        // return p.isAlive() // JDK8
+        try {
+            p.exitValue();
+            return true;
+        } catch (IllegalThreadStateException e) {
+            return false;
+        }
+    }
+
     /**
      * Executes a command and returns its output as a list of lines.
      * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
@@ -5045,9 +5055,9 @@ public class Capsule implements Runnable {
             }
         }
     }
+    //</editor-fold>
+    //</editor-fold>
 
-    //</editor-fold>
-    //</editor-fold>
     //<editor-fold defaultstate="collapsed" desc="POSIX">
     /////////// POSIX ///////////////////////////////////
     private static int getPid(Process p) {
