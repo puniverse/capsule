@@ -136,6 +136,8 @@ public final class CapsuleLauncher {
      */
     public Capsule newCapsule(String mode, Path wrappedJar) {
         final String oldMode = properties.getProperty(PROP_MODE);
+        final ClassLoader oldCl = Thread.currentThread().getContextClassLoader();
+        Thread.currentThread().setContextClassLoader(capsuleClass.getClassLoader());
         try {
             setProperty(PROP_MODE, mode);
 
@@ -151,7 +153,9 @@ public final class CapsuleLauncher {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not create capsule instance.", e);
         } finally {
+            // Restore
             setProperty(PROP_MODE, oldMode);
+            Thread.currentThread().setContextClassLoader(oldCl);
         }
     }
 
