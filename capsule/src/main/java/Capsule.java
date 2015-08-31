@@ -2090,7 +2090,16 @@ public class Capsule implements Runnable {
         log(LOG_VERBOSE, "Locking " + lockFile);
         final FileChannel c = FileChannel.open(lockFile, new HashSet<>(asList(StandardOpenOption.CREATE, StandardOpenOption.WRITE)), getPermissions(dir));
 
-        this.appCacheLock = c.lock();
+        if (this.appCacheLock != null) {
+            // This shouldn't happen, but due to another bug it's possible that the cache was locked and
+            // not released. In this case, attempting to lock again would throw an OverlappingFileLockException,
+            // which is not a very user-friendly solution. Instead, we just log a warning message and attempt to
+            // continue running.
+            log(LOG_QUIET, "Attempting to double lock (ignoring, but this is most likely a bug in CAPSULE)");
+            c.close();
+        } else {
+            this.appCacheLock = c.lock();
+        }
     }
 
     private void unlockAppCache(Path dir) throws IOException {
