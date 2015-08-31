@@ -85,6 +85,14 @@ public final class Platform {
     }
 
     /**
+     * Tests whether the current OS is Linux.
+     */
+    @SuppressWarnings("StringEquality")
+    public boolean isLinux() {
+        return platform == OS_LINUX;
+    }
+
+    /**
      * Tests whether the current OS is UNIX/Linux.
      */
     @SuppressWarnings("StringEquality")
