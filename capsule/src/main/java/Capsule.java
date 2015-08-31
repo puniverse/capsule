@@ -2304,7 +2304,7 @@ public class Capsule implements Runnable {
         if (hasAttribute(ATTR_SECURITY_MANAGER))
             systemProperties.put(PROP_JAVA_SECURITY_MANAGER, getAttribute(ATTR_SECURITY_MANAGER));
 
-        // Capsule properties (must come last b/c of getAppCache)
+        // Capsule properties (must come last b/c of getAppDir)
         if (getAppId() != null) {
             if (getAppDir() != null)
                 systemProperties.put(PROP_CAPSULE_DIR, processOutgoingPath(getAppDir()));
