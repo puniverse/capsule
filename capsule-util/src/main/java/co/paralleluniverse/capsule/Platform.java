@@ -101,6 +101,10 @@ public final class Platform {
                 || platform == OS_AIX || platform == OS_HP_UX;
     }
 
+    public String getOS() {
+        return platform;
+    }
+
     private static String getOS(String os) {
         if (os.startsWith("windows"))
             return OS_WINDOWS;
