@@ -1388,7 +1388,7 @@ public class CapsuleTest {
     }
 
     private static String dependencyToLocalJar(Path jar, String dep, String type) {
-        return Reflect.on(Capsule.class).call("dependencyToLocalJar0", jar, dep, type).get();
+        return Reflect.on(Capsule.class).call("dependencyToLocalJar0", jar, dep, type, null).get();
     }
 
     @Test

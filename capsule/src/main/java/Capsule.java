@@ -871,7 +871,7 @@ public class Capsule implements Runnable {
     private Capsule loadCaplet(String caplet, Capsule pred) {
         log(LOG_VERBOSE, "Loading caplet: " + caplet);
         if (isDependency(caplet) || caplet.endsWith(".jar")) {
-            final List<Path> jars = resolve(lookup(caplet));
+            final List<Path> jars = resolve(lookup(caplet, ATTR_CAPLETS));
             if (jars.size() != 1)
                 throw new RuntimeException("The caplet " + caplet + " has transitive dependencies.");
             return newCapsule(first(jars), pred);
@@ -2051,7 +2051,7 @@ public class Capsule implements Runnable {
                 }
             }
         } catch (IOException e) {
-            throw new IOException("Exception while extracting jar " + getJarFile() + " to app cache directory " + dir.toAbsolutePath(), e);
+            throw new IOException("Exception while clearing app cache directory " + dir.toAbsolutePath(), e);
         }
     }
 
@@ -3156,12 +3156,12 @@ public class Capsule implements Runnable {
 
     private static final Pattern PAT_DEPENDENCY = Pattern.compile("(?<groupId>[^:\\(]+):(?<artifactId>[^:\\(]+)(:(?<version>\\(?[^:\\(]*))?(:(?<classifier>[^:\\(]+))?(\\((?<exclusions>[^\\(\\)]*)\\))?");
 
-    private Path dependencyToLocalJar(Path jar, String dep, String type) {
-        String res = dependencyToLocalJar0(jar, dep, type);
+    private Path dependencyToLocalJar(Path jar, String dep, String type, Entry<String, ?> attrContext) {
+        String res = dependencyToLocalJar0(jar, dep, type, attrContext);
         return res != null ? path(toNativePath(res)) : null;
     }
 
-    private static String dependencyToLocalJar0(Path jar, String dep, String type) {
+    private static String dependencyToLocalJar0(Path jar, String dep, String type, Entry<String, ?> attrContext) {
         final Matcher m = PAT_DEPENDENCY.matcher(dep);
         if (!m.matches())
             throw new IllegalArgumentException("Could not parse dependency: " + dep);
@@ -3169,6 +3169,9 @@ public class Capsule implements Runnable {
         final String artifact = emptyToNull(m.group("artifactId"));
         final String version = emptyToNull(m.group("version"));
         final String classifier = emptyToNull(m.group("classifier"));
+        
+        final boolean caplet = ATTR_CAPLETS.equals(attrContext);
+        final String libdir = (caplet ? "capsule" : "lib");
 
         final String filename = artifact
                 + (version != null ? '-' + version : "")
@@ -3177,10 +3180,10 @@ public class Capsule implements Runnable {
 
         final List<String> names = new ArrayList<>();
         if (group != null) {
-            names.add("lib/" + group + "/" + filename);
-            names.add("lib/" + group + '-' + filename);
+            names.add(libdir + '/' + group + '/' + filename);
+            names.add(libdir + '/' + group + '-' + filename);
         }
-        names.add("lib/" + filename);
+        names.add(libdir + '/' + filename);
         if (group != null) {
             names.add(group + "/" + filename);
             names.add(group + '-' + filename);
@@ -3253,7 +3256,7 @@ public class Capsule implements Runnable {
             }
 
             if (isDependency)
-                x = dependencyToLocalJar(getJarFile(), desc, type.isEmpty() ? "jar" : type);
+                x = dependencyToLocalJar(getJarFile(), desc, type.isEmpty() ? "jar" : type, attrContext);
             else if (isGlob(desc))
                 x = listJar(getJarFile(), desc, false);
             else
@@ -3454,7 +3457,7 @@ public class Capsule implements Runnable {
             return false;
         if (fileName.endsWith(".class"))
             return false;
-        if (fileName.startsWith("capsule/"))
+        if (fileName.startsWith("capsule/") && !fileName.endsWith(".jar"))
             return false;
         if (fileName.startsWith("META-INF/"))
             return false;
