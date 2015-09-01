@@ -329,7 +329,7 @@ If any of these three properties is set, a security manager will be in effect wh
 
 ### Applying Caplets
 
-To apply caplets to the capsule you list them, in the order they're to be applied, in the `Caplets` manifest attribute either as class names or as artifact coordinates.
+To apply caplets to the capsule you list them, in the order they're to be applied, in the `Caplets` manifest attribute either as class names or as artifact coordinates. If given as artifact coordinates, the caplet JAR file should be placed, unextracted, in the capsule's root, or, preferably in the `capsule` directory of the capsule (so as not to be placed on the application's classpath).
 
 ### Empty Capsules and Capsule Wrapping
 
