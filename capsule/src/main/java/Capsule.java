@@ -1255,46 +1255,8 @@ public class Capsule implements Runnable {
         time("Total", START);
         log(LOG_VERBOSE, join(pb.command(), " ") + (pb.directory() != null ? " (Running in " + pb.directory() + ")" : ""));
 
-        if (isTrampoline())
-            STDOUT.println(trampolineString(pb));
-        else {
-            clearContext();
-            Runtime.getRuntime().addShutdownHook(new Thread(this, "cleanup"));
-
-            if (!isInheritIoBug())
-                pb.inheritIO();
-
-            oc.child = pb.start();
-            oc.child = postlaunch(oc.child);
-            if (oc.child == null)
-                return 0;
-
-            setStage(STAGE_LIFTOFF);
-            final int pid = getPid(oc.child);
-            if (pid > 0)
-                System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
-
-            if (isInheritIoBug())
-                pipeIoStreams();
-            if (oc.socket != null)
-                startServer();
-            liftoff();
-            receiveLoop();
-
-            oc.child.waitFor();
-        }
-
-        return oc.child != null ? oc.child.exitValue() : 0;
-    }
-
-    private String trampolineString(ProcessBuilder pb) {
-        if (hasAttribute(ATTR_ENV))
-            throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
-        final List<String> cmdline = new ArrayList<>(pb.command());
-        cmdline.remove("-D" + PROP_TRAMPOLINE);
-        for (int i = 0; i < cmdline.size(); i++)
-            cmdline.set(i, "\"" + cmdline.get(i) + "\"");
-        return join(cmdline, " ");
+        clearContext();
+        return launch(pb);
     }
 
     private void verifyNonEmpty(String message) {
@@ -1356,6 +1318,57 @@ public class Capsule implements Runnable {
         final ProcessBuilder pb = prelaunch(nullToEmpty(jvmArgs), nullToEmpty(args));
         time("prepareForLaunch", start);
         return pb;
+    }
+
+    /**
+     * Launches the process defined by the given {@link ProcessBuilder}.
+     * @param pb the process builder
+     * @return the process's exit value
+     */
+    protected int launch(ProcessBuilder pb) throws IOException, InterruptedException {
+        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.launch(pb) : launch0(pb);
+    }
+
+    private int launch0(ProcessBuilder pb) throws IOException, InterruptedException {
+        if (isTrampoline())
+            STDOUT.println(trampolineString(pb));
+        else {
+            Runtime.getRuntime().addShutdownHook(new Thread(this, "cleanup"));
+
+            if (!isInheritIoBug())
+                pb.inheritIO();
+
+            oc.child = pb.start();
+            oc.child = postlaunch(oc.child);
+            if (oc.child == null)
+                return 0;
+
+            setStage(STAGE_LIFTOFF);
+            final int pid = getPid(oc.child);
+            if (pid > 0)
+                System.setProperty(PROP_CAPSULE_APP_PID, Integer.toString(pid));
+
+            if (isInheritIoBug())
+                pipeIoStreams();
+            if (oc.socket != null)
+                startServer();
+            liftoff();
+            receiveLoop();
+
+            oc.child.waitFor();
+        }
+
+        return oc.child != null ? oc.child.exitValue() : 0;
+    }
+
+    private String trampolineString(ProcessBuilder pb) {
+        if (hasAttribute(ATTR_ENV))
+            throw new RuntimeException("Capsule cannot trampoline because manifest defines the " + ATTR_ENV + " attribute.");
+        final List<String> cmdline = new ArrayList<>(pb.command());
+        cmdline.remove("-D" + PROP_TRAMPOLINE);
+        for (int i = 0; i < cmdline.size(); i++)
+            cmdline.set(i, "\"" + cmdline.get(i) + "\"");
+        return join(cmdline, " ");
     }
 
     private void cleanup1() {
