@@ -232,7 +232,7 @@ public class Capsule implements Runnable {
     private static final int WINDOWS_MAX_CMD = 32500; // actually 32768 - http://blogs.msdn.com/b/oldnewthing/archive/2003/12/10/56028.aspx
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
     private static final Permission PERM_UNSAFE_OVERRIDE = new RuntimePermission("unsafeOverride");
-    private static final int SOCKET_TIMEOUT = 1000;
+    private static final int SOCKET_TIMEOUT = 5000;
 
     // Lifecycle
     private static final int STAGE_NONE = 0;
