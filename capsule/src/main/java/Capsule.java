@@ -1258,6 +1258,7 @@ public class Capsule implements Runnable {
         if (isTrampoline())
             STDOUT.println(trampolineString(pb));
         else {
+            clearContext();
             Runtime.getRuntime().addShutdownHook(new Thread(this, "cleanup"));
 
             if (!isInheritIoBug())
@@ -4694,7 +4695,7 @@ public class Capsule implements Runnable {
     }
 
     private static boolean systemPropertyEmptyOrTrue(String property) {
-        return emptyOrTrue(getProperty(property));
+        return emptyOrTrue(getProperty0(property));
     }
 
     private static boolean emptyOrTrue(String value) {
@@ -4704,7 +4705,7 @@ public class Capsule implements Runnable {
     }
 
     private static boolean systemPropertyEmptyOrNotFalse(String property) {
-        final String value = getProperty(property);
+        final String value = getProperty0(property);
         if (value == null)
             return false;
         return value.isEmpty() || !"false".equalsIgnoreCase(value);
