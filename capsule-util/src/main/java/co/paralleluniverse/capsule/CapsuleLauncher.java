@@ -153,7 +153,6 @@ public final class CapsuleLauncher {
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Could not create capsule instance.", e);
         } finally {
-            // Restore
             setProperty(PROP_MODE, oldMode);
             Thread.currentThread().setContextClassLoader(oldCl);
         }
