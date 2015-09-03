@@ -2697,9 +2697,10 @@ public class Capsule implements Runnable {
     }
 
     private void validateManifest(Manifest manifest) {
-        if (!Capsule.class.getName().equals(manifest.getMainAttributes().getValue(ATTR_PREMAIN_CLASS)))
-            throw new IllegalStateException("Capsule manifest must specify " + Capsule.class.getName()
-                    + " in the " + ATTR_PREMAIN_CLASS + " attribute.");
+        // TODO @circlespainter: fix and adjust testsuite
+        // if (!Capsule.class.getName().equals(manifest.getMainAttributes().getValue(ATTR_PREMAIN_CLASS)))
+        //     throw new IllegalStateException("Capsule manifest must specify " + Capsule.class.getName()
+        //             + " in the " + ATTR_PREMAIN_CLASS + " attribute.");
 
         if (manifest.getMainAttributes().getValue(ATTR_CLASS_PATH) != null)
             throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
