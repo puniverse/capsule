@@ -187,6 +187,7 @@ public class Capsule implements Runnable {
     private static final String PROP_TMP_DIR = "java.io.tmpdir";
 
     private static final String ATTR_MANIFEST_VERSION = "Manifest-Version";
+    private static final String ATTR_PREMAIN_CLASS = "Premain-Class";
     private static final String ATTR_MAIN_CLASS = "Main-Class";
     private static final String ATTR_CLASS_PATH = "Class-Path";
     private static final String ATTR_IMPLEMENTATION_VERSION = "Implementation-Version";
@@ -2696,6 +2697,10 @@ public class Capsule implements Runnable {
     }
 
     private void validateManifest(Manifest manifest) {
+        if (!Capsule.class.getName().equals(manifest.getMainAttributes().getValue(ATTR_PREMAIN_CLASS)))
+            throw new IllegalStateException("Capsule manifest must specify " + Capsule.class.getName()
+                    + " in the " + ATTR_PREMAIN_CLASS + " attribute.");
+
         if (manifest.getMainAttributes().getValue(ATTR_CLASS_PATH) != null)
             throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
                     + " Use " + ATTR_APP_CLASS_PATH + " and/or " + ATTR_DEPENDENCIES + " instead.");
