@@ -109,6 +109,7 @@ Our capsule JAR has the following structure:
 With the manifest (`MANIFEST.MF`) being:
 
     Manifest-Version: 1.0
+    Premain-Class: Capsule
     Main-Class: Capsule
     Application-ID: com.acme.foo
     Application-Version: 1.0
@@ -118,7 +119,7 @@ With the manifest (`MANIFEST.MF`) being:
     System-Properties: foo.bar.option=15 my.logging=verbose
     Java-Agents: agent1.jar
 
-We embed the application JAR (`app.jar`), containing the class `foo.Main` as well as all dependency JARs into the capsule JAR (without extracting them). We also place the `Capsule` class at the root of JAR. Then, in the JAR's manifest, we declare `Capsule` as the main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Min-Java-Version` attribute specifies the JVM version that will be used to run the application. If this version is newer than the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use (a maximum version can also be specified). We then list some JVM arguments, system properties and even a Java agent.
+We embed the application JAR (`app.jar`), containing the class `foo.Main` as well as all dependency JARs into the capsule JAR (without extracting them). We also place the `Capsule` class at the root of JAR. Then, in the JAR's manifest, we declare `Capsule` as both the pre-main and main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Min-Java-Version` attribute specifies the JVM version that will be used to run the application. If this version is newer than the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use (a maximum version can also be specified). We then list some JVM arguments, system properties and even a Java agent.
 
 When than launch the capsule with `java -jar foo.jar`. When it runs, it will try to find a JRE 8 (or higher) installation on our machine -- whether or not that was the Java version used to launch the capsule -- and then start a new JVM process, configured with the given flags and agent, that will run our application.
 
@@ -132,11 +133,12 @@ Adding `-Dcapsule.log=verbose` or `-Dcapsule.log=debug`  before `-jar` will prin
 
 ### A Capsule's Structure and Manifest
 
-A capsule is a JAR file with a manifest -- containing meta-data describing the application -- and some embedded files. The most minimal (probably useless) capsule contains just the `Capsule.class` file, and a `META-INF/MANIFEST.MF` file with the following line:
+A capsule is a JAR file with a manifest -- containing meta-data describing the application -- and some embedded files. The most minimal (probably useless) capsule contains just the `Capsule.class` file, and a `META-INF/MANIFEST.MF` file with the following lines:
 
+    Premain-Class: Capsule
     Main-Class: Capsule
 
-The existence of `Capsule.class` in the JAR's root, as well as that line in the manifest is what makes a JAR into a capsule (but not yet a launchable one, as we haven't yet specified an attribute that tells the capsule what to run). The capsule's manifest describes everything the application requires in order to launch our application. In the next sections we'll learn the use of various attributes.
+The existence of `Capsule.class` in the JAR's root, as well as those lines in the manifest is what makes a JAR into a capsule (but not yet a launchable one, as we haven't yet specified an attribute that tells the capsule what to run). The capsule's manifest describes everything the application requires in order to launch our application. In the next sections we'll learn the use of various attributes.
 
 ### Paths and Artifact Coordinates
 
