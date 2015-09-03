@@ -120,7 +120,8 @@ public class CapsuleLauncherTest {
     private Jar newCapsuleJar() {
         return new Jar()
                 .setAttribute("Manifest-Version", "1.0")
-                .setAttribute("Main-Class", "Capsule");
+                .setAttribute("Main-Class", "Capsule")
+                .setAttribute("Premain-Class", "Capsule");
     }
 
     private CapsuleLauncher newCapsuleLauncher(Jar jar) throws IOException {

@@ -800,6 +800,7 @@ public class CapsuleTest {
     public void testReallyExecutableCapsule() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Premain-Class", "MyCapsule")
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10")
@@ -819,6 +820,7 @@ public class CapsuleTest {
     public void testSimpleCaplet1() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Premain-Class", "MyCapsule")
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .setAttribute("System-Properties", "bar baz=33 foo=y")
                 .setAttribute("JVM-Args", "-Xmx100 -Xms10")
@@ -989,6 +991,7 @@ public class CapsuleTest {
     public void testWrapperCapsuleNonCapsuleApp() throws Exception {
         Jar wrapper = newCapsuleJar()
                 .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Premain-Class", "MyCapsule")
                 .setAttribute("System-Properties", "p1=555")
                 .addClass(Capsule.class)
                 .addClass(MyCapsule.class);
@@ -1038,6 +1041,7 @@ public class CapsuleTest {
     public void testWrapperCapsuleNoMain() throws Exception {
         Jar wrapper = newCapsuleJar()
                 .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Premain-Class", "MyCapsule")
                 .setAttribute("System-Properties", "p1=555")
                 .addClass(Capsule.class)
                 .addClass(MyCapsule.class);
@@ -1216,6 +1220,7 @@ public class CapsuleTest {
         Jar out = new Jar(path("out.jar"));
 
         assert_().that(out.getAttribute("Main-Class")).isEqualTo("TestCapsule");
+        assert_().that(out.getAttribute("Premain-Class")).isEqualTo("TestCapsule");
         assert_().that(out.getListAttribute("Caplets")).isEqualTo(list("MyCapsule"));
         assert_().that(out.getMapAttribute("System-Properties", "")).isEqualTo(map("p1", "111"));
 
@@ -1548,7 +1553,8 @@ public class CapsuleTest {
     private Jar newCapsuleJar() {
         return new Jar()
                 .setAttribute("Manifest-Version", "1.0")
-                .setAttribute("Main-Class", "TestCapsule");
+                .setAttribute("Main-Class", "TestCapsule")
+                .setAttribute("Premain-Class", "TestCapsule");
     }
 
     private Jar makeRealCapsuleJar(Jar jar) throws IOException {
