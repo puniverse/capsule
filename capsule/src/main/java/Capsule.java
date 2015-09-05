@@ -3381,9 +3381,9 @@ public class Capsule implements Runnable {
                 final String rename = (String) fileAndRename[1];
                 Path res = lib;
 
-                if (!lib.startsWith(getWritableAppCache())) {
+                if (rename != null && !lib.startsWith(getWritableAppCache())) {
                     try {
-                        res = getWritableAppCache().resolve(rename != null ? rename : lib.getFileName().toString());
+                        res = getWritableAppCache().resolve(rename);
                         log(LOG_DEBUG, "Copying native lib " + lib + " to " + res);
                         Files.copy(lib, res, StandardCopyOption.REPLACE_EXISTING);
                         fileAndRename[0] = res;
