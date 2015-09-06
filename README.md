@@ -417,7 +417,7 @@ Everywhere the word "list" is mentioned, it is whitespace-separated.
 * `Environment-Variables`: a list of environment variables that will be put in the applications environment; formatted `var=value` or `var`
 * `System-Properties`: a list of system properties that will be defined in the applications JVM; formatted `prop=value` or `prop`
 * `App-Class-Path`: a list of JARs, relative to the capsule root, that will be put on the application's classpath, in the order they are listed
-* `Capsule-In-Class-Path`: if set to `true`, the capsule JAR itself will not be on the application's classpath (default: `false`)
+* `Capsule-In-Class-Path`: if set to `true`, the capsule JAR itself will not be on the application's classpath (default: `true`)
 * `Boot-Class-Path`: a list of JARs, dependencies, and/or directories, relative to the capsule root, that will be used as the application's boot classpath.
 * `Boot-Class-Path-A`: a list of JARs dependencies, and/or directories, relative to the capsule root, that will be appended to the applications default boot classpath
 * `Boot-Class-Path-P`: a list of JARs dependencies, and/or directories, relative to the capsule root, that will be *prepended* to the applications default boot classpath
