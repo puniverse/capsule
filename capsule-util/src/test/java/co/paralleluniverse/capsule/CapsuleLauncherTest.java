@@ -104,7 +104,7 @@ public class CapsuleLauncherTest {
         assertTrue(Files.isRegularFile(appCache.resolve("q").resolve("w").resolve("x.txt")));
         assertTrue(Files.isRegularFile(appCache.resolve("d").resolve("f").resolve("y.txt")));
 
-        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().noneOf(absolutePath("capsule.jar"));
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         assert_().that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
     }
