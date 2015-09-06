@@ -126,7 +126,7 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(appCache.resolve("q").resolve("w").resolve("x.txt")));
         assertTrue(Files.isRegularFile(appCache.resolve("d").resolve("f").resolve("y.txt")));
 
-        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().noneOf(absolutePath("capsule.jar"));
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         assert_().that(getClassPath(pb)).has().noneOf(appCache.resolve("lib").resolve("a.jar"));
     }
@@ -146,6 +146,8 @@ public class CapsuleTest {
 
         assertEquals(args, getAppArgs(pb));
 
+        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
         assertTrue(!Files.isDirectory(appCache));
     }
@@ -283,7 +285,7 @@ public class CapsuleTest {
         assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("d.jar")));
         assertTrue(Files.isRegularFile(appCache.resolve("lib2").resolve("e.txt")));
 
-        assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
+        assert_().that(getClassPath(pb)).has().noneOf(absolutePath("capsule.jar"));
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("foo.jar"));
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("a.jar"));
         assert_().that(getClassPath(pb)).has().item(appCache.resolve("lib").resolve("b.jar"));
@@ -793,7 +795,7 @@ public class CapsuleTest {
         assertEquals(list(appCache.resolve(Capsule.isWindows() ? "scr.bat" : "scr.sh").toString(), "hi", "there"),
                 pb.command());
 
-        assertEquals(getEnv(pb, "CLASSPATH"), absolutePath("capsule.jar") + PS + appCache.resolve("foo.jar") + PS + barPath);
+        assertEquals(getEnv(pb, "CLASSPATH"), appCache.resolve("foo.jar") + PS + barPath);
     }
 
     @Test
@@ -980,7 +982,6 @@ public class CapsuleTest {
         assertTrue(!Files.isRegularFile(appCache.resolve("META-INF").resolve("x.txt")));
 
         assert_().that(getClassPath(pb)).has().allOf(
-                fooPath,
                 appCache.resolve("foo.jar"),
                 appCache.resolve("lib").resolve("a.jar"));
 

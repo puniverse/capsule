@@ -2189,8 +2189,11 @@ public class Capsule implements Runnable {
         final String mainClass = getMainClass(classPath);
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine))); // must be called after buildClassPath and all resolutions
 
-        command.add("-classpath");
-        command.add(compileClassPath(handleLongClasspath(classPath, mainClass.length(), command, oc.args_)));
+        final String cpstr;
+        if ((cpstr = compileClassPath(handleLongClasspath(classPath, mainClass.length(), command, oc.args_))) != null) {
+            command.add("-classpath");
+            command.add(cpstr);
+        }
 
         command.add(mainClass);
         return true;
@@ -2261,10 +2264,8 @@ public class Capsule implements Runnable {
         final List<Object> classPath = new ArrayList<>();
 
         // the capsule jar
-        if (!isWrapperOfNonCapsule()) {
-            if (getAttribute(ATTR_CAPSULE_IN_CLASS_PATH))
-                classPath.add(getJarFile());
-        }
+        if (!isWrapperOfNonCapsule() && getAttribute(ATTR_CAPSULE_IN_CLASS_PATH))
+            classPath.add(getJarFile());
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             final String artifact = getAttribute(ATTR_APP_ARTIFACT);
@@ -2278,6 +2279,10 @@ public class Capsule implements Runnable {
         classPath.add(lookup("*.jar", ATTR_APP_CLASS_PATH));
 
         classPath.addAll(nullToEmpty(getAttribute(ATTR_DEPENDENCIES)));
+
+        // the capsule jar
+        if (!isWrapperOfNonCapsule() && isDeepEmpty(classPath))
+            classPath.add(getJarFile());
 
         time("buildClassPath", start);
         return classPath;
@@ -3175,7 +3180,7 @@ public class Capsule implements Runnable {
         final String artifact = emptyToNull(m.group("artifactId"));
         final String version = emptyToNull(m.group("version"));
         final String classifier = emptyToNull(m.group("classifier"));
-        
+
         final boolean caplet = ATTR_CAPLETS.equals(attrContext);
         final String libdir = (caplet ? "capsule" : "lib");
 
@@ -4519,6 +4524,23 @@ public class Capsule implements Runnable {
             return ((Collection<?>) c).isEmpty();
         final Iterator<?> it = c.iterator();
         return !it.hasNext();
+    }
+
+    private static boolean isDeepEmpty(Object o) {
+        if (o == null)
+            return true;
+        else if ("".equals(o))
+            return true;
+        else if (o instanceof Path)
+            return false; // special case: a path is an iterable that may contain itself
+        else if (o instanceof Iterable) {
+            for (Object x : (Iterable<?>) o) {
+                if(!isDeepEmpty(x))
+                    return false;
+            }
+            return true;
+        } else
+            return false;
     }
 
     private static <T> T first(Iterable<T> c) {
