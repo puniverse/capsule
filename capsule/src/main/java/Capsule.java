@@ -151,8 +151,8 @@ public class Capsule implements Runnable {
      * Caplet overrides properties, and utility categories.
      *
      *
-     * Caplet Hierarcy (or chain)
-     * --------------------------
+     * Caplet Hierarchy (or chain)
+     * ---------------------------
      *
      * Capsule subclasses, i.e. caplets, may be arranged in a dynamic "inheritance" hierarchy, where each caplet modifies, or "subclasses" 
      * the previous ones in the chain. 
