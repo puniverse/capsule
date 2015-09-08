@@ -3246,7 +3246,12 @@ public class Capsule implements Runnable {
      * @deprecated exclude from javadocs
      */
     protected Object lookup0(Object x, String type, Entry<String, ?> attrContext, Object context) {
-        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.lookup0(x, type, attrContext, context) : lookup00(x, type, attrContext, context);
+        _ct = unsafe(getCallTarget(Capsule.class));
+        final String target = (_ct != null ? _ct.getClass().getName() : Capsule.class.getName()) + '@' + Integer.toHexString(System.identityHashCode(_ct));
+        log(LOG_DEBUG, "lookup0 " + target + " " + x);
+        final Object res = _ct != null ? _ct.lookup0(x, type, attrContext, context) : lookup00(x, type, attrContext, context);
+        log(LOG_DEBUG, "lookup0 " + target + " " + x + " -> " + res);
+        return res;
     }
 
     private Object lookup00(Object x, String type, Entry<String, ?> attrContext, Object context) {
@@ -3319,7 +3324,7 @@ public class Capsule implements Runnable {
      */
     protected List<Path> resolve0(Object x) {
         _ct = unsafe(getCallTarget(Capsule.class));
-        final String target = (_ct != null ? _ct.getClass().getName() : Capsule.class.getName());
+        final String target = (_ct != null ? _ct.getClass().getName() : Capsule.class.getName()) + '@' + Integer.toHexString(System.identityHashCode(_ct));
         log(LOG_DEBUG, "resolve0 " + target + " " + x);
         final List<Path> res = _ct != null ? _ct.resolve0(x) : resolve00(x);
         log(LOG_DEBUG, "resolve0 " + target + " " + x + " -> " + res);
