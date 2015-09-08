@@ -285,7 +285,7 @@ Running `java -Dcapsule.jvms -jar app.jar` will list all Java installations Caps
 
 ### Class Paths and Native Libraries
 
-By default, Capsule sets the application's class path to the capsule JAR itself and every JAR file placed in the capsule's root -- in some unspecified (but constant) order. If the capsule contains an `Application` attribute, all entries in the `Class-Path` attribute in the manifest of the `Application` JAR are added to the classpath automatically.
+By default, Capsule sets the application's class path to the capsule JAR itself and every JAR file placed in the capsule's root -- in some unspecified (but constant) order. If the capsule contains an `Application` attribute, the jar(s) referenced by the attribute will be added to the classpath first.
 
 The classpath, however, can be customized by the `App-Class-Path`/`Dependencies` attribute, which can be given an ordered (space separated) list of JARs and/or directories relative to the capsule JAR root, and/or artifact coordinates. The `Class-Path` and `Dependencies` attributes are similar, but not identical. If the `Class-Path` attribute is defined, then the JARs in the capsule's root are not automatically added to the class path (unless explicilty listed in the attribute), while the `Dependencies` attribute simply adds them to the class path. Also, the `Dependencies` attribute conventionally lists artifact coordinates, while the `App-Class-Path` attribute usually lists file paths, but this is not enforced, and either style can be used for both.
 

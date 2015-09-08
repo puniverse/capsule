@@ -643,7 +643,7 @@ public class Capsule implements Runnable {
     private /*final*/ Path jarFile;      // never null
     private /*final*/ String appId;      // null iff wrapper capsule wrapping a non-capsule JAR
     private /*final*/ String mode;
-    private /*final*/ Path applicationJar;
+    private /*final*/ String nonCapsuleTarget;
 
     private Path javaHome;
     private String javaVersion;
@@ -754,17 +754,9 @@ public class Capsule implements Runnable {
 
     final Capsule setTarget(String target) {
         verifyCanCallSetTarget();
-        final Path jar = isDependency(target) ? firstOrNull(resolve(lookup(target))) : toAbsolutePath(Paths.get(target));
+        final Path jar = isDependency(target) ? firstOrNull(resolve(lookup(target, ATTR_APP_ARTIFACT))) : toAbsolutePath(path(target));
         if (jar == null)
             throw new RuntimeException(target + " not found.");
-        return setTarget(jar);
-    }
-
-    // called directly by tests
-    final Capsule setTarget(Path jar) {
-        verifyCanCallSetTarget();
-
-        jar = toAbsolutePath(jar);
 
         if (jar.equals(getJarFile())) // catch simple loops
             throw new RuntimeException("Capsule wrapping loop detected with capsule " + getJarFile());
@@ -794,7 +786,7 @@ public class Capsule implements Runnable {
         time("Read JAR in setTarget", start);
 
         if (!isCapsule)
-            oc.applicationJar = jar;
+            oc.nonCapsuleTarget = target;
         else {
             log(LOG_VERBOSE, "Wrapping capsule " + jar);
             insertAfter(loadTargetCapsule(cc.getClass().getClassLoader(), jar).cc);
@@ -999,7 +991,7 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Properties">
     /////////// Properties ///////////////////////////////////
     private boolean isWrapperOfNonCapsule() {
-        return getAppId() == null;
+        return nonCapsuleTarget != null;
     }
 
     private boolean isFactoryCapsule() {
@@ -2152,7 +2144,7 @@ public class Capsule implements Runnable {
 
         setJavaHomeEnv(pb, getJavaHome());
 
-        final List<Object> classPath = buildClassPath();
+        final List<Object> classPath = getAttribute(ATTR_APP_CLASS_PATH);
         resolveNativeDependencies();
         pb.environment().put(VAR_CLASSPATH, compileClassPath(resolve(classPath)));
 
@@ -2184,7 +2176,7 @@ public class Capsule implements Runnable {
         command.addAll(compileAgents("-javaagent:", buildAgents(true)));
         command.addAll(compileAgents("-agentpath:", buildAgents(false)));
 
-        final List<Path> classPath = resolve(buildClassPath());
+        final List<Path> classPath = resolve(getAttribute(ATTR_APP_CLASS_PATH));
 
         final String mainClass = getMainClass(classPath);
         command.addAll(compileSystemProperties(buildSystemProperties(cmdLine))); // must be called after buildClassPath and all resolutions
@@ -2259,7 +2251,7 @@ public class Capsule implements Runnable {
         cmdLine.add(prefix + value);
     }
 
-    private List<Object> buildClassPath() {
+    private List<Object> buildClassPath0(List<Object> classPath0) {
         final long start = clock();
         final List<Object> classPath = new ArrayList<>();
 
@@ -2271,11 +2263,11 @@ public class Capsule implements Runnable {
             final String artifact = getAttribute(ATTR_APP_ARTIFACT);
             if (isGlob(artifact))
                 throw new IllegalArgumentException("Glob pattern not allowed in " + ATTR_APP_ARTIFACT + " attribute.");
-            final Object app = lookup(isWrapperOfNonCapsule() ? toAbsolutePath(path(artifact)).toString() : sanitize(artifact), ATTR_APP_ARTIFACT);
+            final Object app = lookup((isWrapperOfNonCapsule() && !isDependency(artifact)) ? toAbsolutePath(path(artifact)).toString() : sanitize(artifact), ATTR_APP_ARTIFACT);
             classPath.add(app);
         }
 
-        addAllIfAbsent(classPath, getAttribute(ATTR_APP_CLASS_PATH));
+        addAllIfAbsent(classPath, classPath0);
         classPath.add(lookup("*.jar", ATTR_APP_CLASS_PATH));
 
         classPath.addAll(nullToEmpty(getAttribute(ATTR_DEPENDENCIES)));
@@ -2595,8 +2587,8 @@ public class Capsule implements Runnable {
             value = (T) id;
         } else if (ATTR_APP_ARTIFACT == attr) {
             String artifact = attribute00(ATTR_APP_ARTIFACT);
-            if (artifact == null && oc.applicationJar != null)
-                artifact = oc.applicationJar.toString();
+            if (artifact == null && oc.nonCapsuleTarget != null)
+                artifact = oc.nonCapsuleTarget;
             value = (T) artifact;
         } else if (ATTR_APP_NAME == attr) {
             String name = attribute00(ATTR_APP_NAME);
@@ -2610,6 +2602,8 @@ public class Capsule implements Runnable {
             if (ver == null && hasAttribute(ATTR_APP_ARTIFACT) && isDependency(getAttribute(ATTR_APP_ARTIFACT)))
                 ver = getAppArtifactVersion(getAttribute(ATTR_APP_ARTIFACT));
             value = (T) ver;
+        } else if (ATTR_APP_CLASS_PATH == attr) {
+            value = (T) buildClassPath0(attribute00(ATTR_APP_CLASS_PATH));
         } else
             value = attribute00(attr);
 
@@ -2703,9 +2697,9 @@ public class Capsule implements Runnable {
 
     private void validateManifest(Manifest manifest) {
         final String mainClass = manifest.getMainAttributes().getValue(ATTR_MAIN_CLASS);
-        if (mainClass != null && !mainClass.equals(manifest.getMainAttributes().getValue(ATTR_PREMAIN_CLASS)))
-            throw new IllegalStateException("Capsule manifest must specify " + mainClass
-                    + " in the " + ATTR_PREMAIN_CLASS + " attribute.");
+//        if (mainClass != null && !mainClass.equals(manifest.getMainAttributes().getValue(ATTR_PREMAIN_CLASS)))
+//            throw new IllegalStateException("Capsule manifest must specify " + mainClass
+//                    + " in the " + ATTR_PREMAIN_CLASS + " attribute.");
 
         if (manifest.getMainAttributes().getValue(ATTR_CLASS_PATH) != null)
             throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
@@ -3315,7 +3309,7 @@ public class Capsule implements Runnable {
             return null;
         final List<Path> res = new ArrayList<Path>(ps.size());
         for (Object p : ps)
-            res.addAll(resolve(p));
+            addAllIfAbsent(res, resolve(p));
         return res;
     }
 
@@ -3324,7 +3318,12 @@ public class Capsule implements Runnable {
      * @deprecated exclude from javadocs
      */
     protected List<Path> resolve0(Object x) {
-        return (_ct = unsafe(getCallTarget(Capsule.class))) != null ? _ct.resolve0(x) : resolve00(x);
+        _ct = unsafe(getCallTarget(Capsule.class));
+        final String target = (_ct != null ? _ct.getClass().getName() : Capsule.class.getName());
+        log(LOG_DEBUG, "resolve0 " + target + " " + x);
+        final List<Path> res = _ct != null ? _ct.resolve0(x) : resolve00(x);
+        log(LOG_DEBUG, "resolve0 " + target + " " + x + " -> " + res);
+        return res;
     }
 
     /**
@@ -3350,34 +3349,32 @@ public class Capsule implements Runnable {
             final Entry<String, ?> attr = context.getKey();
             x = context.getValue();
 
-            if (ATTR_APP_ARTIFACT.equals(attr)) {
-                Path jar;
-                if (x instanceof Path)
-                    jar = (Path) x;
-                else if (x instanceof List && firstOrNull((List<?>) x) instanceof Path)
-                    jar = (Path) firstOrNull((List<?>) x);
-                else
-                    jar = firstOrNull(resolve(x));
-                if (jar != null) {
-                    final List<Path> res = new ArrayList<>();
-                    res.add(jar);
-                    jar = simpleResolve(jar);
+            if (x instanceof Collection) {
+                final List<Path> res = new ArrayList<>();
+                for (Object xe : ((Collection<?>) x))
+                    addAllIfAbsent(res, resolve(mutableEntry(context, xe)));
+                return res;
+            }
 
-                    final Manifest man = getManifest(jar);
-                    oc.appArtifactMainClass = getMainClass(man);
-                    // add JAR's manifest's Class-Path
-                    for (String e : nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CLASS_PATH)))) {
-                        Path p;
-                        try {
-                            p = path(new URL(e).toURI());
-                        } catch (MalformedURLException | URISyntaxException ex) {
-                            p = jar.getParent().resolve(path(toNativePath(e)));
-                        }
-                        if (!res.contains(p))
-                            res.add(isWrapperOfNonCapsule() ? toAbsolutePath(p) : sanitize(p));
-                    }
-                    x = res;
-                }
+            if (ATTR_APP_ARTIFACT.equals(attr)) {
+                final List<Path> jars;
+                if (x instanceof Path)
+                    jars = Arrays.asList((Path) x);
+                else if (x instanceof List && firstOrNull((List<?>) x) instanceof Path)
+                    jars = (List<Path>) x;
+                else
+                    jars = resolve(x);
+
+                final Path jar = simpleResolve(firstOrNull(jars));
+                final Manifest man = getManifest(jar);
+                oc.appArtifactMainClass = getMainClass(man);
+
+                final List<Path> res = jars;
+//                final List<Path> res = new ArrayList<>();
+//                addAllIfAbsent(res, resolveJar(jar, man));
+//                addAllIfAbsent(res, jars.subList(1, jars.size()));
+
+                x = res;
             } else if (ATTR_SCRIPT.equals(attr)) {
                 ensureExecutable(simpleResolve(x));
             } else if (ATTR_NATIVE_DEPENDENCIES.equals(attr)) {
@@ -3439,6 +3436,28 @@ public class Capsule implements Runnable {
         }
 
         return null;
+    }
+
+    private List<Path> resolveJar(Path jar, Manifest man) {
+        if (man == null)
+            man = getManifest(jar);
+
+        final List<Path> res = new ArrayList<>();
+        res.add(jar);
+        jar = simpleResolve(jar);
+
+        // add JAR's manifest's Class-Path
+        for (String e : nullToEmpty(parse(man.getMainAttributes().getValue(ATTR_CLASS_PATH)))) {
+            Path p;
+            try {
+                p = path(new URL(e).toURI());
+            } catch (MalformedURLException | URISyntaxException ex) {
+                p = jar.getParent().resolve(path(toNativePath(e)));
+            }
+            if (!res.contains(p))
+                res.add(toAbsolutePath(p));
+        }
+        return res;
     }
 
     private String processOutgoingPath(Object p) {
@@ -4535,7 +4554,7 @@ public class Capsule implements Runnable {
             return false; // special case: a path is an iterable that may contain itself
         else if (o instanceof Iterable) {
             for (Object x : (Iterable<?>) o) {
-                if(!isDeepEmpty(x))
+                if (!isDeepEmpty(x))
                     return false;
             }
             return true;
