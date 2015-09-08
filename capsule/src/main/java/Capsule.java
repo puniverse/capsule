@@ -721,7 +721,7 @@ public class Capsule implements Runnable {
         loadCaplets();
 
         setLogLevel(chooseLogLevel()); // temporary
-        time("Load class", START, start);
+        time("Load class " + this.getClass().getName(), START, start);
         time("Read JAR in constructor", start);
 
         if (!wrapper)
@@ -742,7 +742,7 @@ public class Capsule implements Runnable {
         this.oc = pred.oc;
         this.cc = this;
 
-        time("Load class", START);
+        time("Load class " + this.getClass().getName(), START);
         clearContext();
 
         // insertAfter(pred);
