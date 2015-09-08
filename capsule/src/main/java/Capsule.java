@@ -2406,7 +2406,7 @@ public class Capsule implements Runnable {
         for (String a : getAttribute(ATTR_JVM_ARGS)) {
             a = a.trim();
             if (!a.isEmpty() && !a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
-                addJvmArg(expand(a), jvmArgs);
+                addJvmArg(toNativePath(expand(a)), jvmArgs);
         }
 
         return new ArrayList<String>(jvmArgs.values());
@@ -3830,6 +3830,8 @@ public class Capsule implements Runnable {
     }
 
     private static String toNativePath(String filename) {
+        if (filename.contains("://")) // detect URL
+            return filename;
         final char ps = (!filename.contains("/") && filename.contains("\\")) ? '\\' : '/';
         return ps != FILE_SEPARATOR_CHAR ? filename.replace(ps, FILE_SEPARATOR_CHAR) : filename;
     }
@@ -4238,7 +4240,6 @@ public class Capsule implements Runnable {
         str = sb.toString();
 
         // str = expandCommandLinePath(str);
-        str = str.replace('/', FILE_SEPARATOR_CHAR);
         return str;
     }
 
