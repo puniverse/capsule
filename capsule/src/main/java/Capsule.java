@@ -4993,6 +4993,44 @@ public class Capsule implements Runnable {
     private void onError0(Throwable t) {
         printError(t, this);
     }
+
+    /**
+     * Prints a value to {@code System.err} and returns it.
+     * Useful for debugging
+     * @param label a prefix label
+     * @param x     the value to trace
+     * @return {@code x}
+     */
+    protected static <T> T trace(String label, T x) {
+        final String s;
+        if (x == null)
+            s = "null";
+        else if (x.getClass().isArray()) {
+            if (!x.getClass().getComponentType().isPrimitive())
+                s = Arrays.deepToString((Object[]) x);
+            else if (x.getClass().getComponentType().equals(boolean.class))
+                s = Arrays.toString((boolean[]) x);
+            else if (x.getClass().getComponentType().equals(char.class))
+                s = Arrays.toString((char[]) x);
+            else if (x.getClass().getComponentType().equals(byte.class))
+                s = Arrays.toString((byte[]) x);
+            else if (x.getClass().getComponentType().equals(short.class))
+                s = Arrays.toString((short[]) x);
+            else if (x.getClass().getComponentType().equals(int.class))
+                s = Arrays.toString((int[]) x);
+            else if (x.getClass().getComponentType().equals(long.class))
+                s = Arrays.toString((long[]) x);
+            else if (x.getClass().getComponentType().equals(float.class))
+                s = Arrays.toString((float[]) x);
+            else if (x.getClass().getComponentType().equals(double.class))
+                s = Arrays.toString((double[]) x);
+            else
+                throw new AssertionError();
+        } else
+            s = x.toString();
+        System.err.println("TRACE " + label + ": " + s);
+        return x;
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Windows">
