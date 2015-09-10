@@ -91,5 +91,5 @@ These values can also be accessed with `$VARNAME` in any capsule manifest attrib
 
 ## Capsule API Javadoc
 
-* [Caplets](/javadoc/Capsule.html)
+* [Caplets](/javadoc/capsule/Capsule.html)
 * [capsule-util](/javadoc/capsule-util/)
