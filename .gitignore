@@ -2,7 +2,7 @@
 /dist/
 /out/
 _site/
-/docs/javadoc/
+/site/javadoc/
 .idea/
 *.iml
 /artifacts
