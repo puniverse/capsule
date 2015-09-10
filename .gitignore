@@ -1,4 +1,5 @@
 .DS_Store
+s3_website.yml
 /dist/
 /out/
 _site/

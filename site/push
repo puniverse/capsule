@@ -1,0 +1,35 @@
+#!/bin/bash
+
+dirty=$(git status --porcelain | wc -l)
+if [ $dirty -gt 0 ] 
+then
+	if [ -z "$1" ] 
+	then
+		read -p "Enter commit description: " desc
+	else
+		desc="$1"
+	fi
+	echo "Commiting: $desc"
+	git add -A && git commit -m "$desc"
+	if [ $? -ne 0 ]
+	then
+		exit $?
+	fi
+else
+	echo "Nothing to commit."
+fi
+git push
+if [ $? -ne 0 ]
+then
+		exit $?
+fi
+
+
+echo "Building Jekyll site...\n"
+
+rm -rf javadoc
+mkdir javadoc
+cp -r ../capsule/build/docs/javadoc/ javadoc/capsule
+cp -r ../capsule-util/build/docs/javadoc/ javadoc/capsule-util
+
+jekyll build && s3_website push
