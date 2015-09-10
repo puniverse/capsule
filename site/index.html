@@ -54,7 +54,7 @@ layout: default
 
                 <p>But while plain capsules are cool and let you ship any JVM application -- no matter how complex -- as a single executable JAR, caplets make capsules even more powerful.</p>
             </div><!--intro-->
-        
+
         </div><!--container-->
     </section>
 
@@ -64,18 +64,9 @@ layout: default
                 <h3>What are Caplets?</h3>
                 <p> Caplets are classes that hook into the capsule and modify its behavior. By default, a capsule contains metadata about your application and the means to execute it as a plain JVM program. Caplets can use the metadata in the capsule to launch the application in some more sophisticated ways, or even change the way it is packaged.<p>
 
-
                 <p>A caplet can be embedded in the capsule, or be packaged separately and used to wrap an existing capsule. While every caplet can be embedded or used as a wrapper, usually just one of the options makes sense.</p>
 
-                <p>Here are some examples of caplets (some exist, some not yet):</p>
-                <ul class="a">
-                    <li>Maven (embedded): this caplet can download the capsule's dependencies from a Maven repository prior to launch, and cache them so that they can be shared with other capsules. This can be used to reduce the capsule's size, "factor out" common dependencies (like an alternative JVM language runtime), or automatically update dependencies or even the application itself.</li>
-                    <li>Containers (wrapper): this caplet launches a capsule inside a container.</li>
-                    <li>Native executables (wrapper): a caplet that turns a capsule into a native Windows/Mac/Linux application.</li>
-                    <li>Daemons (embedded): launches the capsule as a daemon/service.</li>
-                    <li>ZooKeeper/etcd (embedded): reads application values from ZooKeeper/etcd instead of the manifest and uses them to configure the application</li>
-                    <li>Sandbox (wrapper): launches the capsule inside a secure JVM sandbox.</li>
-                </ul>
+                <p>See <a href="/caplets">here</a> for a list of available caplets</p>
             </div><!--intro-->
         </div><!--container-->
     </section>

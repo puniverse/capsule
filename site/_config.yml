@@ -1,13 +1,11 @@
 markdown: enhanced_kramdown
 highlighter: pygments
+permalink: pretty
 lsi: false
 safe: false
 exclude: [s3_website.yml, push, copy_blog]
-url: 
+url:
 baseurl: /
 
 kramdown:
   use_coderay: false
-
-
-
