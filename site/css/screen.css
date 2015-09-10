@@ -26,7 +26,7 @@ html { font-size: 100%; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 10
 html, button, input, select, textarea { font-family: sans-serif; color: #222; }
 body { margin: 0; font-size: 1em; line-height: 1.4; }
 
-a { color: #7C7C7C; }
+a { color: #0e98bf; }
 a:hover { color: #7C7C7C; }
 a:focus { outline: thin dotted; }
 a:hover, a:active { outline: 0; }
