@@ -26,7 +26,7 @@ Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.g
 
 ## Build-Tool Plugins
 
-Using a build-tool plugin may simplify the capsule creation process. You are encourage to use the appropriate community-contributed plugin for you build-tool of choice:
+Using a build-tool plugin may simplify the capsule creation process, especially if you're doing something clever. You are encourage to use the appropriate community-contributed plugin for you build-tool of choice:
 
 * Maven: [https://github.com/chrischristo/capsule-maven-plugin](https://github.com/chrischristo/capsule-maven-plugin)
 * Gradle: [https://github.com/danthegoodman/gradle-capsule-plugin](https://github.com/danthegoodman/gradle-capsule-plugin)
@@ -293,7 +293,7 @@ Both [capsule-maven-plugin](https://github.com/chrischristo/capsule-maven-plugin
 
 If you choose not to use one of the capsule plugins, then you can use the [really-executable-jars](https://github.com/brianm/really-executable-jars-maven-plugin) Maven plugin to make your capsule really executable (or if you're using the [capsule-maven-plugin](https://github.com/chrischristo/capsule-maven-plugin), just set the `buildExec` tag to true). In Gradle, this can be done by adding the following function to your build file:
 
-``` groovy
+~~~ groovy
 def reallyExecutable(jar) {
     ant.concat(destfile: "tmp.jar", binary: true) {
         zipentry(zipfile: configurations.capsule.singleFile, name: 'capsule/execheader.sh')
@@ -308,13 +308,13 @@ def reallyExecutable(jar) {
     }
     delete 'tmp.jar'
 }
-```
+~~~
 
 and then
 
-``` groovy
+~~~ groovy
 capsule.doLast { task -> reallyExecutable(task) }
-```
+~~~
 
 ## The Capsule Execution Process
 
