@@ -1,0 +1,3 @@
+#!/bin/bash
+
+cp ../../blog/_site/main_site/capsule_posts.html _includes/news.html
