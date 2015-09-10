@@ -1,0 +1,156 @@
+---
+layout: default
+---
+
+<body class="fixed">
+    <section id="section1">
+    	<div class="container">
+               <div id="banner-title">
+                    <img src="images/capsule.png" alt=""/>
+                    <h1>Capsule</h1>
+                    <p>Package and Deploy JVM Applications</p>
+                    <br></br>
+                </div>
+        </div><!--container-->
+    </section> <!--section-->
+
+     <section id="section2">
+        <div class="container">
+           <div class="col4">
+                <div class="box-col">
+                    <span class="features"></span>
+                    <h3>Packaging: small, portable and convenient</h3>
+                    <p> Packages any JVM application, no matter how complex, as a single, plain executable JAR. A capsule may directly contain all of the application’s dependencies or simply declare some or all of them, to be downloaded when launched. Built with standard build tools, it is the fat JAR that <b>always</b> works.</p>
+                </div>
+            </div><!--col4-->
+            <div class="col4">
+                <div class="box-col">
+                    <span class="features"></span>
+                    <h3>Installation: minimal impact on host, supports updates</h3>
+                    <p> A capsule installs itself the first time it is run by creating some files in a temporary directory. It may also optionally look for updates, either to the application or its dependencies, and download them when it launches. Those dependencies may be shared by other capsules.</p>
+                </div>
+            </div><!--col4-->
+            <div class="col4">
+                <div class="box-col">
+                    <span class="features"></span>
+                    <h3>Launch: deterministic yet flexible, possibly secure and optionally restricted</h3>
+                    <p>No startup scripts required. The capsule looks for the requested JVM version, sets up the classpath and necessary agents and sets the JVM flags. Capsules can also create their own safe, unprivileged containers.</p>
+                </div>
+            </div><!--col4-->
+        </div>
+    </section>
+
+
+
+    <section id="section3">
+    	<div class="container">
+            <div id="sidebar">
+                <h3>News</h3>
+                <p>blog bla bla bla bla bla bla bla blabla bla bla blabla bla bla blabla bla bla blabla bla bla blabla bla bla bla</p>
+            </div><!--sidebar-->
+        	<div id="intro">
+            	<h3>What is Capsule?</h3>
+                <p> Capsule is a packaging and deployment tool for JVM applications. A capsule is a single executable JAR that contains everything your application needs to run either in the form of embedded files or as declarative metadata. It can contain your JAR artifacts, your dependencies and resources, native libraries, the require JRE version, the JVM flags required to run the application well, Java or native agents and more. In short, a capsule is a self-contained JAR that knows everything there is to know about how to run your application the way it's meant to run.</p>
+
+                <p>One way of thinking about a capsule is as a fat JAR on steroids (that also allows native libraries and never interferes with your dependencies) and a declarative startup script rolled into one; another, is to see it is as the deploy-time counterpart to your build tool.Just as a build tool manages your build, Capsule manages the launching of your application.</p>
+
+                <p>But while plain capsules are cool and let you ship any JVM application -- no matter how complex -- as a single executable JAR, caplets make capsules even more powerful.</p>
+            </div><!--intro-->
+        
+        </div><!--container-->
+    </section>
+
+    <section id="section4">
+        <div class="container">
+            <div id="intro2">
+                <h3>What are Caplets?</h3>
+                <p> Caplets are classes that hook into the capsule and modify its behavior. By default, a capsule contains metadata about your application and the means to execute it as a plain JVM program. Caplets can use the metadata in the capsule to launch the application in some more sophisticated ways, or even change the way it is packaged.<p>
+
+
+                <p>A caplet can be embedded in the capsule, or be packaged separately and used to wrap an existing capsule. While every caplet can be embedded or used as a wrapper, usually just one of the options makes sense.</p>
+
+                <p>Here are some examples of caplets (some exist, some not yet):</p>
+                <ul class="a">
+                    <li>Maven (embedded): this caplet can download the capsule's dependencies from a Maven repository prior to launch, and cache them so that they can be shared with other capsules. This can be used to reduce the capsule's size, "factor out" common dependencies (like an alternative JVM language runtime), or automatically update dependencies or even the application itself.</li>
+                    <li>Containers (wrapper): this caplet launches a capsule inside a container.</li>
+                    <li>Native executables (wrapper): a caplet that turns a capsule into a native Windows/Mac/Linux application.</li>
+                    <li>Daemons (embedded): launches the capsule as a daemon/service.</li>
+                    <li>ZooKeeper/etcd (embedded): reads application values from ZooKeeper/etcd instead of the manifest and uses them to configure the application</li>
+                    <li>Sandbox (wrapper): launches the capsule inside a secure JVM sandbox.</li>
+                </ul>
+            </div><!--intro-->
+        </div><!--container-->
+    </section>
+
+    <section id="section5">
+        <div class="container">
+            <div id="intro">
+                <h3>Cool Stuff You Can Do with Capsules</h3>
+                <ul class="a">
+                    <li>Have your JAR automatically choose an appropriate JVM version, set JVM flags, and add an embedded JAR to the boot class path.</li>
+                    <li>Embed any required native libraries directly in the JAR, and Capsule automatically makes sure your application finds them.</li>
+                    <li>Distribute your application as an "executable WAR": it can be deployed to a servlet container <b>or</b>, if executed directly, by use of the Maven caplet it will automatically download Jetty and deploy itself into the embedded container.</li>
+                    <li>Distribute a Clojure application without embedding Clojure itself in the capsule, and have Clojure downloaded (by the Maven caplet) the first time the capsule is launched. The Clojure runtime will be cached and shared among all Clojure capsules so it will only be downloaded once.</li>
+                    <li>Distribute an Avatar.js application as a JAR containing only JavaScript files and the Maven caplet, and have Avatar (including its required native libraries) downloaded automatically the first time the application is launched. The Avatar runtime will be cached for later use and shared among other Avatar capsules.</li>
+                    <li>Use a caplet to turn any capsule into a Docker image or to launch it inside a Linux Container.</li>
+                    <li>Use a caplet to turn any capsule into an OS-specific native application or daemon.</li>
+                </ul>
+            </div><!--intro-->
+        </div><!--container-->
+    </section>
+
+    <section id="section6">
+        <div class="container">
+            <div id="intro2">
+                <h3>How Capsule Works</h3>
+                <p> When you include the Capsule class in your JAR file and set it to serve as the JAR's main class, Capsule reads various configuration values (like JVM arguments, environment variables, Maven dependencies and more) and caplets from the JAR's manifest. It then optionally extracts the JAR's contents into a cache directory, performs custom caplet operations, picks a JVM installation based on the version requirements in the manifest, and finally, it spawns another JVM process to run your application as configured.</p>
+            </div><!--intro-->
+        </div><!--container-->
+    </section>
+
+    <section id="section7">
+        <div class="container">
+            <div id="intro">
+                <h3>What Capsule Doesn't Do</h3>
+                <p> When you include the Capsule class in your JAR file and set it to serve as the JAR's main class, Capsule reads various configuration values (like JVM arguments, environment variables, Maven dependencies and more) and caplets from the JAR's manifest. It then optionally extracts the JAR's contents into a cache directory, performs custom caplet operations, picks a JVM installation based on the version requirements in the manifest, and finally, it spawns another JVM process to run your application as configured.</p>
+            </div><!--intro-->
+        </div><!--container-->
+    </section>
+
+     <section id="section8">
+        <div class="container">
+            <div id="intro2">
+                <h3>Overhead</h3>
+                <p> A plain capsule adds about 100ms to the startup time, and negligible size to the JAR.</p>
+            </div><!--intro-->
+        </div><!--container-->
+    </section>
+
+    <section id="section10">
+        <div id="quotes">
+
+                <blockquote class="twitter-tweet" data-cards="hidden" width="300"  align="left" lang="en"><p lang="en" dir="ltr">Using <a href="https://twitter.com/hashtag/Capsule?src=hash">#Capsule</a> <a href="http://t.co/0LjV55tdiv">http://t.co/0LjV55tdiv</a>. Fat JARs made simple. I wish the JVM natively understood a JAR containing JARS...</p>&mdash; David Harrigan (@davidharrigan) <a href="https://twitter.com/davidharrigan/status/503601336756502528">August 24, 2014</a></blockquote>
+
+                <blockquote class="twitter-tweet" data-cards="hidden" width="300" align="center" lang="en"><p lang="en" dir="ltr">Check it out, Capsule: <a href="http://t.co/0McNOXH1eL">http://t.co/0McNOXH1eL</a>&#10;&#10;Finally a decent Java packager. Well done <a href="https://twitter.com/puniverseco">@puniverseco</a>!</p>&mdash; Steven Willems (@willemsst) <a href="https://twitter.com/willemsst/status/586515533325062144">April 10, 2015</a></blockquote>
+
+                <blockquote class="twitter-tweet" data-cards="hidden" width="300" align="left" lang="en"><p lang="en" dir="ltr">Awesome. &quot;Package your entire application into a single JAR file and run it like this java -jar app.jar.&quot; <a href="https://t.co/mFOhQ5zV7m">https://t.co/mFOhQ5zV7m</a></p>&mdash; Scott Buchanan (@thescottsb) <a href="https://twitter.com/thescottsb/status/543163292051443712">December 11, 2014</a></blockquote>
+
+                  <blockquote class="twitter-tweet" data-cards="hidden" width="300"  align="center" lang="en"><p lang="en" dir="ltr">Kudos to Capsule (<a href="https://t.co/AHTZifBn6d">https://t.co/AHTZifBn6d</a>) and the Capsule Maven Plugin (<a href="https://t.co/q46XGQHTLK">https://t.co/q46XGQHTLK</a>). Excellent way to package Java apps.</p>&mdash; Jordan Zimmerman (@Randgalt) <a href="https://twitter.com/Randgalt/status/603978682592526336">May 28, 2015</a></blockquote>
+
+                <blockquote class="twitter-tweet" data-cards="hidden" width="300"  align="left"  lang="en"><p lang="en" dir="ltr"><a href="https://twitter.com/hashtag/Capsule?src=hash">#Capsule</a> - a smart <a href="https://twitter.com/hashtag/Java?src=hash">#Java</a> JAR packager for Desktop Apps... I see a bright future here! <a href="https://twitter.com/hashtag/JavaFX?src=hash">#JavaFX</a> <a href="http://t.co/b0CxDE4mUu">http://t.co/b0CxDE4mUu</a></p>&mdash; Bruno Borges (@brunoborges) <a href="https://twitter.com/brunoborges/status/503166780752539649">August 23, 2014</a></blockquote>
+
+                <blockquote class="twitter-tweet" data-cards="hidden" width="300"  align="center" lang="en"><p lang="en" dir="ltr">Capsule looks really cool for deploying Java microservices. <a href="https://t.co/sTEf5vfkwb">https://t.co/sTEf5vfkwb</a></p>&mdash; PEETERS/NICOLASMR (@peetersn) <a href="https://twitter.com/peetersn/status/507972132673183744">September 5, 2014</a></blockquote>
+<script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+                <script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+        </div>
+
+
+    </section>
+
+ 
+<!-- Place this tag right after the last button or just before your close body tag. -->
+<script async defer id="github-bjs" src="https://buttons.github.io/buttons.js"></script>
+
+</body>

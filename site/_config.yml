@@ -1,0 +1,13 @@
+markdown: enhanced_kramdown
+highlighter: pygments
+lsi: false
+safe: false
+exclude: [s3_website.yml, push, copy_blog]
+url: 
+baseurl: /
+
+kramdown:
+  use_coderay: false
+
+
+
