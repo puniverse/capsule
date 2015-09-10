@@ -8,8 +8,8 @@ _site/
 /artifacts
 /nbproject/private/
 /.nb-gradle
-/build
-/*/build
+/build/
+/*/build/
 .gradle/
 .sonar/
 .nb-gradle-properties
