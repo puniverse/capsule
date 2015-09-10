@@ -1,29 +1,9 @@
 ---
 layout: post
+title: User Guide
 ---
-# User Guide
-{:.no_toc}
 
-* Getting Started
-* Support
-* Built-Tool Plugins
-* An Example
-* Launching a Capsule
-* A Capsule's Structure and Manifest
-* Paths and Artifact Coordinates
-* The Application
-* The Capsule ID
-* Capsule's Cache
-* Modes, Platform- and Version-Specific Configuration
-* Selecting the Java Runtime
-* Class Paths and Native Libraries
-* JVM Arguments, System Properties, Environment Variables and Agents
-* Scripts
-* Security Manager
-* Applying Caplets
-* Empty Capsules and Capsule Wrapping
-* "Really Executable" Capsules
-* The Capsule Execution Process
+* TOC
 {:toc}
 
 ## Getting Capsule
@@ -78,6 +58,7 @@ Our capsule JAR has the following structure:
 With the manifest (`MANIFEST.MF`) being:
 
     Manifest-Version: 1.0
+    Premain-Class: Capsule
     Main-Class: Capsule
     Application-ID: com.acme.foo
     Application-Version: 1.0
@@ -87,7 +68,7 @@ With the manifest (`MANIFEST.MF`) being:
     System-Properties: foo.bar.option=15 my.logging=verbose
     Java-Agents: agent1.jar
 
-We embed the application JAR (`app.jar`), containing the class `foo.Main` as well as all dependency JARs into the capsule JAR (without extracting them). We also place the `Capsule` class at the root of JAR. Then, in the JAR's manifest, we declare `Capsule` as the main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Min-Java-Version` attribute specifies the JVM version that will be used to run the application. If this version is newer than the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use (a maximum version can also be specified). We then list some JVM arguments, system properties and even a Java agent.
+We embed the application JAR (`app.jar`), containing the class `foo.Main` as well as all dependency JARs into the capsule JAR (without extracting them). We also place the `Capsule` class at the root of JAR. Then, in the JAR's manifest, we declare `Capsule` as both the pre-main and main class. This is the class that will be executed when we run `java -jar foo.jar`. The `Application-Class` attribute tells Capsule which class to run in the new JVM process, and we set it to the same value, `mainClass` used by the build's `run` task. The `Min-Java-Version` attribute specifies the JVM version that will be used to run the application. If this version is newer than the Java version used to launch the capsule, Capsule will look for an appropriate JRE installation to use (a maximum version can also be specified). We then list some JVM arguments, system properties and even a Java agent.
 
 When than launch the capsule with `java -jar foo.jar`. When it runs, it will try to find a JRE 8 (or higher) installation on our machine -- whether or not that was the Java version used to launch the capsule -- and then start a new JVM process, configured with the given flags and agent, that will run our application.
 
@@ -101,11 +82,12 @@ Adding `-Dcapsule.log=verbose` or `-Dcapsule.log=debug`  before `-jar` will prin
 
 ## A Capsule's Structure and Manifest
 
-A capsule is a JAR file with a manifest -- containing meta-data describing the application -- and some embedded files. The most minimal (probably useless) capsule contains just the `Capsule.class` file, and a `META-INF/MANIFEST.MF` file with the following line:
+A capsule is a JAR file with a manifest -- containing meta-data describing the application -- and some embedded files. The most minimal (probably useless) capsule contains just the `Capsule.class` file, and a `META-INF/MANIFEST.MF` file with the following lines:
 
     Main-Class: Capsule
+    Premain-Class: Capsule
 
-The existence of `Capsule.class` in the JAR's root, as well as that line in the manifest is what makes a JAR into a capsule (but not yet a launchable one, as we haven't yet specified an attribute that tells the capsule what to run). The capsule's manifest describes everything the application requires in order to launch our application. In the next sections we'll learn the use of various attributes.
+The existence of `Capsule.class` in the JAR's root, as well as those lines in the manifest is what makes a JAR into a capsule (but not yet a launchable one, as we haven't yet specified an attribute that tells the capsule what to run). The capsule's manifest describes everything the application requires in order to launch our application. In the next sections we'll learn the use of various attributes.
 
 ## Paths and Artifact Coordinates
 
@@ -252,7 +234,7 @@ Running `java -Dcapsule.jvms -jar app.jar` will list all Java installations Caps
 
 ## Class Paths and Native Libraries
 
-By default, Capsule sets the application's class path to the capsule JAR itself and every JAR file placed in the capsule's root -- in some unspecified (but constant) order. If the capsule contains an `Application` attribute, all entries in the `Class-Path` attribute in the manifest of the `Application` JAR are added to the classpath automatically.
+By default, Capsule sets the application's class path to the capsule JAR itself and every JAR file placed in the capsule's root -- in some unspecified (but constant) order. If the capsule contains an `Application` attribute, the jar(s) referenced by the attribute will be added to the classpath first.
 
 The classpath, however, can be customized by the `App-Class-Path`/`Dependencies` attribute, which can be given an ordered (space separated) list of JARs and/or directories relative to the capsule JAR root, and/or artifact coordinates. The `Class-Path` and `Dependencies` attributes are similar, but not identical. If the `Class-Path` attribute is defined, then the JARs in the capsule's root are not automatically added to the class path (unless explicilty listed in the attribute), while the `Dependencies` attribute simply adds them to the class path. Also, the `Dependencies` attribute conventionally lists artifact coordinates, while the `App-Class-Path` attribute usually lists file paths, but this is not enforced, and either style can be used for both.
 
@@ -298,7 +280,7 @@ If any of these three properties is set, a security manager will be in effect wh
 
 ## Applying Caplets
 
-To apply caplets to the capsule you list them, in the order they're to be applied, in the `Caplets` manifest attribute either as class names or as artifact coordinates.
+To apply caplets to the capsule you list them, in the order they're to be applied, in the `Caplets` manifest attribute either as class names or as artifact coordinates. If given as artifact coordinates, the caplet JAR file should be placed, unextracted, in the capsule's root, or, preferably in the `capsule` directory of the capsule (so as not to be placed on the application's classpath).
 
 ## Empty Capsules and Capsule Wrapping
 
@@ -349,3 +331,8 @@ When a capsule is launched, two processes are involved: first, a JVM process run
 
 While this model works well enough in most scenarios, sometimes it is desirable to directly launch the process running the application, rather than indirectly. This is supported by "capsule trampoline", and is available for really executable capsules on UNIX systems only. To take advantage of capsule trampolining, use the `capsule/trampoline-execheader.sh` executable header (rather than `capsule/execheader.sh`) when creating the really executable capsule.
 
+## Writing Caplets
+
+You can customize many of the capsule's inner workings by creating a caplet -- *custom capsule*. A caplet is a subclass of the `Capsule` class that overrides some of its overridable methods.
+
+Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html) for specific documentation on custom capsules.

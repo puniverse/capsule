@@ -1,8 +1,10 @@
 ---
 layout: post
+title: Reference
 ---
 
-# Reference
+* TOC
+{:toc}
 
 ## Manifest Attributes
 
@@ -87,3 +89,6 @@ Capsule defines these variables in the application's environment:
 
 These values can also be accessed with `$VARNAME` in any capsule manifest attributes.
 
+## Caplet API
+
+[Javadoc](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html)
