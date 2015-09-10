@@ -100,7 +100,7 @@ layout: default
         <div class="container">
             <div id="intro">
                 <h3>What Capsule Doesn't Do</h3>
-                <p> When you include the Capsule class in your JAR file and set it to serve as the JAR's main class, Capsule reads various configuration values (like JVM arguments, environment variables, Maven dependencies and more) and caplets from the JAR's manifest. It then optionally extracts the JAR's contents into a cache directory, performs custom caplet operations, picks a JVM installation based on the version requirements in the manifest, and finally, it spawns another JVM process to run your application as configured.</p>
+                <p>Capsule doesn't contain a JVM distribution, the application user would need to have a JRE installed. Java 9 is expected to have a mechanism for packaging stripped-down versions of the JVM.</p>
             </div><!--intro-->
         </div><!--container-->
     </section>
