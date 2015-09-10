@@ -12,7 +12,7 @@ title: User Guide
 
 or:
 
-    co.paralleluniverse:capsule:1.0-rc1
+    co.paralleluniverse:capsule:1.0
 
 on Maven Central.
 
