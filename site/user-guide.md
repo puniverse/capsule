@@ -26,19 +26,12 @@ Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.g
 
 ## Build-Tool Plugins
 
-Maven:
+Using a build-tool plugin may simplify the capsule creation process. You are encourage to use the appropriate community-contributed plugin for you build-tool of choice:
 
-  * [https://github.com/chrischristo/capsule-maven-plugin](https://github.com/chrischristo/capsule-maven-plugin)
-  * [https://github.com/pguedes/capsule-maven-plugin](https://github.com/pguedes/capsule-maven-plugin) (limited functionality)
-
-Gradle:
-
-  * [https://github.com/danthegoodman/gradle-capsule-plugin](https://github.com/danthegoodman/gradle-capsule-plugin)
-
-Leiningen:
-
-  * [https://github.com/circlespainter/lein-capsule](https://github.com/danthegoodman/gradle-capsule-plugin)
-
+* Maven: [https://github.com/chrischristo/capsule-maven-plugin](https://github.com/chrischristo/capsule-maven-plugin)
+* Gradle: [https://github.com/danthegoodman/gradle-capsule-plugin](https://github.com/danthegoodman/gradle-capsule-plugin)
+* Leiningen: [https://github.com/circlespainter/lein-capsule](https://github.com/danthegoodman/gradle-capsule-plugin)
+* SBT: Contributions are welcome!
 
 ## An Example
 
