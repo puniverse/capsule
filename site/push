@@ -3,14 +3,8 @@
 dirty=$(git status --porcelain | wc -l)
 if [ $dirty -gt 0 ] 
 then
-	if [ -z "$1" ] 
-	then
-		read -p "Enter commit description: " desc
-	else
-		desc="$1"
-	fi
-	echo "Commiting: $desc"
-	git add -A && git commit -m "$desc"
+	echo "Commiting"
+	git add -A && git commit -m "site [ci skip]"
 	if [ $? -ne 0 ]
 	then
 		exit $?
