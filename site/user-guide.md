@@ -328,4 +328,4 @@ While this model works well enough in most scenarios, sometimes it is desirable 
 
 You can customize many of the capsule's inner workings by creating a caplet -- *custom capsule*. A caplet is a subclass of the `Capsule` class that overrides some of its overridable methods.
 
-Please consult Capsule's [Javadoc](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html) for specific documentation on custom capsules.
+Please consult Capsule's [Javadoc](/javadoc/Capsule.html) for specific documentation on custom capsules.
