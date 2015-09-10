@@ -9,8 +9,10 @@ _site/
 /nbproject/private/
 /.nb-gradle
 /build
-/*/build/
+/*/build
 .gradle/
+.sonar/
 .nb-gradle-properties
-Gemfile.lock
+/Gemfile.lock
 /push_docs.sh
+/copy_blog.sh
