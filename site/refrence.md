@@ -89,6 +89,7 @@ Capsule defines these variables in the application's environment:
 
 These values can also be accessed with `$VARNAME` in any capsule manifest attributes.
 
-## Caplet API
+## Capsule API Javadoc
 
-[Javadoc](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html)
+* [Caplets](http://puniverse.github.io/capsule/capsule/javadoc/Capsule.html)
+* [capsule-util](http://puniverse.github.io/capsule/capsule-util/javadoc/)
