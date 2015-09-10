@@ -27,7 +27,7 @@ on Maven Central.
 
 ### Documentation
 
-[Capsule website](www.capsule.io)
+[Capsule website](http://www.capsule.io)
 
 ### Support
 
