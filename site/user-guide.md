@@ -18,7 +18,7 @@ on Maven Central.
 
 ## Building Capsule
 
-    ./gradlew install
+    gradle install
 
 ## Support
 
