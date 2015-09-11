@@ -1,9 +1,6 @@
 # *Capsule*<br/>Dead-Simple Packaging and Deployment for JVM Applications
 [![Build Status](http://img.shields.io/travis/puniverse/capsule.svg?style=flat)](https://travis-ci.org/puniverse/capsule) [![Coverage](https://coveralls.io/repos/puniverse/capsule/badge.svg?branch=master)](https://coveralls.io/r/puniverse/capsule?branch=master) [![Dependency Status](https://www.versioneye.com/user/projects/539704a483add7f80a000030/badge.svg?style=flat)](https://www.versioneye.com/user/projects/539704a483add7f80a000030) [![Version](http://img.shields.io/badge/version-1.0-blue.svg?style=flat)](https://github.com/puniverse/capsule/releases) [![License](http://img.shields.io/badge/license-EPL-blue.svg?style=flat)](https://www.eclipse.org/legal/epl-v10.html)
 
-## Introduction
-
-### What is Capsule?
 
 Capsule is a packaging and deployment tool for JVM applications. A capsule is a single executable JAR that contains everything your application needs to run either in the form of embedded files or as declarative metadata. It can contain your JAR artifacts, your dependencies and resources, native libraries, the require JRE version, the JVM flags required to run the application well, Java or native agents and more. In short, a capsule is a self-contained JAR that knows everything there is to know about how to run your application the way it's meant to run.
 
@@ -11,7 +8,15 @@ One way of thinking about a capsule is as a fat JAR on steroids (that also allow
 
 But while plain capsules are cool and let you ship any JVM application -- no matter how complex -- as a single executable JAR, caplets make capsules even more powerful.
 
-### Getting Capsule
+## Documentation
+
+[Capsule website](http://www.capsule.io)
+
+## Support
+
+Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.google.com/forum/#!forum/capsule-user)
+
+## Getting Started
 
 [Download](https://github.com/puniverse/capsule/releases)
 
@@ -19,19 +24,11 @@ or:
 
     co.paralleluniverse:capsule:1.0
 
-on Maven Central.
+or:
 
-### Building Capsule
+Clone the repository and
 
     gradle install
-
-### Documentation
-
-[Capsule website](http://www.capsule.io)
-
-### Support
-
-Discuss Capsule on the capsule-user [Google Group/Mailing List](https://groups.google.com/forum/#!forum/capsule-user)
 
 ## License
 
