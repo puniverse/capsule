@@ -9,7 +9,7 @@ title: Caplets and Tools
 Launches a capsule in a minimal container
 
 * Maven: [capsule-maven](https://github.com/puniverse/capsule-maven)<br/>
-Resolves artifacts against a Maven repository if not embedded in the capsule.
+Resolves artifacts against a Maven repository if not embedded in the capsule
 
 * Daemon: [capsule-daemon](https://github.com/puniverse/capsule-daemon)<br/>
 Launches your application as a Unix daemon/Windows service
@@ -25,8 +25,6 @@ Turns a capsule into an image runnable on the [OSv microkernel](http://osv.io/)
 
 
 ## Build-Tool Plugins
-
-Using a build-tool plugin may simplify the capsule creation process. You are encourage to use the appropriate community-contributed plugin for you build-tool of choice:
 
 * Maven: [https://github.com/chrischristo/capsule-maven-plugin](https://github.com/chrischristo/capsule-maven-plugin)
 * Gradle: [https://github.com/danthegoodman/gradle-capsule-plugin](https://github.com/danthegoodman/gradle-capsule-plugin)
