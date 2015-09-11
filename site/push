@@ -19,7 +19,7 @@ then
 fi
 
 
-echo "Building Jekyll site...\n"
+echo "Building Jekyll site..."
 
 rm -rf javadoc
 mkdir javadoc
