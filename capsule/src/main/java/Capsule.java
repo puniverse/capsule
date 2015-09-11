@@ -4070,7 +4070,7 @@ public class Capsule implements Runnable {
 
     private static String getActualJavaVersion(Path javaHome) {
         try {
-            final String versionLine = first(exec(1, getJavaExecutable0(javaHome).toString(), "-version"));
+            final String versionLine = first(exec(1, true, new ProcessBuilder(asList(getJavaExecutable0(javaHome).toString(), "-version"))));
             final Matcher m = PAT_JAVA_VERSION_LINE.matcher(versionLine);
             if (!m.matches())
                 throw new IllegalArgumentException("Could not parse version line: " + versionLine);
@@ -4873,10 +4873,15 @@ public class Capsule implements Runnable {
      * @return the lines output by the command
      */
     protected static Iterable<String> exec(int numLines, ProcessBuilder pb) throws IOException {
+        return exec(numLines, false, pb);
+    }
+    
+    private static Iterable<String> exec(int numLines, boolean error, ProcessBuilder pb) throws IOException {
         final List<String> lines = new ArrayList<>();
         final Process p = pb.start();
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream(), Charset.defaultCharset()))) {
+        final InputStream in = error ? p.getErrorStream() : p.getInputStream();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, Charset.defaultCharset()))) {
             for (int i = 0; numLines < 0 || i < numLines; i++) {
                 final String line = reader.readLine();
                 if (line == null)
