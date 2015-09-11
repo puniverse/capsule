@@ -3937,7 +3937,7 @@ public class Capsule implements Runnable {
     /////////// JRE Installations ///////////////////////////////////
     private static boolean isJDK(Path javaHome) {
         final String name = javaHome.toString().toLowerCase();
-        return name.contains("jdk") && !name.contains("jre");
+        return !name.contains("jre") && (name.contains("jdk") || Files.exists(javaHome.resolve("include").resolve("jni.h")));
     }
 
     /**
@@ -3989,7 +3989,7 @@ public class Capsule implements Runnable {
                 String ver;
                 List<Path> homes;
                 if (Files.isDirectory(f) && (ver = isJavaDir(f.getFileName().toString())) != null
-                        && (homes = searchJavaHomeInDir(f)) != null) {
+                        && (homes = searchJavaHomeInDir(f)) != null && homes.size() > 0) {
                     if (parseJavaVersion(ver)[3] == 0)
                         ver = getActualJavaVersion(first(homes));
                     multiput(dirs, ver, homes);
@@ -4041,6 +4041,8 @@ public class Capsule implements Runnable {
     private static List<Path> searchJavaHomeInDir(Path dir) throws IOException {
         final List<Path> homes = new ArrayList<>();
         final boolean jdk = isJDK(dir);
+        if (isJavaHome(dir))
+            homes.add(dir.toAbsolutePath());
         try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
             for (Path f : fs) {
                 if (Files.isDirectory(f)) {
