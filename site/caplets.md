@@ -12,7 +12,7 @@ Launches a capsule in a minimal container
 Resolves artifacts against a Maven repository if not embedded in the capsule.
 
 * Daemon: [capsule-daemon](https://github.com/puniverse/capsule-daemon)<br/>
-Launches your application as a Unix daemon or Windows service
+Launches your application as a Unix daemon/Windows service
 
 * Desktop: [capsule-desktop](https://github.com/puniverse/capsule-desktop)<br/>
 Turns your GUI application capsule into a native executable (including an icon) for Windows, Mac or Linux
