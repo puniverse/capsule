@@ -76,11 +76,11 @@ layout: default
             <div id="intro">
                 <h3>Cool Stuff You Can Do with Capsules</h3>
                 <ul class="a">
+                    <li>Run a capsule as a minimal, secure (unprivileged) Linux Container that automatically pumps JMX monitoring and standard Java logging outside the container.</li>
                     <li>Have your JAR automatically choose an appropriate JVM version, set JVM flags, and add an embedded JAR to the boot class path.</li>
                     <li>Embed any required native libraries directly in the JAR, and Capsule automatically makes sure your application finds them.</li>
                     <li>Distribute your application as an "executable WAR": it can be deployed to a servlet container <b>or</b>, if executed directly, by use of the Maven caplet it will automatically download Jetty and deploy itself into the embedded container.</li>
                     <li>Distribute a Clojure application without embedding Clojure itself in the capsule, and have Clojure downloaded the first time the capsule is launched. The Clojure runtime will be cached and shared among all Clojure capsules so it will only be downloaded once.</li>
-                    <li>Run a capsule as a minimal Linux Container.</li>
                     <li>Turn any capsule into an OS-specific native application or daemon.</li>
                 </ul>
             </div><!--intro-->
