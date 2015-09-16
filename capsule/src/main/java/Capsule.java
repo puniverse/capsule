@@ -1743,8 +1743,12 @@ public class Capsule implements Runnable {
             while (receive())
                 ;
         } catch (IOException e) {
-            if (isChildAlive())
-                printError(LOG_QUIET, e);
+            try {
+                final Process p = child;
+                if (p != null && !waitFor(p, 100))
+                    printError(LOG_QUIET, e);
+            } catch (InterruptedException ex) {
+            }
         }
     }
 
@@ -4827,6 +4831,19 @@ public class Capsule implements Runnable {
         }
     }
 
+    private static boolean waitFor(Process p, long millis) throws InterruptedException {
+        // return p.waitFor(millis, TimeUnit.MILLISECONDS); // JDK 8
+        final long deadline = System.nanoTime() + millis * 1_000_000;
+        for (;;) {
+            if (!isAlive(p))
+                return true;
+            long sleep = Math.min((deadline - System.nanoTime()) / 1_000_000, 20);
+            if (sleep <= 0)
+                return false;
+            Thread.sleep(sleep);
+        }
+    }
+
     /**
      * Executes a command and returns its output as a list of lines.
      * The method will wait for the child process to terminate, and throw an exception if the command returns an exit value {@code != 0}.
@@ -4876,7 +4893,7 @@ public class Capsule implements Runnable {
     protected static Iterable<String> exec(int numLines, ProcessBuilder pb) throws IOException {
         return exec(numLines, false, pb);
     }
-    
+
     private static Iterable<String> exec(int numLines, boolean error, ProcessBuilder pb) throws IOException {
         final List<String> lines = new ArrayList<>();
         final Process p = pb.start();
