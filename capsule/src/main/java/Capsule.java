@@ -4398,6 +4398,7 @@ public class Capsule implements Runnable {
         return x != null ? x : y;
     }
 
+    @SuppressWarnings("fallthrough")
     static String globToRegex(String pattern) {
         // Based on Neil Traft: http://stackoverflow.com/a/17369948/750563
         final String DOT = "[^/]"; // "." -- exclude slashes
