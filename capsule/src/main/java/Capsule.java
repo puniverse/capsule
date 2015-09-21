@@ -417,6 +417,13 @@ public class Capsule implements Runnable {
         }
     }
 
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    public static Object getCapsule(String capletClassName) {
+        return CAPSULE.cc.sup(capletClassName);
+    }
+
     //<editor-fold defaultstate="collapsed" desc="Error Reporting">
     /////////// Error Reporting ///////////////////////////////////
     private static void printError(int level, Throwable t) {
