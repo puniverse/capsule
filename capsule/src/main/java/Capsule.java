@@ -147,15 +147,15 @@ public class Capsule implements Runnable {
      *
      * We do a lot of data transformations that could benefit from Java 8's lambdas+streams, but we want Capsule to support Java 7.
      *
-     * The JavaDoc could really benefit from https://bugs.openjdk.java.net/browse/JDK-4085608 to categorize methods into 
+     * The JavaDoc could really benefit from https://bugs.openjdk.java.net/browse/JDK-4085608 to categorize methods into
      * Caplet overrides properties, and utility categories.
      *
      *
      * Caplet Hierarchy (or chain)
      * ---------------------------
      *
-     * Capsule subclasses, i.e. caplets, may be arranged in a dynamic "inheritance" hierarchy, where each caplet modifies, or "subclasses" 
-     * the previous ones in the chain. 
+     * Capsule subclasses, i.e. caplets, may be arranged in a dynamic "inheritance" hierarchy, where each caplet modifies, or "subclasses"
+     * the previous ones in the chain.
      * The first caplet in the chain (the highest in the hierarchy) is referenced by the 'oc' field, the last is referenced by 'cc', and
      * the previous caplet, the "superclass" is referenced by 'sup':
      *
@@ -956,7 +956,7 @@ public class Capsule implements Runnable {
         /*
          * Here we're implementing both the "invokevirtual" and "invokespecial".
          * We want to somehow differentiate the case where the function is called directly -- and should, like invokevirtual, target cc, the
-         * last caplet in the hieracrchy -- from the case where the function is called with super.foo -- and should, like invokevirtual, 
+         * last caplet in the hieracrchy -- from the case where the function is called with super.foo -- and should, like invokevirtual,
          * target sup, the previous caplet in the hierarchy.
          */
         Capsule target = null;
@@ -2114,7 +2114,7 @@ public class Capsule implements Runnable {
         final FileChannel c = FileChannel.open(lockFile, new HashSet<>(asList(StandardOpenOption.CREATE, StandardOpenOption.WRITE)), getPermissions(dir));
 
         if (this.appCacheLock != null) {
-            // This shouldn't happen, but due to some other bug it's possible that the cache was locked and not released. 
+            // This shouldn't happen, but due to some other bug it's possible that the cache was locked and not released.
             // In this case, attempting to lock again would throw an OverlappingFileLockException and may obscure the real problem.
             log(LOG_QUIET, "Attempting to double lock (ignoring, but this is most likely a bug in CAPSULE)");
             c.close();
