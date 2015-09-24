@@ -5255,6 +5255,8 @@ public class Capsule implements Runnable, InvocationHandler {
      * The default implementation creates a local JMX connector.
      *
      * @return The JMX service URL that the parent Capsule process will use to connect and proxy JMX commands.
+     *
+     * @deprecated marked deprecated to exclude from javadoc
      */
     protected JMXServiceURL startJMXServer() {
         /*
