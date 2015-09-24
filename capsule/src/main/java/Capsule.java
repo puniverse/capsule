@@ -77,8 +77,6 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.Properties;
-import static java.util.Collections.*;
-import static java.util.Arrays.asList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.RandomAccess;
@@ -89,6 +87,9 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXConnectorServerFactory;
 import javax.management.remote.JMXServiceURL;
+
+import static java.util.Collections.*;
+import static java.util.Arrays.asList;
 
 /**
  * An application capsule.
@@ -1353,7 +1354,7 @@ public class Capsule implements Runnable {
             if (oc.socket != null)
                 startServer();
             liftoff();
-            receiveLoop();
+            // receiveLoop();
 
             oc.child.waitFor();
         }
