@@ -5250,6 +5250,12 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="JMX">
     /////////// JMX ///////////////////////////////////
+    /**
+     * The Capsule agent will invoke this method to start a JMX Server.
+     * The default implementation creates a local JMX connector.
+     *
+     * @return The JMX service URL that the parent Capsule process will use to connect and proxy JMX commands.
+     */
     protected JMXServiceURL startJMXServer() {
         /*
         * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/Agent.java
