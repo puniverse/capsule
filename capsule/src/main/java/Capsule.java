@@ -88,7 +88,6 @@ import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
-import javax.management.remote.JMXConnectorServerFactory;
 import javax.management.remote.JMXServiceURL;
 
 import static java.util.Collections.*;
@@ -5261,18 +5260,18 @@ public class Capsule implements Runnable, InvocationHandler {
         try {
             log(LOG_VERBOSE, "Starting JMXConnectorServer");
             final JMXServiceURL url;
-            if (1 == 1) {
-                final Properties agentProps = sun.misc.VMSupport.getAgentProperties();
-                if (agentProps.get(LOCAL_CONNECTOR_ADDRESS_PROP) == null) {
-                    log(LOG_VERBOSE, "Starting management agent");
-                    sun.management.Agent.agentmain(null); // starts a JMXConnectorServer that does not prevent the app from shutting down
-                }
-                url = new JMXServiceURL((String) agentProps.get(LOCAL_CONNECTOR_ADDRESS_PROP));
-            } else {
-                final JMXConnectorServer jmxServer = JMXConnectorServerFactory.newJMXConnectorServer(new JMXServiceURL("rmi", null, 0), null, ManagementFactory.getPlatformMBeanServer());
-                jmxServer.start(); // prevents the app from shutting down (requires jmxServer.stop())
-                url = jmxServer.getAddress();
+
+            // final JMXConnectorServer jmxServer = JMXConnectorServerFactory.newJMXConnectorServer(new JMXServiceURL("rmi", null, 0), null, ManagementFactory.getPlatformMBeanServer());
+            // jmxServer.start(); // prevents the app from shutting down (requires jmxServer.stop()). See ConnectorBootstrap.PermanentExporter
+            // url = jmxServer.getAddress();
+
+            final Properties agentProps = sun.misc.VMSupport.getAgentProperties();
+            if (agentProps.get(LOCAL_CONNECTOR_ADDRESS_PROP) == null) {
+                log(LOG_VERBOSE, "Starting management agent");
+                sun.management.Agent.agentmain(null); // starts a JMXConnectorServer that does not prevent the app from shutting down
             }
+            url = new JMXServiceURL((String) agentProps.get(LOCAL_CONNECTOR_ADDRESS_PROP));
+
             log(LOG_VERBOSE, "JMXConnectorServer started JMX at " + url);
             return url;
         } catch (Exception e) {
