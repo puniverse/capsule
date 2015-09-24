@@ -1373,8 +1373,7 @@ public class Capsule implements Runnable {
 
     private void cleanup1() {
         log(LOG_VERBOSE, "Cleanup");
-        if (isLogging(LOG_DEBUG))
-            new Exception("Stack trace").printStackTrace(STDERR);
+        log(LOG_DEBUG, new Exception("Stack trace"));
         cleanup();
     }
 
@@ -1769,8 +1768,7 @@ public class Capsule implements Runnable {
             return true;
         } catch (IOException e) {
             log(LOG_VERBOSE, "Sending of message " + message + ": " + payload + " failed - " + e.getMessage());
-            if (isLogging(LOG_DEBUG))
-                e.printStackTrace(STDERR);
+            log(LOG_DEBUG, e);
             return false;
         }
     }
@@ -2038,8 +2036,7 @@ public class Capsule implements Runnable {
             return dir;
         } catch (IOException e) {
             log(LOG_VERBOSE, "IOException while creating app cache: " + e.getMessage());
-            if (isLogging(LOG_VERBOSE))
-                e.printStackTrace(STDERR);
+            log(LOG_VERBOSE, e);
             return null;
         }
     }
@@ -2087,8 +2084,7 @@ public class Capsule implements Runnable {
     private void extractCapsule(Path dir) throws IOException {
         try {
             log(LOG_VERBOSE, "Extracting " + getJarFile() + " to app cache directory " + dir.toAbsolutePath());
-            if (isLogging(LOG_DEBUG))
-                new Exception("Stack trace").printStackTrace(STDERR);
+            log(LOG_DEBUG, new Exception("Stack trace"));
             extractJar(openJarInputStream(getJarFile()), dir);
         } catch (IOException e) {
             throw new IOException("Exception while extracting jar " + getJarFile() + " to app cache directory " + dir.toAbsolutePath(), e);
@@ -4995,6 +4991,14 @@ public class Capsule implements Runnable {
             STDERR.println((AGENT ? LOG_AGENT_PREFIX : LOG_PREFIX) + str);
     }
 
+    /**
+     * Prints the given exception's stack-trace to stderr if the given log-level is being logged.
+     */
+    protected static final void log(int level, Throwable t) {
+        if (t != null && isLogging(level))
+            t.printStackTrace(STDERR);
+    }
+
     private static void println(String str) {
         log(LOG_QUIET, str);
     }
@@ -5233,8 +5237,7 @@ public class Capsule implements Runnable {
             return url;
         } catch (Exception e) {
             log(LOG_VERBOSE, "JMXConnectorServer failed: " + e.getMessage());
-            if (isLogging(LOG_VERBOSE))
-                e.printStackTrace(STDERR);
+            log(LOG_VERBOSE, e);
             return null;
         }
     }
@@ -5248,8 +5251,7 @@ public class Capsule implements Runnable {
             return mbsc;
         } catch (Exception e) {
             log(LOG_VERBOSE, "JMX Connection failed: " + e.getMessage());
-            if (isLogging(LOG_VERBOSE))
-                e.printStackTrace(STDERR);
+            log(LOG_VERBOSE, e);
             return null;
         }
     }
