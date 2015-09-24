@@ -491,7 +491,7 @@ public class Capsule implements Runnable {
     /**
      * Registers a capsule command-line option. Must be called during the caplet's static initialization.
      * <p>
-     * Capsule options are system properties beginning with the prefix ".capsule", normally passed to the capsule as -D flags on the command line.
+     * Capsule options are system properties beginning with the prefix "capsule.", normally passed to the capsule as -D flags on the command line.
      * <p>
      * Options can be top-level *actions* (like print dependency tree or list JVMs), in which case the {@code methodName} argument must
      * be the name of a method used to launch the action instead of launching the capsule.
