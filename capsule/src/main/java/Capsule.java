@@ -5250,7 +5250,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="JMX">
     /////////// JMX ///////////////////////////////////
-    private JMXServiceURL startJMXServer() {
+    protected JMXServiceURL startJMXServer() {
         /*
         * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/Agent.java
         * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/jmxremote/ConnectorBootstrap.java
