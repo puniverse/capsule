@@ -109,7 +109,7 @@ import static java.util.Arrays.asList;
  * <p>
  * Final methods implement various utility or accessors, which may be freely used by caplets.
  * <p>
- * Caplets might consider overriding one of the following powerful methods:
+ * Caplets might consider overriding some of the following powerful methods:
  * {@link #attribute(Map.Entry) attribute}, {@link #getVarValue(String) getVarValue},
  * {@link #prelaunch(List, List) prelaunch}.
  * <p>
