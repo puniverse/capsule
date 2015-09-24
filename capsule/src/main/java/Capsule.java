@@ -5305,8 +5305,8 @@ public class Capsule implements Runnable, InvocationHandler {
         verifyAfterStage(STAGE_LAUNCH);
         synchronized(oc) {
             if (oc.jmxConnection == null) {
-                send(MESSAGE_START_JMX, null);
                 try {
+                    send(MESSAGE_START_JMX, null);
                     receive();
                 } catch (IOException e) {
                     printError(LOG_QUIET, e);
