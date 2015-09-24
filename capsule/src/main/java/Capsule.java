@@ -24,8 +24,10 @@ import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
@@ -81,12 +83,14 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.RandomAccess;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXConnectorServerFactory;
 import javax.management.remote.JMXServiceURL;
+import com.sun.jmx.mbeanserver.JmxMBeanServer;
 
 import static java.util.Collections.*;
 import static java.util.Arrays.asList;
@@ -130,7 +134,7 @@ import static java.util.Arrays.asList;
  *
  * @author pron
  */
-public class Capsule implements Runnable {
+public class Capsule implements Runnable, InvocationHandler {
     public static final String VERSION = "1.0";
     /*
      * This class follows some STRICT RULES:
@@ -670,6 +674,7 @@ public class Capsule implements Runnable {
     private List<Path> tmpFiles = new ArrayList<>();
     private Process child;
     private boolean agentCalled;
+    private MBeanServer origMBeanServer;
     private MBeanServerConnection jmxConnection;
     // Error reporting
     private static final ThreadLocal<String> contextType_ = new ThreadLocal<>();
@@ -1336,6 +1341,8 @@ public class Capsule implements Runnable {
         else {
             Runtime.getRuntime().addShutdownHook(new Thread(this, "cleanup"));
 
+            overridePlatformMBeanServer();
+
             if (!isInheritIoBug())
                 pb.inheritIO();
 
@@ -1720,28 +1727,33 @@ public class Capsule implements Runnable {
     }
 
     private void openSocketStreams(Socket s) throws IOException {
-        try {
-            s.setSoTimeout(SOCKET_TIMEOUT);
-            oc.socketOutput = new ObjectOutputStream(s.getOutputStream());
-            oc.socketOutput.flush();
-            oc.socketInput = new ObjectInputStream(s.getInputStream());
-            s.setSoTimeout(0);
-        } catch (IOException e) {
-            if (e instanceof SocketTimeoutException)
-                log(LOG_VERBOSE, "Socket timed out");
-            close(s);
-            throw e;
+        synchronized(oc) {
+            try {
+                s.setSoTimeout(SOCKET_TIMEOUT);
+                oc.socketOutput = new ObjectOutputStream(s.getOutputStream());
+                oc.socketOutput.flush();
+                oc.socketInput = new ObjectInputStream(s.getInputStream());
+                s.setSoTimeout(0);
+            } catch (IOException e) {
+                if (e instanceof SocketTimeoutException)
+                    log(LOG_VERBOSE, "Socket timed out");
+                close(s);
+                throw e;
+            }
         }
     }
 
     private void closeComm() {
-        if (oc.socket != null)
-            close(oc.socket);
-        oc.socket = null;
-        oc.address = null;
-        oc.port = 0;
-        oc.socketOutput = null;
-        oc.socketInput = null;
+        synchronized(oc) {
+            log(LOG_VERBOSE, "Closing comm");
+            if (oc.socket != null)
+                close(oc.socket);
+            oc.socket = null;
+            oc.address = null;
+            oc.port = 0;
+            oc.socketOutput = null;
+            oc.socketInput = null;
+        }
     }
 
     @SuppressWarnings("empty-statement")
@@ -1775,29 +1787,35 @@ public class Capsule implements Runnable {
     }
 
     private void send0(int message, Object payload) throws IOException {
-        if (oc.socketOutput == null)
-            throw new IOException("comm channel not defined");
-        log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
-        oc.socketOutput.writeInt(message);
-        oc.socketOutput.writeObject(payload);
-        oc.socketOutput.flush();
+        synchronized(oc) {
+            if (oc.socketOutput == null)
+                throw new IOException("comm channel not defined");
+            log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
+            oc.socketOutput.writeInt(message);
+            oc.socketOutput.writeObject(payload);
+            oc.socketOutput.flush();
+        }
     }
 
     private boolean receive() throws IOException {
-        if (!AGENT)
-            verifyAfterStage(STAGE_LAUNCH);
-        if (oc.socket == null)
-            return false;
-        try {
-            final int message = oc.socketInput.readInt();
-            final Object payload = oc.socketInput.readObject();
-            log(LOG_VERBOSE, "Message received" + message + " : " + payload);
-            receive(message, payload);
-            return true;
-        } catch (EOFException e) {
-            return false;
-        } catch (ClassNotFoundException e) {
-            throw new IOException(e);
+        synchronized(oc) {
+            if (!AGENT)
+                verifyAfterStage(STAGE_LAUNCH);
+            if (oc.socket == null)
+                return false;
+            try {
+                final int message = oc.socketInput.readInt();
+                final Object payload = oc.socketInput.readObject();
+                log(LOG_VERBOSE, "Message received " + message + " : " + payload);
+                receive(message, payload);
+                return true;
+            } catch (EOFException e) {
+                log(LOG_VERBOSE, "Received EOF");
+                log(LOG_VERBOSE, e);
+                return false;
+            } catch (ClassNotFoundException e) {
+                throw new IOException(e);
+            }
         }
     }
 
@@ -1815,7 +1833,7 @@ public class Capsule implements Runnable {
                 break;
             case MESSAGE_JMX_URL:
                 if (!AGENT)
-                    this.jmxConnection = connectToJMX((JMXServiceURL) payload);
+                    connectToJMX((JMXServiceURL) payload);
                 break;
         }
     }
@@ -4695,6 +4713,16 @@ public class Capsule implements Runnable {
         }
     }
 
+    private static Method getMethod(Class<?> clazz, Method method) {
+        if (clazz.equals(method.getDeclaringClass()))
+            return method;
+        try {
+            return getMethod(clazz, method.getName(), method.getParameterTypes());
+        } catch (NoSuchMethodException e) {
+            return null;
+        }
+    }
+
     private static <T extends AccessibleObject> T accessible(T obj) {
         if (obj == null)
             return null;
@@ -4731,6 +4759,14 @@ public class Capsule implements Runnable {
 
     private static boolean isStream(String className) {
         return className.startsWith("java.util.stream") || className.contains("$$Lambda") || className.contains("Spliterator");
+    }
+
+    private static boolean isThrows(Method method, Throwable t) {
+        for (Class<?> etype : method.getExceptionTypes()) {
+            if (etype.isInstance(t))
+                return true;
+        }
+        return false;
     }
     //</editor-fold>
 
@@ -5217,6 +5253,10 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="JMX">
     /////////// JMX ///////////////////////////////////
     private JMXServiceURL startJMXServer() {
+        /*
+        * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/Agent.java
+        * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/jmxremote/ConnectorBootstrap.java
+        */
         final String LOCAL_CONNECTOR_ADDRESS_PROP = "com.sun.management.jmxremote.localConnectorAddress";
 
         try {
@@ -5248,7 +5288,8 @@ public class Capsule implements Runnable {
             log(LOG_VERBOSE, "Connecting to JMX server at: " + url);
             final JMXConnector connect = JMXConnectorFactory.connect(url);
             final MBeanServerConnection mbsc = connect.getMBeanServerConnection();
-            log(LOG_VERBOSE, "JMX Connection sucessful");
+            log(LOG_VERBOSE, "JMX Connection successful");
+            oc.jmxConnection = mbsc;
             return mbsc;
         } catch (Exception e) {
             log(LOG_VERBOSE, "JMX Connection failed: " + e.getMessage());
@@ -5264,15 +5305,71 @@ public class Capsule implements Runnable {
     protected final MBeanServerConnection getMBeanServerConnection() {
         verifyAgent(false);
         verifyAfterStage(STAGE_LAUNCH);
-        if (jmxConnection == null) {
-            send(MESSAGE_START_JMX, null);
-            try {
-                receive();
-            } catch (IOException e) {
-                printError(LOG_QUIET, e);
+        synchronized(oc) {
+            if (oc.jmxConnection == null) {
+                send(MESSAGE_START_JMX, null);
+                try {
+                    receive();
+                } catch (IOException e) {
+                    printError(LOG_QUIET, e);
+                }
             }
+            return oc.jmxConnection;
         }
-        return jmxConnection;
+    }
+
+    private Object invokeMBeanServer(Method method, Object[] args) throws ReflectiveOperationException {
+        final MBeanServerConnection conn = lifecycleStage >= STAGE_LAUNCH ? getMBeanServerConnection() : null;
+        final MBeanServerConnection target = conn != null ? conn : origMBeanServer;
+        final Method m;
+        if ((m = getMethod(target.getClass(), method)) != null)
+            return m.invoke(target, args);
+        else if (method.getName().startsWith("getClassLoader"))
+            return MY_CLASSLOADER;
+        else
+            throw new UnsupportedOperationException();
+    }
+
+    private void overridePlatformMBeanServer() {
+        try {
+            MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
+            if (platformMBeanServer instanceof JmxMBeanServer) {
+                Field interceptorField = accessible(JmxMBeanServer.class.getDeclaredField("mbsInterceptor"));
+                this.origMBeanServer = (MBeanServer)interceptorField.get(platformMBeanServer);
+                MBeanServer interceptor = (MBeanServer) Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{MBeanServer.class}, this);
+                interceptorField.set(platformMBeanServer, interceptor);
+            }
+            // accessible(ManagementFactory.class.getDeclaredField("platformMBeanServer")).set(null, this);
+        } catch(ReflectiveOperationException e) {
+            throw rethrow(e);
+        }
+    }
+
+    /**
+     * @deprecated marked deprecated to exclude from javadoc
+     */
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        try {
+            final Object res;
+            if (MBeanServerConnection.class.equals(method.getDeclaringClass()) || MBeanServer.class.equals(method.getDeclaringClass()))
+                res = invokeMBeanServer(method, args);
+            else
+                throw new UnsupportedOperationException();
+            if (isLogging(LOG_DEBUG))
+                log(LOG_DEBUG, "Invoke " + method + " with args: " + Arrays.toString(args) + " => " + res);
+            return res;
+        } catch (InvocationTargetException e) {
+            Throwable t = e.getCause();
+            assert t instanceof RuntimeException || t instanceof Error || isThrows(method, t);
+            log(LOG_DEBUG, "Exception while running method " + method + " with args: " + Arrays.toString(args) + ": " + t);
+            log(LOG_DEBUG, t);
+            throw e;
+        } catch(Exception e) {
+            log(LOG_VERBOSE, "Exception while running method " + method + " with args: " + Arrays.toString(args) + ": " + e);
+            log(LOG_VERBOSE, e);
+            throw e;
+        }
     }
     //</editor-fold>
 
