@@ -858,7 +858,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private void setStage(int stage) {
-        this.lifecycleStage = stage;
+        oc.lifecycleStage = stage;
     }
 
     private void verifyAtStage(int stage) {
