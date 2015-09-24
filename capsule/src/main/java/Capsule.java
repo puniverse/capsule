@@ -856,12 +856,12 @@ public class Capsule implements Runnable {
     }
 
     private void verifyAtStage(int stage) {
-        if (lifecycleStage != stage)
+        if (oc.lifecycleStage != stage)
             throw new IllegalStateException("This operation is not available at this stage in the capsule's lifecycle.");
     }
 
     protected final void verifyAfterStage(int stage) {
-        if (lifecycleStage <= stage)
+        if (oc.lifecycleStage <= stage)
             throw new IllegalStateException("This operation is not available at this stage in the capsule's lifecycle.");
     }
     //</editor-fold>
