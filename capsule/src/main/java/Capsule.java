@@ -341,7 +341,7 @@ public class Capsule implements Runnable {
     /////////// Main ///////////////////////////////////
     protected static final PrintStream STDOUT = System.out;
     protected static final PrintStream STDERR = System.err;
-    private static final ThreadLocal<Integer> LOG_LEVEL = new InheritableThreadLocal<>();
+    private static volatile Integer LOG_LEVEL;
     private static Path CACHE_DIR;
     private static Capsule CAPSULE;
     private static boolean AGENT;
@@ -4926,14 +4926,14 @@ public class Capsule implements Runnable {
     //<editor-fold defaultstate="collapsed" desc="Logging">
     /////////// Logging ///////////////////////////////////
     private static void setLogLevel(int level) {
-        LOG_LEVEL.set(level);
+        LOG_LEVEL = level;
     }
 
     /**
      * Capsule's log level
      */
     protected static final int getLogLevel() {
-        final Integer level = LOG_LEVEL.get();
+        final Integer level = LOG_LEVEL;
         return level != null ? level : LOG_NONE;
     }
 
