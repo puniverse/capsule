@@ -90,7 +90,6 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXConnectorServerFactory;
 import javax.management.remote.JMXServiceURL;
-import com.sun.jmx.mbeanserver.JmxMBeanServer;
 
 import static java.util.Collections.*;
 import static java.util.Arrays.asList;
@@ -5333,8 +5332,8 @@ public class Capsule implements Runnable, InvocationHandler {
     private void overridePlatformMBeanServer() {
         try {
             MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
-            if (platformMBeanServer instanceof JmxMBeanServer) {
-                Field interceptorField = accessible(JmxMBeanServer.class.getDeclaredField("mbsInterceptor"));
+            if (platformMBeanServer instanceof com.sun.jmx.mbeanserver.JmxMBeanServer) {
+                Field interceptorField = accessible(com.sun.jmx.mbeanserver.JmxMBeanServer.class.getDeclaredField("mbsInterceptor"));
                 this.origMBeanServer = (MBeanServer)interceptorField.get(platformMBeanServer);
                 MBeanServer interceptor = (MBeanServer) Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{MBeanServer.class}, this);
                 interceptorField.set(platformMBeanServer, interceptor);
