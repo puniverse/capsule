@@ -358,6 +358,7 @@ public class Capsule implements Runnable, InvocationHandler {
                 clearContext();
                 if ((AGENT || capsule.isEmptyCapsule()) && args != null && !args.isEmpty()) {
                     processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
+                    if (capsule.isEmptyCapsule())
                         capsule = capsule.setTarget(args.remove(0));
                 }
                 CAPSULE = capsule.oc; // TODO: capsule or oc ???
