@@ -360,6 +360,8 @@ public class Capsule implements Runnable, InvocationHandler {
                     processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
                     if (capsule.isEmptyCapsule())
                         capsule = capsule.setTarget(args.remove(0));
+                } else {
+                    processOptions();
                 }
                 CAPSULE = capsule.oc; // TODO: capsule or oc ???
             } finally {
@@ -378,7 +380,6 @@ public class Capsule implements Runnable, InvocationHandler {
         List<String> args = new ArrayList<>(asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         Capsule capsule = null;
         try {
-            processOptions();
             capsule = myCapsule(args);
 
             args = unmodifiableList(args);
