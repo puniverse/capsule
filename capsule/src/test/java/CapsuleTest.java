@@ -1,8 +1,8 @@
 /*
  * Capsule
  * Copyright (c) 2014-2015, Parallel Universe Software Co. All rights reserved.
- * 
- * This program and the accompanying materials are licensed under the terms 
+ *
+ * This program and the accompanying materials are licensed under the terms
  * of the Eclipse Public License v1.0, available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
@@ -147,7 +147,7 @@ public class CapsuleTest {
         assertEquals(args, getAppArgs(pb));
 
         assert_().that(getClassPath(pb)).has().item(absolutePath("capsule.jar"));
-        
+
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
         assertTrue(!Files.isDirectory(appCache));
     }
