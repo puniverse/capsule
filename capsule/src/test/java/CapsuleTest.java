@@ -176,8 +176,9 @@ public class CapsuleTest {
 
         Path appCache = cache.resolve("apps").resolve("com.acme.Foo");
 
-        assert_().that(javaHome.toString()).contains("jdk");
-        assert_().that(javaHome.toString()).doesNotContain("jre");
+        final String h = javaHome.toString();
+        assert_().that(!h.contains("jre") && (h.contains("jdk") || Files.exists(javaHome.resolve("include").resolve("jni.h"))));
+        assert_().that(h).doesNotContain("jre");
         assert_().that(getClassPath(pb)).has().allOf(
                 javaHome.resolve("lib/tools.jar"),
                 appCache.resolve("foo.jar"),
