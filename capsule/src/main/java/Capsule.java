@@ -349,12 +349,12 @@ public class Capsule implements Runnable, InvocationHandler {
     private static Capsule CAPSULE;
     private static boolean AGENT;
 
-    final static Capsule myCapsule(List<String> args) {
+    final static Capsule myCapsule(Class<? extends Capsule> capsuleClass, List<String> args) {
         if (CAPSULE == null) {
             final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
             try {
                 Thread.currentThread().setContextClassLoader(MY_CLASSLOADER);
-                Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile());
+                Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile(capsuleClass));
                 clearContext();
                 if ((AGENT || capsule.isEmptyCapsule()) && args != null && !args.isEmpty()) {
                     processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
@@ -369,6 +369,10 @@ public class Capsule implements Runnable, InvocationHandler {
             }
         }
         return CAPSULE;
+    }
+
+    final static Capsule myCapsule(List<String> args) {
+        return myCapsule(null, args);
     }
 
     public static final void main(String[] args) {
@@ -404,12 +408,16 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     public static void premain(String agentArgs, Instrumentation inst) {
+        premain0(null, agentArgs, inst);
+    }
+
+    protected static void premain0(Class<? extends Capsule> capsuleClass, String agentArgs, Instrumentation inst) {
         AGENT = true;
         PROPERTIES = new Properties(System.getProperties());
         Capsule capsule = null;
         try {
             processOptions();
-            capsule = myCapsule(agentArgs != null ? new ArrayList<>(split(agentArgs, "\\s+")) : null);
+            capsule = myCapsule(capsuleClass != null ? capsuleClass : Capsule.class, agentArgs != null ? new ArrayList<>(split(agentArgs, "\\s+")) : null);
             for (Capsule c = capsule.cc; c != null; c = c.sup)
                 c.agent(inst);
         } catch (Throwable t) {
@@ -1072,8 +1080,8 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
     /////////// Capsule JAR ///////////////////////////////////
-    private static Path findOwnJarFile() {
-        final URL url = MY_CLASSLOADER.getResource(Capsule.class.getName().replace('.', '/') + ".class");
+    private static Path findOwnJarFile(Class<? extends Capsule> capsuleClass) {
+        final URL url = MY_CLASSLOADER.getResource((capsuleClass != null ? capsuleClass : Capsule.class).getName().replace('.', '/') + ".class");
         assert url != null;
         if (!"jar".equals(url.getProtocol()))
             throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
@@ -1087,6 +1095,10 @@ public class Capsule implements Runnable, InvocationHandler {
         } catch (URISyntaxException e) {
             throw new AssertionError(e);
         }
+    }
+
+    private static Path findOwnJarFile() {
+        return findOwnJarFile(null);
     }
 
     private String toJarUrl(String relPath) {
