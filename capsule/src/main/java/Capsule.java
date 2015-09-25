@@ -1074,6 +1074,7 @@ public class Capsule implements Runnable, InvocationHandler {
     /////////// Capsule JAR ///////////////////////////////////
     private static Path findOwnJarFile() {
         final URL url = MY_CLASSLOADER.getResource(Capsule.class.getName().replace('.', '/') + ".class");
+        assert url != null;
         if (!"jar".equals(url.getProtocol()))
             throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
         final String path = url.getPath();
