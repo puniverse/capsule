@@ -407,16 +407,12 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     public static void premain(String agentArgs, Instrumentation inst) {
-        premain0(null, agentArgs, inst);
-    }
-
-    protected static void premain0(Class<? extends Capsule> capsuleClass, String agentArgs, Instrumentation inst) {
         AGENT = true;
         PROPERTIES = new Properties(System.getProperties());
         Capsule capsule = null;
         try {
             processOptions();
-            capsule = myCapsule(capsuleClass != null ? capsuleClass : Capsule.class, agentArgs != null ? new ArrayList<>(split(agentArgs, "\\s+")) : null);
+            capsule = myCapsule(Capsule.class, agentArgs != null ? new ArrayList<>(split(agentArgs, "\\s+")) : null);
             for (Capsule c = capsule.cc; c != null; c = c.sup)
                 c.agent(inst);
         } catch (Throwable t) {
@@ -2292,9 +2288,9 @@ public class Capsule implements Runnable, InvocationHandler {
         final long start = clock();
         final List<Object> classPath = new ArrayList<>();
 
-        // the capsule jar
+        // The caplets and capsule jars
         if (!isWrapperOfNonCapsule() && getAttribute(ATTR_CAPSULE_IN_CLASS_PATH))
-            classPath.add(getJarFile());
+            addCapsuleJars(classPath);
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             final String artifact = getAttribute(ATTR_APP_ARTIFACT);
@@ -2309,12 +2305,30 @@ public class Capsule implements Runnable, InvocationHandler {
 
         classPath.addAll(nullToEmpty(getAttribute(ATTR_DEPENDENCIES)));
 
-        // the capsule jar
+        // The caplets and capsule jars
         if (!isWrapperOfNonCapsule() && isDeepEmpty(classPath))
-            classPath.add(getJarFile());
+            addCapsuleJars(classPath);
+
+        // Remove duplicate JARs while preserving order
+        final List<Object> ret = new ArrayList<>(new LinkedHashSet<>(classPath));
 
         time("buildClassPath", start);
-        return classPath;
+
+        return ret;
+    }
+
+    private void addCapsuleJars(List<Object> classPath) {
+        Capsule c = this.cc;
+        do {
+            Path p = null;
+            try {
+                p = findOwnJarFile(c.getClass());
+            } catch (final IllegalStateException ignored) {} // Ignore non-JARs
+            if (p != null)
+                classPath.add(p);
+        } while ((c = sup) != null);
+
+        classPath.add(getJarFile());
     }
 
     /**
