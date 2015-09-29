@@ -51,7 +51,7 @@ public class TestCapsule extends Capsule {
     public static void mock(String coords, String type, List<Path> paths) {
         if (DEPS == null)
             DEPS = new HashMap<>();
-        DEPS.put(new Pair(coords, type), paths);
+        DEPS.put(new Pair<>(coords, type), paths);
     }
 
     @Override
@@ -68,7 +68,7 @@ public class TestCapsule extends Capsule {
         if (o instanceof String) {
             String x = (String) o;
             if (x.contains(":"))
-                o = new Pair(x, type.isEmpty() ? "jar" : type);
+                o = new Pair<>(x, type.isEmpty() ? "jar" : type);
         }
         return super.lookup0(o, type, attrContext, context); //To change body of generated methods, choose Tools | Templates.
     }
