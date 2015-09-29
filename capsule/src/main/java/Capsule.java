@@ -353,7 +353,7 @@ public class Capsule implements Runnable, InvocationHandler {
             final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
             try {
                 Thread.currentThread().setContextClassLoader(MY_CLASSLOADER);
-                Capsule capsule = newCapsule(MY_CLASSLOADER, findJarFile());
+                Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile());
                 clearContext();
                 if ((AGENT || capsule.isEmptyCapsule()) && args != null && !args.isEmpty()) {
                     processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
@@ -1072,13 +1072,15 @@ public class Capsule implements Runnable, InvocationHandler {
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
     /////////// Capsule JAR ///////////////////////////////////
     private static Path findJarFile(Class<? extends Capsule> capsuleClass) {
-        final URL url = MY_CLASSLOADER.getResource((capsuleClass != null ? capsuleClass : Capsule.class).getName().replace('.', '/') + ".class");
-        assert url != null;
+        assert capsuleClass != null;
+        final URL url = MY_CLASSLOADER.getResource(capsuleClass.getName().replace('.', '/') + ".class");
+        if (url == null) // Could happen with embedded capsules
+            throw new IllegalStateException("The " + capsuleClass + " class must be in a JAR file, but was not found");
         if (!"jar".equals(url.getProtocol()))
-            throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
+            throw new IllegalStateException("The " + capsuleClass + " class must be in a JAR file, but was loaded from: " + url);
         final String path = url.getPath();
         if (path == null) //  || !path.startsWith("file:")
-            throw new IllegalStateException("The Capsule class must be in a local JAR file, but was loaded from: " + url);
+            throw new IllegalStateException("The " + capsuleClass + " class must be in a local JAR file, but was loaded from: " + url);
 
         try {
             final URI jarUri = new URI(path.substring(0, path.indexOf('!')));
@@ -1088,8 +1090,8 @@ public class Capsule implements Runnable, InvocationHandler {
         }
     }
 
-    private static Path findJarFile() {
-        return findJarFile(null);
+    private static Path findOwnJarFile() {
+        return findJarFile(Capsule.class);
     }
 
     private String toJarUrl(String relPath) {
@@ -1180,7 +1182,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     private static void printHelp(boolean simple) {
         // USAGE:
-        final Path myJar = toFriendlyPath(findJarFile());
+        final Path myJar = toFriendlyPath(findOwnJarFile());
         final boolean executable = isExecutable(myJar);
 
         final StringBuilder usage = new StringBuilder();
@@ -1659,8 +1661,8 @@ public class Capsule implements Runnable, InvocationHandler {
         if (ATTR_JAVA_AGENTS == attr) {
             // add the capsule as an agent
             final Map<Object, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
-            assert isWrapperCapsule() ^ findJarFile().equals(getJarFile());
-            agents.put(processOutgoingPath(findJarFile()), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
+            assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
+            agents.put(processOutgoingPath(findOwnJarFile()), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
             return (T) agents;
         }
 
