@@ -1661,8 +1661,12 @@ public class Capsule implements Runnable, InvocationHandler {
         if (ATTR_JAVA_AGENTS == attr) {
             // add the capsule as an agent
             final Map<Object, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
-            assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
-            agents.put(processOutgoingPath(findOwnJarFile()), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
+            Path ownJar = null;
+            try {
+                ownJar = findOwnJarFile();
+            } catch (final IllegalStateException ignored) {}
+            if (ownJar != null)
+                agents.put(processOutgoingPath(ownJar), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
             return (T) agents;
         }
 
