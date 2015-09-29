@@ -11,6 +11,7 @@ import co.paralleluniverse.capsule.Jar;
 import co.paralleluniverse.capsule.test.CapsuleTestUtils;
 import co.paralleluniverse.capsule.test.CapsuleTestUtils.StringPrintStream;
 import static co.paralleluniverse.capsule.test.CapsuleTestUtils.*;
+
 import co.paralleluniverse.common.ZipFS;
 import com.google.common.jimfs.Jimfs;
 import java.io.IOException;
@@ -41,7 +42,6 @@ import org.junit.Before;
 import static com.google.common.truth.Truth.*;
 import java.nio.file.Paths;
 import org.joor.Reflect;
-import org.junit.Ignore;
 //import static org.mockito.Mockito.*;
 
 public class CapsuleTest {
@@ -1206,14 +1206,14 @@ public class CapsuleTest {
                 .addEntry("META-INF/x.txt", emptyInputStream());
 
         Class<?> capsuleClass = loadCapsule(wrapper);
-        setProperties(capsuleClass, props);
+//        setProperties(capsuleClass, props);
 
         Path fooPath = mockDep(capsuleClass, "com.acme:foo", "jar", "com.acme:foo:1.0").get(0);
         Files.createDirectories(fooPath.getParent());
         app.write(fooPath);
 
         props.setProperty("capsule.merge", "out.jar");
-        props.setProperty("capsule.log", "verbose");
+//        props.setProperty("capsule.log", "verbose");
 
         int exit = main0(capsuleClass, "com.acme:foo");
 
