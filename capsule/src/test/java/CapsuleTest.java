@@ -1556,7 +1556,8 @@ public class CapsuleTest {
         return new Jar()
                 .setAttribute("Manifest-Version", "1.0")
                 .setAttribute("Main-Class", "TestCapsule")
-                .setAttribute("Premain-Class", "TestCapsule");
+                .setAttribute("Premain-Class", "TestCapsule")
+                .setAttribute("Capsule-Agent", "true");
     }
 
     private Jar makeRealCapsuleJar(Jar jar) throws IOException {

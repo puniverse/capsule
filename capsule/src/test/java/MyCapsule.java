@@ -7,6 +7,9 @@
  * http://www.eclipse.org/legal/epl-v10.html
  */
 
+import java.io.IOException;
+import java.lang.instrument.Instrumentation;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +20,8 @@ import java.util.Map;
  * A custom capsule example
  */
 public class MyCapsule extends TestCapsule {
+    public static final String WRAPPER_AGENT_OK_FNAME = "startJMXServer-specialized.empty";
+
     public MyCapsule(Path jarFile) {
         super(jarFile);
     }
@@ -50,6 +55,16 @@ public class MyCapsule extends TestCapsule {
             return (T) args;
         }
         return super.attribute(attr); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    protected void agent(Instrumentation inst) {
+        try {
+            Files.createFile(getWritableAppCache().resolve(WRAPPER_AGENT_OK_FNAME));
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
+        super.agent(inst);
     }
 
     @Override
