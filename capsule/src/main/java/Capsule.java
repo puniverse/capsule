@@ -87,7 +87,6 @@ import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 
 import static java.util.Collections.*;
@@ -1072,14 +1071,16 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
     /////////// Capsule JAR ///////////////////////////////////
-    private static Path findOwnJarFile() {
-        final URL url = MY_CLASSLOADER.getResource(Capsule.class.getName().replace('.', '/') + ".class");
-        assert url != null;
+    private static Path findJarFile(Class<? extends Capsule> capsuleClass) {
+        assert capsuleClass != null;
+        final URL url = MY_CLASSLOADER.getResource(capsuleClass.getName().replace('.', '/') + ".class");
+        if (url == null) // Could happen with embedded capsules
+            throw new IllegalStateException("The " + capsuleClass + " class must be in a JAR file, but was not found");
         if (!"jar".equals(url.getProtocol()))
-            throw new IllegalStateException("The Capsule class must be in a JAR file, but was loaded from: " + url);
+            throw new IllegalStateException("The " + capsuleClass + " class must be in a JAR file, but was loaded from: " + url);
         final String path = url.getPath();
         if (path == null) //  || !path.startsWith("file:")
-            throw new IllegalStateException("The Capsule class must be in a local JAR file, but was loaded from: " + url);
+            throw new IllegalStateException("The " + capsuleClass + " class must be in a local JAR file, but was loaded from: " + url);
 
         try {
             final URI jarUri = new URI(path.substring(0, path.indexOf('!')));
@@ -1087,6 +1088,10 @@ public class Capsule implements Runnable, InvocationHandler {
         } catch (URISyntaxException e) {
             throw new AssertionError(e);
         }
+    }
+
+    private static Path findOwnJarFile() {
+        return findJarFile(Capsule.class);
     }
 
     private String toJarUrl(String relPath) {
@@ -1656,8 +1661,12 @@ public class Capsule implements Runnable, InvocationHandler {
         if (ATTR_JAVA_AGENTS == attr) {
             // add the capsule as an agent
             final Map<Object, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
-            assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
-            agents.put(processOutgoingPath(findOwnJarFile()), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
+            Path ownJar = null;
+            try {
+                ownJar = findOwnJarFile();
+            } catch (final IllegalStateException ignored) {}
+            if (ownJar != null)
+                agents.put(processOutgoingPath(ownJar), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
             return (T) agents;
         }
 
@@ -2281,9 +2290,9 @@ public class Capsule implements Runnable, InvocationHandler {
         final long start = clock();
         final List<Object> classPath = new ArrayList<>();
 
-        // the capsule jar
+        // The caplets and capsule jars
         if (!isWrapperOfNonCapsule() && getAttribute(ATTR_CAPSULE_IN_CLASS_PATH))
-            classPath.add(getJarFile());
+            addCapsuleJars(classPath);
 
         if (hasAttribute(ATTR_APP_ARTIFACT)) {
             final String artifact = getAttribute(ATTR_APP_ARTIFACT);
@@ -2298,12 +2307,30 @@ public class Capsule implements Runnable, InvocationHandler {
 
         classPath.addAll(nullToEmpty(getAttribute(ATTR_DEPENDENCIES)));
 
-        // the capsule jar
+        // The caplets and capsule jars
         if (!isWrapperOfNonCapsule() && isDeepEmpty(classPath))
-            classPath.add(getJarFile());
+            addCapsuleJars(classPath);
+
+        // Remove duplicate JARs while preserving order
+        final List<Object> ret = new ArrayList<>(new LinkedHashSet<>(classPath));
 
         time("buildClassPath", start);
-        return classPath;
+
+        return ret;
+    }
+
+    private void addCapsuleJars(List<Object> classPath) {
+        Capsule c = this.cc;
+        do {
+            Path p = null;
+            try {
+                p = findJarFile(c.getClass());
+            } catch (final IllegalStateException ignored) {} // Ignore non-JARs
+            if (p != null && !classPath.contains(p))
+                classPath.add(p);
+        } while ((c = sup) != null);
+
+        classPath.add(getJarFile());
     }
 
     /**
