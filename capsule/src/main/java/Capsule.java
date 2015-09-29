@@ -348,12 +348,12 @@ public class Capsule implements Runnable, InvocationHandler {
     private static Capsule CAPSULE;
     private static boolean AGENT;
 
-    final static Capsule myCapsule(Class<? extends Capsule> capsuleClass, List<String> args) {
+    final static Capsule myCapsule(List<String> args) {
         if (CAPSULE == null) {
             final ClassLoader ccl = Thread.currentThread().getContextClassLoader();
             try {
                 Thread.currentThread().setContextClassLoader(MY_CLASSLOADER);
-                Capsule capsule = newCapsule(MY_CLASSLOADER, findOwnJarFile(capsuleClass));
+                Capsule capsule = newCapsule(MY_CLASSLOADER, findJarFile());
                 clearContext();
                 if ((AGENT || capsule.isEmptyCapsule()) && args != null && !args.isEmpty()) {
                     processCmdLineOptions(args, ManagementFactory.getRuntimeMXBean().getInputArguments());
@@ -368,10 +368,6 @@ public class Capsule implements Runnable, InvocationHandler {
             }
         }
         return CAPSULE;
-    }
-
-    final static Capsule myCapsule(List<String> args) {
-        return myCapsule(null, args);
     }
 
     public static final void main(String[] args) {
@@ -412,7 +408,7 @@ public class Capsule implements Runnable, InvocationHandler {
         Capsule capsule = null;
         try {
             processOptions();
-            capsule = myCapsule(Capsule.class, agentArgs != null ? new ArrayList<>(split(agentArgs, "\\s+")) : null);
+            capsule = myCapsule(agentArgs != null ? new ArrayList<>(split(agentArgs, "\\s+")) : null);
             for (Capsule c = capsule.cc; c != null; c = c.sup)
                 c.agent(inst);
         } catch (Throwable t) {
@@ -1075,7 +1071,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     //<editor-fold defaultstate="collapsed" desc="Capsule JAR">
     /////////// Capsule JAR ///////////////////////////////////
-    private static Path findOwnJarFile(Class<? extends Capsule> capsuleClass) {
+    private static Path findJarFile(Class<? extends Capsule> capsuleClass) {
         final URL url = MY_CLASSLOADER.getResource((capsuleClass != null ? capsuleClass : Capsule.class).getName().replace('.', '/') + ".class");
         assert url != null;
         if (!"jar".equals(url.getProtocol()))
@@ -1092,8 +1088,8 @@ public class Capsule implements Runnable, InvocationHandler {
         }
     }
 
-    private static Path findOwnJarFile() {
-        return findOwnJarFile(null);
+    private static Path findJarFile() {
+        return findJarFile(null);
     }
 
     private String toJarUrl(String relPath) {
@@ -1184,7 +1180,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     private static void printHelp(boolean simple) {
         // USAGE:
-        final Path myJar = toFriendlyPath(findOwnJarFile());
+        final Path myJar = toFriendlyPath(findJarFile());
         final boolean executable = isExecutable(myJar);
 
         final StringBuilder usage = new StringBuilder();
@@ -1663,8 +1659,8 @@ public class Capsule implements Runnable, InvocationHandler {
         if (ATTR_JAVA_AGENTS == attr) {
             // add the capsule as an agent
             final Map<Object, String> agents = new LinkedHashMap<>(cast(ATTR_JAVA_AGENTS, value));
-            assert isWrapperCapsule() ^ findOwnJarFile().equals(getJarFile());
-            agents.put(processOutgoingPath(findOwnJarFile()), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
+            assert isWrapperCapsule() ^ findJarFile().equals(getJarFile());
+            agents.put(processOutgoingPath(findJarFile()), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
             return (T) agents;
         }
 
@@ -2322,9 +2318,9 @@ public class Capsule implements Runnable, InvocationHandler {
         do {
             Path p = null;
             try {
-                p = findOwnJarFile(c.getClass());
+                p = findJarFile(c.getClass());
             } catch (final IllegalStateException ignored) {} // Ignore non-JARs
-            if (p != null)
+            if (p != null && !classPath.contains(p))
                 classPath.add(p);
         } while ((c = sup) != null);
 
