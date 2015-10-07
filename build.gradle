@@ -29,7 +29,7 @@ subprojects {
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group               = "co.paralleluniverse"
-    version             = "1.0.1-SNAPSHOT"
+    version             = "1.0.1"
     status              = "integration"
     description         = "Simple Java deployment"
     ext.url             = "https://github.com/puniverse/capsule"
@@ -101,7 +101,7 @@ subprojects {
     tasks.withType(JavaExec) {
         classpath += sourceSets.test.runtimeClasspath
     }
-    
+
     jacocoTestReport {
         reports {
             xml.enabled = true // coveralls plugin depends on xml format report
