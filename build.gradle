@@ -86,6 +86,8 @@ subprojects {
     pitest {
         targetClasses = ['Capsule', 'capsule.*', 'co.paralleluniverse.*']
         targetTests = ['CapsuleTest', 'capsule.*', 'co.paralleluniverse.*']
+
+         jvmArgs = ['-Djava.protocol.handler.pkgs=co.paralleluniverse.filesystem']
     }
 
     task run(type: JavaExec, dependsOn:[testClasses]) {
