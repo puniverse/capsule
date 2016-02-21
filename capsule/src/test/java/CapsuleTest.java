@@ -1394,7 +1394,12 @@ public class CapsuleTest {
         return path;
     }
 
+    private static void clearCaches() {
+        Reflect.on(Capsule.class).call("clearCaches");
+    }
+    
     private static String dependencyToLocalJar(Path jar, String dep, String type) {
+        clearCaches();
         return Reflect.on(Capsule.class).call("dependencyToLocalJar0", jar, dep, type, null).get();
     }
 

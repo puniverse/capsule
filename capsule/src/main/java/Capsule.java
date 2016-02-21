@@ -868,6 +868,11 @@ public class Capsule implements Runnable, InvocationHandler {
         if (oc.lifecycleStage <= stage)
             throw new IllegalStateException("This operation is not available at this stage in the capsule's lifecycle.");
     }
+    
+    // Called by tests
+    private static void clearCaches() {
+        jarEntriesCache.clear();
+    }
     //</editor-fold>
 
     //<editor-fold defaultstate="collapsed" desc="Caplet Chain">
@@ -3218,7 +3223,7 @@ public class Capsule implements Runnable, InvocationHandler {
         String res = dependencyToLocalJar0(jar, dep, type, attrContext);
         return res != null ? path(toNativePath(res)) : null;
     }
-
+    
     private static String dependencyToLocalJar0(Path jar, String dep, String type, Entry<String, ?> attrContext) {
         final Matcher m = PAT_DEPENDENCY.matcher(dep);
         if (!m.matches())
@@ -3250,9 +3255,9 @@ public class Capsule implements Runnable, InvocationHandler {
 
         Collections.reverse(names);
         int index = -1;
-        try (ZipInputStream zis = openJarInputStream(jar)) {
-            for (ZipEntry entry; (entry = zis.getNextEntry()) != null;)
-                index = Math.max(index, names.indexOf(entry.getName()));
+        try {
+            for (String entry : cachedEntries(jar))
+                index = Math.max(index, names.indexOf(entry));
         } catch (IOException e) {
             throw rethrow(e);
         }
@@ -3839,6 +3844,22 @@ public class Capsule implements Runnable, InvocationHandler {
         } catch (IOException e) {
             throw new RuntimeException("Error reading manifest from " + jar, e);
         }
+    }
+    
+    private static Map<Path, List<String>> jarEntriesCache = new HashMap<>();
+    
+    private static Iterable<String> cachedEntries(Path jar) throws IOException {
+        final Map<Path, List<String>> cache = jarEntriesCache;
+        if (cache != null && cache.containsKey(jar))
+            return cache.get(jar);
+        final List<String> entries = new ArrayList<>();
+        try (ZipInputStream zis = openJarInputStream(jar)) {
+            for (ZipEntry entry; (entry = zis.getNextEntry()) != null;)
+                entries.add(entry.getName());
+        }
+        if (cache != null)
+            cache.put(jar, entries);
+        return entries;
     }
 
     private static final int[] ZIP_HEADER = new int[]{'P', 'K', 0x03, 0x04};
