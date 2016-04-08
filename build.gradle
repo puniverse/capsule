@@ -61,7 +61,7 @@ subprojects {
     dependencies {
         testCompile 'junit:junit:4.12'
         testCompile 'org.truth0:truth:0.23'
-        testCompile 'com.google.jimfs:jimfs:1.0'
+        testCompile 'com.google.jimfs:jimfs:1.1'
         testCompile 'org.jooq:joor:0.9.5'
         javancss 'org.codehaus.javancss:javancss:33.54'
     }
