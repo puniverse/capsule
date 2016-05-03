@@ -109,7 +109,7 @@ subprojects {
             xml.enabled = true // coveralls plugin depends on xml format report
             html.enabled = true
             csv.enabled = false
-//            xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport_${project.name}.xml"
+//          xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport_${project.name}.xml"
         }
     }
     
@@ -238,24 +238,22 @@ project (':capsule-util') {
                     "co/paralleluniverse/filesystem/**"
         ]
     }
-    
-    jacocoTestReport.enabled = false
 }
 
-//task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
-//    dependsOn = subprojects.test
-//    sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
-//    classDirectories =  files(subprojects.sourceSets.main.output)
-//    executionData = files(subprojects.jacocoTestReport.executionData)
-//    reports {
-//        html.enabled = true
-//        xml.enabled = true
-//        csv.enabled = false
-//        xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
-//    }
-//}
+task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
+    dependsOn = subprojects.test
+    sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
+    classDirectories =  files(subprojects.sourceSets.main.output)
+    executionData = files(subprojects.jacocoTestReport.executionData)
+    reports {
+        html.enabled = true
+        xml.enabled = true
+        csv.enabled = false
+        xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
+    }
+}
 
-//coveralls {
-//    sourceDirs = files(subprojects.sourceSets.main.allSource.srcDirs).files.absolutePath
-//    jacocoReportPath = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
-//}
+coveralls {
+    sourceDirs = files(subprojects.sourceSets.main.allSource.srcDirs).files.absolutePath
+    jacocoReportPath = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
+}
