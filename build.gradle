@@ -104,16 +104,16 @@ subprojects {
         classpath += sourceSets.test.runtimeClasspath
     }
 
-//    jacocoTestReport {
-//        reports {
-//            xml.enabled = true // coveralls plugin depends on xml format report
-//            html.enabled = true
-//            csv.enabled = false
-////            xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport_${project.name}.xml"
-//        }
-//    }
-//    
-//    check.dependsOn jacocoTestReport
+    jacocoTestReport {
+        reports {
+            xml.enabled = true // coveralls plugin depends on xml format report
+            html.enabled = true
+            csv.enabled = false
+//            xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport_${project.name}.xml"
+        }
+    }
+    
+    check.dependsOn jacocoTestReport
     
     javadoc {
         options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
@@ -238,20 +238,22 @@ project (':capsule-util') {
                     "co/paralleluniverse/filesystem/**"
         ]
     }
+    
+    jacocoTestReport.enabled = false
 }
 
-task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
-    dependsOn = subprojects.test
-    sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
-    classDirectories =  files(subprojects.sourceSets.main.output)
-    executionData = files(subprojects.jacocoTestReport.executionData)
-    reports {
-        html.enabled = true
-        xml.enabled = true
-        csv.enabled = false
-        xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
-    }
-}
+//task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
+//    dependsOn = subprojects.test
+//    sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
+//    classDirectories =  files(subprojects.sourceSets.main.output)
+//    executionData = files(subprojects.jacocoTestReport.executionData)
+//    reports {
+//        html.enabled = true
+//        xml.enabled = true
+//        csv.enabled = false
+//        xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
+//    }
+//}
 
 //coveralls {
 //    sourceDirs = files(subprojects.sourceSets.main.allSource.srcDirs).files.absolutePath
