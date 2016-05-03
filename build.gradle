@@ -109,9 +109,10 @@ subprojects {
             xml.enabled = true // coveralls plugin depends on xml format report
             html.enabled = true
             csv.enabled = false
+            xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport_${project.name}.xml"
         }
     }
-
+    
     check.dependsOn jacocoTestReport
     
     javadoc {
