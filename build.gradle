@@ -237,6 +237,8 @@ project (':capsule-util') {
     }
 }
 
+check.dependsOn jacocoTestReport
+
 task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
     dependsOn = subprojects.test
     sourceDirectories = files(subprojects.sourceSets.main.allSource.srcDirs)
