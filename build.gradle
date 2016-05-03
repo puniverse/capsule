@@ -6,12 +6,12 @@ buildscript {
     dependencies {
         // classpath 'net.saliman:gradle-cobertura-plugin:2.2.4'
         classpath 'info.solidsoft.gradle.pitest:gradle-pitest-plugin:1.1.1'
-//      classpath 'org.kt3k.gradle.plugin:coveralls-gradle-plugin:2.1.0'
+        classpath 'org.kt3k.gradle.plugin:coveralls-gradle-plugin:2.1.0'
     }
 }
 
 allprojects {
-//  apply plugin: 'com.github.kt3k.coveralls'
+    apply plugin: 'com.github.kt3k.coveralls'
     apply plugin: 'jacoco' // 'cobertura'
 
     repositories {
