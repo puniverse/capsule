@@ -16,7 +16,7 @@ env:
     - secure: "XzCjWbN5BM2ioZy+1GVcFuHVUwX8YHjuved7gZ0CAHp1pMyhPudzZqlLZ2ZWKv44sVS/ZM4ylwbO4JFGyJcobd5/CeP+iJpYPRGas4EYWIuA882K3NgBEn8smnaxy/PcrQwl9QVhnMrsVu8KrmB/dHwBphMyfAT65+2eiQbQWRk="
 
 after_success:
-  - gradle jacocoRootReport # coveralls
+  - gradle jacocoTestReport # jacocoRootReport coveralls
   - bash <(curl -s https://codecov.io/bash)
 
 notifications:
