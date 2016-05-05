@@ -113,7 +113,7 @@ subprojects {
         }
     }
     
-    check.dependsOn jacocoTestReport
+//  check.dependsOn jacocoTestReport
     
     javadoc {
         options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
