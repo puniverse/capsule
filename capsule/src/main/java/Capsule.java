@@ -4103,8 +4103,11 @@ public class Capsule implements Runnable, InvocationHandler {
             m.find();
             return shortJavaVersion(m.group(1));
         } else if (fileName.startsWith("jdk") || fileName.startsWith("jre") || fileName.endsWith(".jdk") || fileName.endsWith(".jre")) {
-            if (fileName.startsWith("jdk") || fileName.startsWith("jre"))
+            if (fileName.startsWith("jdk-") || fileName.startsWith("jre-"))
+                fileName = fileName.substring(4);
+            else if (fileName.startsWith("jdk") || fileName.startsWith("jre"))
                 fileName = fileName.substring(3);
+
             if (fileName.endsWith(".jdk") || fileName.endsWith(".jre"))
                 fileName = fileName.substring(0, fileName.length() - 4);
             return shortJavaVersion(fileName);
