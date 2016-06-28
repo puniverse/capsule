@@ -1300,6 +1300,8 @@ public class CapsuleTest {
         assertEquals("1.8.0", Capsule.isJavaDir("jdk-8-oracle"));
         assertEquals("1.8.0", Capsule.isJavaDir("jre-8-oracle"));
         assertEquals("1.8.0", Capsule.isJavaDir("jdk-8-oracle-x64"));
+        assertEquals("1.8.0", Capsule.isJavaDir("jdk-1.8.0"));
+        assertEquals("1.8.0", Capsule.isJavaDir("jre-1.8.0"));
     }
 
     @Test
