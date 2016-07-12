@@ -13,6 +13,7 @@ import co.paralleluniverse.capsule.test.CapsuleTestUtils.StringPrintStream;
 import static co.paralleluniverse.capsule.test.CapsuleTestUtils.*;
 
 import co.paralleluniverse.common.ZipFS;
+import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,7 +52,7 @@ public class CapsuleTest {
      *
      * All the tests in this test suite use an in-memory file system, and don't write to the disk at all.
      */
-    private final FileSystem fs = Jimfs.newFileSystem();
+    private final FileSystem fs = Jimfs.newFileSystem(Configuration.unix());
     private final Path cache = fs.getPath("/cache");
     private final Path tmp = fs.getPath("/tmp");
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
