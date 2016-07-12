@@ -55,20 +55,8 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.Permission;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -78,10 +66,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-import java.util.Properties;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.RandomAccess;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
@@ -2447,7 +2431,7 @@ public class Capsule implements Runnable, InvocationHandler {
         for (String option : buildJVMArgs())
             addJvmArg(option, jvmArgs);
 
-        for (String option : nullToEmpty(Capsule.split(getProperty(PROP_JVM_ARGS), " ")))
+        for (String option : nullToEmpty(parseCommandLineArguments(getProperty(PROP_JVM_ARGS))))
             addJvmArg(option, jvmArgs);
 
         // command line overrides everything
@@ -2468,6 +2452,65 @@ public class Capsule implements Runnable, InvocationHandler {
         }
 
         return new ArrayList<String>(jvmArgs.values());
+    }
+
+    private List<String> parseCommandLineArguments(String toProcess) {
+        if (toProcess == null || toProcess.length() == 0)
+            return emptyList();
+
+        final int normal = 0;
+        final int inQuote = 1;
+        final int inDoubleQuote = 2;
+        final int escaping = 3;
+        int state = normal;
+        final StringTokenizer tok = new StringTokenizer(toProcess, "\"\'\\ ", true);
+        final ArrayList<String> result = new ArrayList<String>();
+        final StringBuilder current = new StringBuilder();
+        boolean lastTokenHasBeenQuoted = false;
+
+        while (tok.hasMoreTokens()) {
+            String nextTok = tok.nextToken();
+            switch (state) {
+                case inQuote:
+                    if ("\'".equals(nextTok)) {
+                        lastTokenHasBeenQuoted = true;
+                        state = normal;
+                    } else
+                        current.append(nextTok);
+                    break;
+                case inDoubleQuote:
+                    if ("\"".equals(nextTok)) {
+                        lastTokenHasBeenQuoted = true;
+                        state = normal;
+                    } else
+                        current.append(nextTok);
+                    break;
+                case escaping:
+                    current.append(nextTok);
+                    break;
+                default:
+                    if ("\\".equals(nextTok))
+                        state = escaping;
+                    else if ("\'".equals(nextTok))
+                        state = inQuote;
+                    else if ("\"".equals(nextTok))
+                        state = inDoubleQuote;
+                    else if (" ".equals(nextTok)) {
+                        if (lastTokenHasBeenQuoted || current.length() != 0) {
+                            result.add(current.toString());
+                            current.setLength(0);
+                        }
+                    } else
+                        current.append(nextTok);
+                    lastTokenHasBeenQuoted = false;
+                    break;
+            }
+        }
+        if (lastTokenHasBeenQuoted || current.length() != 0)
+            result.add(current.toString());
+        if (state == inQuote || state == inDoubleQuote)
+            throw new IllegalArgumentException("unbalanced quotes in " + toProcess);
+        return result;
     }
 
     private static void addJvmArg(String a, Map<String, String> args) {

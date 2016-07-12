@@ -1040,6 +1040,29 @@ public class CapsuleTest {
         assertEquals("555", getProperty(pb, "p1"));
     }
 
+    @Test
+    public void testCapsuleJvmArgsParsing() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Premain-Class", "MyCapsule")
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .addClass(MyCapsule.class);
+
+        List<String> args = list();
+        List<String> cmdLine = list();
+
+        System.setProperty("capsule.jvm.args", "-Ddouble.quoted.arg=\"escape me\" -Dsingle.quoted.arg='escape me' -Dspace.escaped.arg=escape\\ me");
+        Path capsuleJar = absolutePath("capsule.jar");
+        jar.write(capsuleJar);
+        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar);
+
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assert_().that(getProperty(pb, "double.quoted.arg")).isEqualTo("escape me");
+        assert_().that(getProperty(pb, "single.quoted.arg")).isEqualTo("escape me");
+        assert_().that(getProperty(pb, "space.escaped.arg")).isEqualTo("escape me");
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void testWrapperCapsuleNoMain() throws Exception {
         Jar wrapper = newCapsuleJar()
