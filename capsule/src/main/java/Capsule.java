@@ -2471,6 +2471,11 @@ public class Capsule implements Runnable, InvocationHandler {
         return new ArrayList<String>(jvmArgs.values());
     }
 
+    /*
+     * this code is a modified version of Ant's CommandLine parser
+     * (cf http://grepcode.com/file/repo1.maven.org/maven2/org.apache.ant/ant/1.9.5/org/apache/tools/ant/types/Commandline.java#Commandline.translateCommandline%28java.lang.String%29).
+     * I only added the capability to parse escaped characters (e.g. "\ ").
+     */
     private List<String> parseCommandLineArguments(String toProcess) {
         if (toProcess == null || toProcess.length() == 0)
             return emptyList();
