@@ -1047,14 +1047,16 @@ public class CapsuleTest {
                 .setAttribute("Premain-Class", "MyCapsule")
                 .setAttribute("Application-Class", "com.acme.Foo")
                 .addClass(MyCapsule.class);
-
-        List<String> args = list();
-        List<String> cmdLine = list();
-
-        System.setProperty("capsule.jvm.args", "-Ddouble.quoted.arg=\"escape me\" -Dsingle.quoted.arg='escape me' -Dspace.escaped.arg=escape\\ me");
         Path capsuleJar = absolutePath("capsule.jar");
         jar.write(capsuleJar);
         Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar);
+        List<String> args = list();
+        List<String> cmdLine = list();
+
+        Capsule.setProperty("capsule.jvm.args",
+                "-Ddouble.quoted.arg=\"escape me\" " +
+                "-Dsingle.quoted.arg='escape me' " +
+                "-Dspace.escaped.arg=escape\\ me");
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
