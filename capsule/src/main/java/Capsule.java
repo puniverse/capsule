@@ -2472,9 +2472,8 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     /*
-     * this code is a modified version of Ant's CommandLine parser
+     * Copied from Ant's CommandLine parser
      * (cf http://grepcode.com/file/repo1.maven.org/maven2/org.apache.ant/ant/1.9.5/org/apache/tools/ant/types/Commandline.java#Commandline.translateCommandline%28java.lang.String%29).
-     * I only added the capability to parse escaped characters (e.g. "\ ").
      */
     private List<String> parseCommandLineArguments(String toProcess) {
         if (toProcess == null || toProcess.length() == 0)
@@ -2483,7 +2482,6 @@ public class Capsule implements Runnable, InvocationHandler {
         final int normal = 0;
         final int inQuote = 1;
         final int inDoubleQuote = 2;
-        final int escaping = 3;
         int state = normal;
         final StringTokenizer tok = new StringTokenizer(toProcess, "\"\'\\ ", true);
         final ArrayList<String> result = new ArrayList<String>();
@@ -2507,13 +2505,8 @@ public class Capsule implements Runnable, InvocationHandler {
                     } else
                         current.append(nextTok);
                     break;
-                case escaping:
-                    current.append(nextTok);
-                    break;
                 default:
-                    if ("\\".equals(nextTok))
-                        state = escaping;
-                    else if ("\'".equals(nextTok))
+                    if ("\'".equals(nextTok))
                         state = inQuote;
                     else if ("\"".equals(nextTok))
                         state = inDoubleQuote;

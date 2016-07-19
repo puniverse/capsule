@@ -1055,14 +1055,12 @@ public class CapsuleTest {
 
         Capsule.setProperty("capsule.jvm.args",
                 "-Ddouble.quoted.arg=\"escape me\" " +
-                "-Dsingle.quoted.arg='escape me' " +
-                "-Dspace.escaped.arg=escape\\ me");
+                "-Dsingle.quoted.arg='escape me'");
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
         assert_().that(getProperty(pb, "double.quoted.arg")).isEqualTo("escape me");
         assert_().that(getProperty(pb, "single.quoted.arg")).isEqualTo("escape me");
-        assert_().that(getProperty(pb, "space.escaped.arg")).isEqualTo("escape me");
     }
 
     @Test(expected = IllegalArgumentException.class)
