@@ -2275,7 +2275,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private static List<String> compileSystemProperties(Map<String, String> ps) {
-        final List<String> command = new ArrayList<String>();
+        final List<String> command = new ArrayList<>();
         for (Map.Entry<String, String> entry : ps.entrySet())
             command.add("-D" + entry.getKey() + (entry.getValue() != null && !entry.getValue().isEmpty() ? "=" + entry.getValue() : ""));
         return command;
@@ -2374,7 +2374,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private Map<String, String> buildSystemProperties() {
-        final Map<String, String> systemProperties = new HashMap<String, String>();
+        final Map<String, String> systemProperties = new HashMap<>();
 
         // attribute
         for (Map.Entry<String, String> pv : getAttribute(ATTR_SYSTEM_PROPERTIES).entrySet())
@@ -2419,7 +2419,7 @@ public class Capsule implements Runnable, InvocationHandler {
     //<editor-fold desc="Native Dependencies">
     /////////// Native Dependencies ///////////////////////////////////
     private List<Path> buildNativeLibraryPath() {
-        final List<Path> libraryPath = new ArrayList<Path>(getPlatformNativeLibraryPath());
+        final List<Path> libraryPath = new ArrayList<>(getPlatformNativeLibraryPath());
 
         resolveNativeDependencies();
         libraryPath.addAll(0, resolve(getAttribute(ATTR_LIBRARY_PATH_P)));
@@ -2453,7 +2453,7 @@ public class Capsule implements Runnable, InvocationHandler {
     //</editor-fold>
 
     private List<String> buildJVMArgs(List<String> cmdLine) {
-        final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
+        final Map<String, String> jvmArgs = new LinkedHashMap<>();
 
         for (String option : buildJVMArgs())
             addJvmArg(option, jvmArgs);
@@ -2470,7 +2470,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private List<String> buildJVMArgs() {
-        final Map<String, String> jvmArgs = new LinkedHashMap<String, String>();
+        final Map<String, String> jvmArgs = new LinkedHashMap<>();
 
         for (String a : getAttribute(ATTR_JVM_ARGS)) {
             a = a.trim();
@@ -3384,7 +3384,7 @@ public class Capsule implements Runnable, InvocationHandler {
     private List<Path> resolve(List<Object> ps) {
         if (ps == null)
             return null;
-        final List<Path> res = new ArrayList<Path>(ps.size());
+        final List<Path> res = new ArrayList<>(ps.size());
         for (Object p : ps)
             addAllIfAbsent(res, resolve(p));
         return res;
@@ -3683,7 +3683,7 @@ public class Capsule implements Runnable, InvocationHandler {
     private List<Path> toPath(List<String> ps) {
         if (ps == null)
             return null;
-        final List<Path> aps = new ArrayList<Path>(ps.size());
+        final List<Path> aps = new ArrayList<>(ps.size());
         for (String p : ps)
             aps.add(path(p));
         return aps;
@@ -3696,7 +3696,7 @@ public class Capsule implements Runnable, InvocationHandler {
     private static List<Path> resolve(Path root, List<String> ps) {
         if (ps == null)
             return null;
-        final List<Path> aps = new ArrayList<Path>(ps.size());
+        final List<Path> aps = new ArrayList<>(ps.size());
         for (String p : ps)
             aps.add(root.resolve(p));
         return aps;
@@ -4072,7 +4072,7 @@ public class Capsule implements Runnable, InvocationHandler {
     private static Map<String, List<Path>> getJavaHomes(Path dir) throws IOException {
         if (dir == null || !Files.isDirectory(dir))
             return null;
-        final Map<String, List<Path>> dirs = new HashMap<String, List<Path>>();
+        final Map<String, List<Path>> dirs = new HashMap<>();
         try (DirectoryStream<Path> fs = Files.newDirectoryStream(dir)) {
             for (Path f : fs) {
                 String ver;
@@ -4490,6 +4490,65 @@ public class Capsule implements Runnable, InvocationHandler {
     private static <T> T xor(T x, T y) {
         assert x == null ^ y == null;
         return x != null ? x : y;
+    }
+
+    // visible for testing
+    static List<String> parseCommandLineArguments(final String str) {
+       /*
+        * Modified from Ant's CommandLine parser
+        * http://grepcode.com/file/repo1.maven.org/maven2/org.apache.ant/ant/1.9.5/org/apache/tools/ant/types/Commandline.java#Commandline.translateCommandline%28java.lang.String%29
+        */
+        if (str == null || str.length() == 0)
+            return emptyList();
+
+        final int NORMAL = 0,
+                IN_QUOTE = 1,
+                IN_DOUBLE_QUOTE = 2;
+        
+        final StringTokenizer tok = new StringTokenizer(str, "\"\'\\ ", true);
+        final ArrayList<String> result = new ArrayList<>();
+        final StringBuilder current = new StringBuilder();
+        
+        int state = NORMAL;
+        boolean lastTokenHasBeenQuoted = false;
+        while (tok.hasMoreTokens()) {
+            final String nextTok = tok.nextToken();
+            switch (state) {
+                case IN_QUOTE:
+                    if ("\'".equals(nextTok)) {
+                        lastTokenHasBeenQuoted = true;
+                        state = NORMAL;
+                    } else
+                        current.append(nextTok);
+                    break;
+                case IN_DOUBLE_QUOTE:
+                    if ("\"".equals(nextTok)) {
+                        lastTokenHasBeenQuoted = true;
+                        state = NORMAL;
+                    } else
+                        current.append(nextTok);
+                    break;
+                default:
+                    if ("\'".equals(nextTok))
+                        state = IN_QUOTE;
+                    else if ("\"".equals(nextTok))
+                        state = IN_DOUBLE_QUOTE;
+                    else if (" ".equals(nextTok)) {
+                        if (lastTokenHasBeenQuoted || current.length() != 0) {
+                            result.add(current.toString());
+                            current.setLength(0);
+                        }
+                    } else
+                        current.append(nextTok);
+                    lastTokenHasBeenQuoted = false;
+                    break;
+            }
+        }
+        if (lastTokenHasBeenQuoted || current.length() != 0)
+            result.add(current.toString());
+        if (state == IN_QUOTE || state == IN_DOUBLE_QUOTE)
+            throw new IllegalArgumentException("unbalanced quotes in " + str);
+        return result;
     }
 
     @SuppressWarnings("fallthrough")

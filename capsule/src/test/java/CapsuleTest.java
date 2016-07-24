@@ -1054,8 +1054,8 @@ public class CapsuleTest {
         List<String> cmdLine = list();
 
         Capsule.setProperty("capsule.jvm.args",
-                "-Ddouble.quoted.arg=\"escape me\" " +
-                "-Dsingle.quoted.arg='escape me'");
+                "-Ddouble.quoted.arg=\"escape me\" "
+                + "-Dsingle.quoted.arg='escape me'");
 
         ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
 
