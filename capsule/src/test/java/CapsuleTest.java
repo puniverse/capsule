@@ -1361,6 +1361,13 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testParseCommandLineArguments() throws Exception {
+        assertEquals(list("x", "y", "z"), Capsule.parseCommandLineArguments("x y z"));
+        assertEquals(list("x", "y z"), Capsule.parseCommandLineArguments("x 'y z'"));
+        assertEquals(list("x y", "z"), Capsule.parseCommandLineArguments("\"x y\" z"));
+    }
+
+    @Test
     public void testMove() throws Exception {
         assertEquals(Paths.get("/c/d"), Capsule.move(Paths.get("/a/b"), Paths.get("/a/b"), Paths.get("/c/d/")));
         assertEquals(Paths.get("/c/d/e"), Capsule.move(Paths.get("/a/b/e"), Paths.get("/a/b"), Paths.get("/c/d/")));
@@ -1423,7 +1430,7 @@ public class CapsuleTest {
     private static void clearCaches() {
         Reflect.on(Capsule.class).call("clearCaches");
     }
-    
+
     private static String dependencyToLocalJar(Path jar, String dep, String type) {
         clearCaches();
         return Reflect.on(Capsule.class).call("dependencyToLocalJar0", jar, dep, type, null).get();
