@@ -69,6 +69,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.StringTokenizer;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -2447,7 +2448,7 @@ public class Capsule implements Runnable, InvocationHandler {
         for (String option : buildJVMArgs())
             addJvmArg(option, jvmArgs);
 
-        for (String option : nullToEmpty(Capsule.split(getProperty(PROP_JVM_ARGS), " ")))
+        for (String option : nullToEmpty(parseCommandLineArguments(getProperty(PROP_JVM_ARGS))))
             addJvmArg(option, jvmArgs);
 
         // command line overrides everything
@@ -2468,6 +2469,63 @@ public class Capsule implements Runnable, InvocationHandler {
         }
 
         return new ArrayList<String>(jvmArgs.values());
+    }
+
+    /*
+     * Copied from Ant's CommandLine parser
+     * (cf http://grepcode.com/file/repo1.maven.org/maven2/org.apache.ant/ant/1.9.5/org/apache/tools/ant/types/Commandline.java#Commandline.translateCommandline%28java.lang.String%29).
+     */
+    private List<String> parseCommandLineArguments(String toProcess) {
+        if (toProcess == null || toProcess.length() == 0)
+            return emptyList();
+
+        final int normal = 0;
+        final int inQuote = 1;
+        final int inDoubleQuote = 2;
+        int state = normal;
+        final StringTokenizer tok = new StringTokenizer(toProcess, "\"\'\\ ", true);
+        final ArrayList<String> result = new ArrayList<String>();
+        final StringBuilder current = new StringBuilder();
+        boolean lastTokenHasBeenQuoted = false;
+
+        while (tok.hasMoreTokens()) {
+            String nextTok = tok.nextToken();
+            switch (state) {
+                case inQuote:
+                    if ("\'".equals(nextTok)) {
+                        lastTokenHasBeenQuoted = true;
+                        state = normal;
+                    } else
+                        current.append(nextTok);
+                    break;
+                case inDoubleQuote:
+                    if ("\"".equals(nextTok)) {
+                        lastTokenHasBeenQuoted = true;
+                        state = normal;
+                    } else
+                        current.append(nextTok);
+                    break;
+                default:
+                    if ("\'".equals(nextTok))
+                        state = inQuote;
+                    else if ("\"".equals(nextTok))
+                        state = inDoubleQuote;
+                    else if (" ".equals(nextTok)) {
+                        if (lastTokenHasBeenQuoted || current.length() != 0) {
+                            result.add(current.toString());
+                            current.setLength(0);
+                        }
+                    } else
+                        current.append(nextTok);
+                    lastTokenHasBeenQuoted = false;
+                    break;
+            }
+        }
+        if (lastTokenHasBeenQuoted || current.length() != 0)
+            result.add(current.toString());
+        if (state == inQuote || state == inDoubleQuote)
+            throw new IllegalArgumentException("unbalanced quotes in " + toProcess);
+        return result;
     }
 
     private static void addJvmArg(String a, Map<String, String> args) {

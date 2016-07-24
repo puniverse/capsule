@@ -13,6 +13,7 @@ import co.paralleluniverse.capsule.test.CapsuleTestUtils.StringPrintStream;
 import static co.paralleluniverse.capsule.test.CapsuleTestUtils.*;
 
 import co.paralleluniverse.common.ZipFS;
+import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,7 +52,7 @@ public class CapsuleTest {
      *
      * All the tests in this test suite use an in-memory file system, and don't write to the disk at all.
      */
-    private final FileSystem fs = Jimfs.newFileSystem();
+    private final FileSystem fs = Jimfs.newFileSystem(Configuration.unix());
     private final Path cache = fs.getPath("/cache");
     private final Path tmp = fs.getPath("/tmp");
     private static final ClassLoader MY_CLASSLOADER = Capsule.class.getClassLoader();
@@ -1037,6 +1038,29 @@ public class CapsuleTest {
                 appCache.resolve("lib").resolve("b.jar"));
 
         assertEquals("555", getProperty(pb, "p1"));
+    }
+
+    @Test
+    public void testCapsuleJvmArgsParsing() throws Exception {
+        Jar jar = newCapsuleJar()
+                .setAttribute("Main-Class", "MyCapsule")
+                .setAttribute("Premain-Class", "MyCapsule")
+                .setAttribute("Application-Class", "com.acme.Foo")
+                .addClass(MyCapsule.class);
+        Path capsuleJar = absolutePath("capsule.jar");
+        jar.write(capsuleJar);
+        Capsule capsule = Capsule.newCapsule(MY_CLASSLOADER, capsuleJar);
+        List<String> args = list();
+        List<String> cmdLine = list();
+
+        Capsule.setProperty("capsule.jvm.args",
+                "-Ddouble.quoted.arg=\"escape me\" " +
+                "-Dsingle.quoted.arg='escape me'");
+
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assert_().that(getProperty(pb, "double.quoted.arg")).isEqualTo("escape me");
+        assert_().that(getProperty(pb, "single.quoted.arg")).isEqualTo("escape me");
     }
 
     @Test(expected = IllegalArgumentException.class)
