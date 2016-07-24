@@ -280,9 +280,13 @@ public class Capsule implements Runnable, InvocationHandler {
     /*
      * Map.Entry<String, T> was chosen to represent an attribute because of rules 1 and 2.
      */
-    /** The application's name. E.g. {@code "The Best Word Processor"} */
+    /**
+     * The application's name. E.g. {@code "The Best Word Processor"}
+     */
     protected static final Entry<String, String> ATTR_APP_NAME = ATTRIBUTE("Application-Name", T_STRING(), null, false, "The application's name");
-    /** The application's unique ID. E.g. {@code "com.acme.bestwordprocessor"} */
+    /**
+     * The application's unique ID. E.g. {@code "com.acme.bestwordprocessor"}
+     */
     protected static final Entry<String, String> ATTR_APP_ID = ATTRIBUTE("Application-Id", T_STRING(), null, false, "The application's name");
     protected static final Entry<String, String> ATTR_APP_VERSION = ATTRIBUTE("Application-Version", T_STRING(), null, false, "The application's version string");
     protected static final Entry<String, List<String>> ATTR_CAPLETS = ATTRIBUTE("Caplets", T_LIST(T_STRING()), null, false, "A list of names of caplet classes -- if embedded in the capsule -- or Maven coordinates of caplet artifacts that will be applied to the capsule in the order they are listed");
@@ -869,7 +873,7 @@ public class Capsule implements Runnable, InvocationHandler {
         if (oc.lifecycleStage <= stage)
             throw new IllegalStateException("This operation is not available at this stage in the capsule's lifecycle.");
     }
-    
+
     // Called by tests
     private static void clearCaches() {
         jarEntriesCache.clear();
@@ -995,7 +999,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
             // we return CC if the caller is also Capsule but not the same method (which would mean this is a sup.foo() call)
             if (!st[c2].getMethodName().equals(st[c1].getMethodName())
-                    || (st[c2].getClassName().equals(clazz.getName()) && Math.abs(st[c2].getLineNumber() - st[c1].getLineNumber()) > 3))
+                || (st[c2].getClassName().equals(clazz.getName()) && Math.abs(st[c2].getLineNumber() - st[c1].getLineNumber()) > 3))
                 target = cc;
         }
         if (target == null)
@@ -1339,6 +1343,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * Launches the process defined by the given {@link ProcessBuilder}.
+     *
      * @param pb the process builder
      * @return the process's exit value
      */
@@ -1670,7 +1675,8 @@ public class Capsule implements Runnable, InvocationHandler {
             Path ownJar = null;
             try {
                 ownJar = findOwnJarFile();
-            } catch (final IllegalStateException ignored) {}
+            } catch (final IllegalStateException ignored) {
+            }
             if (ownJar != null)
                 agents.put(processOutgoingPath(ownJar), isWrapperCapsule() ? processOutgoingPath(getJarFile()) : "");
             return (T) agents;
@@ -1742,7 +1748,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private void openSocketStreams(Socket s) throws IOException {
-        synchronized(oc) {
+        synchronized (oc) {
             try {
                 s.setSoTimeout(SOCKET_TIMEOUT);
                 oc.socketOutput = new ObjectOutputStream(s.getOutputStream());
@@ -1759,7 +1765,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private void closeComm() {
-        synchronized(oc) {
+        synchronized (oc) {
             log(LOG_VERBOSE, "Closing comm");
             if (oc.socket != null)
                 close(oc.socket);
@@ -1802,7 +1808,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private void send0(int message, Object payload) throws IOException {
-        synchronized(oc) {
+        synchronized (oc) {
             if (oc.socketOutput == null)
                 throw new IOException("comm channel not defined");
             log(LOG_VERBOSE, "Sending message " + message + " : " + payload);
@@ -1813,7 +1819,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private boolean receive() throws IOException {
-        synchronized(oc) {
+        synchronized (oc) {
             if (!AGENT)
                 verifyAfterStage(STAGE_LAUNCH);
             if (oc.socket == null)
@@ -1855,6 +1861,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     protected InetSocketAddress getLocalAddress() {
@@ -1876,7 +1883,7 @@ public class Capsule implements Runnable, InvocationHandler {
             id = getAttribute(ATTR_APP_CLASS);
             if (id != null && hasModalAttribute(ATTR_APP_CLASS))
                 throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_CLASS + " is defined in a modal section of the manifest. "
-                        + " In this case, you must add the " + ATTR_APP_ID + " attribute to the manifest's main section.");
+                                                   + " In this case, you must add the " + ATTR_APP_ID + " attribute to the manifest's main section.");
         }
         return id;
     }
@@ -1902,6 +1909,7 @@ public class Capsule implements Runnable, InvocationHandler {
     /////////// Capsule Cache ///////////////////////////////////
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     protected final Path getCacheDir() {
@@ -1972,8 +1980,8 @@ public class Capsule implements Runnable, InvocationHandler {
                     localData = userHome.resolve(Paths.get("Local Settings", "Application Data"));
                 if (!Files.isDirectory(localData))
                     throw new RuntimeException("%LOCALAPPDATA% is undefined, and neither "
-                            + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
-                            + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
+                                               + userHome.resolve(Paths.get("AppData", "Local")) + " nor "
+                                               + userHome.resolve(Paths.get("Local Settings", "Application Data")) + " have been found");
             }
             cacheHome = localData;
         }
@@ -2304,7 +2312,8 @@ public class Capsule implements Runnable, InvocationHandler {
             final String artifact = getAttribute(ATTR_APP_ARTIFACT);
             if (isGlob(artifact))
                 throw new IllegalArgumentException("Glob pattern not allowed in " + ATTR_APP_ARTIFACT + " attribute.");
-            final Object app = lookup((isWrapperOfNonCapsule() && !isDependency(artifact)) ? toAbsolutePath(path(artifact)).toString() : sanitize(artifact), ATTR_APP_ARTIFACT);
+            final Object app = lookup((isWrapperOfNonCapsule() && !isDependency(artifact)) ? toAbsolutePath(path(artifact)).toString()
+                    : sanitize(artifact), ATTR_APP_ARTIFACT);
             classPath.add(app);
         }
 
@@ -2331,7 +2340,8 @@ public class Capsule implements Runnable, InvocationHandler {
             Path p = null;
             try {
                 p = findJarFile(c.getClass());
-            } catch (final IllegalStateException ignored) {} // Ignore non-JARs
+            } catch (final IllegalStateException ignored) {
+            } // Ignore non-JARs
             if (p != null && !classPath.contains(p))
                 classPath.add(p);
         } while ((c = sup) != null);
@@ -2471,63 +2481,6 @@ public class Capsule implements Runnable, InvocationHandler {
         return new ArrayList<String>(jvmArgs.values());
     }
 
-    /*
-     * Copied from Ant's CommandLine parser
-     * (cf http://grepcode.com/file/repo1.maven.org/maven2/org.apache.ant/ant/1.9.5/org/apache/tools/ant/types/Commandline.java#Commandline.translateCommandline%28java.lang.String%29).
-     */
-    private List<String> parseCommandLineArguments(String toProcess) {
-        if (toProcess == null || toProcess.length() == 0)
-            return emptyList();
-
-        final int normal = 0;
-        final int inQuote = 1;
-        final int inDoubleQuote = 2;
-        int state = normal;
-        final StringTokenizer tok = new StringTokenizer(toProcess, "\"\'\\ ", true);
-        final ArrayList<String> result = new ArrayList<String>();
-        final StringBuilder current = new StringBuilder();
-        boolean lastTokenHasBeenQuoted = false;
-
-        while (tok.hasMoreTokens()) {
-            String nextTok = tok.nextToken();
-            switch (state) {
-                case inQuote:
-                    if ("\'".equals(nextTok)) {
-                        lastTokenHasBeenQuoted = true;
-                        state = normal;
-                    } else
-                        current.append(nextTok);
-                    break;
-                case inDoubleQuote:
-                    if ("\"".equals(nextTok)) {
-                        lastTokenHasBeenQuoted = true;
-                        state = normal;
-                    } else
-                        current.append(nextTok);
-                    break;
-                default:
-                    if ("\'".equals(nextTok))
-                        state = inQuote;
-                    else if ("\"".equals(nextTok))
-                        state = inDoubleQuote;
-                    else if (" ".equals(nextTok)) {
-                        if (lastTokenHasBeenQuoted || current.length() != 0) {
-                            result.add(current.toString());
-                            current.setLength(0);
-                        }
-                    } else
-                        current.append(nextTok);
-                    lastTokenHasBeenQuoted = false;
-                    break;
-            }
-        }
-        if (lastTokenHasBeenQuoted || current.length() != 0)
-            result.add(current.toString());
-        if (state == inQuote || state == inDoubleQuote)
-            throw new IllegalArgumentException("unbalanced quotes in " + toProcess);
-        return result;
-    }
-
     private static void addJvmArg(String a, Map<String, String> args) {
         args.put(getJvmArgKey(a), a);
     }
@@ -2536,7 +2489,7 @@ public class Capsule implements Runnable, InvocationHandler {
         if (a.equals("-client") || a.equals("-server"))
             return "compiler";
         if (a.equals("-enablesystemassertions") || a.equals("-esa")
-                || a.equals("-disablesystemassertions") || a.equals("-dsa"))
+            || a.equals("-disablesystemassertions") || a.equals("-dsa"))
             return "systemassertions";
         if (a.equals("-jre-restrict-search") || a.equals("-no-jre-restrict-search"))
             return "-jre-restrict-search";
@@ -2621,11 +2574,11 @@ public class Capsule implements Runnable, InvocationHandler {
 
                 if (jhome == null) {
                     throw new RuntimeException("Could not find Java installation for requested version "
-                            + '[' + "Min. Java version: " + getAttribute(ATTR_MIN_JAVA_VERSION)
-                            + " JavaVersion: " + getAttribute(ATTR_JAVA_VERSION)
-                            + " Min. update version: " + getAttribute(ATTR_MIN_UPDATE_VERSION) + ']'
-                            + " (JDK required: " + jdk + ")"
-                            + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
+                                               + '[' + "Min. Java version: " + getAttribute(ATTR_MIN_JAVA_VERSION)
+                                               + " JavaVersion: " + getAttribute(ATTR_JAVA_VERSION)
+                                               + " Min. update version: " + getAttribute(ATTR_MIN_UPDATE_VERSION) + ']'
+                                               + " (JDK required: " + jdk + ")"
+                                               + ". You can override the used Java version with the -D" + PROP_CAPSULE_JAVA_HOME + " flag.");
                 }
             }
         }
@@ -2808,7 +2761,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     private static boolean isLegalModeName(String name) {
         return !name.contains("/") && !name.endsWith(".class") && !name.endsWith(".jar")
-                && !isJavaVersionSpecific(name) && !isOsSpecific(name);
+               && !isJavaVersionSpecific(name) && !isOsSpecific(name);
     }
 
     private void validateManifest(Manifest manifest) {
@@ -2819,12 +2772,12 @@ public class Capsule implements Runnable, InvocationHandler {
 
         if (manifest.getMainAttributes().getValue(ATTR_CLASS_PATH) != null)
             throw new IllegalStateException("Capsule manifest contains a " + ATTR_CLASS_PATH + " attribute."
-                    + " Use " + ATTR_APP_CLASS_PATH + " and/or " + ATTR_DEPENDENCIES + " instead.");
+                                            + " Use " + ATTR_APP_CLASS_PATH + " and/or " + ATTR_DEPENDENCIES + " instead.");
         validateNonModalAttributes(manifest);
 
         if (!hasAttribute(ATTR_APP_NAME) && hasModalAttribute(ATTR_APP_ARTIFACT))
             throw new IllegalArgumentException("App ID-related attribute " + ATTR_APP_ARTIFACT + " is defined in a modal section of the manifest. "
-                    + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
+                                               + " In this case, you must add the " + ATTR_APP_NAME + " attribute to the manifest's main section.");
 
         // validate section case-insensitivity
         final Set<String> sectionsLowercase = new HashSet<>();
@@ -3250,7 +3203,8 @@ public class Capsule implements Runnable, InvocationHandler {
                 map.put(lookupInAttribute(e.getKey(), ktype, attrib, value), lookupInAttribute(e.getValue(), vtype, attrib, value));
             return (T) map;
         } else if (type instanceof AtomicReference) {
-            return (T) (o instanceof String ? lookup((String) o, ((AtomicReference<String>) type).get(), attrib, (value instanceof Map ? ((Map<Object, Object>) value).get(o) : null)) : o);
+            return (T) (o instanceof String ? lookup((String) o, ((AtomicReference<String>) type).get(), attrib, (value instanceof Map
+                    ? ((Map<Object, Object>) value).get(o) : null)) : o);
         } else
             return (T) o;
     }
@@ -3281,7 +3235,7 @@ public class Capsule implements Runnable, InvocationHandler {
         String res = dependencyToLocalJar0(jar, dep, type, attrContext);
         return res != null ? path(toNativePath(res)) : null;
     }
-    
+
     private static String dependencyToLocalJar0(Path jar, String dep, String type, Entry<String, ?> attrContext) {
         final Matcher m = PAT_DEPENDENCY.matcher(dep);
         if (!m.matches())
@@ -3295,9 +3249,9 @@ public class Capsule implements Runnable, InvocationHandler {
         final String libdir = (caplet ? "capsule" : "lib");
 
         final String filename = artifact
-                + (version != null ? '-' + version : "")
-                + (classifier != null ? '-' + classifier : "")
-                + "." + type;
+                                + (version != null ? '-' + version : "")
+                                + (classifier != null ? '-' + classifier : "")
+                                + "." + type;
 
         final List<String> names = new ArrayList<>();
         if (group != null) {
@@ -3328,6 +3282,7 @@ public class Capsule implements Runnable, InvocationHandler {
     /////////// Paths ///////////////////////////////////
     /**
      * Converts a string file/dependency descriptor listed in the manifest to an opaque file descriptor used in attributes of type {@link #T_FILE() T_FILE}).
+     *
      * @param x           the file/dependency descriptor
      * @param type        the file type (extension), needed only for artifact coordinates; if {@code null}, the default ({@code jar}) is used.
      * @param attrContext the attribute containing the file reference to look up; may be {@code null}
@@ -3359,6 +3314,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     protected Object lookup0(Object x, String type, Entry<String, ?> attrContext, Object context) {
@@ -3436,6 +3392,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     protected List<Path> resolve0(Object x) {
@@ -3604,7 +3561,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     private static boolean shouldExtractFile(String fileName) {
         if (fileName.equals(Capsule.class.getName().replace('.', '/') + ".class")
-                || (fileName.startsWith(Capsule.class.getName().replace('.', '/') + "$") && fileName.endsWith(".class")))
+            || (fileName.startsWith(Capsule.class.getName().replace('.', '/') + "$") && fileName.endsWith(".class")))
             return false;
         if (fileName.endsWith(".class"))
             return false;
@@ -3664,7 +3621,7 @@ public class Capsule implements Runnable, InvocationHandler {
                 if (!Capsule.class.getName().equals(wrMainClass)) {
                     if (first != wr)
                         throw new RuntimeException("Main class of wrapper capsule " + wrapperCapsule + " (" + wrMainClass + ") is not " + Capsule.class.getName()
-                                + " and is of lower version ( " + wrapperVersion + ") than that of the wrapped capsule " + wrappedCapsule + " (" + wrappedVersion + "). Cannot merge.");
+                                                   + " and is of lower version ( " + wrapperVersion + ") than that of the wrapped capsule " + wrappedCapsule + " (" + wrappedVersion + "). Cannot merge.");
                     man.getMainAttributes().putValue(ATTR_MAIN_CLASS, wrMainClass);
                 }
 
@@ -3819,7 +3776,7 @@ public class Capsule implements Runnable, InvocationHandler {
     @SuppressWarnings("StringEquality")
     protected static final boolean isUnix() {
         return PLATFORM == OS_LINUX || PLATFORM == OS_SOLARIS || PLATFORM == OS_BSD
-                || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX;
+               || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX;
     }
 
     private static String getOS() {
@@ -3903,9 +3860,9 @@ public class Capsule implements Runnable, InvocationHandler {
             throw new RuntimeException("Error reading manifest from " + jar, e);
         }
     }
-    
+
     private static Map<Path, List<String>> jarEntriesCache = new HashMap<>();
-    
+
     private static Iterable<String> cachedEntries(Path jar) throws IOException {
         final Map<Path, List<String>> cache = jarEntriesCache;
         if (cache != null && cache.containsKey(jar))
@@ -4121,7 +4078,7 @@ public class Capsule implements Runnable, InvocationHandler {
                 String ver;
                 List<Path> homes;
                 if (Files.isDirectory(f) && (ver = isJavaDir(f.getFileName().toString())) != null
-                        && (homes = searchJavaHomeInDir(f)) != null && homes.size() > 0) {
+                    && (homes = searchJavaHomeInDir(f)) != null && homes.size() > 0) {
                     if (parseJavaVersion(ver)[3] == 0)
                         ver = getActualJavaVersion(first(homes));
                     multiput(dirs, ver, homes);
@@ -4151,7 +4108,7 @@ public class Capsule implements Runnable, InvocationHandler {
          */
         fileName = fileName.toLowerCase();
         if ((fileName.startsWith("java-") || fileName.startsWith("jdk-") || fileName.startsWith("jre-"))
-                && (fileName.contains("-openjdk") || fileName.contains("-oracle"))) {
+            && (fileName.contains("-openjdk") || fileName.contains("-oracle"))) {
             final Matcher m = Pattern.compile("^[^\\-]+-([0-9\\.]+)-").matcher(fileName);
             if (!m.find())
                 throw new RuntimeException("Cannot parse Java directory name: " + fileName);
@@ -4858,6 +4815,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * For internal use; subject to change/removal.
+     *
      * @deprecated exclude from javadocs
      */
     ClassLoader newClassLoader(ClassLoader parent, List<Path> ps) {
@@ -4945,7 +4903,8 @@ public class Capsule implements Runnable, InvocationHandler {
         final StackTraceElement[] st = t.getStackTrace();
         for (int i = 0; i < st.length; i++) {
             String className = st[i].getClassName();
-            className = (className != null && className.startsWith(prefix) && className.lastIndexOf('.') > prefix.length()) ? className.substring(prefix.length()) : className;
+            className = (className != null && className.startsWith(prefix) && className.lastIndexOf('.') > prefix.length())
+                    ? className.substring(prefix.length()) : className;
             st[i] = new StackTraceElement(className, st[i].getMethodName(), st[i].getFileName(), st[i].getLineNumber());
         }
         t.setStackTrace(st);
@@ -5204,6 +5163,7 @@ public class Capsule implements Runnable, InvocationHandler {
     /**
      * Prints a value to {@code System.err} and returns it.
      * Useful for debugging
+     *
      * @param label a prefix label
      * @param x     the value to trace
      * @return {@code x}
@@ -5377,7 +5337,7 @@ public class Capsule implements Runnable, InvocationHandler {
         /*
         * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/Agent.java
         * https://github.com/openjdk-mirror/jdk7u-jdk/blob/master/src/share/classes/sun/management/jmxremote/ConnectorBootstrap.java
-        */
+         */
         final String LOCAL_CONNECTOR_ADDRESS_PROP = "com.sun.management.jmxremote.localConnectorAddress";
 
         try {
@@ -5387,7 +5347,6 @@ public class Capsule implements Runnable, InvocationHandler {
             // final JMXConnectorServer jmxServer = JMXConnectorServerFactory.newJMXConnectorServer(new JMXServiceURL("rmi", null, 0), null, ManagementFactory.getPlatformMBeanServer());
             // jmxServer.start(); // prevents the app from shutting down (requires jmxServer.stop()). See ConnectorBootstrap.PermanentExporter
             // url = jmxServer.getAddress();
-
             final Properties agentProps = sun.misc.VMSupport.getAgentProperties();
             if (agentProps.get(LOCAL_CONNECTOR_ADDRESS_PROP) == null) {
                 log(LOG_VERBOSE, "Starting management agent");
@@ -5426,7 +5385,7 @@ public class Capsule implements Runnable, InvocationHandler {
     protected final MBeanServerConnection getMBeanServerConnection() {
         verifyAgent(false);
         verifyAfterStage(STAGE_LAUNCH);
-        synchronized(oc) {
+        synchronized (oc) {
             if (oc.jmxConnection == null) {
                 try {
                     send(MESSAGE_START_JMX, null);
@@ -5456,12 +5415,12 @@ public class Capsule implements Runnable, InvocationHandler {
             MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
             if (platformMBeanServer instanceof com.sun.jmx.mbeanserver.JmxMBeanServer) {
                 Field interceptorField = accessible(com.sun.jmx.mbeanserver.JmxMBeanServer.class.getDeclaredField("mbsInterceptor"));
-                this.origMBeanServer = (MBeanServer)interceptorField.get(platformMBeanServer);
+                this.origMBeanServer = (MBeanServer) interceptorField.get(platformMBeanServer);
                 MBeanServer interceptor = (MBeanServer) Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{MBeanServer.class}, this);
                 interceptorField.set(platformMBeanServer, interceptor);
             }
             // accessible(ManagementFactory.class.getDeclaredField("platformMBeanServer")).set(null, this);
-        } catch(ReflectiveOperationException e) {
+        } catch (ReflectiveOperationException e) {
             throw rethrow(e);
         }
     }
@@ -5486,7 +5445,7 @@ public class Capsule implements Runnable, InvocationHandler {
             log(LOG_DEBUG, "Exception while running method " + method + " with args: " + Arrays.toString(args) + ": " + t);
             log(LOG_DEBUG, t);
             throw e;
-        } catch(Exception e) {
+        } catch (Exception e) {
             log(LOG_VERBOSE, "Exception while running method " + method + " with args: " + Arrays.toString(args) + ": " + e);
             log(LOG_VERBOSE, e);
             throw e;
@@ -5681,7 +5640,7 @@ public class Capsule implements Runnable, InvocationHandler {
     private static String toString(ClassLoader cl) {
         return cl == null ? "null"
                 : cl.toString() + (cl instanceof URLClassLoader ? ("{" + Arrays.toString(((URLClassLoader) cl).getURLs()) + "}") : "")
-                + " --> " + toString(cl.getParent());
+                  + " --> " + toString(cl.getParent());
     }
     //</editor-fold>
 
