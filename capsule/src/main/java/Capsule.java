@@ -379,8 +379,15 @@ public class Capsule implements Runnable, InvocationHandler {
         System.exit(main0(args));
     }
 
+    /**
+     * Alternative main entry point that is not using System.exit(), thus avoiding callers to be terminated
+     * in an unexpected way. 
+     *
+     * @param args0 the command line arguments
+     * @return the exit code
+     */
     @SuppressWarnings({"BroadCatchBlock", "UnusedAssignment"})
-    private static int main0(String[] args0) {
+    public static int main0(String[] args0) {
         List<String> args = new ArrayList<>(asList(args0)); // list must be mutable b/c myCapsule() might mutate it
         Capsule capsule = null;
         try {
