@@ -266,6 +266,7 @@ public class Capsule implements Runnable, InvocationHandler {
     private static final String PROP_PRINT_JRES = OPTION("capsule.jvms", "false", "printJVMs", "Prints a list of all JVM installations found.");
     private static final String PROP_MERGE = OPTION("capsule.merge", null, "mergeCapsules", true, "Merges a wrapper capsule with a wrapped capsule.");
     private static final String PROP_HELP = OPTION("capsule.help", "false", "printHelp", "Prints this help message.");
+    private static final String PROP_INTROSPECT = OPTION("capsule.introspect", "false", "introspect", "Prints the values of all attributes.");
     private static final String PROP_MODE = OPTION("capsule.mode", null, null, "Picks the capsule mode to run.");
     private static final String PROP_RESET = OPTION("capsule.reset", "false", null, "Resets the capsule cache before launching. The capsule to be re-extracted (if applicable), and other possibly cached files will be recreated.");
     private static final String PROP_LOG_LEVEL = OPTION("capsule.log", "quiet", null, "Picks a log level. Must be one of none, quiet, verbose, or debug.");
@@ -632,8 +633,10 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private static String simpleToOption(String simple) {
-        if ("-h".equals(simple))
-            return PROP_HELP;
+        switch (simple) {
+            case "-h": return PROP_HELP;
+            case "-i": return PROP_INTROSPECT;
+        }
         for (String option : OPTIONS.keySet()) {
             if (simple.equals(optionToSimple(option)))
                 return option;
@@ -1261,6 +1264,29 @@ public class Capsule implements Runnable, InvocationHandler {
                     STDERR.println("  " + sb);
                 }
             }
+        }
+    }
+    
+    void introspect(List<String> args) {
+        for (Map.Entry<String, Object[]> entry : ATTRIBS.entrySet()) {
+            final String attrib = entry.getKey();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append(attrib);
+            if (entry.getValue()[ATTRIB_DESC] != null)
+                sb.append(" (").append(entry.getValue()[ATTRIB_DESC]).append(')');
+            sb.append(": ");
+            
+            sb.append("\n\t");
+            final Entry<String, ?> attr = attr(attrib);
+            final Object value = getAttributeNoLookup(attr);
+            sb.append(value);
+
+            final Object defaultValue = getAttributeDefaultValue(attr);
+            if (Objects.equals(value, defaultValue))
+                sb.append(" (default)");
+
+            STDERR.println("  " + sb);
         }
     }
 
@@ -2734,17 +2760,40 @@ public class Capsule implements Runnable, InvocationHandler {
      * @return the value of the attribute.
      */
     protected final <T> T getAttribute(Entry<String, T> attr) {
+        try {
+            T value = getAttributeNoLookup(attr);
+            if (hasFILE_T(type(attr))) {
+                value = lookupInAttribute(value, attr);
+                setContext("attribute", name(attr), value);
+            }
+            return value;
+        } catch (Exception e) {
+            throw new RuntimeException("Exception while getting attribute " + name(attr), e);
+        }
+    }
+
+    /**
+     * Returns the default value of the given manifest attribute.
+     *
+     * @param attr the attribute
+     * @return the default value of the attribute.
+     */
+    protected final <T> T getAttributeNoLookup(Entry<String, T> attr) {
         if (name(ATTR_CAPLETS).equals(name(attr)))
             return attribute0(attr);
         try {
             T value = cc.attribute(attr);
-            if (hasFILE_T(type(attr)))
-                value = lookupInAttribute(value, attr);
             setContext("attribute", name(attr), value);
             return value;
         } catch (Exception e) {
             throw new RuntimeException("Exception while getting attribute " + name(attr), e);
         }
+    }
+    
+    protected final <T> T getAttributeDefaultValue(Entry<String, T> attr) {
+        final Object[] conf = ATTRIBS.get(name(attr));
+        final T type = type(attr);
+        return defaultValue(type, (T) (conf != null ? conf[ATTRIB_DEFAULT] : null));
     }
 
     @SuppressWarnings("unchecked")
