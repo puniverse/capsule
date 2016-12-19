@@ -1268,6 +1268,7 @@ public class Capsule implements Runnable, InvocationHandler {
     }
     
     void introspect(List<String> args) {
+        STDERR.println("Capsule version: " + VERSION);
         for (Map.Entry<String, Object[]> entry : ATTRIBS.entrySet()) {
             final String attrib = entry.getKey();
 
