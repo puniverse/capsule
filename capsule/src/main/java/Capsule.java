@@ -2779,6 +2779,7 @@ public class Capsule implements Runnable, InvocationHandler {
      * @return the default value of the attribute.
      */
     protected final <T> T getAttributeNoLookup(Entry<String, T> attr) {
+        setContext("attribute", name(attr), null);
         if (name(ATTR_CAPLETS).equals(name(attr)))
             return attribute0(attr);
         try {
@@ -3170,7 +3171,7 @@ public class Capsule implements Runnable, InvocationHandler {
             final Map<String, String> smap = parse(s, sdefaultValue);
 //            if (ktype instanceof String && vtype instanceof String)
 //                return (T) smap;
-            final Map<Object, Object> map = new HashMap<>();
+            final Map<Object, Object> map = new LinkedHashMap<>();
             for (Map.Entry<String, String> se : smap.entrySet())
                 map.put(parsePrimitive(se.getKey(), ktype, capsule), parsePrimitive(se.getValue(), vtype, capsule));
             return (T) map;
@@ -3517,7 +3518,7 @@ public class Capsule implements Runnable, InvocationHandler {
                 final String rename = (String) fileAndRename[1];
                 Path res = lib;
 
-                if (rename != null && !lib.startsWith(getWritableAppCache())) {
+                if (rename != null && !rename.isEmpty() && !lib.startsWith(getWritableAppCache())) {
                     try {
                         res = getWritableAppCache().resolve(rename);
                         log(LOG_DEBUG, "Copying native lib " + lib + " to " + res);
