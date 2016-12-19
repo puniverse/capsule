@@ -636,6 +636,7 @@ public class Capsule implements Runnable, InvocationHandler {
         switch (simple) {
             case "-h": return PROP_HELP;
             case "-i": return PROP_INTROSPECT;
+            case "-v": return PROP_VERSION;
         }
         for (String option : OPTIONS.keySet()) {
             if (simple.equals(optionToSimple(option)))
