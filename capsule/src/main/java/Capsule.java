@@ -629,6 +629,13 @@ public class Capsule implements Runnable, InvocationHandler {
     }
 
     private static String optionToSimple(String option) {
+        if (PROP_HELP.equals(option))
+            return "-h";
+        if (PROP_INTROSPECT.equals(option))
+            return "-i";
+        if (PROP_VERSION.equals(option))
+            return "-v";
+
         return "-" + camelCaseToDashed(option.substring(CAPSULE_PROP_PREFIX.length())).replace('.', '-');
     }
 
