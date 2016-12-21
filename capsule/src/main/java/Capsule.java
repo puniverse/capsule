@@ -1157,7 +1157,7 @@ public class Capsule implements Runnable, InvocationHandler {
                     STDOUT.println(LOG_PREFIX + getManifestAttribute(attr));
             }
         }
-        STDOUT.println(LOG_PREFIX + "Capsule Version " + VERSION);
+        STDOUT.println(LOG_PREFIX + "Capsule version " + VERSION);
     }
 
     void printModes(List<String> args) {
