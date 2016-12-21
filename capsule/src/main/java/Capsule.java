@@ -1276,7 +1276,25 @@ public class Capsule implements Runnable, InvocationHandler {
     }
     
     void introspect(List<String> args) {
-        STDERR.println("Capsule version: " + VERSION);
+        STDERR.println("Capsule " + VERSION);
+        
+        final List<Class<? extends Capsule>> caplets = getCaplets();
+        STDERR.println("Caplets: ");
+        if (caplets.isEmpty())
+            STDERR.println("  NONE");
+        else {
+            for (Class<?> caplet : caplets) {
+                StringBuilder sb = new StringBuilder();
+                sb.append(caplet.getName());
+                String version;
+                sb.append((version = getClassVersion(caplet)) != null ? " " + version : "");
+                STDERR.println("  " + sb);
+            }
+        }
+        
+        STDERR.println();
+        
+        STDERR.println("Attributes");
         for (Map.Entry<String, Object[]> entry : ATTRIBS.entrySet()) {
             final String attrib = entry.getKey();
 
@@ -5752,6 +5770,10 @@ public class Capsule implements Runnable, InvocationHandler {
     private static String getCapsuleVersion(Class<?> cls) {
         while (cls != null && !cls.getName().equals(Capsule.class.getName()))
             cls = cls.getSuperclass();
+        return getClassVersion(cls);
+    }
+    
+    private static String getClassVersion(Class<?> cls) {
         if (cls == null)
             return null;
         try {
