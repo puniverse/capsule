@@ -2302,7 +2302,8 @@ public class Capsule implements Runnable, InvocationHandler {
 
     private void lookupAllDependencies() {
         final long start = clock();
-        getAttribute(ATTR_APP_ARTIFACT);
+        if (hasAttribute(ATTR_APP_ARTIFACT))
+            lookup(getAttribute(ATTR_APP_ARTIFACT));
         for (Map.Entry<String, Object[]> attr : ATTRIBS.entrySet()) {
             if (hasFILE_T(attr.getValue()[ATTRIB_TYPE]))
                 getAttribute(attr(attr.getKey()));
