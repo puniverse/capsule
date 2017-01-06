@@ -5569,7 +5569,9 @@ public class Capsule implements Runnable, InvocationHandler {
             }
             // accessible(ManagementFactory.class.getDeclaredField("platformMBeanServer")).set(null, this);
         } catch (ReflectiveOperationException e) {
-            throw rethrow(e);
+            log(LOG_VERBOSE, "Overriding platform MBeanServer failed: " + e.getMessage());
+            log(LOG_VERBOSE, e);
+//            throw rethrow(e);
         }
     }
 
