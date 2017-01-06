@@ -5568,7 +5568,7 @@ public class Capsule implements Runnable, InvocationHandler {
                 interceptorField.set(platformMBeanServer, interceptor);
             }
             // accessible(ManagementFactory.class.getDeclaredField("platformMBeanServer")).set(null, this);
-        } catch (ReflectiveOperationException e) {
+        } catch (Throwable e) { // JDK 9 throws an IllegalAccessError
             log(LOG_VERBOSE, "Overriding platform MBeanServer failed: " + e.getMessage());
             log(LOG_VERBOSE, e);
 //            throw rethrow(e);
