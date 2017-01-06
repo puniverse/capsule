@@ -5557,10 +5557,14 @@ public class Capsule implements Runnable, InvocationHandler {
     private void overridePlatformMBeanServer() {
         try {
             MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
+            
             if (platformMBeanServer instanceof com.sun.jmx.mbeanserver.JmxMBeanServer) {
+                final MBeanServer interceptor = (MBeanServer) Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{MBeanServer.class}, this);
+                
                 Field interceptorField = accessible(com.sun.jmx.mbeanserver.JmxMBeanServer.class.getDeclaredField("mbsInterceptor"));
+//                this.origMBeanServer = ((com.sun.jmx.mbeanserver.JmxMBeanServer) platformMBeanServer).getMBeanServerInterceptor();
                 this.origMBeanServer = (MBeanServer) interceptorField.get(platformMBeanServer);
-                MBeanServer interceptor = (MBeanServer) Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{MBeanServer.class}, this);
+//                ((com.sun.jmx.mbeanserver.JmxMBeanServer) platformMBeanServer).setMBeanServerInterceptor(interceptor);
                 interceptorField.set(platformMBeanServer, interceptor);
             }
             // accessible(ManagementFactory.class.getDeclaredField("platformMBeanServer")).set(null, this);
