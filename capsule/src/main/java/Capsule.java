@@ -181,6 +181,7 @@ public class Capsule implements Runnable, InvocationHandler {
     private static final String PROP_JAVA_VERSION = "java.version";
     private static final String PROP_JAVA_HOME = "java.home";
     private static final String PROP_OS_NAME = "os.name";
+    private static final String PROP_OS_ARCH = "os.arch";
     private static final String PROP_USER_HOME = "user.home";
     private static final String PROP_JAVA_LIBRARY_PATH = "java.library.path";
     private static final String PROP_FILE_SEPARATOR = "file.separator";
@@ -216,9 +217,26 @@ public class Capsule implements Runnable, InvocationHandler {
     private static final String OS_VMS = "vms";
 
     private static final String OS = getProperty(PROP_OS_NAME).toLowerCase();
+    private static final String OSArch = getProperty(PROP_OS_ARCH).toLowerCase();
 
     private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_BSD, OS_AIX, OS_POSIX, OS_UNIX, OS_POSIX, OS_VMS);
+
+    /**
+     * Aliases for os and architecture names (each entry has the form entry(alias,canonical)).
+     */
+    private static final Map<String,String> PLATFORM_ALIASES = immutableMap(
+            entry("osx", OS_MACOS),
+            entry("mac", OS_MACOS),
+            entry("win", OS_WINDOWS),
+            entry("x86_64", "amd64"),
+            entry("x86_32", "x86"),
+            entry("i386", "x86")
+    );
+
+
     private static final String PLATFORM = getOS();
+    private static final String PLATFORM_ARCH = getOSArch();
+    private static final String PLATFORM_CLASSIFIER = getOSClassifier(); // combine platform and arch compatible with Maven classifier.
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
     private static final String ENV_CACHE_NAME = "CAPSULE_CACHE_NAME";
@@ -2941,6 +2959,9 @@ public class Capsule implements Runnable, InvocationHandler {
         for (String os : PLATFORMS) {
             if (section.endsWith("-" + os))
                 return true;
+            // Support for os-arch specific sections.
+            if (section.startsWith(os + "-"))
+                return true;
         }
         return false;
     }
@@ -3010,6 +3031,9 @@ public class Capsule implements Runnable, InvocationHandler {
         if (PLATFORM == null)
             return null;
         String value = null;
+        // Check first for architecture-specific attributes
+        if (PLATFORM_CLASSIFIER != null)
+            value = getAttributes(manifest, mode, PLATFORM_CLASSIFIER).getValue(attr);
         if (value == null)
             value = getAttributes(manifest, mode, PLATFORM).getValue(attr);
         if (value == null && isUnix())
@@ -3864,6 +3888,48 @@ public class Capsule implements Runnable, InvocationHandler {
                || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX;
     }
 
+    /**
+     * Test whether the current OS is compatible with the
+     * given os, taking into account aliases
+     * @param os the OS string to test
+     * @return
+     */
+    protected static final boolean isOS(String os) {
+        String canonicalOS = PLATFORM_ALIASES.get(os);
+        if (canonicalOS == null)
+            canonicalOS = os;
+        return PLATFORM.equals(canonicalOS);
+    }
+
+    /**
+     * Test whether the current OS is compatible with the
+     * given os, taking into account aliases
+     * @param arch the arch string to test
+     * @return
+     */
+    protected static final boolean isArch(String arch) {
+        String canonicalArch = PLATFORM_ALIASES.get(arch);
+        if (canonicalArch == null)
+            canonicalArch = arch;
+        return PLATFORM_ARCH.equals(canonicalArch);
+    }
+
+    /**
+     * Test whether the current OS is compatible with the
+     * given os, taking into account aliases
+     * @param classifier the classifier string to test (of the form 'os-arch')
+     * @return
+     */
+    protected static final boolean isClassifier(String classifier) {
+        String[] parts = classifier.split("-", 2);
+        if (parts.length < 2) {
+            // Not a valid classifier
+            // We'll interpret it as just the OS
+            return isOS(parts[0]);
+        }
+        return isOS(parts[0]) && isArch(parts[1]);
+    }
+
     private static String getOS() {
         if (OS.startsWith("windows"))
             return OS_WINDOWS;
@@ -3884,6 +3950,24 @@ public class Capsule implements Runnable, InvocationHandler {
 
         log(LOG_QUIET, "WARNING Unrecognized OS: " + System.getProperty(PROP_OS_NAME));
         return null;
+    }
+
+    /**
+     * Canonicalized arch name
+     * @return
+     */
+    private static String getOSArch() {
+        String arch = PLATFORM_ALIASES.get(OSArch);
+        if (arch == null)
+            arch = OSArch;
+        return arch;
+    }
+
+    private static String getOSClassifier() {
+        String os = getOS();
+        if (os == null)
+            return null;
+        return os + "-" + getOSArch();
     }
 
     /**
@@ -4862,6 +4946,15 @@ public class Capsule implements Runnable, InvocationHandler {
     @SafeVarargs
     private static <T> Set<T> immutableSet(T... elems) {
         return unmodifiableSet(new HashSet<T>(asList(elems)));
+    }
+
+    @SafeVarargs
+    private static <K,V> Map<K,V> immutableMap(Entry<K,V>... entries) {
+        Map<K,V> map = new HashMap<>();
+        for (Entry<K,V> entry : entries) {
+            map.put(entry.getKey(), entry.getValue());
+        }
+        return unmodifiableMap(map);
     }
 
     private static boolean isEmpty(Object x) {
