@@ -2536,14 +2536,47 @@ public class Capsule implements Runnable, InvocationHandler {
         for (String a : getAttribute(ATTR_JVM_ARGS)) {
             a = a.trim();
             if (!a.isEmpty() && !a.startsWith("-Xbootclasspath:") && !a.startsWith("-javaagent:"))
-                addJvmArg(toNativePath(expand(a)), jvmArgs);
+                a = expand(a);
+                if (!addJava9ModulesJvmArg(a, jvmArgs)) {
+                    a = toNativePath(a);
+                    jvmArgs.put(getJvmArgKey(a), a);
+                }
         }
 
         return new ArrayList<String>(jvmArgs.values());
     }
 
-    private static void addJvmArg(String a, Map<String, String> args) {
-        args.put(getJvmArgKey(a), a);
+    private void addJvmArg(String a, Map<String, String> args) {
+        if (!addJava9ModulesJvmArg(a, args))
+            args.put(getJvmArgKey(a), a);
+    }
+
+    private static final Pattern JAVA_9_MODULES_ARGS_REGEX = Pattern.compile("--add-((modules)|(opens)|(exports)|(reads))(=(.*))?");
+    private String firstPartJava9ModulesArg = null;
+    /**
+     * Handle Java 9 Modules options with formats "--add-opens=java.base/java.lang=ALL-UNNAMED"
+     * or "--add-opens java.base/java.lang=ALL-UNNAMED". In this last case it will be 2 arguments
+     * to recombine.
+     * @return true if the argument is for Java 9 modules (for options that begin with "--add-")
+     */
+    private boolean addJava9ModulesJvmArg(String arg, Map<String, String> args)
+    {
+        Matcher matcher = JAVA_9_MODULES_ARGS_REGEX.matcher(arg);
+        if (matcher.matches()) {
+            boolean oneArgWithModuleAndPackage = matcher.group(7) != null;
+            if (oneArgWithModuleAndPackage)
+                args.put(arg, arg);
+            else
+                firstPartJava9ModulesArg = arg;
+            return true;
+        }
+        if (firstPartJava9ModulesArg != null) {
+            String fullArg = firstPartJava9ModulesArg + "=" + arg;
+            args.put(fullArg, fullArg);
+            firstPartJava9ModulesArg = null;
+            return true;
+        }
+        return false;
     }
 
     private static String getJvmArgKey(String a) {
