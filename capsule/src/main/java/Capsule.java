@@ -214,10 +214,11 @@ public class Capsule implements Runnable, InvocationHandler {
     private static final String OS_UNIX = "unix";
     private static final String OS_POSIX = "posix";
     private static final String OS_VMS = "vms";
+    private static final String OS_NONSTOP = "nonstop";
 
     private static final String OS = getProperty(PROP_OS_NAME).toLowerCase();
 
-    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_BSD, OS_AIX, OS_POSIX, OS_UNIX, OS_POSIX, OS_VMS);
+    private static final Set<String> PLATFORMS = immutableSet(OS_WINDOWS, OS_MACOS, OS_LINUX, OS_SOLARIS, OS_BSD, OS_AIX, OS_POSIX, OS_UNIX, OS_POSIX, OS_VMS, OS_NONSTOP);
     private static final String PLATFORM = getOS();
 
     private static final String ENV_CACHE_DIR = "CAPSULE_CACHE_DIR";
@@ -3861,7 +3862,7 @@ public class Capsule implements Runnable, InvocationHandler {
     @SuppressWarnings("StringEquality")
     protected static final boolean isUnix() {
         return PLATFORM == OS_LINUX || PLATFORM == OS_SOLARIS || PLATFORM == OS_BSD
-               || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX;
+               || PLATFORM == OS_AIX || PLATFORM == OS_HP_UX || PLATFORM == OS_NONSTOP;
     }
 
     private static String getOS() {
@@ -3881,6 +3882,9 @@ public class Capsule implements Runnable, InvocationHandler {
             return OS_HP_UX;
         if (OS.contains("vms"))
             return OS_VMS;
+        if (OS.contains("nonstop"))
+            return OS_NONSTOP;
+
 
         log(LOG_QUIET, "WARNING Unrecognized OS: " + System.getProperty(PROP_OS_NAME));
         return null;
