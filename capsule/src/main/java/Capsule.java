@@ -3495,7 +3495,7 @@ public class Capsule implements Runnable, InvocationHandler {
         if (res == null)
             throw new RuntimeException("Could not resolve " + x);
         if (res.isEmpty())
-            log(LOG_VERBOSE, "WARNING resolve " + x + " was empty");
+            log(LOG_VERBOSE, "resolve " + x + " was empty");
         return res;
     }
 
