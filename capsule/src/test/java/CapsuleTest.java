@@ -1571,6 +1571,15 @@ public class CapsuleTest {
     }
     //</editor-fold>
 
+    @Test
+    public void testParseJavaVersionLine() {
+        assertEquals("1.8.0_161",   Capsule.parseJavaVersionLine("java version \"1.8.0_161\""));
+        assertEquals("9.0.4",       Capsule.parseJavaVersionLine("java version \"9.0.4\""));
+        assertEquals("10",          Capsule.parseJavaVersionLine("java version \"10\" 2018-03-20"));
+        assertEquals("11",          Capsule.parseJavaVersionLine("java version \"11\" 2018-09-25"));
+        assertEquals("10.0.2",      Capsule.parseJavaVersionLine("openjdk version \"10.0.2\" 2018-07-17"));
+    }
+
     //<editor-fold defaultstate="collapsed" desc="Utilities">
     /////////// Utilities ///////////////////////////////////
     // may be called once per test (always writes jar into /capsule.jar)
