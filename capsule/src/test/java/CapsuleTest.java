@@ -647,6 +647,29 @@ public class CapsuleTest {
     }
 
     @Test
+    public void testJava9JVMArgs() throws Exception {
+        props.setProperty("capsule.jvm.args", "--add-opens=java.base/java.security=ALL-UNNAMED --add-exports java.base/java.lang=ALL-UNNAMED");
+
+        Jar jar = newCapsuleJar()
+            .setAttribute("Application-Class", "com.acme.Foo")
+            .setAttribute("JVM-Args", "--add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED")
+            .addEntry("foo.jar", emptyInputStream());
+
+        List<String> args = list("hi", "there");
+        List<String> cmdLine = list("--add-exports=java.base/java.nio=ALL-UNNAMED");
+
+        Capsule capsule = newCapsule(jar);
+        ProcessBuilder pb = capsule.prepareForLaunch(cmdLine, args);
+
+        assert_().that(getJvmArgs(pb)).containsSequence(list(
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+            "--add-opens=java.base/java.net=ALL-UNNAMED",
+            "--add-opens=java.base/java.security=ALL-UNNAMED",
+            "--add-exports=java.base/java.lang=ALL-UNNAMED",
+            "--add-exports=java.base/java.nio=ALL-UNNAMED"));
+    }
+
+    @Test
     public void testAgents() throws Exception {
         Jar jar = newCapsuleJar()
                 .setAttribute("Application-Class", "com.acme.Foo")
