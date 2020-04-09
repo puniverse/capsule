@@ -23,13 +23,13 @@ subprojects {
     apply plugin: 'java'
     apply plugin: 'info.solidsoft.pitest'
 
-    sourceCompatibility = '1.7'
-    targetCompatibility = '1.7'
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
 
     [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
     group               = "co.paralleluniverse"
-    version             = "1.0.4-SNAPSHOT"
+    version             = "1.0.4-ullink3-SNAPSHOT"
     status              = "integration"
     description         = "Simple Java deployment"
     ext.url             = "https://github.com/puniverse/capsule"
@@ -112,9 +112,9 @@ subprojects {
 //          xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport_${project.name}.xml"
         }
     }
-    
+
 //  check.dependsOn jacocoTestReport
-    
+
     javadoc {
         options.links = [ "http://docs.oracle.com/javase/7/docs/api/" ]
     }
@@ -133,19 +133,21 @@ subprojects {
     //        options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
     //    }
 
-    task javancss(dependsOn: 'classes') << {
-        ant {
-            logging.level = LogLevel.INFO
-            taskdef(name:'javancss', classname:'javancss.JavancssAntTask', classpath: configurations.javancss.asPath)
-            javancss(
-                srcdir:'src/main/java',
-                abortOnFail:'true',
-                generateReport:'true',
-                packageMetrics:'true',
-                classMetrics:'false',
-                functionMetrics:'false'
-                // outputFile: reportName,
-            )
+    task javancss(dependsOn: 'classes') {
+        doLast {
+            ant {
+                logging.level = LogLevel.INFO
+                taskdef(name: 'javancss', classname: 'javancss.JavancssAntTask', classpath: configurations.javancss.asPath)
+                javancss(
+                        srcdir: 'src/main/java',
+                        abortOnFail: 'true',
+                        generateReport: 'true',
+                        packageMetrics: 'true',
+                        classMetrics: 'false',
+                        functionMetrics: 'false'
+                        // outputFile: reportName,
+                )
+            }
         }
     }
 
@@ -249,7 +251,7 @@ task jacocoRootReport(type: org.gradle.testing.jacoco.tasks.JacocoReport) {
         html.enabled = true
         xml.enabled = true
         csv.enabled = false
-        xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
+        //xml.destination = "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
     }
 }
 

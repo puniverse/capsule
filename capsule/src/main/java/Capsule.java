@@ -68,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.jar.Attributes;
@@ -382,7 +383,7 @@ public class Capsule implements Runnable, InvocationHandler {
 
     /**
      * Alternative main entry point that is not using System.exit(), thus avoiding callers to be terminated
-     * in an unexpected way. 
+     * in an unexpected way.
      *
      * @param args0 the command line arguments
      * @return the exit code
@@ -1274,10 +1275,10 @@ public class Capsule implements Runnable, InvocationHandler {
             }
         }
     }
-    
+
     void introspect(List<String> args) {
         STDERR.println("Capsule " + VERSION);
-        
+
         final List<Class<? extends Capsule>> caplets = getCaplets();
         STDERR.println("Caplets: ");
         if (caplets.isEmpty())
@@ -1291,9 +1292,9 @@ public class Capsule implements Runnable, InvocationHandler {
                 STDERR.println("  " + sb);
             }
         }
-        
+
         STDERR.println();
-        
+
         STDERR.println("Attributes");
         for (Map.Entry<String, Object[]> entry : ATTRIBS.entrySet()) {
             final String attrib = entry.getKey();
@@ -1303,7 +1304,7 @@ public class Capsule implements Runnable, InvocationHandler {
             if (entry.getValue()[ATTRIB_DESC] != null)
                 sb.append(" (").append(entry.getValue()[ATTRIB_DESC]).append(')');
             sb.append(": ");
-            
+
             sb.append("\n\t");
             final Entry<String, ?> attr = attr(attrib);
             final Object value = getAttributeNoLookup(attr);
@@ -2176,10 +2177,13 @@ public class Capsule implements Runnable, InvocationHandler {
         Path extractedFile = dir.resolve(TIMESTAMP_FILE_NAME);
         if (!Files.exists(extractedFile))
             return false;
+        Optional<String> extractedTimeOptional = Files.readAllLines(extractedFile).stream().findFirst();
+        if (!extractedTimeOptional.isPresent())
+            return false;
+        final FileTime extractedTime = FileTime.fromMillis(Long.decode(extractedTimeOptional.get()));
         final FileTime jarTime = Files.getLastModifiedTime(getJarFile());
-        final FileTime extractedTime = Files.getLastModifiedTime(extractedFile);
-        final boolean fresh = extractedTime.compareTo(jarTime) >= 0;
-        log(LOG_DEBUG, "JAR timestamp: " + jarTime + " Cache timestamp: " + extractedTime + " (" + (fresh ? "fresh" : "stale") + ")");
+        final boolean fresh = extractedTime.compareTo(jarTime) != 0;
+        log(LOG_VERBOSE, "JAR timestamp: " + jarTime + " Cache timestamp: " + extractedTime + " (" + (fresh ? "fresh" : "stale") + ")");
         return fresh;
     }
 
@@ -2210,7 +2214,12 @@ public class Capsule implements Runnable, InvocationHandler {
         if (!oc.plainCache || oc.appDir == null || oc.cacheUpToDate)
             return;
         if (Files.isWritable(oc.appDir))
-            Files.createFile(oc.appDir.resolve(TIMESTAMP_FILE_NAME));
+        {
+            Path timestampFile = oc.appDir.resolve(TIMESTAMP_FILE_NAME);
+            Files.createFile(timestampFile);
+            long jarTime = Files.getLastModifiedTime(getJarFile()).toMillis();
+            Files.write(timestampFile, Collections.singleton(String.valueOf(jarTime)));
+        }
     }
 
     private void lockAppCache(Path dir) throws IOException {
@@ -2851,7 +2860,7 @@ public class Capsule implements Runnable, InvocationHandler {
             throw new RuntimeException("Exception while getting attribute " + name(attr), e);
         }
     }
-    
+
     protected final <T> T getAttributeDefaultValue(Entry<String, T> attr) {
         final Object[] conf = ATTRIBS.get(name(attr));
         final T type = type(attr);
@@ -4622,11 +4631,11 @@ public class Capsule implements Runnable, InvocationHandler {
         final int NORMAL = 0,
                 IN_QUOTE = 1,
                 IN_DOUBLE_QUOTE = 2;
-        
+
         final StringTokenizer tok = new StringTokenizer(str, "\"\'\\ ", true);
         final ArrayList<String> result = new ArrayList<>();
         final StringBuilder current = new StringBuilder();
-        
+
         int state = NORMAL;
         boolean lastTokenHasBeenQuoted = false;
         while (tok.hasMoreTokens()) {
@@ -5590,10 +5599,10 @@ public class Capsule implements Runnable, InvocationHandler {
     private void overridePlatformMBeanServer() {
         try {
             MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
-            
+
             if (platformMBeanServer instanceof com.sun.jmx.mbeanserver.JmxMBeanServer) {
                 final MBeanServer interceptor = (MBeanServer) Proxy.newProxyInstance(MY_CLASSLOADER, new Class<?>[]{MBeanServer.class}, this);
-                
+
                 Field interceptorField = accessible(com.sun.jmx.mbeanserver.JmxMBeanServer.class.getDeclaredField("mbsInterceptor"));
 //                this.origMBeanServer = ((com.sun.jmx.mbeanserver.JmxMBeanServer) platformMBeanServer).getMBeanServerInterceptor();
                 this.origMBeanServer = (MBeanServer) interceptorField.get(platformMBeanServer);
@@ -5812,7 +5821,7 @@ public class Capsule implements Runnable, InvocationHandler {
             cls = cls.getSuperclass();
         return getClassVersion(cls);
     }
-    
+
     private static String getClassVersion(Class<?> cls) {
         if (cls == null)
             return null;
