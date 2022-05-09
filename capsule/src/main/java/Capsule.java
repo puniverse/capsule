@@ -4252,7 +4252,7 @@ public class Capsule implements Runnable, InvocationHandler {
         return true;
     }
 
-    private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)(\\.(?<minor>\\d+))?(?:\\.(?<patch>\\d+))?(_(?<update>\\d+))?(-(?<pre>[^-]+))?(-(?<build>.+))?");
+    private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)(\\.(?<minor>\\d+))?(?:\\.(?<patch>\\d+))?[0-9.]*(_(?<update>\\d+))?(-(?<pre>[^-]+))?(-(?<build>.+))?");
 
     // visible for testing
     static int[] parseJavaVersion(String v) {
