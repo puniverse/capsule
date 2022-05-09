@@ -1292,6 +1292,10 @@ public class CapsuleTest {
         ver = Capsule.parseJavaVersion("1.8.0_30-ea");
         assertArrayEquals(ver, ints(1, 8, 0, 30, -3));
         assertEquals("1.8.0_30-ea", Capsule.toJavaVersionString(ver));
+
+        ver = Capsule.parseJavaVersion("11.0.14.1");
+        assertArrayEquals(ver, ints(1, 11, 14, 0, 0));
+        assertEquals("1.11.14", Capsule.toJavaVersionString(ver));
     }
 
     @Test
