@@ -4245,17 +4245,19 @@ public class Capsule implements Runnable, InvocationHandler {
         return javaHome.resolve("bin").resolve(exec + (isWindows() ? ".exe" : ""));
     }
 
-    private static final Pattern PAT_JAVA_VERSION_LINE = Pattern.compile(".*?\"(.+?)\"");
+    private static final Pattern PAT_JAVA_VERSION_LINE = Pattern.compile(".*?\"(.+?)\".*");
+
+    static String parseJavaVersionLine(String versionLine) {
+        final Matcher m = PAT_JAVA_VERSION_LINE.matcher(versionLine);
+        if (!m.matches())
+            throw new IllegalArgumentException("Could not parse version line: " + versionLine);
+        return m.group(1);
+    }
 
     private static String getActualJavaVersion(Path javaHome) {
         try {
             final String versionLine = first(exec(1, true, new ProcessBuilder(asList(getJavaExecutable0(javaHome).toString(), "-version"))));
-            final Matcher m = PAT_JAVA_VERSION_LINE.matcher(versionLine);
-            if (!m.matches())
-                throw new IllegalArgumentException("Could not parse version line: " + versionLine);
-            final String version = m.group(1);
-
-            return version;
+            return parseJavaVersionLine(versionLine);
         } catch (Exception e) {
             throw rethrow(e);
         }
@@ -4335,7 +4337,7 @@ public class Capsule implements Runnable, InvocationHandler {
         return true;
     }
 
-    private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)(\\.(?<minor>\\d+))?(?:\\.(?<patch>\\d+))?(_(?<update>\\d+))?(-(?<pre>[^-]+))?(-(?<build>.+))?");
+    private static final Pattern PAT_JAVA_VERSION = Pattern.compile("(?<major>\\d+)(\\.(?<minor>\\d+))?(?:\\.(?<patch>\\d+))?[0-9.]*(_(?<update>\\d+))?(-(?<pre>[^-]+))?(-(?<build>.+))?");
 
     // visible for testing
     static int[] parseJavaVersion(String v) {

@@ -54,7 +54,7 @@ public class PathClassLoader extends FlexibleClassLoader {
                 final Path p = paths[i];
                 final Object o;
                 if (Files.isRegularFile(p))
-                    o = FileSystems.newFileSystem(p, null);
+                    o = FileSystems.newFileSystem(p.toUri(), null, null);
                 else
                     o = p;
                 os[i] = o;

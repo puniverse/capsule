@@ -37,7 +37,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
-import java.util.jar.Pack200;
+//import java.util.jar.Pack200;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -56,7 +56,7 @@ public class Jar {
     private final Manifest manifest;
     private final JarInputStream jis;
     private JarOutputStream jos;
-    private Pack200.Packer packer;
+    //private Pack200.Packer packer;
     private String jarPrefixStr;
     private Path jarPrefixFile;
     private boolean sealed;
@@ -567,10 +567,10 @@ public class Jar {
      * @param packer
      * @return {@code this}
      */
-    public Jar setPacker(Pack200.Packer packer) {
+    /*public Jar setPacker(Pack200.Packer packer) {
         this.packer = packer;
         return this;
-    }
+    }*/
 
     /**
      * If set to true true, a header will be added to the JAR file when written, that will make the JAR an executable file in POSIX environments.
@@ -706,9 +706,9 @@ public class Jar {
             throw new IllegalStateException("Cannot write to another target if setOutputStream has been called");
         final byte[] content = ((ByteArrayOutputStream) this.os).toByteArray();
 
-        if (packer != null)
+        /*if (packer != null)
             packer.pack(new JarInputStream(new ByteArrayInputStream(content)), os);
-        else
+        else*/
             os.write(content);
 
         os.close();

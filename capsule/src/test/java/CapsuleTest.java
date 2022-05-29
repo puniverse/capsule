@@ -1292,6 +1292,10 @@ public class CapsuleTest {
         ver = Capsule.parseJavaVersion("1.8.0_30-ea");
         assertArrayEquals(ver, ints(1, 8, 0, 30, -3));
         assertEquals("1.8.0_30-ea", Capsule.toJavaVersionString(ver));
+
+        ver = Capsule.parseJavaVersion("11.0.14.1");
+        assertArrayEquals(ver, ints(1, 11, 14, 0, 0));
+        assertEquals("1.11.14", Capsule.toJavaVersionString(ver));
     }
 
     @Test
@@ -1570,6 +1574,15 @@ public class CapsuleTest {
         }
     }
     //</editor-fold>
+
+    @Test
+    public void testParseJavaVersionLine() {
+        assertEquals("1.8.0_161",   Capsule.parseJavaVersionLine("java version \"1.8.0_161\""));
+        assertEquals("9.0.4",       Capsule.parseJavaVersionLine("java version \"9.0.4\""));
+        assertEquals("10",          Capsule.parseJavaVersionLine("java version \"10\" 2018-03-20"));
+        assertEquals("11",          Capsule.parseJavaVersionLine("java version \"11\" 2018-09-25"));
+        assertEquals("10.0.2",      Capsule.parseJavaVersionLine("openjdk version \"10.0.2\" 2018-07-17"));
+    }
 
     //<editor-fold defaultstate="collapsed" desc="Utilities">
     /////////// Utilities ///////////////////////////////////
